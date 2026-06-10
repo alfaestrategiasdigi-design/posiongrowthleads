@@ -260,17 +260,55 @@ function KpiCard({ icon: Icon, label, value, delta, accent, sub }: any) {
   );
 }
 
-function Stat({ label, value, hint, good, bad }: { label: string; value: string; hint?: string; good?: boolean; bad?: boolean }) {
+function KpiPremium({ icon: Icon, label, value, delta, loading, sub, prevLabel }: { icon: any; label: string; value: string | null; delta?: number; loading?: boolean; sub?: string; prevLabel?: string }) {
+  const showSkeleton = loading || value === null;
+  const positive = (delta ?? 0) >= 0;
   return (
-    <div className="p-3 rounded-xl bg-muted/30 border border-border/60">
-      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
-      <div className="font-display text-2xl num mt-1 leading-none">{value}</div>
-      {hint && (
-        <div className={`text-xs mt-2 flex items-center gap-1 num ${good ? "text-emerald-400" : bad ? "text-rose-400" : "text-muted-foreground"}`}>
-          {good && <CheckCircle2 className="w-3 h-3" />}
-          {bad && <AlertTriangle className="w-3 h-3" />}
-          {hint}
+    <div
+      className="p-7 group transition-colors"
+      style={{
+        background: "#0B1224",
+        border: "1px solid rgba(255,255,255,0.07)",
+        borderRadius: 16,
+      }}
+    >
+      <div
+        className="flex items-center justify-center mb-5"
+        style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(212,175,55,0.10)" }}
+      >
+        <Icon className="w-4 h-4 text-primary" />
+      </div>
+      <div
+        className="mb-3"
+        style={{ fontFamily: "Inter, sans-serif", fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#94A3B8" }}
+      >
+        {label}
+      </div>
+      {showSkeleton ? (
+        <div className="kpi-skeleton" style={{ height: 38, width: "70%", borderRadius: 6 }} />
+      ) : (
+        <div
+          className="num leading-none"
+          style={{ fontFamily: "Syne, sans-serif", fontSize: 36, fontWeight: 800, color: "#FFFFFF", letterSpacing: "-0.02em" }}
+        >
+          {value}
         </div>
+      )}
+      {typeof delta === "number" && !showSkeleton && (
+        <div className="mt-4 inline-flex items-center gap-1"
+          style={{
+            background: positive ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)",
+            color: positive ? "#22C55E" : "#EF4444",
+            borderRadius: 100, padding: "2px 10px",
+            fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 600,
+          }}
+        >
+          {positive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+          {positive ? "+" : ""}{(delta * 100).toFixed(1)}% vs {prevLabel ?? "anterior"}
+        </div>
+      )}
+      {sub && !showSkeleton && (
+        <div className="mt-3 text-xs truncate" style={{ color: "#94A3B8" }}>{sub}</div>
       )}
     </div>
   );
