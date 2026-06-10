@@ -76,8 +76,8 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        display: ['"Fraunces"', '"Playfair Display"', "Georgia", "serif"],
-        sans: ['"Inter Tight"', '"Inter"', "system-ui", "sans-serif"],
+        display: ['Syne', '"Inter Tight"', "system-ui", "sans-serif"],
+        sans: ['Inter', '"Inter Tight"', "system-ui", "sans-serif"],
         mono: ['"JetBrains Mono"', "ui-monospace", "monospace"],
       },
       keyframes: {

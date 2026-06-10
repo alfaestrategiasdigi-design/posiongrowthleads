@@ -28,8 +28,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     e.preventDefault();
     setSubmitting(true); setLoginError("");
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setLoginError("E-mail ou senha incorretos");
+    if (error) { setLoginError("E-mail ou senha incorretos"); setSubmitting(false); return; }
+    const { getPostLoginRedirect } = await import("@/lib/auth/post-login-redirect");
+    const target = await getPostLoginRedirect();
     setSubmitting(false);
+    navigate(target, { replace: true });
   };
 
   const handleLogout = async () => { await supabase.auth.signOut(); navigate("/"); };

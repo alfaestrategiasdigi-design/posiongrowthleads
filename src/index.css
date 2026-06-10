@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter+Tight:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,94 +6,92 @@
 
 @layer base {
   :root {
-    /* Posion Growth - Black & Champagne Gold */
-    --background: 0 0% 4%;
-    --foreground: 40 30% 96%;
+    /* POSION — Premium Dark Navy + Champagne Gold */
+    --background: 232 65% 5%;
+    --foreground: 0 0% 100%;
 
-    --card: 0 0% 7%;
-    --card-foreground: 40 30% 96%;
+    --card: 226 53% 9%;
+    --card-foreground: 0 0% 100%;
 
-    --popover: 0 0% 7%;
-    --popover-foreground: 40 30% 96%;
+    --popover: 226 53% 9%;
+    --popover-foreground: 0 0% 100%;
 
-    --primary: 42 55% 62%;
-    --primary-foreground: 0 0% 4%;
+    --primary: 46 65% 52%;
+    --primary-foreground: 232 65% 5%;
 
-    --secondary: 0 0% 10%;
-    --secondary-foreground: 40 30% 96%;
+    --secondary: 224 53% 12%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 0 0% 12%;
-    --muted-foreground: 40 10% 70%;
+    --muted: 224 53% 12%;
+    --muted-foreground: 215 20% 65%;
 
-    --accent: 42 55% 62%;
-    --accent-foreground: 0 0% 4%;
+    --accent: 46 65% 52%;
+    --accent-foreground: 232 65% 5%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 42 20% 18%;
-    --input: 0 0% 14%;
-    --ring: 42 55% 62%;
+    --border: 224 30% 18%;
+    --input: 224 53% 12%;
+    --ring: 46 65% 52%;
 
     --radius: 0.75rem;
 
-    /* Custom colors */
-    --header-bg: 0 0% 3%;
-    --header-foreground: 40 30% 96%;
-    --success: 142 76% 36%;
+    --header-bg: 232 65% 4%;
+    --header-foreground: 0 0% 100%;
+    --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
     --whatsapp: 142 70% 49%;
     --whatsapp-foreground: 0 0% 100%;
 
-    /* Gold accents */
-    --gold: 42 55% 62%;
-    --gold-bright: 45 70% 72%;
-    --gold-deep: 38 50% 45%;
+    --gold: 46 65% 52%;
+    --gold-bright: 46 75% 67%;
+    --gold-deep: 42 60% 42%;
 
-    --sidebar-background: 0 0% 5%;
-    --sidebar-foreground: 40 30% 96%;
-    --sidebar-primary: 42 55% 62%;
-    --sidebar-primary-foreground: 0 0% 4%;
-    --sidebar-accent: 0 0% 10%;
-    --sidebar-accent-foreground: 40 30% 96%;
-    --sidebar-border: 42 20% 15%;
-    --sidebar-ring: 42 55% 62%;
+    --sidebar-background: 226 56% 7%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 46 65% 52%;
+    --sidebar-primary-foreground: 232 65% 5%;
+    --sidebar-accent: 224 53% 12%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 224 30% 16%;
+    --sidebar-ring: 46 65% 52%;
   }
 
   .dark {
-    --background: 0 0% 4%;
-    --foreground: 40 30% 96%;
-    --card: 0 0% 7%;
-    --card-foreground: 40 30% 96%;
-    --popover: 0 0% 7%;
-    --popover-foreground: 40 30% 96%;
-    --primary: 42 55% 62%;
-    --primary-foreground: 0 0% 4%;
-    --secondary: 0 0% 10%;
-    --secondary-foreground: 40 30% 96%;
-    --muted: 0 0% 12%;
-    --muted-foreground: 40 10% 70%;
-    --accent: 42 55% 62%;
-    --accent-foreground: 0 0% 4%;
-    --destructive: 0 62.8% 40%;
-    --destructive-foreground: 40 30% 96%;
-    --border: 42 20% 18%;
-    --input: 0 0% 14%;
-    --ring: 42 55% 62%;
-    --header-bg: 0 0% 3%;
-    --header-foreground: 40 30% 96%;
-    --success: 142 76% 36%;
+    --background: 232 65% 5%;
+    --foreground: 0 0% 100%;
+    --card: 226 53% 9%;
+    --card-foreground: 0 0% 100%;
+    --popover: 226 53% 9%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 46 65% 52%;
+    --primary-foreground: 232 65% 5%;
+    --secondary: 224 53% 12%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 224 53% 12%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 46 65% 52%;
+    --accent-foreground: 232 65% 5%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 224 30% 18%;
+    --input: 224 53% 12%;
+    --ring: 46 65% 52%;
+    --header-bg: 232 65% 4%;
+    --header-foreground: 0 0% 100%;
+    --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
     --whatsapp: 142 70% 49%;
     --whatsapp-foreground: 0 0% 100%;
-    --sidebar-background: 0 0% 5%;
-    --sidebar-foreground: 40 30% 96%;
-    --sidebar-primary: 42 55% 62%;
-    --sidebar-primary-foreground: 0 0% 4%;
-    --sidebar-accent: 0 0% 10%;
-    --sidebar-accent-foreground: 40 30% 96%;
-    --sidebar-border: 42 20% 15%;
-    --sidebar-ring: 42 55% 62%;
+    --sidebar-background: 226 56% 7%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 46 65% 52%;
+    --sidebar-primary-foreground: 232 65% 5%;
+    --sidebar-accent: 224 53% 12%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 224 30% 16%;
+    --sidebar-ring: 46 65% 52%;
   }
 }
 
@@ -104,28 +102,32 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter Tight', system-ui, sans-serif;
-    font-feature-settings: 'ss01', 'cv11', 'cv02';
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: 'ss01', 'cv11';
+    font-size: 13px;
+    line-height: 1.6;
   }
 
-  h1, h2, h3, .font-display {
-    font-family: 'Fraunces', 'Playfair Display', Georgia, serif;
-    font-variation-settings: 'opsz' 96;
+  h1, h2, h3, h4, .font-display {
+    font-family: 'Syne', system-ui, sans-serif;
     letter-spacing: -0.02em;
-    font-weight: 500;
+    font-weight: 700;
+    color: hsl(var(--foreground));
   }
+
+  h1 { font-size: 2rem; font-weight: 800; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 0.875rem; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(var(--primary)); }
 
   .font-mono, .tabular {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
   }
 
-  /* Numbers should always be tabular for crisp dashboards */
   .num {
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.01em;
   }
-
 }
 
 @layer components {
