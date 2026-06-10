@@ -6,6 +6,7 @@ import AppSidebar from "./AppSidebar";
 import { Loader2, Lock, AlertCircle, LogOut, Mail, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getPostLoginRedirect } from "@/lib/auth/post-login-redirect";
 import type { User } from "@supabase/supabase-js";
 
 interface AdminLayoutProps {
@@ -23,38 +24,28 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", session.user.id)
-          .eq("role", "admin")
-          .single();
-        setIsAdmin(!!roles);
-      } else {
-        setIsAdmin(false);
-      }
+    const resolve = async (sessionUser: User | null) => {
+      setUser(sessionUser);
+      if (!sessionUser) { setIsAdmin(false); setIsLoading(false); return; }
+      const { data: roles } = await supabase
+        .from("user_roles").select("role")
+        .eq("user_id", sessionUser.id).eq("role", "admin").maybeSingle();
+      const admin = !!roles;
+      setIsAdmin(admin);
       setIsLoading(false);
-    });
-
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", session.user.id)
-          .eq("role", "admin")
-          .single();
-        setIsAdmin(!!roles);
+      // Tenant user que caiu no /admin → redireciona ao seu painel
+      if (!admin) {
+        const target = await getPostLoginRedirect();
+        if (target.startsWith("/app/")) navigate(target, { replace: true });
       }
-      setIsLoading(false);
-    });
+    };
 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      resolve(session?.user ?? null);
+    });
+    supabase.auth.getSession().then(({ data: { session } }) => resolve(session?.user ?? null));
     return () => subscription.unsubscribe();
-  }, []);
+  }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
