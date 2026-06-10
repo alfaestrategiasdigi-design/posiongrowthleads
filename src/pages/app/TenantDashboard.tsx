@@ -179,21 +179,34 @@ export default function TenantDashboard() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Globe className="w-4 h-4 text-primary" /> Internacional & Premium</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
+          <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Globe className="w-4 h-4 text-primary" /> Segmentação de Público</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <Stat label="Receita internacional" value={BRL(intlTotal)} hint={total ? PCT(intlTotal / total) : "—"} />
-              <Stat label="Vendas internacionais" value={intl.length.toString()} />
+              <div className="p-3 rounded-xl bg-muted/30 border border-border/60">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Nacional</div>
+                <div className="font-display text-2xl num mt-1 leading-none">{BRL(total - intlTotal)}</div>
+                <div className="text-[11px] text-muted-foreground mt-1 num">{count - intl.length} vendas</div>
+              </div>
+              <div className="p-3 rounded-xl bg-primary/5 border border-primary/20">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-primary/80">Internacional</div>
+                <div className="font-display text-2xl num mt-1 leading-none gold-gradient-text">{BRL(intlTotal)}</div>
+                <div className="text-[11px] text-muted-foreground mt-1 num">{intl.length} vendas</div>
+              </div>
             </div>
-            <div className="space-y-2 max-h-48 overflow-auto">
-              {intl.slice(0, 6).map((s) => (
-                <div key={s.id} className="flex items-center justify-between text-sm border-b border-border/40 pb-1">
-                  <span className="truncate">{s.patient_name}</span>
-                  <span className="font-medium">{BRL(Number(s.amount))}</span>
+            {intl.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground border-b border-border/40 pb-1">Vendas Internacionais</div>
+                <div className="space-y-1.5 max-h-48 overflow-auto">
+                  {intl.map((s) => (
+                    <div key={s.id} className="flex items-center justify-between text-sm">
+                      <span className="truncate flex items-center gap-2">{s.patient_name} <CheckCircle2 className="w-3 h-3 text-emerald-400" /></span>
+                      <span className="font-medium num">{BRL(Number(s.amount))}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {intl.length === 0 && <div className="text-xs text-muted-foreground">Nenhuma venda internacional no período.</div>}
-            </div>
+              </div>
+            )}
+            {intl.length === 0 && <div className="text-xs text-muted-foreground">Nenhuma venda internacional no período.</div>}
           </CardContent>
         </Card>
       </div>
