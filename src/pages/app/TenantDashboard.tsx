@@ -78,7 +78,7 @@ export default function TenantDashboard() {
     return Array.from(set).sort().reverse().map((k) => { const [y, m] = k.split("-").map(Number); return { y, m }; });
   }, [sales]);
 
-  if (loading) return <div className="p-8 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+  const prevMonthLabel = MONTHS[(month === 1 ? 12 : month - 1) - 1].toLowerCase();
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-[1600px] mx-auto">
@@ -101,12 +101,12 @@ export default function TenantDashboard() {
         </Select>
       </div>
 
-      {/* Headline KPIs */}
+      {/* Headline KPIs — Premium Flat */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard icon={DollarSign} label="Faturamento" value={BRL(total)} delta={varTotal} accent />
-        <KpiCard icon={ShoppingBag} label="Nº de Vendas" value={count.toString()} delta={varCount} />
-        <KpiCard icon={Receipt} label="Ticket Médio" value={BRL(avg)} delta={varTicket} />
-        <KpiCard icon={Trophy} label="Maior Venda" value={maxSale ? BRL(maxSale.amount) : "—"} sub={maxSale?.patient_name} />
+        <KpiPremium icon={DollarSign} label="Faturamento" value={total ? BRL(total) : null} delta={varTotal} loading={loading} prevLabel={prevMonthLabel} />
+        <KpiPremium icon={ShoppingBag} label="Nº de Vendas" value={count ? count.toString() : null} delta={varCount} loading={loading} prevLabel={prevMonthLabel} />
+        <KpiPremium icon={Receipt} label="Ticket Médio" value={avg ? BRL(avg) : null} delta={varTicket} loading={loading} prevLabel={prevMonthLabel} />
+        <KpiPremium icon={Trophy} label="Maior Venda" value={maxSale ? BRL(maxSale.amount) : null} sub={maxSale?.patient_name} loading={loading} />
       </div>
 
       {/* Goals */}
@@ -179,21 +179,34 @@ export default function TenantDashboard() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Globe className="w-4 h-4 text-primary" /> Internacional & Premium</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
+          <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Globe className="w-4 h-4 text-primary" /> Segmentação de Público</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <Stat label="Receita internacional" value={BRL(intlTotal)} hint={total ? PCT(intlTotal / total) : "—"} />
-              <Stat label="Vendas internacionais" value={intl.length.toString()} />
+              <div className="p-3 rounded-xl bg-muted/30 border border-border/60">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Nacional</div>
+                <div className="font-display text-2xl num mt-1 leading-none">{BRL(total - intlTotal)}</div>
+                <div className="text-[11px] text-muted-foreground mt-1 num">{count - intl.length} vendas</div>
+              </div>
+              <div className="p-3 rounded-xl bg-primary/5 border border-primary/20">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-primary/80">Internacional</div>
+                <div className="font-display text-2xl num mt-1 leading-none gold-gradient-text">{BRL(intlTotal)}</div>
+                <div className="text-[11px] text-muted-foreground mt-1 num">{intl.length} vendas</div>
+              </div>
             </div>
-            <div className="space-y-2 max-h-48 overflow-auto">
-              {intl.slice(0, 6).map((s) => (
-                <div key={s.id} className="flex items-center justify-between text-sm border-b border-border/40 pb-1">
-                  <span className="truncate">{s.patient_name}</span>
-                  <span className="font-medium">{BRL(Number(s.amount))}</span>
+            {intl.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground border-b border-border/40 pb-1">Vendas Internacionais</div>
+                <div className="space-y-1.5 max-h-48 overflow-auto">
+                  {intl.map((s) => (
+                    <div key={s.id} className="flex items-center justify-between text-sm">
+                      <span className="truncate flex items-center gap-2">{s.patient_name} <CheckCircle2 className="w-3 h-3 text-emerald-400" /></span>
+                      <span className="font-medium num">{BRL(Number(s.amount))}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {intl.length === 0 && <div className="text-xs text-muted-foreground">Nenhuma venda internacional no período.</div>}
-            </div>
+              </div>
+            )}
+            {intl.length === 0 && <div className="text-xs text-muted-foreground">Nenhuma venda internacional no período.</div>}
           </CardContent>
         </Card>
       </div>
@@ -247,17 +260,55 @@ function KpiCard({ icon: Icon, label, value, delta, accent, sub }: any) {
   );
 }
 
-function Stat({ label, value, hint, good, bad }: { label: string; value: string; hint?: string; good?: boolean; bad?: boolean }) {
+function KpiPremium({ icon: Icon, label, value, delta, loading, sub, prevLabel }: { icon: any; label: string; value: string | null; delta?: number; loading?: boolean; sub?: string; prevLabel?: string }) {
+  const showSkeleton = loading || value === null;
+  const positive = (delta ?? 0) >= 0;
   return (
-    <div className="p-3 rounded-xl bg-muted/30 border border-border/60">
-      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
-      <div className="font-display text-2xl num mt-1 leading-none">{value}</div>
-      {hint && (
-        <div className={`text-xs mt-2 flex items-center gap-1 num ${good ? "text-emerald-400" : bad ? "text-rose-400" : "text-muted-foreground"}`}>
-          {good && <CheckCircle2 className="w-3 h-3" />}
-          {bad && <AlertTriangle className="w-3 h-3" />}
-          {hint}
+    <div
+      className="p-7 group transition-colors"
+      style={{
+        background: "#0B1224",
+        border: "1px solid rgba(255,255,255,0.07)",
+        borderRadius: 16,
+      }}
+    >
+      <div
+        className="flex items-center justify-center mb-5"
+        style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(212,175,55,0.10)" }}
+      >
+        <Icon className="w-4 h-4 text-primary" />
+      </div>
+      <div
+        className="mb-3"
+        style={{ fontFamily: "Inter, sans-serif", fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#94A3B8" }}
+      >
+        {label}
+      </div>
+      {showSkeleton ? (
+        <div className="kpi-skeleton" style={{ height: 38, width: "70%", borderRadius: 6 }} />
+      ) : (
+        <div
+          className="num leading-none"
+          style={{ fontFamily: "Syne, sans-serif", fontSize: 36, fontWeight: 800, color: "#FFFFFF", letterSpacing: "-0.02em" }}
+        >
+          {value}
         </div>
+      )}
+      {typeof delta === "number" && !showSkeleton && (
+        <div className="mt-4 inline-flex items-center gap-1"
+          style={{
+            background: positive ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)",
+            color: positive ? "#22C55E" : "#EF4444",
+            borderRadius: 100, padding: "2px 10px",
+            fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 600,
+          }}
+        >
+          {positive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+          {positive ? "+" : ""}{(delta * 100).toFixed(1)}% vs {prevLabel ?? "anterior"}
+        </div>
+      )}
+      {sub && !showSkeleton && (
+        <div className="mt-3 text-xs truncate" style={{ color: "#94A3B8" }}>{sub}</div>
       )}
     </div>
   );
@@ -284,5 +335,21 @@ function BreakdownCard({ title, rows, total }: { title: string; rows: { name: st
         {rows.length === 0 && <div className="text-sm text-muted-foreground">Sem dados.</div>}
       </CardContent>
     </Card>
+  );
+}
+
+function Stat({ label, value, hint, good, bad }: { label: string; value: string; hint?: string; good?: boolean; bad?: boolean }) {
+  return (
+    <div className="p-3 rounded-xl bg-muted/30 border border-border/60">
+      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
+      <div className="font-display text-2xl num mt-1 leading-none">{value}</div>
+      {hint && (
+        <div className={`text-xs mt-2 flex items-center gap-1 num ${good ? "text-emerald-400" : bad ? "text-rose-400" : "text-muted-foreground"}`}>
+          {good && <CheckCircle2 className="w-3 h-3" />}
+          {bad && <AlertTriangle className="w-3 h-3" />}
+          {hint}
+        </div>
+      )}
+    </div>
   );
 }

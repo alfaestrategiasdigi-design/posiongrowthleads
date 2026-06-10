@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_tokens: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          tenant_id: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          tenant_id: string
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          tenant_id?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_tokens_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           appointment_type: string
@@ -1159,10 +1197,14 @@ export type Database = {
       }
       zapi_connections: {
         Row: {
+          api_key: string | null
           client_token: string
           created_at: string
           id: string
           instance_id: string
+          instance_name: string | null
+          instance_url: string | null
+          provider: string
           status: string
           tenant_id: string | null
           token: string
@@ -1170,10 +1212,14 @@ export type Database = {
           webhook_url: string | null
         }
         Insert: {
+          api_key?: string | null
           client_token: string
           created_at?: string
           id?: string
           instance_id: string
+          instance_name?: string | null
+          instance_url?: string | null
+          provider?: string
           status?: string
           tenant_id?: string | null
           token: string
@@ -1181,10 +1227,14 @@ export type Database = {
           webhook_url?: string | null
         }
         Update: {
+          api_key?: string | null
           client_token?: string
           created_at?: string
           id?: string
           instance_id?: string
+          instance_name?: string | null
+          instance_url?: string | null
+          provider?: string
           status?: string
           tenant_id?: string | null
           token?: string
