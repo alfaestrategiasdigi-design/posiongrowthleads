@@ -96,9 +96,14 @@ export default function TenantsPage() {
                     <TableCell><Badge className={t.status === "active" ? "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/20" : ""}>{t.status}</Badge></TableCell>
                     <TableCell className="text-sm text-muted-foreground">{new Date(t.created_at).toLocaleDateString("pt-BR")}</TableCell>
                     <TableCell className="text-right">
-                      <Button asChild size="sm" variant="outline" className="gap-2">
-                        <Link to={`/app/${t.slug}/dashboard`}><ExternalLink className="w-3 h-3" /> Abrir</Link>
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="outline" className="gap-2" onClick={() => setUsersFor(t)}>
+                          <Users className="w-3 h-3" /> Usuários
+                        </Button>
+                        <Button asChild size="sm" variant="outline" className="gap-2">
+                          <Link to={`/app/${t.slug}/dashboard`}><ExternalLink className="w-3 h-3" /> Abrir</Link>
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -107,6 +112,13 @@ export default function TenantsPage() {
           )}
         </CardContent>
       </Card>
+
+      <TenantUsersDialog
+        tenantId={usersFor?.id ?? null}
+        tenantName={usersFor?.name ?? ""}
+        open={!!usersFor}
+        onOpenChange={(v) => !v && setUsersFor(null)}
+      />
     </div>
   );
 }
