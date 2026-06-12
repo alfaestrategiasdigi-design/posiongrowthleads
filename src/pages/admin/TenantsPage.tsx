@@ -21,6 +21,7 @@ export default function TenantsPage() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [creating, setCreating] = useState(false);
+  const [usersFor, setUsersFor] = useState<Tenant | null>(null);
 
   const refresh = async () => {
     setLoading(true);
