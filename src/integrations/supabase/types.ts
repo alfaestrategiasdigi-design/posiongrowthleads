@@ -1111,6 +1111,7 @@ export type Database = {
       }
       tenant_users: {
         Row: {
+          active: boolean
           created_at: string
           id: string
           role: Database["public"]["Enums"]["tenant_role"]
@@ -1118,6 +1119,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          active?: boolean
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["tenant_role"]
@@ -1125,6 +1127,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          active?: boolean
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["tenant_role"]
@@ -1269,6 +1272,10 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_tenant_admin: {
+        Args: { _tenant_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "user"
