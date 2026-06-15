@@ -3,7 +3,7 @@ import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, MessageCircle, Kanban, Users, DollarSign, Calendar, Settings, Building2, FileText, Bell } from "lucide-react";
+import { LayoutDashboard, MessageCircle, Kanban, Users, DollarSign, Calendar, Settings, Building2, FileText, Bell, Sparkles } from "lucide-react";
 import type { Tenant } from "@/hooks/useTenant";
 import posionLogo from "@/assets/posion/logo-posion.png.asset.json";
 
@@ -24,6 +24,7 @@ export default function TenantSidebar({ tenant, isSuperAdmin }: Props) {
     { title: "Recall", url: `${base}/recall`, icon: Bell },
     { title: "Fechamentos", url: `${base}/vendas`, icon: DollarSign },
     { title: "Agenda", url: `${base}/agenda`, icon: Calendar },
+    { title: "Planos", url: `${base}/planos`, icon: Sparkles },
     { title: "Configurações", url: `${base}/config`, icon: Settings },
   ];
 

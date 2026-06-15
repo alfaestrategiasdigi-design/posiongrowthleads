@@ -265,50 +265,64 @@ function KpiPremium({ icon: Icon, label, value, delta, loading, sub, prevLabel }
   const positive = (delta ?? 0) >= 0;
   return (
     <div
-      className="p-7 group transition-colors"
+      className="relative p-5 group transition-all hover:border-primary/30 overflow-hidden min-w-0"
       style={{
-        background: "#0B1224",
-        border: "1px solid rgba(255,255,255,0.07)",
+        background: "linear-gradient(180deg, #0E1730 0%, #0A1124 100%)",
+        border: "1px solid rgba(255,255,255,0.06)",
         borderRadius: 16,
+        boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 24px -12px rgba(0,0,0,0.6)",
       }}
     >
-      <div
-        className="flex items-center justify-center mb-5"
-        style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(212,175,55,0.10)" }}
-      >
-        <Icon className="w-4 h-4 text-primary" />
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+
+      <div className="flex items-center justify-between mb-4">
+        <div
+          style={{ fontFamily: "Inter, sans-serif", fontSize: 10, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "#94A3B8" }}
+        >
+          {label}
+        </div>
+        <div
+          className="flex items-center justify-center shrink-0"
+          style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(212,175,55,0.10)", border: "1px solid rgba(212,175,55,0.18)" }}
+        >
+          <Icon className="w-3.5 h-3.5 text-primary" />
+        </div>
       </div>
-      <div
-        className="mb-3"
-        style={{ fontFamily: "Inter, sans-serif", fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#94A3B8" }}
-      >
-        {label}
-      </div>
+
       {showSkeleton ? (
-        <div className="kpi-skeleton" style={{ height: 38, width: "70%", borderRadius: 6 }} />
+        <div className="kpi-skeleton" style={{ height: 30, width: "70%", borderRadius: 6 }} />
       ) : (
         <div
-          className="num leading-none"
-          style={{ fontFamily: "Syne, sans-serif", fontSize: 36, fontWeight: 800, color: "#FFFFFF", letterSpacing: "-0.02em" }}
+          className="num leading-[1.05] tabular-nums truncate"
+          title={value ?? undefined}
+          style={{
+            fontFamily: "Syne, sans-serif",
+            fontSize: "clamp(20px, 2.1vw, 30px)",
+            fontWeight: 700,
+            color: "#FFFFFF",
+            letterSpacing: "-0.02em",
+            maxWidth: "100%",
+          }}
         >
           {value}
         </div>
       )}
+
       {typeof delta === "number" && !showSkeleton && (
-        <div className="mt-4 inline-flex items-center gap-1"
+        <div className="mt-3 inline-flex items-center gap-1"
           style={{
             background: positive ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)",
             color: positive ? "#22C55E" : "#EF4444",
-            borderRadius: 100, padding: "2px 10px",
-            fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 600,
+            borderRadius: 100, padding: "2px 8px",
+            fontFamily: "Inter, sans-serif", fontSize: 10.5, fontWeight: 600,
           }}
         >
           {positive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-          {positive ? "+" : ""}{(delta * 100).toFixed(1)}% vs {prevLabel ?? "anterior"}
+          {positive ? "+" : ""}{(delta * 100).toFixed(1)}% <span className="opacity-70 ml-0.5 font-normal">vs {prevLabel ?? "anterior"}</span>
         </div>
       )}
       {sub && !showSkeleton && (
-        <div className="mt-3 text-xs truncate" style={{ color: "#94A3B8" }}>{sub}</div>
+        <div className="mt-2 text-[11px] truncate" style={{ color: "#94A3B8" }} title={sub}>{sub}</div>
       )}
     </div>
   );

@@ -27,6 +27,7 @@ import TenantAgenda from "./pages/app/TenantAgenda";
 import TenantConfig from "./pages/app/TenantConfig";
 import TenantProntuario from "./pages/app/TenantProntuario";
 import TenantRecall from "./pages/app/TenantRecall";
+import TenantPlans from "./pages/app/TenantPlans";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +52,7 @@ const App = () => (
           <Route path="/app/:tenantSlug/config" element={<AppLayout><TenantConfig /></AppLayout>} />
           <Route path="/app/:tenantSlug/prontuario" element={<AppLayout><TenantProntuario /></AppLayout>} />
           <Route path="/app/:tenantSlug/recall" element={<AppLayout><TenantRecall /></AppLayout>} />
+          <Route path="/app/:tenantSlug/planos" element={<AppLayout><TenantPlans /></AppLayout>} />
 
           {/* Posion master admin */}
           <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
