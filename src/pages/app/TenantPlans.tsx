@@ -67,8 +67,13 @@ export default function TenantPlans() {
   const { tenant } = useTenant();
   const [cycle, setCycle] = useState<Cycle>("mensal");
 
-  function priceFor(base: number) {
-    return cycle === "mensal" ? base : Math.round(base * (1 - DISCOUNT));
+  function monthlyEquivalent(base: number) {
+    // valor /mês equivalente quando contratado trimestral
+    return Math.round(base * (1 - DISCOUNT));
+  }
+  function quarterlyTotal(base: number) {
+    // total cobrado no trimestre (3 meses × valor com 10% off)
+    return Math.round(base * 3 * (1 - DISCOUNT));
   }
 
   return (
