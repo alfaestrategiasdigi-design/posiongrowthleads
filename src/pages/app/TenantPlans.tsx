@@ -115,8 +115,10 @@ export default function TenantPlans() {
       <div className="grid md:grid-cols-3 gap-5 md:gap-6">
         {PLANS.map((p) => {
           const Icon = p.icon;
-          const price = priceFor(p.price);
           const isFeatured = !!p.featured;
+          const monthEq = monthlyEquivalent(p.price);
+          const qTotal = quarterlyTotal(p.price);
+          const savings = p.price * 3 - qTotal;
           return (
             <div
               key={p.id}
@@ -147,19 +149,27 @@ export default function TenantPlans() {
               <p className="text-sm text-muted-foreground min-h-[40px]">{p.tagline}</p>
 
               <div className="mt-6 pb-6 border-b border-white/10">
-                <div className="flex items-baseline gap-1">
-                  <span className="font-display text-5xl font-bold tabular-nums">{BRL(price)}</span>
-                  <span className="text-muted-foreground text-sm">/mês</span>
-                </div>
-                {cycle === "trimestral" && (
-                  <div className="text-xs text-emerald-400 mt-1 font-medium">
-                    Você economiza {BRL((p.price - price) * 3)} a cada trimestre
-                  </div>
-                )}
-                {cycle === "mensal" && (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Ou {BRL(Math.round(p.price * (1 - DISCOUNT)))}/mês no trimestral
-                  </div>
+                {cycle === "mensal" ? (
+                  <>
+                    <div className="flex items-baseline gap-1">
+                      <span className="font-display text-5xl font-bold tabular-nums">{BRL(p.price)}</span>
+                      <span className="text-muted-foreground text-sm">/mês</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-2">
+                      Ou <span className="text-emerald-400 font-semibold">{BRL(qTotal)}</span> a cada 3 meses ({BRL(monthEq)}/mês &middot; −10%)
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-baseline gap-1">
+                      <span className="font-display text-5xl font-bold tabular-nums">{BRL(qTotal)}</span>
+                      <span className="text-muted-foreground text-sm">/trimestre</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-2">
+                      Equivale a <span className="text-foreground font-semibold tabular-nums">{BRL(monthEq)}/mês</span>
+                      <span className="text-emerald-400 ml-1 font-medium">— economize {BRL(savings)}</span>
+                    </div>
+                  </>
                 )}
               </div>
 
