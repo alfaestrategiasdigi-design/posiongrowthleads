@@ -18,6 +18,7 @@ import logoAsset from "@/assets/posion/logo-posion.png.asset.json";
 const navItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Clínicas Clientes", url: "/admin/tenants", icon: Building2 },
+  { title: "Contratos", url: "/admin/contratos", icon: FileText },
   { title: "Agendamentos", url: "/admin/agendamentos", icon: Calendar },
   { title: "Kanban", url: "/admin/kanban", icon: Kanban },
   { title: "Leads", url: "/admin/leads", icon: Users },
