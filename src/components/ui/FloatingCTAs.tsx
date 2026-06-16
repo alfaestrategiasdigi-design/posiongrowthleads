@@ -1,6 +1,6 @@
 import { MessageCircle, Sparkles } from "lucide-react";
 
-const WA_NUMBER = "5577810820 64".replace(/\s/g, ""); // +55 77 8108-2064
+const WA_NUMBER = "557781082064"; // +55 77 8108-2064
 const WA_MSG = encodeURIComponent("Olá! Quero saber mais sobre a Posion Growth.");
 
 const FloatingCTAs = () => {
