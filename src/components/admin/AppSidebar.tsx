@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, MessageCircle, Kanban, Users, Settings, LogOut, UserPlus, ListChecks, Facebook, Calendar, Building2, TrendingUp } from "lucide-react";
+import { LayoutDashboard, MessageCircle, Kanban, Users, Settings, LogOut, UserPlus, ListChecks, Facebook, Calendar, Building2, TrendingUp, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar,
