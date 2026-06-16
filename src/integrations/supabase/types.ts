@@ -148,7 +148,7 @@ export type Database = {
           notes: string | null
           period_end: string
           period_start: string
-          tenant_id: string | null
+          tenant_id: string
           updated_at: string
         }
         Insert: {
@@ -165,7 +165,7 @@ export type Database = {
           notes?: string | null
           period_end: string
           period_start: string
-          tenant_id?: string | null
+          tenant_id: string
           updated_at?: string
         }
         Update: {
@@ -182,7 +182,7 @@ export type Database = {
           notes?: string | null
           period_end?: string
           period_start?: string
-          tenant_id?: string | null
+          tenant_id?: string
           updated_at?: string
         }
         Relationships: [
@@ -464,15 +464,11 @@ export type Database = {
       }
       facebook_webhook_config: {
         Row: {
-          ad_account_id: string | null
           app_id: string | null
           app_secret: string | null
           connected_page_name: string | null
           created_at: string
-          default_tenant_id: string | null
           id: string
-          last_campaigns_sync_at: string | null
-          last_leads_sync_at: string | null
           last_validated_at: string | null
           last_validation_result: Json | null
           page_access_token: string | null
@@ -482,15 +478,11 @@ export type Database = {
           verify_token: string
         }
         Insert: {
-          ad_account_id?: string | null
           app_id?: string | null
           app_secret?: string | null
           connected_page_name?: string | null
           created_at?: string
-          default_tenant_id?: string | null
           id?: string
-          last_campaigns_sync_at?: string | null
-          last_leads_sync_at?: string | null
           last_validated_at?: string | null
           last_validation_result?: Json | null
           page_access_token?: string | null
@@ -500,15 +492,11 @@ export type Database = {
           verify_token: string
         }
         Update: {
-          ad_account_id?: string | null
           app_id?: string | null
           app_secret?: string | null
           connected_page_name?: string | null
           created_at?: string
-          default_tenant_id?: string | null
           id?: string
-          last_campaigns_sync_at?: string | null
-          last_leads_sync_at?: string | null
           last_validated_at?: string | null
           last_validation_result?: Json | null
           page_access_token?: string | null
@@ -516,59 +504,6 @@ export type Database = {
           token_expires_at?: string | null
           updated_at?: string
           verify_token?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "facebook_webhook_config_default_tenant_id_fkey"
-            columns: ["default_tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      facebook_webhook_events: {
-        Row: {
-          ad_id: string | null
-          campaign_id: string | null
-          error: string | null
-          form_id: string | null
-          id: string
-          lead_id: string | null
-          leadgen_id: string | null
-          page_id: string | null
-          processed: boolean
-          raw_body: Json | null
-          received_at: string
-          signature_valid: boolean | null
-        }
-        Insert: {
-          ad_id?: string | null
-          campaign_id?: string | null
-          error?: string | null
-          form_id?: string | null
-          id?: string
-          lead_id?: string | null
-          leadgen_id?: string | null
-          page_id?: string | null
-          processed?: boolean
-          raw_body?: Json | null
-          received_at?: string
-          signature_valid?: boolean | null
-        }
-        Update: {
-          ad_id?: string | null
-          campaign_id?: string | null
-          error?: string | null
-          form_id?: string | null
-          id?: string
-          lead_id?: string | null
-          leadgen_id?: string | null
-          page_id?: string | null
-          processed?: boolean
-          raw_body?: Json | null
-          received_at?: string
-          signature_valid?: boolean | null
         }
         Relationships: []
       }
@@ -1600,15 +1535,11 @@ export type Database = {
       get_facebook_config_meta: {
         Args: never
         Returns: {
-          ad_account_id: string
           app_id: string
           connected_page_name: string
-          default_tenant_id: string
           has_app_secret: boolean
           has_page_access_token: boolean
           id: string
-          last_campaigns_sync_at: string
-          last_leads_sync_at: string
           last_validated_at: string
           last_validation_result: Json
           page_id: string
