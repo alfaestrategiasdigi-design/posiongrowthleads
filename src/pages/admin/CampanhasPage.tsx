@@ -314,11 +314,13 @@ export default function CampanhasPage() {
           <h1 className="text-2xl font-bold tracking-tight">Campanhas & Tráfego</h1>
           <p className="text-sm text-muted-foreground">KPIs de performance, ROI, CPA, CAC e funil de conversão.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Select value={tenantId} onValueChange={setTenantId}>
-            <SelectTrigger className="w-[220px]"><SelectValue placeholder="Clínica" /></SelectTrigger>
+            <SelectTrigger className="w-[260px]"><SelectValue placeholder="Conta" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas as clínicas</SelectItem>
+              <SelectItem value="all">
+                <span className="flex items-center gap-2"><Crown className="w-3.5 h-3.5 text-accent" /> Admin Master (conta principal)</span>
+              </SelectItem>
               {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
             </SelectContent>
           </Select>
