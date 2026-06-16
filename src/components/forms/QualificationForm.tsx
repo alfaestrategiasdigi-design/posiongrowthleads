@@ -206,30 +206,30 @@ const QualificationForm = () => {
   const value = data[current.field];
 
   return (
-    <div className="card-elevated p-6 md:p-8 animate-slide-up">
+    <div className="relative rounded-2xl border border-[hsl(38_60%_55%/0.20)] bg-[hsl(232_65%_6%/0.95)] backdrop-blur-xl p-6 md:p-8 shadow-[0_0_60px_-15px_hsl(38_60%_55%/0.15)] animate-slide-up">
       <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/30 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-accent" />
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-[hsl(38_60%_55%/0.12)] border border-[hsl(38_60%_55%/0.30)] flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-[hsl(38_70%_60%)]" />
           </div>
           <div>
-            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Diagnóstico</p>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Diagnóstico</p>
             <p className="text-sm font-semibold text-foreground">{current.label}</p>
           </div>
         </div>
-        <span className="text-xs text-muted-foreground tabular-nums">
+        <span className="text-xs text-muted-foreground tabular-nums font-medium">
           {String(step + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
         </span>
       </div>
 
       <div className="h-1 w-full bg-secondary rounded-full overflow-hidden mb-7">
         <div
-          className="h-full gradient-accent transition-all duration-500 ease-out"
+          className="h-full bg-gradient-to-r from-[hsl(38_60%_45%)] to-[hsl(38_70%_60%)] transition-all duration-500 ease-out"
           style={{ width: `${progress}%` }}
         />
       </div>
 
-      <h3 className="font-display text-2xl md:text-3xl text-foreground mb-6 leading-snug">
+      <h3 className="font-display text-2xl md:text-[1.75rem] text-foreground mb-6 leading-snug tracking-tight">
         {current.question}
       </h3>
 
@@ -251,13 +251,13 @@ const QualificationForm = () => {
                   }}
                   className={`group flex items-center justify-between text-left px-4 py-3.5 rounded-xl border transition-all ${
                     selected
-                      ? "border-accent bg-accent/10 text-foreground"
-                      : "border-border bg-secondary/60 text-foreground/85 hover:border-accent/50 hover:bg-secondary"
+                      ? "border-[hsl(38_60%_55%/0.50)] bg-[hsl(38_60%_55%/0.10)] text-foreground"
+                      : "border-border/60 bg-secondary/40 text-foreground/85 hover:border-[hsl(38_60%_55%/0.35)] hover:bg-secondary/70"
                   }`}
                 >
                   <span className="text-sm md:text-base">{opt}</span>
                   <CheckCircle2
-                    className={`w-5 h-5 transition-opacity ${selected ? "opacity-100 text-accent" : "opacity-0"}`}
+                    className={`w-5 h-5 transition-opacity ${selected ? "opacity-100 text-[hsl(38_70%_60%)]" : "opacity-0"}`}
                   />
                 </button>
               );
@@ -277,7 +277,7 @@ const QualificationForm = () => {
               }
             }}
             maxLength={current.type === "tel" ? 15 : 160}
-            className="bg-secondary border-border focus:border-accent text-base py-6"
+            className="bg-[hsl(232_50%_10%/0.60)] border-border/60 focus:border-[hsl(38_60%_55%/0.50)] text-base py-6 rounded-xl placeholder:text-muted-foreground/50"
           />
         )}
       </div>
@@ -290,7 +290,7 @@ const QualificationForm = () => {
           variant="ghost"
           onClick={back}
           disabled={step === 0 || loading}
-          className="text-muted-foreground hover:text-foreground gap-2"
+          className="text-muted-foreground hover:text-foreground gap-2 text-sm"
         >
           <ArrowLeft className="w-4 h-4" /> Voltar
         </Button>
@@ -300,7 +300,7 @@ const QualificationForm = () => {
             type="button"
             onClick={next}
             disabled={loading}
-            className="gradient-accent hover:opacity-90 text-primary-foreground font-semibold gap-2 px-6 py-5 rounded-xl btn-glow"
+            className="bg-gradient-to-r from-[hsl(38_55%_45%)] to-[hsl(38_65%_55%)] hover:opacity-90 text-[hsl(232_65%_5%)] font-semibold gap-2 px-6 py-5 rounded-xl shadow-lg shadow-[hsl(38_60%_55%/0.20)] transition-all hover:shadow-[hsl(38_60%_55%/0.35)] hover:-translate-y-0.5"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
             {step === total - 1 ? "Enviar diagnóstico" : "Continuar"}
@@ -309,7 +309,7 @@ const QualificationForm = () => {
         )}
       </div>
 
-      <p className="text-[11px] text-muted-foreground/70 text-center mt-6 tracking-wide">
+      <p className="text-[11px] text-muted-foreground/60 text-center mt-6 tracking-wide leading-relaxed">
         Vagas limitadas. Atendimento apenas para clínicas com fit estratégico.
       </p>
     </div>
