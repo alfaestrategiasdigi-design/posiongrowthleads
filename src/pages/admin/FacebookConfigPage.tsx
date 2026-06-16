@@ -120,12 +120,17 @@ type ConfigMeta = {
   id: string;
   verify_token: string;
   page_id: string | null;
+  app_id: string | null;
+  connected_page_name: string | null;
+  token_expires_at: string | null;
   has_page_access_token: boolean;
   has_app_secret: boolean;
   last_validated_at: string | null;
   last_validation_result: any;
   updated_at: string;
 };
+
+type FbPage = { id: string; name: string; access_token: string; category: string | null; tasks: string[] };
 
 type ValidationStep = {
   id: string;
