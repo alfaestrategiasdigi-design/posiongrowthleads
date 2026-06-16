@@ -18,6 +18,7 @@ import FacebookConfigPage from "./pages/admin/FacebookConfigPage";
 import CampanhasPage from "./pages/admin/CampanhasPage";
 import AppointmentsPage from "./pages/admin/AppointmentsPage";
 import TenantsPage from "./pages/admin/TenantsPage";
+import ContractsPage from "./pages/admin/ContractsPage";
 import AppLayout from "./components/app/AppLayout";
 import TenantDashboard from "./pages/app/TenantDashboard";
 import TenantSales from "./pages/app/TenantSales";
@@ -58,6 +59,7 @@ const App = () => (
           {/* Posion master admin */}
           <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
           <Route path="/admin/tenants" element={<AdminLayout><TenantsPage /></AdminLayout>} />
+          <Route path="/admin/contratos" element={<AdminLayout><ContractsPage /></AdminLayout>} />
           <Route path="/admin/agendamentos" element={<AdminLayout><AppointmentsPage /></AdminLayout>} />
           <Route path="/admin/whatsapp" element={<AdminLayout><WhatsAppChat /></AdminLayout>} />
           <Route path="/admin/kanban" element={<AdminLayout><KanbanPage /></AdminLayout>} />

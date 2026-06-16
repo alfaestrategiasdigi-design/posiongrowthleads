@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, MessageCircle, Kanban, Users, Settings, LogOut, UserPlus, ListChecks, Facebook, Calendar, Building2, TrendingUp } from "lucide-react";
+import { LayoutDashboard, MessageCircle, Kanban, Users, Settings, LogOut, UserPlus, ListChecks, Facebook, Calendar, Building2, TrendingUp, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar,
@@ -18,6 +18,7 @@ import logoAsset from "@/assets/posion/logo-posion.png.asset.json";
 const navItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Clínicas Clientes", url: "/admin/tenants", icon: Building2 },
+  { title: "Contratos", url: "/admin/contratos", icon: FileText },
   { title: "Agendamentos", url: "/admin/agendamentos", icon: Calendar },
   { title: "Kanban", url: "/admin/kanban", icon: Kanban },
   { title: "Leads", url: "/admin/leads", icon: Users },
