@@ -49,19 +49,25 @@ async function insertLead(payload: Record<string, string>, meta: {
   const email     = pick(payload, ["email","e_mail"]);
   const empresa   = pick(payload, ["company_name","empresa","clinica","nome_empresa","nome_clinica"]);
   const cidade    = pick(payload, ["city","cidade","cidade_estado"]);
-  const especialidade = pick(payload, ["especialidade","specialty","nicho"]);
-  const faturamento   = pick(payload, ["faturamento","revenue","faturamento_mensal"]);
+  const especialidade = pick(payload, ["especialidade","specialty","nicho","você_já_realiza_cirurgias_de_transplante_capilar?"]);
+  const faturamento   = pick(payload, ["faturamento","revenue","faturamento_mensal","qual_o_faturamento_médio_mensal_da_sua_clínica_hoje?"]);
+  const instagram = pick(payload, ["instagram","qual_o_@_do_seu_instagram?"]);
+  const trafego   = pick(payload, ["já_investiu_em_tráfego_pago?","trafego_pago"]);
 
   if (!nome && !whatsapp && !email) {
     return { ok: false, error: "Lead sem nome/whatsapp/email — payload não reconhecido" };
   }
 
-  // dedup por facebook_lead_id
   if (meta.facebook_lead_id) {
     const { data: existing } = await admin
       .from("leads").select("id").eq("facebook_lead_id", meta.facebook_lead_id).maybeSingle();
     if (existing) return { ok: true, deduped: true, id: existing.id };
   }
+
+  const notesParts: string[] = [];
+  if (instagram) notesParts.push(`Instagram: ${instagram}`);
+  if (trafego)   notesParts.push(`Tráfego pago: ${trafego}`);
+  const notes = notesParts.length ? notesParts.join(" | ") : null;
 
   const { data, error } = await admin.from("leads").insert({
     nome_completo: nome ?? "Lead Facebook Ads",
@@ -77,9 +83,13 @@ async function insertLead(payload: Record<string, string>, meta: {
     facebook_lead_id: meta.facebook_lead_id,
     facebook_form_id: meta.facebook_form_id,
     facebook_campaign: meta.facebook_campaign,
+    facebook_form_name: meta.facebook_form_name,
+    facebook_ad_name: meta.facebook_ad_name,
+    facebook_adset_name: meta.facebook_adset_name,
+    notes,
     utm_source: "facebook",
     utm_medium: "lead_ads",
-    utm_campaign: meta.facebook_campaign,
+    utm_campaign: meta.facebook_campaign ?? meta.facebook_ad_name ?? null,
   }).select("id").single();
 
   if (error) return { ok: false, error: error.message };
