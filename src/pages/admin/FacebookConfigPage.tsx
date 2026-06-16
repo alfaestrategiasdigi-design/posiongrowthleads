@@ -516,15 +516,18 @@ function ConfigTab() {
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">Clínica padrão (opcional)</label>
+            <label className="text-xs font-medium text-foreground">Conta padrão para campanhas</label>
             <select
               value={defaultTenantId}
               onChange={(e) => setDefaultTenantId(e.target.value)}
               className="w-full h-10 px-3 rounded-md bg-background border border-input text-xs"
             >
-              <option value="">— Nenhuma (global) —</option>
+              <option value="">★ Admin Master (conta principal)</option>
               {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
+            <p className="text-[10px] text-muted-foreground">
+              Selecionado: <strong>{defaultTenantId ? (tenants.find(t => t.id === defaultTenantId)?.name ?? "—") : "Admin Master (conta principal)"}</strong>. Os gastos e leads das campanhas serão atribuídos a esta conta.
+            </p>
           </div>
         </div>
 
