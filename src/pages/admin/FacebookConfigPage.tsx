@@ -237,6 +237,8 @@ function ConfigTab() {
       if (verifyToken) payload.verify_token = verifyToken;
       if (appId.trim()) payload.app_id = appId.trim();
       if (appSecret) payload.app_secret = appSecret;
+      if (adAccountId.trim()) payload.ad_account_id = adAccountId.trim();
+      payload.default_tenant_id = defaultTenantId || null;
 
       const { error } = await supabase.functions.invoke("facebook-config-save", { body: payload });
       if (error) throw error;
@@ -247,6 +249,21 @@ function ConfigTab() {
       toast.error(e.message ?? "Erro ao salvar");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const syncCampaigns = async () => {
+    setSyncingCamp(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", { body: { days: 30 } });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Sincronizado: ${data?.results?.length ?? 0} campanhas`);
+      await loadMeta();
+    } catch (e: any) {
+      toast.error(e.message ?? "Erro ao sincronizar");
+    } finally {
+      setSyncingCamp(false);
     }
   };
 
