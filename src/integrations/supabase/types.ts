@@ -494,8 +494,11 @@ export type Database = {
           email: string | null
           especialidade: string | null
           expectativa_investimento: string | null
+          facebook_ad_name: string | null
+          facebook_adset_name: string | null
           facebook_campaign: string | null
           facebook_form_id: string | null
+          facebook_form_name: string | null
           facebook_lead_id: string | null
           faturamento_mensal: string | null
           fechado_em: string | null
@@ -530,8 +533,11 @@ export type Database = {
           email?: string | null
           especialidade?: string | null
           expectativa_investimento?: string | null
+          facebook_ad_name?: string | null
+          facebook_adset_name?: string | null
           facebook_campaign?: string | null
           facebook_form_id?: string | null
+          facebook_form_name?: string | null
           facebook_lead_id?: string | null
           faturamento_mensal?: string | null
           fechado_em?: string | null
@@ -566,8 +572,11 @@ export type Database = {
           email?: string | null
           especialidade?: string | null
           expectativa_investimento?: string | null
+          facebook_ad_name?: string | null
+          facebook_adset_name?: string | null
           facebook_campaign?: string | null
           facebook_form_id?: string | null
+          facebook_form_name?: string | null
           facebook_lead_id?: string | null
           faturamento_mensal?: string | null
           fechado_em?: string | null
