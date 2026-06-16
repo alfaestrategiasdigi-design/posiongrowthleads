@@ -39,25 +39,35 @@ async function insertLead(payload: Record<string, string>, meta: {
   facebook_lead_id?: string | null;
   facebook_form_id?: string | null;
   facebook_campaign?: string | null;
+  facebook_form_name?: string | null;
+  facebook_ad_name?: string | null;
+  facebook_adset_name?: string | null;
 }) {
   const nome      = pick(payload, ["full_name","nome","nome_completo","name","first_name"]);
-  const whatsapp  = pick(payload, ["phone_number","phone","whatsapp","telefone","celular"]);
+  let whatsapp    = pick(payload, ["phone_number","phone","whatsapp","telefone","celular"]);
+  if (whatsapp) whatsapp = whatsapp.replace(/^p:\+?/i, "").replace(/\D/g, "");
   const email     = pick(payload, ["email","e_mail"]);
   const empresa   = pick(payload, ["company_name","empresa","clinica","nome_empresa","nome_clinica"]);
   const cidade    = pick(payload, ["city","cidade","cidade_estado"]);
-  const especialidade = pick(payload, ["especialidade","specialty","nicho"]);
-  const faturamento   = pick(payload, ["faturamento","revenue","faturamento_mensal"]);
+  const especialidade = pick(payload, ["especialidade","specialty","nicho","você_já_realiza_cirurgias_de_transplante_capilar?"]);
+  const faturamento   = pick(payload, ["faturamento","revenue","faturamento_mensal","qual_o_faturamento_médio_mensal_da_sua_clínica_hoje?"]);
+  const instagram = pick(payload, ["instagram","qual_o_@_do_seu_instagram?"]);
+  const trafego   = pick(payload, ["já_investiu_em_tráfego_pago?","trafego_pago"]);
 
   if (!nome && !whatsapp && !email) {
     return { ok: false, error: "Lead sem nome/whatsapp/email — payload não reconhecido" };
   }
 
-  // dedup por facebook_lead_id
   if (meta.facebook_lead_id) {
     const { data: existing } = await admin
       .from("leads").select("id").eq("facebook_lead_id", meta.facebook_lead_id).maybeSingle();
     if (existing) return { ok: true, deduped: true, id: existing.id };
   }
+
+  const notesParts: string[] = [];
+  if (instagram) notesParts.push(`Instagram: ${instagram}`);
+  if (trafego)   notesParts.push(`Tráfego pago: ${trafego}`);
+  const observacoes = notesParts.length ? notesParts.join(" | ") : null;
 
   const { data, error } = await admin.from("leads").insert({
     nome_completo: nome ?? "Lead Facebook Ads",
@@ -73,9 +83,13 @@ async function insertLead(payload: Record<string, string>, meta: {
     facebook_lead_id: meta.facebook_lead_id,
     facebook_form_id: meta.facebook_form_id,
     facebook_campaign: meta.facebook_campaign,
+    facebook_form_name: meta.facebook_form_name,
+    facebook_ad_name: meta.facebook_ad_name,
+    facebook_adset_name: meta.facebook_adset_name,
+    observacoes,
     utm_source: "facebook",
     utm_medium: "lead_ads",
-    utm_campaign: meta.facebook_campaign,
+    utm_campaign: meta.facebook_campaign ?? meta.facebook_ad_name ?? null,
   }).select("id").single();
 
   if (error) return { ok: false, error: error.message };
@@ -131,20 +145,24 @@ Deno.serve(async (req) => {
       }
     }
   } else if (Array.isArray(body?.field_data)) {
-    // Caso 2: campo único Meta enviado direto
     const flat = flattenFieldData(body.field_data);
     const r = await insertLead(flat, {
       facebook_lead_id: body.id ?? body.leadgen_id ?? null,
       facebook_form_id: body.form_id ?? null,
       facebook_campaign: body.campaign_name ?? body.campaign_id ?? null,
+      facebook_form_name: body.form_name ?? null,
+      facebook_ad_name: body.ad_name ?? null,
+      facebook_adset_name: body.adset_name ?? null,
     });
     results.push(r);
   } else {
-    // Caso 3: JSON direto (Zapier/Make/etc) — { nome, whatsapp, email, ... }
     const r = await insertLead(body, {
-      facebook_lead_id: body.facebook_lead_id ?? body.lead_id ?? null,
+      facebook_lead_id: body.facebook_lead_id ?? body.lead_id ?? body.id ?? null,
       facebook_form_id: body.form_id ?? null,
       facebook_campaign: body.campaign_name ?? body.utm_campaign ?? null,
+      facebook_form_name: body.form_name ?? null,
+      facebook_ad_name: body.ad_name ?? null,
+      facebook_adset_name: body.adset_name ?? null,
     });
     results.push(r);
   }

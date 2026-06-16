@@ -1,58 +1,79 @@
-## Evolução da Landing Page Posion
+## Objetivo
 
-Mantém o design atual (escuro + dourado, geo-pattern, gold gradient) e adiciona 5 blocos novos sem refazer hero/cases/services.
+Conectar a campanha de Lead Ads do Facebook diretamente ao painel (sem planilhas), importar os leads históricos que estão nos CSVs, e adicionar uma visualização de campanhas/leads dentro de `/admin/facebook`.
 
-### 1. Nova seção `ResultsSection.tsx` (gráficos Recharts)
-Inserida entre `SocialProof` e o footer. Três cards lado a lado em desktop, stack no mobile, todos com tokens existentes (`card-tech`, `gold-gradient-text`):
+---
 
-- **LineChart — Faturamento Antes/Depois (6 meses)**: dados mock realistas (Jan-Jun), linha "Antes" cinza tracejada vs "Depois" dourada, tooltip dark.
-- **BarChart — Origem dos Leads**: Facebook, Instagram, Google, Orgânico, Indicação. Barras douradas com radius topo.
-- **PieChart (donut) — Distribuição por Especialidade**: Odontologia, Estética, Derma, Plástica, Capilar, Outras. Paleta dourado→âmbar→sépia para manter o tom.
+## Como funciona a integração com Facebook Lead Ads
 
-Todos com `ResponsiveContainer`, eixos `#94a3b8`, grid `#2a2a3a`, fundos via tokens.
+Existem **3 caminhos** para puxar leads do Facebook. Você precisa escolher um (ou combinar):
 
-### 2. Animações CSS (em `index.css`)
-Adiciono keyframes/utilities reutilizáveis:
-- `fade-in-card` (300ms, stagger via `animation-delay`).
-- `count-up` aplicado em hook `useCountUp(target, duration)` para os números do hero (+200, R$ 50M+, 9 dígitos) e nos KPIs antes/depois — anima quando entra no viewport (`IntersectionObserver`).
-- `cta-glow` (box-shadow pulsante dourado, 2s infinite) aplicado no CTA principal "Quero meu diagnóstico".
-- `pillar-hover` nos cards de BenefitsSection: scale 1.03 + glow + translateY -4px.
-- `bounce-soft` para os botões flutuantes (1.2s infinite, suave).
+### Caminho A — Webhook nativo da Meta (tempo real, mais robusto)
+- Você cria um **App no Meta for Developers** (tipo "Business").
+- Adiciona o produto **Webhooks** + **Leadgen**.
+- Configura nosso endpoint como Callback URL e o Verify Token (já existe `/admin/facebook` para isso).
+- A Meta envia apenas IDs (`leadgen_id`, `form_id`, `page_id`). Para ler nome/telefone/email/respostas do formulário, o servidor precisa chamar a **Graph API** usando um **Page Access Token de longa duração** (com permissão `leads_retrieval` + `pages_manage_metadata`). Isso exige **App Review da Meta** (~3–7 dias).
+- Vantagem: lead cai em segundos. Desvantagem: precisa revisão da Meta.
 
-### 3. CTAs Flutuantes (`FloatingCTAs.tsx`)
-Componente fixo renderizado em `Index.tsx`:
-- **WhatsApp** (bottom-right, verde `#25D366`): abre `https://wa.me/55...` (placeholder configurável).
-- **Diagnóstico** (bottom-left, dourado): scroll suave até `#quiz`.
-- Ambos circulares 56px, ícone + label expansível no hover, `bounce-soft`, z-50, ocultos quando o hero ainda está visível (opcional via observer).
+### Caminho B — Zapier/Make como ponte (rápido, sem App Review)
+- Você cria um Zap: trigger "Facebook Lead Ads → New Lead" → action "Webhooks → POST" para o nosso endpoint.
+- Sem App Review, funciona em 5 min. O webhook atual já aceita JSON `{nome, whatsapp, email, ...}`.
+- Custo: plano pago do Zapier/Make.
 
-### 4. Novo `TestimonialsSection.tsx`
-6 depoimentos baseados nas imagens já no projeto (`Dr-Pedro`, `Dr-Ruan`, `Dra-Andressa`, `Dra-Patricia`, `Dr_-Diego`, `Dr-Fuvio`). Grid 3 col desktop / 1 col mobile.
-- Card: foto circular 64px + nome + especialidade + resultado destacado (ex.: "+R$ 10M em vendas").
-- 5 estrelas douradas (lucide `Star` fill).
-- Hover: card eleva, mostra parágrafo detalhado oculto (max-height transition), borda dourada acende.
+### Caminho C — Polling via Marketing API (sem webhook)
+- Edge function roda a cada X minutos e busca `/{form_id}/leads` da Graph API.
+- Também precisa Page Access Token com `leads_retrieval`. Atraso de minutos.
 
-### 5. `BeforeAfterSection.tsx` — Antes/Depois interativo
-- Slider horizontal (shadcn `Slider` 0-100) que controla um split entre dois "estados" visuais lado a lado.
-- 4 KPIs com count-up reagindo à posição do slider:
-  - Faturamento: R$ 28k → R$ 142k
-  - Leads/mês: 35 → 380
-  - Taxa de conversão: 2% → 11%
-  - Ticket médio: R$ 1.8k → R$ 6.5k
-- Transição suave nos números (interpolação linear) + barra de progresso dourada por KPI.
+**Recomendação:** começar pelo **Caminho B (Zapier)** para já entrar em produção hoje, e em paralelo abrir o App na Meta para migrar ao **Caminho A** depois.
 
-### 6. Integração em `Index.tsx`
-Ordem final: Header → Hero → Cases → Benefits → Services → Steps → **Results** → **BeforeAfter** → **Testimonials** → SocialProof → Footer + `<FloatingCTAs />`.
+---
 
-### Detalhes técnicos
-- Recharts já está no projeto (usado no admin Dashboard).
-- Nenhuma mudança de schema/backend.
-- Hook utilitário `src/hooks/useCountUp.ts` + `useInView.ts` (IntersectionObserver simples).
-- Nenhuma cor hardcoded — só tokens `accent`, `foreground`, `muted-foreground`, `card`, `border` + as classes utilitárias existentes (`gold-gradient-text`, `card-tech`, `card-elevated`, `gradient-accent`).
-- Imagens dos médicos da landing posiongrowth.com.br já estão como `.asset.json` em `src/assets/posion/` — reuso direto via import.
-- Referência G4 Business é só para densidade/hierarquia editorial; não copio layout, mantenho a identidade Posion.
+## O que vou construir nesta rodada
 
-### Arquivos
-**Criados:** `src/components/ui/ResultsSection.tsx`, `src/components/ui/TestimonialsSection.tsx`, `src/components/ui/BeforeAfterSection.tsx`, `src/components/ui/FloatingCTAs.tsx`, `src/hooks/useCountUp.ts`, `src/hooks/useInView.ts`.
-**Editados:** `src/pages/Index.tsx` (compor seções + CTAs), `src/index.css` (keyframes), `src/components/ui/HeroSection.tsx` (count-up nos 3 números + glow no CTA), `src/components/ui/BenefitsSection.tsx` (classe `pillar-hover`).
+### 1. Importação dos CSVs históricos (`/admin/facebook` → aba "Importar CSV")
+- Componente de upload que lê os CSVs UTF-16 TSV exportados pelo Gerenciador de Anúncios da Meta (formato confirmado dos arquivos `Ad1-Depoimento_Dr.Pedro` e `Ad6-Linhados100mil`).
+- Mapeia automaticamente as colunas reais detectadas:
+  - `full_name` → nome
+  - `phone_number` → whatsapp (remove `p:+`)
+  - `email`, `company_name`
+  - `id` → `facebook_lead_id` (dedup, evita duplicar)
+  - `form_id`, `form_name`, `campaign_name`, `ad_name`, `adset_name`
+  - Perguntas customizadas (cirurgias capilar, tráfego pago, faturamento, @instagram) → guardadas em `notes` ou campos existentes (`faturamento_mensal`, `especialidade`).
+- Preview da tabela antes de confirmar; insere em `leads` com `origem='facebook_ads'`.
 
-Confirme para eu implementar.
+### 2. Reformular `/admin/facebook` em 3 abas
+- **Aba Configuração:** o que já existe (Verify Token + Webhook URL) + instruções claras das 3 rotas.
+- **Aba Importar CSV:** o uploader acima.
+- **Aba Leads do Facebook:** lista filtrada de `leads WHERE origem='facebook_ads'`, agrupada por campanha/anúncio, com contagens (leads por campanha, por dia) e botão "Abrir no Kanban".
+
+### 3. Melhorar o webhook (`facebook-leads-webhook`)
+- Já aceita JSON direto (Zapier) e o formato Meta. Vou só:
+  - Adicionar mapeamento dos campos customizados do formulário (faturamento, especialidade, instagram) que aparecem no CSV.
+  - Salvar `form_name`, `ad_name`, `adset_name` (hoje só salva IDs).
+
+### 4. Documentação no painel
+- Caixa "Como configurar" com passo-a-passo do Zapier (Caminho B) — copy/paste pronto, sem mexer em código.
+- Texto explicando que o Caminho A (webhook nativo) exige App Review e listando as permissões necessárias.
+
+---
+
+## O que **fica pendente** para você decidir depois
+
+- **Caminho A (webhook nativo):** precisa que você crie o App no Meta for Developers e passe pelo App Review. Quando estiver aprovado, eu adiciono o fluxo de OAuth + armazenamento do Page Access Token (1 secret) e a hidratação via Graph API.
+- **Caminho C (polling):** só faz sentido se você não quiser usar Zapier nem revisar app — me avise.
+
+---
+
+## Detalhes técnicos
+
+- Schema: precisa adicionar 3 colunas opcionais em `leads`: `facebook_form_name`, `facebook_ad_name`, `facebook_adset_name` (text). Já existem `facebook_lead_id`, `facebook_form_id`, `facebook_campaign`.
+- CSV é **UTF-16 LE com TAB como separador** (não é vírgula). Parser usa `TextDecoder('utf-16le')` no browser.
+- Dedup por `facebook_lead_id` (UNIQUE parcial) para reimportar o mesmo CSV sem duplicar.
+- Telefone vem como `p:+5531994240025` — normalizar removendo `p:+` e mantendo só dígitos.
+- RLS: importação roda como admin (já validado pelo `AdminLayout`).
+
+---
+
+## Pergunta antes de implementar
+
+Confirma que quer **Caminho B (Zapier) + Importação CSV agora**, e o **Caminho A (webhook nativo Meta)** fica para uma segunda etapa quando o App estiver aprovado? Ou prefere que eu já prepare o esqueleto do Caminho A também (sem o Page Access Token, que você cola depois)?
