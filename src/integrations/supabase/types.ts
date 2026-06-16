@@ -464,35 +464,44 @@ export type Database = {
       }
       facebook_webhook_config: {
         Row: {
+          app_id: string | null
           app_secret: string | null
+          connected_page_name: string | null
           created_at: string
           id: string
           last_validated_at: string | null
           last_validation_result: Json | null
           page_access_token: string | null
           page_id: string | null
+          token_expires_at: string | null
           updated_at: string
           verify_token: string
         }
         Insert: {
+          app_id?: string | null
           app_secret?: string | null
+          connected_page_name?: string | null
           created_at?: string
           id?: string
           last_validated_at?: string | null
           last_validation_result?: Json | null
           page_access_token?: string | null
           page_id?: string | null
+          token_expires_at?: string | null
           updated_at?: string
           verify_token: string
         }
         Update: {
+          app_id?: string | null
           app_secret?: string | null
+          connected_page_name?: string | null
           created_at?: string
           id?: string
           last_validated_at?: string | null
           last_validation_result?: Json | null
           page_access_token?: string | null
           page_id?: string | null
+          token_expires_at?: string | null
           updated_at?: string
           verify_token?: string
         }
@@ -1526,12 +1535,15 @@ export type Database = {
       get_facebook_config_meta: {
         Args: never
         Returns: {
+          app_id: string
+          connected_page_name: string
           has_app_secret: boolean
           has_page_access_token: boolean
           id: string
           last_validated_at: string
           last_validation_result: Json
           page_id: string
+          token_expires_at: string
           updated_at: string
           verify_token: string
         }[]
