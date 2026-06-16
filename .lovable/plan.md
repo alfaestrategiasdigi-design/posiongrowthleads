@@ -1,81 +1,70 @@
-## Evolução do Sistema — Admin, Kanban, Vendas, Agenda, Pacientes, Recall
+# Posion — Plano Final de Implementação
 
-Vou implementar em **5 fases**, cada uma testável separadamente. Antes de começar, preciso confirmar alguns pontos importantes.
-
----
-
-### Perguntas antes de implementar
-
-1. **Convite de usuário com senha temporária** — Para criar usuários via `supabase.auth.admin.createUser` é necessária a `SERVICE_ROLE_KEY`, que **não pode** ser usada no frontend. Vou criar uma **Edge Function** `invite-tenant-user` que recebe `{ email, role, tenant_id }`, valida que o caller é admin, cria o usuário no Auth com senha aleatória, insere em `tenant_users` e devolve a senha temporária. OK?
-
-2. **Tabelas a usar (mantendo nomes em inglês já existentes):**
-   - Leads do Kanban → tabela `clinic_leads` (já existe, por tenant) — **não** a tabela `leads` (essa é landing-page global)
-   - Vendas → `sales` (já existe e populada)
-   - Agendamentos → `appointments` (já existe)
-   - Pacientes → `patients` (já existe)
-   - Recall → `recall_campaigns` (já existe)
-   
-   Confirma? (O brief usou `agendamentos`/`vendas`/`pacientes`/`inquilinos` em PT mas o schema real é EN.)
-
-3. **Campos faltantes** que vou **adicionar via migration**:
-   - `tenant_users.role` (admin/sdr/medico/visualizador) + `tenant_users.active`
-   - `clinic_leads`: garantir `product`, `channel`, `stage`, `lead_type`, `notes`
-   - `sales`: garantir `country` (para internacional)
-   - Atualizar `has_tenant_access` para considerar apenas usuários ativos
+Os 4 PDFs cobrem ~5 semanas de trabalho. Vou entregar em **5 fases independentes**, cada uma testável sozinha. Você aprova cada fase antes da próxima — assim não quebro nada que já funciona e você vê valor a cada passo.
 
 ---
 
-### Fase 1 — Banco de dados (1 migration + 1 edge function)
+## Fase 1 — Banco de dados (fundação)
+**Migration única** alinhando o schema atual aos PDFs:
 
-- Migration:
-  - `ALTER TABLE tenant_users ADD COLUMN role text DEFAULT 'admin', ADD COLUMN active boolean DEFAULT true`
-  - Adicionar colunas faltantes em `clinic_leads`, `sales` se necessário
-  - Política RLS: admin do tenant pode gerenciar `tenant_users` do próprio tenant
-- Edge Function `invite-tenant-user` (usa SERVICE_ROLE):
-  - Valida JWT do caller, checa se é `admin` global ou `admin` do tenant
-  - `auth.admin.createUser({ email, password: random12, email_confirm: true })`
-  - Insere em `tenant_users` com `role`
-  - Retorna `{ email, temp_password }`
+- `clinic_leads`: adicionar `responsible_role`, `last_contact_by`, `contact_count`, `evaluation_attended_at`, `negotiation_value`, `facebook_lead_id`, `facebook_campaign_id`, `utm_*`, `source_landing_page`, `metadata jsonb`, `tags text[]`, `status` (ativo/inativo/arquivado). Garantir `stage` com os 9 valores oficiais.
+- `sales`: adicionar `procedure_category`, `amount_paid`, `amount_pending` (gerada via trigger), `facebook_campaign_id`, `utm_source`, `utm_campaign`, `metadata jsonb`. CHECK `amount > 0` e `amount_paid <= amount`.
+- Triggers: `update_updated_at_column`, `update_sales_pending` (recalcula `amount_pending`), `increment_contact_count`.
+- Índices: `(tenant_id, stage)`, `(tenant_id, created_at DESC)`, `responsible_user_id`, `facebook_lead_id`, `channel` em `clinic_leads`; `(tenant_id, created_at)`, `clinic_lead_id`, `seller_id`, `payment_status`, `facebook_campaign_id` em `sales`.
+- RLS revisada: `SELECT/INSERT/UPDATE` via `has_tenant_access`; `DELETE` apenas via `is_tenant_admin`. Reforçar `leads` (global) como admin-only.
+- Realtime ligado em `clinic_leads` e `sales`.
 
-### Fase 2 — Painel Admin: Gestão de usuários por tenant
+## Fase 2 — Fluxo Kanban → Sales (núcleo operacional)
+- `src/types/admin.ts`: novos `PIPELINE_STAGES` (Novo, Qualificado, Avaliação Agendada, Compareceu, Em Negociação, Fechado Ganho, Fechado Perdido, Sem Resposta, Cancelado), `LEAD_CHANNELS`, `LEAD_TYPES`, `PIPELINE_TRANSITIONS` + `isValidTransition()`.
+- `TenantKanban` reescrito sobre `clinic_leads` (tenant-scoped) com realtime, cards maiores, badge de tempo no estágio, hover com preview.
+- Drop em "Fechado Ganho" → `SaleModal` (procedimento, valor, forma de pagamento, data, notas) → cria `sales` copiando `channel/utm_*/facebook_campaign_id`.
+- Validações: transição válida, valor > 0, sem venda duplicada para o mesmo `clinic_lead_id`.
+- Filtros no topo: produto, canal, período, busca.
 
-- Em `TenantsPage.tsx`, ao clicar numa clínica → drawer/modal com aba **Usuários**
-- Tabela: email, função (select inline), status (toggle ativo/inativo), ações
-- Botão **+ Convidar** → modal chamando a edge function, exibe senha temporária com botão copiar
+## Fase 3 — UI/UX Premium (Dashboard + Tabelas + Kanban)
+- **KPI cards** redesenhados: ícone 24px, valor 32px+, delta vs período anterior em verde/vermelho, sparkline.
+- **Dashboard tenant + admin** com Recharts (funil 5 estágios, ROI vs Investimento, evolução diária 30d) e filtro de período (Hoje/7d/30d/Custom).
+- **Tabelas** (Leads, Vendas, Pacientes): padding 12px+, zebra, busca em tempo real, filtros acima, ações inline (ligar/WhatsApp/agendar), scroll horizontal mobile.
+- Tokens HSL revisados em `src/index.css` para contraste WCAG AA mantendo `#01083c` + roxo.
 
-### Fase 3 — Kanban Premium (visual navy/gold + CRUD)
+## Fase 4 — KPIs Agência de Tráfego (`/admin/campanhas`)
+Nova página com:
+- Métricas: Leads, Tx Qualificação, Tx Agendamento, Tx Comparecimento, Tx Conversão, CPA, CAC, ROI, Ticket Médio, LTV.
+- Gráficos: funil 5 estágios, ROI vs Investimento, performance por campanha/SDR, evolução diária.
+- Filtros: período, campanha (multi), tenant (admin master), SDR.
+- Input manual de investimento por campanha (nova tabela `campaign_spend` com `tenant_id`, `facebook_campaign_id`, `period`, `amount`) — necessário para CPA/CAC/ROI sem integração Meta Ads completa.
 
-- Reescrever `PIPELINE_STAGES` em `src/types/admin.ts` com as 9 etapas do brief e as cores corretas (rgba navy/gold, sem neon)
-- Refatorar `TenantKanban.tsx` para usar `clinic_leads` filtrando por `tenant_id`
-- `KanbanColumn` + `LeadCard`: aplicar tokens visuais (bg `#0B1224`, border `rgba(255,255,255,0.07)`, hover gold)
-- Botão **+ Novo Lead** → modal (Dialog) com Nome, Telefone, Produto, Canal, Tipo, Etapa, Observação
-- Drag-and-drop atualiza `stage` no Supabase (já existe lógica, adaptar tabela/campos)
-- Ao mover para "Fechado Ganho" → modal "Registrar valor da venda" cria registro em `sales`
-- Filtros no topo: produto, canal, período, busca
-
-### Fase 4 — Fechamentos (Sales) com formulário
-
-- `TenantSales.tsx`: botão **+ Registrar Fechamento** abrindo modal com todos os campos do brief
-- Dropdowns hardcoded com as listas de produtos/vendedores/canais fornecidas
-- Tabela já existente recebe ações Editar/Excluir + rodapé com totais (Total · Nº vendas · Ticket médio)
-
-### Fase 5 — Agenda, Pacientes, Recall
-
-- **Agenda** (`TenantAgenda.tsx`): substituir placeholder por calendário real
-  - Componente customizado com toggle Mês/Semana/Dia (mês = grid de células com badges coloridos)
-  - Modal **+ Novo Agendamento** salvando em `appointments` (paciente, tipo, data, horário, duração, responsável, status, obs)
-  - Cores por status: confirmado/compareceu/no-show/reagendado/cancelado
-  - Quando `type='Avaliação'` + `status='compareceu'` → conta no funil do dashboard (apenas leitura no dashboard, sem trigger novo)
-- **Pacientes** (`TenantPatients.tsx`): botão **+ Novo Paciente** com modal salvando em `patients`; lista já existe (vai mostrar registros criados manualmente além dos derivados de sales)
-- **Recall** (`TenantRecall.tsx`): botão **+ Nova Campanha** com modal salvando em `recall_campaigns`
+## Fase 5 — Integração Facebook (captura → distribuição → sync)
+- Webhook `facebook-leads-webhook` já existe — adicionar dedup robusta e validação Zod.
+- **`/admin/leads`**: tabela de leads globais não distribuídos + ação "Distribuir para Tenant" (multi-select) que cria `clinic_leads` copiando campos e UTMs.
+- **`/admin/facebook`**: já existe `FacebookConfigPage` — adicionar painel de campanhas conectadas e mapeamento de campos. **OAuth Facebook Business** depende de App Facebook aprovado e App Secret — vai como item opcional pendente de credenciais.
+- Sync de status `clinic_leads.stage` → eventos Facebook (Conversions API) fica como **Fase 5.1 opcional**, exige token de longa duração.
 
 ---
 
-### Escopo fora desta entrega
-- Trigger de "primeiro login força troca de senha" (Supabase não tem isso nativo; ficaria como item futuro — usuário troca via "Esqueci minha senha" se quiser).
-- Editor de prontuário detalhado (apenas cadastro básico do paciente conforme brief).
-- Recall com envio real via WhatsApp (apenas cadastro da campanha; execução já existe parcialmente em `recall_executions`).
+## Detalhes técnicos relevantes
+
+```text
+tenant_users.role já existe (admin/sdr/medico/visualizador, active boolean) — não precisa nova migration de roles.
+TenantKanban hoje usa `leads` global; precisa migrar pra `clinic_leads` com tenant_id do useTenant().
+Realtime: src/integrations/supabase/client.ts já configurado — basta REPLICA IDENTITY FULL + publication.
+```
 
 ---
 
-**Posso prosseguir com essas 3 confirmações? (1) Edge function para convite, (2) usar tabelas EN existentes, (3) adicionar `role`/`active` em `tenant_users`.**
+## Fora de escopo desta entrega
+- OAuth Facebook completo (precisa App Facebook aprovado + App Secret).
+- Conversions API (sync stage→Facebook): requer token longa-duração.
+- Relatórios PDF/Excel exportáveis (fase futura).
+- Agenda Dr. Matheus isolada da admin master (issue separada que você mencionou — trato em ticket próprio).
+
+---
+
+## Ordem de entrega sugerida
+1. **Fase 1 (migration)** — você aprova o SQL antes de rodar.
+2. **Fase 2 (Kanban→Sales)** — destrava operação real.
+3. **Fase 3 (UI/UX)** — resolve o "visual fraco" que você reclamou.
+4. **Fase 4 (Campanhas)** — destrava agência de tráfego.
+5. **Fase 5 (Facebook)** — automatiza entrada de leads.
+
+**Posso começar pela Fase 1 (migration)?** Ou prefere reordenar (ex: UI/UX primeiro pra resolver o visual antes da operação)?
