@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  TrendingUp, Wallet, Users, Repeat, Trophy, Target, ArrowUpRight, Sparkles,
+  TrendingUp, Wallet, Users, Target, Sparkles, Megaphone, ArrowUpRight,
+  Calendar, CheckCircle2, Trophy, Activity,
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -10,145 +11,153 @@ import {
 import { useCountUp } from "@/hooks/useCountUp";
 import { useInView } from "@/hooks/useInView";
 
-interface Contract {
+type Lead = {
   id: string;
-  tenant_id: string;
-  plan_name: string | null;
-  monthly_fee: number;
-  setup_fee: number;
-  start_date: string;
-  end_date: string | null;
-  status: "active" | "paused" | "churned";
-}
-interface Tenant { id: string; name: string; }
+  status: string;
+  origem: string | null;
+  created_at: string;
+  facebook_form_id: string | null;
+  facebook_form_name: string | null;
+  facebook_campaign: string | null;
+};
 
-const STATUS_COLORS = ["hsl(45 75% 70%)", "hsl(215 25% 55%)", "hsl(0 70% 60%)"];
+type Spend = {
+  id: string;
+  channel: string;
+  campaign_name: string | null;
+  campaign_id: string | null;
+  amount_spent: number;
+  leads_generated: number;
+  impressions: number;
+  clicks: number;
+  period_start: string;
+  period_end: string;
+};
+
+const BRL = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+const COLORS = ["hsl(45 75% 70%)", "hsl(199 89% 60%)", "hsl(280 65% 65%)", "hsl(142 71% 55%)", "hsl(0 70% 65%)", "hsl(215 25% 55%)"];
+
+const STATUS_GROUPS = {
+  novo: ["novo"],
+  qualificado: ["qualificado", "em_contato", "negociando", "em_negociacao", "avaliacao_agendada"],
+  fechado: ["convertido", "fechado_ganho"],
+  perdido: ["perdido", "fechado_perdido"],
+};
 
 const Dashboard = () => {
-  const [contracts, setContracts] = useState<Contract[]>([]);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [spends, setSpends] = useState<Spend[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<"7" | "30" | "90" | "all">("30");
-
-  useEffect(() => {
-    (async () => {
-      const [c, t] = await Promise.all([
-        (supabase.from("posion_contracts" as any) as any)
-          .select("id,tenant_id,plan_name,monthly_fee,setup_fee,start_date,end_date,status")
-          .limit(10000),
-        supabase.from("tenants").select("id,name"),
-      ]);
-      setContracts(((c.data ?? []) as any) as Contract[]);
-      setTenants((t.data ?? []) as any);
-      setLoading(false);
-    })();
-  }, []);
+  const [lastSync, setLastSync] = useState<string | null>(null);
 
   const periodDays = period === "all" ? 9999 : Number(period);
   const cutoff = new Date(Date.now() - periodDays * 86400000);
 
-  const stats = useMemo(() => {
-    const active = contracts.filter(c => c.status === "active");
-    const mrr = active.reduce((sum, c) => sum + Number(c.monthly_fee || 0), 0);
-    const arr = mrr * 12;
+  const load = async () => {
+    setLoading(true);
+    const cutISO = cutoff.toISOString();
+    const [l, s, cfg] = await Promise.all([
+      supabase.from("leads").select("id,status,origem,created_at,facebook_form_id,facebook_form_name,facebook_campaign")
+        .gte("created_at", cutISO).order("created_at", { ascending: false }).limit(5000),
+      supabase.from("campaign_spend").select("*").gte("period_start", cutISO.slice(0, 10)).limit(2000),
+      supabase.rpc("get_facebook_config_meta" as any),
+    ]);
+    setLeads((l.data ?? []) as Lead[]);
+    setSpends((s.data ?? []) as Spend[]);
+    const row: any = Array.isArray(cfg.data) ? cfg.data[0] : cfg.data;
+    setLastSync(row?.last_campaigns_sync_at ?? null);
+    setLoading(false);
+  };
 
-    const newInPeriod = contracts.filter(c => new Date(c.start_date) >= cutoff);
-    const churnedInPeriod = contracts.filter(
-      c => c.status === "churned" && c.end_date && new Date(c.end_date) >= cutoff
-    );
+  useEffect(() => {
+    load();
+    // realtime: novos leads
+    const ch = supabase.channel("dashboard-leads")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads" }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period]);
 
-    const setupRevenue = newInPeriod.reduce((s, c) => s + Number(c.setup_fee || 0), 0);
-    const recurringRevenue = active.reduce(
-      (s, c) => s + Number(c.monthly_fee || 0) * Math.min(
-        periodDays / 30,
-        Math.max(0, (Date.now() - new Date(c.start_date).getTime()) / (30 * 86400000))
-      ), 0
-    );
-    const totalRevenue = setupRevenue + recurringRevenue;
-
-    const denom = active.length + churnedInPeriod.length;
-    const churnRate = denom > 0 ? (churnedInPeriod.length / denom) * 100 : 0;
-    const avgTicket = active.length ? mrr / active.length : 0;
-
-    return {
-      mrr, arr, totalRevenue, newCount: newInPeriod.length,
-      churned: churnedInPeriod.length, churnRate, avgTicket,
-      activeCount: active.length,
-    };
-  }, [contracts, cutoff, periodDays]);
-
-  // MRR evolution — last 6 months
-  const mrrTrend = useMemo(() => {
-    const months: { label: string; mrr: number; novos: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const ref = new Date();
-      ref.setDate(1);
-      ref.setMonth(ref.getMonth() - i);
-      const end = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
-      const mrr = contracts
-        .filter(c => {
-          const start = new Date(c.start_date);
-          const stop = c.end_date ? new Date(c.end_date) : null;
-          return start <= end && (!stop || stop > end);
-        })
-        .reduce((s, c) => s + Number(c.monthly_fee || 0), 0);
-      const novos = contracts.filter(c => {
-        const s = new Date(c.start_date);
-        return s.getMonth() === ref.getMonth() && s.getFullYear() === ref.getFullYear();
-      }).length;
-      months.push({
-        label: ref.toLocaleString("pt-BR", { month: "short" }).replace(".", ""),
-        mrr, novos,
-      });
+  // auto-trigger sync once when stale (>15min)
+  useEffect(() => {
+    if (!lastSync) return;
+    const ageMin = (Date.now() - new Date(lastSync).getTime()) / 60000;
+    if (ageMin > 15) {
+      supabase.functions.invoke("facebook-campaigns-sync", { body: { days: 30 } })
+        .then(() => load()).catch(() => {});
     }
-    return months;
-  }, [contracts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastSync]);
 
-  // Plan mix
-  const planMix = useMemo(() => {
+  const stats = useMemo(() => {
+    const total = leads.length;
+    const fbLeads = leads.filter(l => l.origem === "facebook_ads").length;
+    const novo = leads.filter(l => STATUS_GROUPS.novo.includes(l.status)).length;
+    const qual = leads.filter(l => STATUS_GROUPS.qualificado.includes(l.status)).length;
+    const fech = leads.filter(l => STATUS_GROUPS.fechado.includes(l.status)).length;
+    const invested = spends.reduce((a, b) => a + Number(b.amount_spent || 0), 0);
+    const cpl = total > 0 ? invested / total : 0;
+    const convRate = total > 0 ? (fech / total) * 100 : 0;
+    const qualRate = total > 0 ? (qual / total) * 100 : 0;
+    return { total, fbLeads, novo, qual, fech, invested, cpl, convRate, qualRate };
+  }, [leads, spends]);
+
+  // leads by day
+  const dailyLeads = useMemo(() => {
+    const days = period === "all" ? 30 : Number(period);
+    const buckets: Record<string, { date: string; leads: number; fb: number }> = {};
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+      buckets[d] = { date: d.slice(5), leads: 0, fb: 0 };
+    }
+    for (const l of leads) {
+      const d = l.created_at.slice(0, 10);
+      if (buckets[d]) {
+        buckets[d].leads += 1;
+        if (l.origem === "facebook_ads") buckets[d].fb += 1;
+      }
+    }
+    return Object.values(buckets);
+  }, [leads, period]);
+
+  // origem mix
+  const originMix = useMemo(() => {
     const map: Record<string, number> = {};
-    contracts.filter(c => c.status === "active").forEach(c => {
-      const key = c.plan_name || "Sem plano";
-      map[key] = (map[key] || 0) + Number(c.monthly_fee || 0);
-    });
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [contracts]);
+    for (const l of leads) {
+      const k = l.origem || "site";
+      map[k] = (map[k] || 0) + 1;
+    }
+    const labels: Record<string, string> = {
+      facebook_ads: "Facebook Ads",
+      site: "Site",
+      whatsapp: "WhatsApp",
+      indicacao: "Indicação",
+      organico: "Orgânico",
+    };
+    return Object.entries(map).map(([k, v]) => ({ name: labels[k] ?? k, value: v }));
+  }, [leads]);
 
-  const statusMix = useMemo(() => {
-    const counts = { active: 0, paused: 0, churned: 0 };
-    contracts.forEach(c => { counts[c.status] = (counts[c.status] || 0) + 1; });
-    return [
-      { name: "Ativos", value: counts.active },
-      { name: "Pausados", value: counts.paused },
-      { name: "Churn", value: counts.churned },
-    ].filter(d => d.value > 0);
-  }, [contracts]);
-
-  // Top clinics by what Posion bills them (active + monthly_fee)
-  const topClinics = useMemo(() => {
-    return contracts
-      .filter(c => c.status === "active")
-      .map(c => {
-        const tenant = tenants.find(t => t.id === c.tenant_id);
-        const monthsActive = Math.max(
-          1,
-          (Date.now() - new Date(c.start_date).getTime()) / (30 * 86400000)
-        );
-        const ltv = Number(c.monthly_fee || 0) * monthsActive + Number(c.setup_fee || 0);
-        return {
-          id: c.id,
-          name: tenant?.name ?? "—",
-          plan: c.plan_name ?? "—",
-          monthly: Number(c.monthly_fee || 0),
-          start: c.start_date,
-          ltv,
-        };
-      })
-      .sort((a, b) => b.ltv - a.ltv)
-      .slice(0, 10);
-  }, [contracts, tenants]);
-
-  const fmt = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+  // top campanhas FB
+  const topCampaigns = useMemo(() => {
+    const map = new Map<string, { name: string; leads: number; spent: number }>();
+    for (const l of leads) {
+      if (l.origem !== "facebook_ads") continue;
+      const key = l.facebook_campaign || l.facebook_form_name || "(sem campanha)";
+      const cur = map.get(key) || { name: key, leads: 0, spent: 0 };
+      cur.leads += 1;
+      map.set(key, cur);
+    }
+    for (const s of spends) {
+      if (s.channel !== "meta_ads") continue;
+      const key = s.campaign_name || "(sem campanha)";
+      const cur = map.get(key) || { name: key, leads: 0, spent: 0 };
+      cur.spent += Number(s.amount_spent || 0);
+      map.set(key, cur);
+    }
+    return Array.from(map.values()).sort((a, b) => b.leads - a.leads).slice(0, 6);
+  }, [leads, spends]);
 
   if (loading) {
     return (
@@ -165,15 +174,18 @@ const Dashboard = () => {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.22em] text-accent/90 border border-accent/30 bg-accent/5 px-2.5 py-1 rounded-full">
-              <Sparkles className="w-3 h-3" /> Master
+              <Sparkles className="w-3 h-3" /> Comercial
             </span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-            Receita Posion
-          </h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Painel Comercial</h1>
           <p className="text-muted-foreground text-sm">
-            Mensalidade e novos contratos das clínicas clientes
+            Leads, funil de qualificação e performance das campanhas — automático.
           </p>
+          {lastSync && (
+            <p className="text-[11px] text-muted-foreground/70 mt-1">
+              Última sync Facebook Ads: {new Date(lastSync).toLocaleString("pt-BR")}
+            </p>
+          )}
         </div>
         <div className="flex gap-1 bg-card/70 backdrop-blur border border-border rounded-full p-1">
           {[{v:"7",l:"7d"},{v:"30",l:"30d"},{v:"90",l:"90d"},{v:"all",l:"Tudo"}].map(o => (
@@ -185,72 +197,88 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* KPIs flutuantes */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <KpiTile icon={Wallet} label="MRR" value={stats.mrr} prefix="R$ " accent="emerald"
-          sub={`${stats.activeCount} contratos ativos`} />
-        <KpiTile icon={TrendingUp} label="ARR projetado" value={stats.arr} prefix="R$ " accent="gold"
-          sub="MRR × 12" />
-        <KpiTile icon={Users} label="Novas clínicas" value={stats.newCount} accent="sky"
-          sub={`no período (${period === "all" ? "total" : period + "d"})`} />
-        <KpiTile icon={Repeat} label="Churn" value={stats.churnRate} suffix="%" decimals={1} accent="rose"
-          sub={`${stats.churned} contratos encerrados`} />
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+        <KpiTile icon={Users} label="Leads" value={stats.total} accent="sky" sub="no período" />
+        <KpiTile icon={Megaphone} label="Facebook Ads" value={stats.fbLeads} accent="gold" sub={`${stats.total ? Math.round(stats.fbLeads/stats.total*100) : 0}% do total`} />
+        <KpiTile icon={CheckCircle2} label="Qualificados" value={stats.qual} accent="emerald" sub={`${stats.qualRate.toFixed(1)}% taxa`} />
+        <KpiTile icon={Trophy} label="Fechados" value={stats.fech} accent="emerald" sub={`${stats.convRate.toFixed(1)}% conversão`} />
+        <KpiTile icon={Wallet} label="Investido" value={stats.invested} prefix="R$ " accent="rose" sub="Meta Ads no período" />
+        <KpiTile icon={Target} label="CPL" value={stats.cpl} prefix="R$ " accent="gold" sub="custo por lead" />
       </div>
 
-      {/* Tendência MRR + Mix de planos */}
+      {/* Funil */}
+      <div className="card-elevated p-6">
+        <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Funil</p>
+        <h3 className="font-display text-lg text-foreground normal-case tracking-normal mb-4">
+          Funil de conversão
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {[
+            { l: "Leads", v: stats.total, c: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
+            { l: "Qualificados", v: stats.qual, c: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30" },
+            { l: "Novos (não trabalhados)", v: stats.novo, c: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
+            { l: "Fechados", v: stats.fech, c: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
+          ].map((s, i) => (
+            <div key={i} className={`rounded-lg p-4 border ${s.c}`}>
+              <div className="text-[10px] uppercase tracking-wider opacity-80">{s.l}</div>
+              <div className="text-3xl font-bold mt-1 tabular-nums">{s.v}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Leads por dia + Origem */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 card-elevated p-6 group hover:border-accent/40 transition">
+        <div className="lg:col-span-2 card-elevated p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Tendência</p>
+              <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Volume</p>
               <h3 className="font-display text-lg text-foreground normal-case tracking-normal">
-                MRR · últimos 6 meses
+                Leads por dia
               </h3>
             </div>
-            <Trophy className="w-5 h-5 text-accent/70 group-hover:text-accent transition" />
+            <Activity className="w-5 h-5 text-accent/70" />
           </div>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={mrrTrend} margin={{ top: 10, right: 16, left: -10, bottom: 0 }}>
+              <AreaChart data={dailyLeads} margin={{ top: 10, right: 16, left: -10, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="mrrFill" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="leadsFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(199 89% 60%)" stopOpacity={0.5} />
+                    <stop offset="100%" stopColor="hsl(199 89% 60%)" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="fbFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="hsl(45 75% 70%)" stopOpacity={0.5} />
                     <stop offset="100%" stopColor="hsl(45 75% 70%)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="hsl(224 30% 18%)" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" stroke="hsl(215 20% 65%)" fontSize={12} tickLine={false} />
-                <YAxis stroke="hsl(215 20% 65%)" fontSize={12} tickLine={false} axisLine={false}
-                  tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
-                <Tooltip
-                  contentStyle={{ background: "hsl(226 53% 9%)", border: "1px solid hsl(224 30% 22%)", borderRadius: 12, color: "#fff", fontSize: 12 }}
-                  formatter={(v: number) => [`R$ ${fmt(v)}`, "MRR"]}
-                />
-                <Area type="monotone" dataKey="mrr" stroke="hsl(42 65% 58%)" strokeWidth={2.5}
-                  fill="url(#mrrFill)" dot={{ fill: "hsl(45 75% 70%)", r: 4 }} activeDot={{ r: 6 }} />
+                <XAxis dataKey="date" stroke="hsl(215 20% 65%)" fontSize={11} tickLine={false} />
+                <YAxis stroke="hsl(215 20% 65%)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip contentStyle={{ background: "hsl(226 53% 9%)", border: "1px solid hsl(224 30% 22%)", borderRadius: 12, color: "#fff", fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Area type="monotone" dataKey="leads" name="Total" stroke="hsl(199 89% 60%)" strokeWidth={2.5} fill="url(#leadsFill)" />
+                <Area type="monotone" dataKey="fb" name="Facebook Ads" stroke="hsl(45 75% 70%)" strokeWidth={2} fill="url(#fbFill)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="card-elevated p-6 group hover:border-accent/40 transition">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Composição</p>
+        <div className="card-elevated p-6">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Origens</p>
           <h3 className="font-display text-lg text-foreground normal-case tracking-normal mb-3">
-            Por plano (MRR)
+            Por origem
           </h3>
-          {planMix.length === 0 ? (
-            <EmptyHint text="Sem contratos ativos" />
+          {originMix.length === 0 ? (
+            <EmptyHint text="Sem leads no período" />
           ) : (
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Tooltip contentStyle={{ background: "hsl(226 53% 9%)", border: "1px solid hsl(224 30% 22%)", borderRadius: 12, color: "#fff", fontSize: 12 }}
-                    formatter={(v: number) => `R$ ${fmt(v)}`} />
-                  <Pie data={planMix} dataKey="value" nameKey="name" innerRadius={55} outerRadius={95}
-                    paddingAngle={2} stroke="hsl(226 53% 9%)">
-                    {planMix.map((_, i) => (
-                      <Cell key={i} fill={["hsl(45 75% 70%)","hsl(42 65% 58%)","hsl(38 55% 45%)","hsl(34 50% 35%)","hsl(30 40% 28%)"][i % 5]} />
-                    ))}
+                  <Tooltip contentStyle={{ background: "hsl(226 53% 9%)", border: "1px solid hsl(224 30% 22%)", borderRadius: 12, color: "#fff", fontSize: 12 }} />
+                  <Pie data={originMix} dataKey="value" nameKey="name" innerRadius={55} outerRadius={95} paddingAngle={2} stroke="hsl(226 53% 9%)">
+                    {originMix.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
                   <Legend wrapperStyle={{ fontSize: 11, color: "hsl(215 20% 65%)" }} />
                 </PieChart>
@@ -260,92 +288,32 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Novas vs Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="card-elevated p-6 group hover:border-accent/40 transition">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Aquisição</p>
-          <h3 className="font-display text-lg text-foreground normal-case tracking-normal mb-3">
-            Novas clínicas / mês
-          </h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={mrrTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid stroke="hsl(224 30% 18%)" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" stroke="hsl(215 20% 65%)" fontSize={12} tickLine={false} />
-                <YAxis stroke="hsl(215 20% 65%)" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
-                <Tooltip contentStyle={{ background: "hsl(226 53% 9%)", border: "1px solid hsl(224 30% 22%)", borderRadius: 12, color: "#fff", fontSize: 12 }} />
-                <Bar dataKey="novos" radius={[8, 8, 0, 0]} fill="hsl(42 65% 58%)" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="card-elevated p-6 group hover:border-accent/40 transition">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Saúde</p>
-          <h3 className="font-display text-lg text-foreground normal-case tracking-normal mb-3">
-            Status da carteira
-          </h3>
-          {statusMix.length === 0 ? (
-            <EmptyHint text="Sem contratos cadastrados" />
-          ) : (
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Tooltip contentStyle={{ background: "hsl(226 53% 9%)", border: "1px solid hsl(224 30% 22%)", borderRadius: 12, color: "#fff", fontSize: 12 }} />
-                  <Pie data={statusMix} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90}
-                    paddingAngle={2} stroke="hsl(226 53% 9%)">
-                    {statusMix.map((_, i) => <Cell key={i} fill={STATUS_COLORS[i]} />)}
-                  </Pie>
-                  <Legend wrapperStyle={{ fontSize: 12, color: "hsl(215 20% 65%)" }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Top 10 clínicas (por LTV pago à Posion) */}
+      {/* Top campanhas Facebook */}
       <div className="card-elevated p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Carteira</p>
+            <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Campanhas</p>
             <h3 className="font-display text-lg text-foreground normal-case tracking-normal">
-              Top 10 clínicas — receita pra Posion
+              Top campanhas Facebook Ads
             </h3>
           </div>
-          <Target className="w-5 h-5 text-accent" />
+          <Megaphone className="w-5 h-5 text-accent" />
         </div>
-        {topClinics.length === 0 ? (
-          <EmptyHint text="Nenhum contrato ativo. Cadastre contratos para popular o dashboard." />
+        {topCampaigns.length === 0 ? (
+          <EmptyHint text="Nenhuma campanha encontrada. Sincronize em /admin/facebook." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border/60">
-                <tr className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                  <th className="px-4 py-3 text-left">#</th>
-                  <th className="px-4 py-3 text-left">Clínica</th>
-                  <th className="px-4 py-3 text-left">Plano</th>
-                  <th className="px-4 py-3 text-right">Mensal</th>
-                  <th className="px-4 py-3 text-right">LTV acumulado</th>
-                  <th className="px-4 py-3 text-right">Início</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topClinics.map((c, idx) => (
-                  <tr key={c.id}
-                    className={`border-b border-border/30 hover:bg-accent/5 transition ${idx % 2 === 0 ? "bg-muted/10" : ""}`}>
-                    <td className="px-4 py-3 text-muted-foreground tabular-nums">{idx + 1}</td>
-                    <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{c.plan}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">R$ {fmt(c.monthly)}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-accent tabular-nums">R$ {fmt(c.ltv)}</td>
-                    <td className="px-4 py-3 text-right text-xs text-muted-foreground tabular-nums">
-                      {new Date(c.start).toLocaleDateString("pt-BR")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topCampaigns} layout="vertical" margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                <CartesianGrid stroke="hsl(224 30% 18%)" strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" stroke="hsl(215 20% 65%)" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis type="category" dataKey="name" width={180} stroke="hsl(215 20% 65%)" fontSize={11} tickLine={false} />
+                <Tooltip contentStyle={{ background: "hsl(226 53% 9%)", border: "1px solid hsl(224 30% 22%)", borderRadius: 12, color: "#fff", fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="leads" name="Leads" fill="hsl(199 89% 60%)" radius={[0, 6, 6, 0]} />
+                <Bar dataKey="spent" name="Investido (R$)" fill="hsl(45 75% 70%)" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         )}
       </div>
@@ -368,16 +336,13 @@ const KpiTile = ({
   icon: Icon, label, value, prefix = "", suffix = "", decimals = 0, sub, accent = "gold",
 }: any) => {
   const { ref, inView } = useInView<HTMLDivElement>();
-  const animated = useCountUp(value, inView, 1400);
+  const animated = useCountUp(value, inView, 1200);
   const a = ACCENTS[accent] ?? ACCENTS.gold;
-  const shown =
-    decimals > 0 ? animated.toFixed(decimals) : Math.round(animated).toLocaleString("pt-BR");
+  const shown = decimals > 0 ? animated.toFixed(decimals) : Math.round(animated).toLocaleString("pt-BR");
 
   return (
-    <div
-      ref={ref}
-      className={`group relative bg-card/80 backdrop-blur border border-border/50 rounded-2xl p-5 transition-all duration-300 hover:-translate-y-1 hover:border-accent/40 ${a.glow}`}
-    >
+    <div ref={ref}
+      className={`group relative bg-card/80 backdrop-blur border border-border/50 rounded-2xl p-5 transition-all duration-300 hover:-translate-y-1 hover:border-accent/40 ${a.glow}`}>
       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
       <div className="relative flex items-start justify-between mb-4">
         <div className={`w-11 h-11 rounded-xl ${a.bg} ring-1 ${a.ring} flex items-center justify-center`}>

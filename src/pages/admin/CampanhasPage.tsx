@@ -11,7 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Trash2, TrendingUp, DollarSign, Target, Users, MousePointerClick, Activity, Wallet, Percent } from "lucide-react";
+import { Plus, Trash2, TrendingUp, DollarSign, Target, Users, MousePointerClick, Activity, Wallet, Percent, RefreshCw, ShieldCheck, ShieldAlert, Loader2, Crown } from "lucide-react";
+import { Link } from "react-router-dom";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   LineChart, Line, AreaChart, Area,
@@ -68,12 +69,73 @@ export default function CampanhasPage() {
     notes: "",
   });
 
+  // Facebook Ads sync state
+  const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [permState, setPermState] = useState<{ ok: boolean; granted: string[]; missing: string[]; checking: boolean }>({
+    ok: false, granted: [], missing: [], checking: true,
+  });
+
   useEffect(() => {
     (async () => {
       const { data } = await supabase.from("tenants").select("id, name, slug").order("name");
       setTenants((data ?? []) as any);
+      const { data: cfg } = await supabase.rpc("get_facebook_config_meta" as any);
+      const row: any = Array.isArray(cfg) ? cfg[0] : cfg;
+      setLastSync(row?.last_campaigns_sync_at ?? null);
     })();
   }, []);
+
+  const checkPermissions = async () => {
+    setPermState(s => ({ ...s, checking: true }));
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", {
+        body: { check_permissions: true },
+      });
+      if (error) throw error;
+      setPermState({
+        ok: !!data?.ok,
+        granted: data?.granted ?? [],
+        missing: data?.missing ?? [],
+        checking: false,
+      });
+    } catch (e: any) {
+      setPermState({ ok: false, granted: [], missing: ["ads_read"], checking: false });
+    }
+  };
+
+  useEffect(() => { checkPermissions(); }, []);
+
+  const syncFacebookAds = async (silent = false) => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", { body: { days: 30 } });
+      if (error) throw error;
+      if (data?.error) {
+        if (data?.need_reconnect) {
+          toast({ title: "Reconecte o Facebook", description: data.error, variant: "destructive" });
+        } else if (!silent) {
+          toast({ title: "Falha ao sincronizar", description: data.error, variant: "destructive" });
+        }
+        return;
+      }
+      if (!silent) toast({ title: `Sincronizado: ${data?.results?.length ?? 0} campanhas` });
+      setLastSync(new Date().toISOString());
+      load();
+    } catch (e: any) {
+      if (!silent) toast({ title: "Erro ao sincronizar", description: e.message, variant: "destructive" });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // auto-sync if stale (>15min) and permissions ok
+  useEffect(() => {
+    if (!permState.ok || permState.checking) return;
+    const ageMin = lastSync ? (Date.now() - new Date(lastSync).getTime()) / 60000 : 9999;
+    if (ageMin > 15) syncFacebookAds(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [permState.ok, permState.checking]);
 
   const load = async () => {
     setLoading(true);
@@ -252,11 +314,13 @@ export default function CampanhasPage() {
           <h1 className="text-2xl font-bold tracking-tight">Campanhas & Tráfego</h1>
           <p className="text-sm text-muted-foreground">KPIs de performance, ROI, CPA, CAC e funil de conversão.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Select value={tenantId} onValueChange={setTenantId}>
-            <SelectTrigger className="w-[220px]"><SelectValue placeholder="Clínica" /></SelectTrigger>
+            <SelectTrigger className="w-[260px]"><SelectValue placeholder="Conta" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas as clínicas</SelectItem>
+              <SelectItem value="all">
+                <span className="flex items-center gap-2"><Crown className="w-3.5 h-3.5 text-accent" /> Admin Master (conta principal)</span>
+              </SelectItem>
               {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -312,6 +376,47 @@ export default function CampanhasPage() {
           </Dialog>
         </div>
       </div>
+
+      {/* Facebook Ads — status, sync e validação de permissões */}
+      <Card>
+        <CardContent className="p-4 flex flex-wrap items-center gap-3 justify-between">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border ${
+              permState.checking
+                ? "border-border text-muted-foreground bg-muted/30"
+                : permState.ok
+                  ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/5"
+                  : "border-amber-500/30 text-amber-400 bg-amber-500/5"
+            }`}>
+              {permState.checking ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : permState.ok ? <ShieldCheck className="w-3.5 h-3.5" />
+                : <ShieldAlert className="w-3.5 h-3.5" />}
+              {permState.checking ? "Validando Marketing API…"
+                : permState.ok ? "Marketing API conectada (ads_read OK)"
+                : `Permissão ausente: ${permState.missing.join(", ") || "ads_read"}`}
+            </div>
+            {lastSync && (
+              <span className="text-xs text-muted-foreground">
+                Última sync: {new Date(lastSync).toLocaleString("pt-BR")}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={checkPermissions} disabled={permState.checking}>
+              <ShieldCheck className="w-4 h-4 mr-1.5" /> Revalidar permissões
+            </Button>
+            {!permState.ok && !permState.checking && (
+              <Button asChild variant="outline" size="sm">
+                <Link to="/admin/facebook">Reconectar Facebook</Link>
+              </Button>
+            )}
+            <Button size="sm" onClick={() => syncFacebookAds(false)} disabled={syncing || !permState.ok}>
+              {syncing ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+              Sincronizar Facebook Ads
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* KPI grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">

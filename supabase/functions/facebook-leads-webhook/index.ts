@@ -1,7 +1,8 @@
 // Facebook Lead Ads webhook
 // GET  → verificação do Meta (hub.challenge)
 // POST → recebe leadgen events da Meta OU JSON direto (curl/manual)
-// Token de página e app_secret são lidos do banco (facebook_webhook_config).
+// Token de página e app_secret são lidos do banco (facebook_webhook_config),
+// com fallback para FACEBOOK_PAGE_ACCESS_TOKEN (secret) se o banco estiver vazio.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -12,14 +13,16 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const FB_TOKEN_ENV = Deno.env.get("FACEBOOK_PAGE_ACCESS_TOKEN") ?? "";
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
 async function loadConfig() {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("facebook_webhook_config")
-    .select("verify_token, page_access_token, app_secret")
+    .select("verify_token, page_access_token, app_secret, page_id")
     .limit(1).maybeSingle();
+  if (error) console.error("[webhook] erro carregando config:", error.message);
   return data;
 }
 
@@ -32,7 +35,6 @@ async function verifyHubSignature(secret: string, rawBody: string, header: strin
   );
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
   const hex = Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
-  // timing-safe compare
   if (hex.length !== provided.length) return false;
   let diff = 0;
   for (let i = 0; i < hex.length; i++) diff |= hex.charCodeAt(i) ^ provided.charCodeAt(i);
@@ -43,10 +45,20 @@ async function fetchLeadFromGraph(leadgenId: string, token: string) {
   try {
     const fields = "id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id";
     const url = `https://graph.facebook.com/v21.0/${leadgenId}?fields=${fields}&access_token=${encodeURIComponent(token)}`;
+    console.log(`[webhook] Buscando lead na Graph API: ${leadgenId}`);
     const res = await fetch(url);
-    if (!res.ok) { console.error("Graph API error", res.status, await res.text()); return null; }
-    return await res.json();
-  } catch (e) { console.error("Graph fetch failed", e); return null; }
+    const text = await res.text();
+    if (!res.ok) {
+      console.error(`[webhook] Graph API error ${res.status}:`, text);
+      return null;
+    }
+    const json = JSON.parse(text);
+    console.log("[webhook] Resposta Graph API:", JSON.stringify(json));
+    return json;
+  } catch (e) {
+    console.error("[webhook] Graph fetch failed:", e);
+    return null;
+  }
 }
 
 const pick = (obj: Record<string, any>, keys: string[]): string | null => {
@@ -68,7 +80,7 @@ function flattenFieldData(arr: any[] | undefined): Record<string, string> {
   return out;
 }
 
-async function insertLead(payload: Record<string, string>, meta: {
+export async function insertLead(payload: Record<string, string>, meta: {
   facebook_lead_id?: string | null;
   facebook_form_id?: string | null;
   facebook_campaign?: string | null;
@@ -87,14 +99,21 @@ async function insertLead(payload: Record<string, string>, meta: {
   const instagram = pick(payload, ["instagram","qual_o_@_do_seu_instagram?"]);
   const trafego   = pick(payload, ["já_investiu_em_tráfego_pago?","trafego_pago"]);
 
+  const normalized = { nome, whatsapp, email, empresa, cidade, especialidade, faturamento, instagram, trafego, meta };
+  console.log("[webhook] Dados normalizados:", JSON.stringify(normalized));
+
   if (!nome && !whatsapp && !email) {
+    console.error("[webhook] Lead sem nome/whatsapp/email — payload bruto:", JSON.stringify(payload));
     return { ok: false, error: "Lead sem nome/whatsapp/email — payload não reconhecido" };
   }
 
   if (meta.facebook_lead_id) {
     const { data: existing } = await admin
       .from("leads").select("id").eq("facebook_lead_id", meta.facebook_lead_id).maybeSingle();
-    if (existing) return { ok: true, deduped: true, id: existing.id };
+    if (existing) {
+      console.log(`[webhook] Lead duplicado (já existe): ${meta.facebook_lead_id} → ${existing.id}`);
+      return { ok: true, deduped: true, id: existing.id };
+    }
   }
 
   const notesParts: string[] = [];
@@ -125,7 +144,11 @@ async function insertLead(payload: Record<string, string>, meta: {
     utm_campaign: meta.facebook_campaign ?? meta.facebook_ad_name ?? null,
   }).select("id").single();
 
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    console.error("[webhook] Erro ao salvar lead:", error.message, error.details ?? "");
+    return { ok: false, error: error.message };
+  }
+  console.log(`[webhook] Lead salvo: ${data.id} (fb_lead_id=${meta.facebook_lead_id ?? "n/a"})`);
   return { ok: true, id: data.id };
 }
 
@@ -134,11 +157,11 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const cfg = await loadConfig();
 
-  // === Meta verification challenge ===
   if (req.method === "GET") {
     const mode      = url.searchParams.get("hub.mode");
     const token     = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
+    console.log(`[webhook] GET challenge mode=${mode} token_match=${token === cfg?.verify_token}`);
     if (mode === "subscribe" && token && cfg?.verify_token && token === cfg.verify_token) {
       return new Response(challenge ?? "", { status: 200, headers: corsHeaders });
     }
@@ -150,12 +173,13 @@ Deno.serve(async (req) => {
   }
 
   const rawBody = await req.text();
+  console.log("[webhook] Webhook recebido — body:", rawBody.slice(0, 2000));
 
-  // Validação opcional de assinatura HMAC quando app_secret estiver salvo
   if (cfg?.app_secret) {
     const sig = req.headers.get("x-hub-signature-256");
     const ok = await verifyHubSignature(cfg.app_secret, rawBody, sig);
     if (!ok) {
+      console.error("[webhook] Assinatura HMAC inválida — header:", sig);
       return new Response(JSON.stringify({ error: "invalid signature" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -164,16 +188,40 @@ Deno.serve(async (req) => {
 
   let body: any;
   try { body = JSON.parse(rawBody); }
-  catch { return new Response(JSON.stringify({ error: "invalid json" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }}); }
+  catch (e) {
+    console.error("[webhook] JSON inválido:", e);
+    return new Response(JSON.stringify({ error: "invalid json" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }});
+  }
 
-  const FB_PAGE_TOKEN = cfg?.page_access_token ?? "";
+  const FB_PAGE_TOKEN = cfg?.page_access_token || FB_TOKEN_ENV || "";
+  if (!FB_PAGE_TOKEN) {
+    console.error("[webhook] FACEBOOK_PAGE_ACCESS_TOKEN ausente (banco + secret vazios) — leads do Meta serão registrados só com leadgen_id");
+  }
+
   const results: any[] = [];
+  const sigValid = cfg?.app_secret
+    ? true // se chegou aqui com app_secret, já passou na validação acima
+    : null;
 
   if (Array.isArray(body?.entry)) {
     for (const entry of body.entry) {
       for (const change of entry?.changes ?? []) {
         const v = change?.value ?? {};
         const leadgenId = v.leadgen_id ?? null;
+        console.log(`[webhook] Leadgen ID: ${leadgenId}`);
+
+        // Persistência do evento bruto (auditoria)
+        const { data: evt } = await admin.from("facebook_webhook_events").insert({
+          signature_valid: sigValid,
+          page_id: v.page_id ? String(v.page_id) : (entry.id ? String(entry.id) : null),
+          form_id: v.form_id ? String(v.form_id) : null,
+          leadgen_id: leadgenId ? String(leadgenId) : null,
+          ad_id: v.ad_id ? String(v.ad_id) : null,
+          campaign_id: v.campaign_id ? String(v.campaign_id) : null,
+          raw_body: change,
+        }).select("id").single();
+        const evtId = evt?.id ?? null;
+
         let flat: Record<string, string> = {};
         let adName: string | null = null;
         let adsetName: string | null = null;
@@ -198,6 +246,14 @@ Deno.serve(async (req) => {
           facebook_adset_name: adsetName,
         });
         results.push(r);
+
+        if (evtId) {
+          await admin.from("facebook_webhook_events").update({
+            processed: !!r.ok,
+            lead_id: r.id ?? null,
+            error: r.ok ? null : (r.error ?? null),
+          }).eq("id", evtId);
+        }
       }
     }
   } else if (Array.isArray(body?.field_data)) {
@@ -223,6 +279,7 @@ Deno.serve(async (req) => {
     results.push(r);
   }
 
+  console.log(`[webhook] Processados: ${results.length}`, JSON.stringify(results));
   return new Response(JSON.stringify({ received: results.length, results }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });

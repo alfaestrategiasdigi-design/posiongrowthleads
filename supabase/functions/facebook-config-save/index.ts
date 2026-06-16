@@ -64,14 +64,21 @@ Deno.serve(async (req) => {
   setIf("app_id", body.app_id);
   setIf("page_id", body.page_id);
   setIf("verify_token", body.verify_token);
+  setIf("ad_account_id", body.ad_account_id);
 
-  // remoções explícitas
+  if (body.default_tenant_id === null) {
+    patch.default_tenant_id = null;
+  } else if (typeof body.default_tenant_id === "string" && body.default_tenant_id.trim()) {
+    patch.default_tenant_id = body.default_tenant_id.trim();
+  }
+
   if (body.clear_page_access_token === true) {
     patch.page_access_token = null;
     patch.token_expires_at = null;
     patch.connected_page_name = null;
   }
   if (body.clear_app_secret === true) patch.app_secret = null;
+  if (body.clear_ad_account_id === true) patch.ad_account_id = null;
 
   const { data: existing } = await admin
     .from("facebook_webhook_config").select("id").limit(1).maybeSingle();

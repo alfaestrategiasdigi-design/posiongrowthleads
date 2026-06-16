@@ -11,13 +11,14 @@ import {
   Loader2, Facebook, Copy, RefreshCw, CheckCircle2,
   Upload, FileSpreadsheet, Users, ExternalLink, Zap,
   AlertCircle, KeyRound, Eye, EyeOff, LogIn, Unplug,
+  Download, Bug,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 
 const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 const WEBHOOK_URL = `https://${projectId}.supabase.co/functions/v1/facebook-leads-webhook`;
-const FB_SCOPES = "leads_retrieval,pages_show_list,pages_manage_metadata,pages_read_engagement";
+const FB_SCOPES = "leads_retrieval,pages_show_list,pages_manage_metadata,pages_read_engagement,ads_read,ads_management,business_management";
 
 // ---- Facebook JS SDK loader ----
 let fbSdkPromise: Promise<any> | null = null;
@@ -123,6 +124,10 @@ type ConfigMeta = {
   app_id: string | null;
   connected_page_name: string | null;
   token_expires_at: string | null;
+  ad_account_id: string | null;
+  default_tenant_id: string | null;
+  last_campaigns_sync_at: string | null;
+  last_leads_sync_at: string | null;
   has_page_access_token: boolean;
   has_app_secret: boolean;
   last_validated_at: string | null;
@@ -180,6 +185,10 @@ function ConfigTab() {
   const [appId, setAppId] = useState("");
   const [appSecret, setAppSecret] = useState("");
   const [showSecret, setShowSecret] = useState(false);
+  const [adAccountId, setAdAccountId] = useState("");
+  const [defaultTenantId, setDefaultTenantId] = useState<string>("");
+  const [tenants, setTenants] = useState<{ id: string; name: string }[]>([]);
+  const [syncingCamp, setSyncingCamp] = useState(false);
 
   // page picker
   const [pages, setPages] = useState<FbPage[] | null>(null);
@@ -187,14 +196,20 @@ function ConfigTab() {
   const [savingPage, setSavingPage] = useState<string | null>(null);
 
   const loadMeta = async () => {
-    const { data } = await supabase.rpc("get_facebook_config_meta" as any);
-    const row = Array.isArray(data) ? data[0] : data;
+    const [{ data }, { data: ts }] = await Promise.all([
+      supabase.rpc("get_facebook_config_meta" as any),
+      supabase.from("tenants").select("id, name").order("name"),
+    ]);
+    const row: any = Array.isArray(data) ? data[0] : data;
     if (row) {
       setMeta(row as ConfigMeta);
       setVerifyToken(row.verify_token ?? "");
       setAppId(row.app_id ?? "");
+      setAdAccountId(row.ad_account_id ?? "");
+      setDefaultTenantId(row.default_tenant_id ?? "");
       if (row.last_validation_result) setSteps(row.last_validation_result as ValidationStep[]);
     }
+    if (ts) setTenants(ts as any);
     setLoading(false);
   };
 
@@ -222,6 +237,8 @@ function ConfigTab() {
       if (verifyToken) payload.verify_token = verifyToken;
       if (appId.trim()) payload.app_id = appId.trim();
       if (appSecret) payload.app_secret = appSecret;
+      if (adAccountId.trim()) payload.ad_account_id = adAccountId.trim();
+      payload.default_tenant_id = defaultTenantId || null;
 
       const { error } = await supabase.functions.invoke("facebook-config-save", { body: payload });
       if (error) throw error;
@@ -232,6 +249,21 @@ function ConfigTab() {
       toast.error(e.message ?? "Erro ao salvar");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const syncCampaigns = async () => {
+    setSyncingCamp(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", { body: { days: 30 } });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Sincronizado: ${data?.results?.length ?? 0} campanhas`);
+      await loadMeta();
+    } catch (e: any) {
+      toast.error(e.message ?? "Erro ao sincronizar");
+    } finally {
+      setSyncingCamp(false);
     }
   };
 
@@ -461,6 +493,61 @@ function ConfigTab() {
         )}
       </div>
 
+      {/* 4b. Marketing API / Auto-sync */}
+      <div className="bg-card border border-border/50 rounded-xl p-6 space-y-4">
+        <div>
+          <h2 className="font-semibold text-foreground flex items-center gap-2">
+            <RefreshCw className="w-4 h-4 text-accent" /> 4b. Marketing API — campanhas automáticas
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Informe o <b>Ad Account ID</b> (encontra em <a href="https://business.facebook.com/settings/ad-accounts" target="_blank" rel="noreferrer" className="text-accent underline">Business → Contas de anúncio</a>, no formato <code className="bg-muted px-1 rounded">act_123456789</code>) e
+            opcionalmente vincule uma clínica padrão para receber os gastos. Permissões do token: <code className="bg-muted px-1 rounded">ads_read</code> (reconecte se necessário).
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">Ad Account ID</label>
+            <Input
+              value={adAccountId}
+              onChange={(e) => setAdAccountId(e.target.value)}
+              placeholder="act_1234567890123456"
+              className="font-mono text-xs"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">Conta padrão para campanhas</label>
+            <select
+              value={defaultTenantId}
+              onChange={(e) => setDefaultTenantId(e.target.value)}
+              className="w-full h-10 px-3 rounded-md bg-background border border-input text-xs"
+            >
+              <option value="">★ Admin Master (conta principal)</option>
+              {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <p className="text-[10px] text-muted-foreground">
+              Selecionado: <strong>{defaultTenantId ? (tenants.find(t => t.id === defaultTenantId)?.name ?? "—") : "Admin Master (conta principal)"}</strong>. Os gastos e leads das campanhas serão atribuídos a esta conta.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={saveCredentials} disabled={saving} variant="outline" size="sm">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+            <span className="ml-2">Salvar Ad Account</span>
+          </Button>
+          <Button onClick={syncCampaigns} disabled={syncingCamp || !meta?.ad_account_id} className="gradient-accent" size="sm">
+            {syncingCamp ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            <span className="ml-2">Sincronizar campanhas agora</span>
+          </Button>
+          {meta?.last_campaigns_sync_at && (
+            <span className="text-[11px] text-muted-foreground">
+              Última sincronização: {new Date(meta.last_campaigns_sync_at).toLocaleString("pt-BR")}
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Validação ponta-a-ponta */}
       <div className="bg-card border border-border/50 rounded-xl p-6 space-y-4">
         <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -487,6 +574,9 @@ function ConfigTab() {
           </div>
         )}
       </div>
+
+      {/* Backfill + Debug */}
+      <BackfillAndDebugBlock />
 
       {/* Guia rápido */}
       <div className="bg-accent/5 border border-accent/20 rounded-xl p-6 space-y-3">
@@ -543,8 +633,451 @@ function ConfigTab() {
 }
 
 /* =====================================================================
+   Backfill (importação retroativa via Graph API) + Debug endpoint
+   ===================================================================== */
+
+function BackfillAndDebugBlock() {
+  const [formIds, setFormIds] = useState("");
+  const [maxPerForm, setMaxPerForm] = useState("200");
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [debugLoading, setDebugLoading] = useState(false);
+  const [debug, setDebug] = useState<any>(null);
+
+  const runBackfill = async () => {
+    setRunning(true);
+    setResult(null);
+    try {
+      const ids = formIds.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+      const { data, error } = await supabase.functions.invoke("facebook-backfill-leads", {
+        body: { form_ids: ids, max_per_form: Number(maxPerForm) || 200 },
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error ?? "Falha");
+      setResult(data);
+      toast.success(`Importação concluída: ${data.totals.imported} novos · ${data.totals.deduped} duplicados · ${data.totals.failed} falhas`);
+    } catch (e: any) {
+      toast.error(e.message ?? "Erro na importação");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const runDebug = async () => {
+    setDebugLoading(true);
+    setDebug(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-debug", { body: {} });
+      if (error) throw error;
+      setDebug(data);
+    } catch (e: any) {
+      toast.error(e.message ?? "Erro no debug");
+    } finally {
+      setDebugLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="bg-card border border-border/50 rounded-xl p-6 space-y-4">
+        <div>
+          <h2 className="font-semibold text-foreground flex items-center gap-2">
+            <Download className="w-4 h-4 text-accent" /> 6. Importação retroativa (Graph API)
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Busca leads <b>já existentes</b> nos formulários da página via Graph API e insere no banco
+            (duplicados ignorados pelo <code>facebook_lead_id</code>). Deixe IDs em branco para importar de todos os formulários.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-[1fr,160px] gap-2">
+          <Input
+            value={formIds}
+            onChange={(e) => setFormIds(e.target.value)}
+            placeholder="IDs separados por vírgula (ex: 1858043458199562) — vazio = todos"
+            className="font-mono text-xs"
+          />
+          <Input
+            value={maxPerForm}
+            onChange={(e) => setMaxPerForm(e.target.value)}
+            type="number"
+            placeholder="máx por form"
+            className="text-xs"
+          />
+        </div>
+        <Button onClick={runBackfill} disabled={running} className="gradient-accent">
+          {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          <span className="ml-2">Importar leads existentes</span>
+        </Button>
+
+        {result && (
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs space-y-2">
+            <div className="font-semibold text-emerald-300">
+              Total: {result.totals.fetched} buscados · {result.totals.imported} novos · {result.totals.deduped} duplicados · {result.totals.failed} falhas
+            </div>
+            <ul className="space-y-1 text-muted-foreground">
+              {result.by_form.map((f: any) => (
+                <li key={f.form_id}>
+                  • <b className="text-foreground">{f.form_name ?? f.form_id}</b> ({f.form_id}) — buscados: {f.fetched}, novos: {f.imported}, duplicados: {f.deduped}, falhas: {f.failed}
+                  {f.error && <span className="text-red-400"> · erro: {f.error}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      <MetaValidationBlock />
+
+      <div className="bg-card border border-border/50 rounded-xl p-6 space-y-4">
+
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="font-semibold text-foreground flex items-center gap-2">
+              <Bug className="w-4 h-4 text-accent" /> 7. Diagnóstico (token, banco, subscriptions)
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Mostra status do token, conexão com o banco, último lead salvo, inscrições da Meta na página
+              e contagem de leads por formulário direto da Graph API.
+            </p>
+          </div>
+          <Button onClick={runDebug} disabled={debugLoading} variant="outline">
+            {debugLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bug className="w-4 h-4" />}
+            <span className="ml-2">Rodar diagnóstico</span>
+          </Button>
+        </div>
+
+        {debug && (
+          <pre className="bg-muted/30 border border-border/40 rounded-lg p-3 text-[10px] overflow-x-auto max-h-96 font-mono">
+            {JSON.stringify(debug, null, 2)}
+          </pre>
+        )}
+      </div>
+    </>
+  );
+}
+
+/* =====================================================================
+   Bloco — Validação Meta (permissões + inscrição + últimos eventos)
+   ===================================================================== */
+
+type PermRow = { permission: string; status: string; granted: boolean };
+type WebhookEvent = {
+  id: string;
+  received_at: string;
+  signature_valid: boolean | null;
+  leadgen_id: string | null;
+  form_id: string | null;
+  page_id: string | null;
+  processed: boolean;
+  lead_id: string | null;
+  error: string | null;
+};
+
+function MetaValidationBlock() {
+  const [permLoading, setPermLoading] = useState(false);
+  const [perms, setPerms] = useState<PermRow[] | null>(null);
+  const [subLoading, setSubLoading] = useState(false);
+  const [sub, setSub] = useState<any>(null);
+  const [events, setEvents] = useState<WebhookEvent[]>([]);
+  const [evLoading, setEvLoading] = useState(false);
+
+  const checkPerms = async () => {
+    setPermLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-permissions-check", { body: {} });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error ?? "Falha");
+      setPerms(data.permissions);
+      if (data.all_granted) toast.success("Todas as permissões concedidas");
+      else toast.warning(`Faltam: ${data.missing.join(", ")}`);
+    } catch (e: any) { toast.error(e.message ?? "Erro"); }
+    finally { setPermLoading(false); }
+  };
+
+  const checkSub = async (action: "check" | "resubscribe" = "check") => {
+    setSubLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-page-subscription-check", { body: { action } });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error ?? "Falha");
+      setSub(data);
+      if (action === "resubscribe") toast.success("Reinscrição enviada");
+    } catch (e: any) { toast.error(e.message ?? "Erro"); }
+    finally { setSubLoading(false); }
+  };
+
+  const loadEvents = async () => {
+    setEvLoading(true);
+    const { data } = await supabase.from("facebook_webhook_events" as any)
+      .select("id, received_at, signature_valid, leadgen_id, form_id, page_id, processed, lead_id, error")
+      .order("received_at", { ascending: false }).limit(50);
+    setEvents((data as any) ?? []);
+    setEvLoading(false);
+  };
+
+  useEffect(() => { loadEvents(); }, []);
+
+  return (
+    <>
+      <div className="bg-card border border-border/50 rounded-xl p-6 space-y-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="font-semibold text-foreground flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-accent" /> 6b. Permissões da Meta no token
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              O guia oficial de Webhooks para Lead Ads exige 6 permissões. Se alguma estiver faltando, reconecte no Passo 4.
+            </p>
+          </div>
+          <Button onClick={checkPerms} disabled={permLoading} variant="outline">
+            {permLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            <span className="ml-2">Revalidar</span>
+          </Button>
+        </div>
+        {perms && (
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            {perms.map((p) => (
+              <li key={p.permission} className={`flex items-center gap-2 rounded-lg border p-2 ${p.granted ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5"}`}>
+                {p.granted
+                  ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  : <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />}
+                <span className="font-mono">{p.permission}</span>
+                <span className="ml-auto text-muted-foreground">{p.status}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="bg-card border border-border/50 rounded-xl p-6 space-y-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="font-semibold text-foreground flex items-center gap-2">
+              <Zap className="w-4 h-4 text-accent" /> 6c. Inscrição do app na Página (leadgen)
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Confirma que nosso app está em <code>subscribed_apps</code> da Página. Sem isso, a Meta não envia eventos.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={() => checkSub("check")} disabled={subLoading} variant="outline">
+              {subLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              <span className="ml-2">Verificar</span>
+            </Button>
+            <Button onClick={() => checkSub("resubscribe")} disabled={subLoading} className="gradient-accent">
+              Reinscrever
+            </Button>
+          </div>
+        </div>
+        {sub && (
+          <div className="text-xs space-y-2">
+            <div className={`rounded-lg border p-2 ${sub.subscribed_to_leadgen ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-300" : "border-red-500/30 bg-red-500/5 text-red-300"}`}>
+              {sub.subscribed_to_leadgen
+                ? "✓ Página inscrita no campo leadgen"
+                : "✗ Página NÃO inscrita em leadgen — clique em Reinscrever"}
+            </div>
+            <div className="text-muted-foreground">
+              Apps inscritos ({sub.apps?.length ?? 0}):
+              <ul className="mt-1 space-y-1">
+                {(sub.apps ?? []).map((a: any) => (
+                  <li key={a.id} className="font-mono">
+                    • {a.name} <span className="text-muted-foreground">({a.id})</span>
+                    {a.subscribed_fields?.length ? <span className="ml-2 text-emerald-400">[{a.subscribed_fields.join(", ")}]</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-card border border-border/50 rounded-xl p-6 space-y-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="font-semibold text-foreground flex items-center gap-2">
+              <Bug className="w-4 h-4 text-accent" /> 6d. Últimos eventos do Webhook (50)
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Auditoria de cada evento recebido da Meta — útil para diagnosticar leads que não chegaram.
+            </p>
+          </div>
+          <Button onClick={loadEvents} disabled={evLoading} variant="outline">
+            {evLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            <span className="ml-2">Recarregar</span>
+          </Button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="text-muted-foreground">
+              <tr className="text-left">
+                <th className="p-2">Recebido</th>
+                <th className="p-2">Sig</th>
+                <th className="p-2">Leadgen ID</th>
+                <th className="p-2">Form</th>
+                <th className="p-2">Status</th>
+                <th className="p-2">Lead / Erro</th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.length === 0 && (
+                <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">Nenhum evento ainda</td></tr>
+              )}
+              {events.map((e) => (
+                <tr key={e.id} className="border-t border-border/30">
+                  <td className="p-2 whitespace-nowrap">{new Date(e.received_at).toLocaleString("pt-BR")}</td>
+                  <td className="p-2">
+                    {e.signature_valid === true ? <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                      : e.signature_valid === false ? <AlertCircle className="w-3 h-3 text-red-400" />
+                      : <span className="text-muted-foreground">—</span>}
+                  </td>
+                  <td className="p-2 font-mono">{e.leadgen_id ?? "—"}</td>
+                  <td className="p-2 font-mono">{e.form_id ?? "—"}</td>
+                  <td className="p-2">
+                    {e.processed
+                      ? <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">OK</Badge>
+                      : <Badge variant="outline" className="border-red-500/30 text-red-300">Falhou</Badge>}
+                  </td>
+                  <td className="p-2 text-muted-foreground max-w-[280px] truncate">
+                    {e.lead_id ? <span className="font-mono">{e.lead_id}</span> : (e.error ?? "—")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* =====================================================================
    ABA 2 — Importar CSV
    ===================================================================== */
+
+type FbForm = { id: string; name: string; status?: string; leads_count?: number };
+
+function MetaImportSection({ onImported }: { onImported: () => void }) {
+  const [forms, setForms] = useState<FbForm[] | null>(null);
+  const [loadingForms, setLoadingForms] = useState(false);
+  const [formId, setFormId] = useState<string>("");
+  const today = new Date();
+  const thirtyAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const [fromDate, setFromDate] = useState(fmt(thirtyAgo));
+  const [toDate, setToDate] = useState(fmt(today));
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  const loadForms = async () => {
+    setLoadingForms(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-leads-export-csv", {
+        body: { action: "list_forms" },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setForms(data.forms ?? []);
+      if (data.forms?.[0]?.id) setFormId(data.forms[0].id);
+      toast.success(`${data.forms?.length ?? 0} formulários encontrados`);
+    } catch (e: any) {
+      toast.error(e.message ?? "Erro ao listar formulários");
+    } finally {
+      setLoadingForms(false);
+    }
+  };
+
+  const runImport = async () => {
+    if (!formId) { toast.error("Selecione um formulário"); return; }
+    setImporting(true);
+    setResult(null);
+    try {
+      const from = Math.floor(new Date(fromDate + "T00:00:00Z").getTime() / 1000);
+      const to   = Math.floor(new Date(toDate   + "T23:59:59Z").getTime() / 1000);
+      const { data, error } = await supabase.functions.invoke("facebook-leads-export-csv", {
+        body: { action: "import", form_id: formId, from_date: from, to_date: to },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setResult(data);
+      toast.success(`${data.inserted} novos · ${data.deduped} já existiam · ${data.organic} orgânicos · ${data.errors} falhas`);
+      onImported();
+    } catch (e: any) {
+      toast.error(e.message ?? "Erro ao importar");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-border/50 bg-card p-6 space-y-4">
+      <div>
+        <h3 className="font-semibold text-foreground flex items-center gap-2">
+          <Download className="w-4 h-4 text-accent" /> Importar do Meta por período
+        </h3>
+        <p className="text-xs text-muted-foreground mt-1">
+          Usa o endpoint oficial <code className="text-[10px] bg-muted/40 px-1 rounded">/ads/lead_gen/export_csv</code> da Meta.
+          Requer página conectada e permissão <b>leads_retrieval</b>. Duplicados (mesmo lead ID) são ignorados.
+        </p>
+      </div>
+
+      {!forms && (
+        <Button variant="outline" onClick={loadForms} disabled={loadingForms}>
+          {loadingForms ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+          Carregar formulários da página
+        </Button>
+      )}
+
+      {forms && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-1.5 md:col-span-2">
+            <label className="text-xs font-medium text-foreground">Formulário</label>
+            <select
+              value={formId}
+              onChange={(e) => setFormId(e.target.value)}
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-xs text-foreground"
+            >
+              {forms.length === 0 && <option value="">Nenhum formulário encontrado</option>}
+              {forms.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name} · {f.status ?? "?"} · {f.leads_count ?? 0} leads · {f.id}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">De</label>
+            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="text-xs" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">Até</label>
+            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="text-xs" />
+          </div>
+          <div className="md:col-span-2 flex gap-2">
+            <Button onClick={runImport} disabled={importing || !formId} className="gradient-accent">
+              {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+              Importar leads do período
+            </Button>
+            <Button variant="outline" onClick={loadForms} disabled={loadingForms} title="Recarregar formulários">
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {result && (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs space-y-1">
+          <div><b className="text-emerald-300">Concluído</b> · {result.total} linhas processadas</div>
+          <div className="text-muted-foreground">
+            {result.inserted} novos · {result.deduped} duplicados · {result.organic} orgânicos · {result.errors} falhas
+          </div>
+          {result.error_samples?.length > 0 && (
+            <div className="text-amber-300 text-[10px] mt-1">Amostra de erros: {result.error_samples.join(" | ")}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ImportTab({ onImported }: { onImported: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -552,6 +1085,8 @@ function ImportTab({ onImported }: { onImported: () => void }) {
   const [fileName, setFileName] = useState("");
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{ inserted: number; deduped: number; errors: number } | null>(null);
+
+
 
   const handleFile = async (file: File) => {
     setFileName(file.name);
@@ -587,7 +1122,10 @@ function ImportTab({ onImported }: { onImported: () => void }) {
 
   return (
     <div className="space-y-6">
+      <MetaImportSection onImported={onImported} />
+
       <div className="rounded-xl border border-dashed border-border/60 bg-card/60 p-8 text-center">
+
         <FileSpreadsheet className="w-10 h-10 text-accent mx-auto mb-3" />
         <h3 className="font-semibold text-foreground">Importar leads do Facebook Ads Manager</h3>
         <p className="text-xs text-muted-foreground mt-1 mb-4">
