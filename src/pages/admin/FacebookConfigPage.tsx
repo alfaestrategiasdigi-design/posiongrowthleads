@@ -185,6 +185,10 @@ function ConfigTab() {
   const [appId, setAppId] = useState("");
   const [appSecret, setAppSecret] = useState("");
   const [showSecret, setShowSecret] = useState(false);
+  const [adAccountId, setAdAccountId] = useState("");
+  const [defaultTenantId, setDefaultTenantId] = useState<string>("");
+  const [tenants, setTenants] = useState<{ id: string; name: string }[]>([]);
+  const [syncingCamp, setSyncingCamp] = useState(false);
 
   // page picker
   const [pages, setPages] = useState<FbPage[] | null>(null);
@@ -192,14 +196,20 @@ function ConfigTab() {
   const [savingPage, setSavingPage] = useState<string | null>(null);
 
   const loadMeta = async () => {
-    const { data } = await supabase.rpc("get_facebook_config_meta" as any);
-    const row = Array.isArray(data) ? data[0] : data;
+    const [{ data }, { data: ts }] = await Promise.all([
+      supabase.rpc("get_facebook_config_meta" as any),
+      supabase.from("tenants").select("id, name").order("name"),
+    ]);
+    const row: any = Array.isArray(data) ? data[0] : data;
     if (row) {
       setMeta(row as ConfigMeta);
       setVerifyToken(row.verify_token ?? "");
       setAppId(row.app_id ?? "");
+      setAdAccountId(row.ad_account_id ?? "");
+      setDefaultTenantId(row.default_tenant_id ?? "");
       if (row.last_validation_result) setSteps(row.last_validation_result as ValidationStep[]);
     }
+    if (ts) setTenants(ts as any);
     setLoading(false);
   };
 
