@@ -133,6 +133,68 @@ export type Database = {
           },
         ]
       }
+      campaign_spend: {
+        Row: {
+          amount_spent: number
+          campaign_id: string | null
+          campaign_name: string | null
+          channel: string
+          clicks: number
+          created_at: string
+          created_by: string | null
+          id: string
+          impressions: number
+          leads_generated: number
+          notes: string | null
+          period_end: string
+          period_start: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_spent?: number
+          campaign_id?: string | null
+          campaign_name?: string | null
+          channel?: string
+          clicks?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          impressions?: number
+          leads_generated?: number
+          notes?: string | null
+          period_end: string
+          period_start: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount_spent?: number
+          campaign_id?: string | null
+          campaign_name?: string | null
+          channel?: string
+          clicks?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          impressions?: number
+          leads_generated?: number
+          notes?: string | null
+          period_end?: string
+          period_start?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_spend_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channels: {
         Row: {
           active: boolean

@@ -15,6 +15,7 @@ import ConexaoPage from "./pages/admin/ConexaoPage";
 import CreateUserPage from "./pages/admin/CreateUserPage";
 import QualificacaoPage from "./pages/admin/QualificacaoPage";
 import FacebookConfigPage from "./pages/admin/FacebookConfigPage";
+import CampanhasPage from "./pages/admin/CampanhasPage";
 import AppointmentsPage from "./pages/admin/AppointmentsPage";
 import TenantsPage from "./pages/admin/TenantsPage";
 import AppLayout from "./components/app/AppLayout";
@@ -65,6 +66,7 @@ const App = () => (
           <Route path="/admin/usuarios" element={<AdminLayout><CreateUserPage /></AdminLayout>} />
           <Route path="/admin/qualificacao" element={<AdminLayout><QualificacaoPage /></AdminLayout>} />
           <Route path="/admin/facebook" element={<AdminLayout><FacebookConfigPage /></AdminLayout>} />
+          <Route path="/admin/campanhas" element={<AdminLayout><CampanhasPage /></AdminLayout>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
