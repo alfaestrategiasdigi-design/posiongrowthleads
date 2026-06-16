@@ -1,70 +1,58 @@
-# Posion — Plano Final de Implementação
+## Evolução da Landing Page Posion
 
-Os 4 PDFs cobrem ~5 semanas de trabalho. Vou entregar em **5 fases independentes**, cada uma testável sozinha. Você aprova cada fase antes da próxima — assim não quebro nada que já funciona e você vê valor a cada passo.
+Mantém o design atual (escuro + dourado, geo-pattern, gold gradient) e adiciona 5 blocos novos sem refazer hero/cases/services.
 
----
+### 1. Nova seção `ResultsSection.tsx` (gráficos Recharts)
+Inserida entre `SocialProof` e o footer. Três cards lado a lado em desktop, stack no mobile, todos com tokens existentes (`card-tech`, `gold-gradient-text`):
 
-## Fase 1 — Banco de dados (fundação)
-**Migration única** alinhando o schema atual aos PDFs:
+- **LineChart — Faturamento Antes/Depois (6 meses)**: dados mock realistas (Jan-Jun), linha "Antes" cinza tracejada vs "Depois" dourada, tooltip dark.
+- **BarChart — Origem dos Leads**: Facebook, Instagram, Google, Orgânico, Indicação. Barras douradas com radius topo.
+- **PieChart (donut) — Distribuição por Especialidade**: Odontologia, Estética, Derma, Plástica, Capilar, Outras. Paleta dourado→âmbar→sépia para manter o tom.
 
-- `clinic_leads`: adicionar `responsible_role`, `last_contact_by`, `contact_count`, `evaluation_attended_at`, `negotiation_value`, `facebook_lead_id`, `facebook_campaign_id`, `utm_*`, `source_landing_page`, `metadata jsonb`, `tags text[]`, `status` (ativo/inativo/arquivado). Garantir `stage` com os 9 valores oficiais.
-- `sales`: adicionar `procedure_category`, `amount_paid`, `amount_pending` (gerada via trigger), `facebook_campaign_id`, `utm_source`, `utm_campaign`, `metadata jsonb`. CHECK `amount > 0` e `amount_paid <= amount`.
-- Triggers: `update_updated_at_column`, `update_sales_pending` (recalcula `amount_pending`), `increment_contact_count`.
-- Índices: `(tenant_id, stage)`, `(tenant_id, created_at DESC)`, `responsible_user_id`, `facebook_lead_id`, `channel` em `clinic_leads`; `(tenant_id, created_at)`, `clinic_lead_id`, `seller_id`, `payment_status`, `facebook_campaign_id` em `sales`.
-- RLS revisada: `SELECT/INSERT/UPDATE` via `has_tenant_access`; `DELETE` apenas via `is_tenant_admin`. Reforçar `leads` (global) como admin-only.
-- Realtime ligado em `clinic_leads` e `sales`.
+Todos com `ResponsiveContainer`, eixos `#94a3b8`, grid `#2a2a3a`, fundos via tokens.
 
-## Fase 2 — Fluxo Kanban → Sales (núcleo operacional)
-- `src/types/admin.ts`: novos `PIPELINE_STAGES` (Novo, Qualificado, Avaliação Agendada, Compareceu, Em Negociação, Fechado Ganho, Fechado Perdido, Sem Resposta, Cancelado), `LEAD_CHANNELS`, `LEAD_TYPES`, `PIPELINE_TRANSITIONS` + `isValidTransition()`.
-- `TenantKanban` reescrito sobre `clinic_leads` (tenant-scoped) com realtime, cards maiores, badge de tempo no estágio, hover com preview.
-- Drop em "Fechado Ganho" → `SaleModal` (procedimento, valor, forma de pagamento, data, notas) → cria `sales` copiando `channel/utm_*/facebook_campaign_id`.
-- Validações: transição válida, valor > 0, sem venda duplicada para o mesmo `clinic_lead_id`.
-- Filtros no topo: produto, canal, período, busca.
+### 2. Animações CSS (em `index.css`)
+Adiciono keyframes/utilities reutilizáveis:
+- `fade-in-card` (300ms, stagger via `animation-delay`).
+- `count-up` aplicado em hook `useCountUp(target, duration)` para os números do hero (+200, R$ 50M+, 9 dígitos) e nos KPIs antes/depois — anima quando entra no viewport (`IntersectionObserver`).
+- `cta-glow` (box-shadow pulsante dourado, 2s infinite) aplicado no CTA principal "Quero meu diagnóstico".
+- `pillar-hover` nos cards de BenefitsSection: scale 1.03 + glow + translateY -4px.
+- `bounce-soft` para os botões flutuantes (1.2s infinite, suave).
 
-## Fase 3 — UI/UX Premium (Dashboard + Tabelas + Kanban)
-- **KPI cards** redesenhados: ícone 24px, valor 32px+, delta vs período anterior em verde/vermelho, sparkline.
-- **Dashboard tenant + admin** com Recharts (funil 5 estágios, ROI vs Investimento, evolução diária 30d) e filtro de período (Hoje/7d/30d/Custom).
-- **Tabelas** (Leads, Vendas, Pacientes): padding 12px+, zebra, busca em tempo real, filtros acima, ações inline (ligar/WhatsApp/agendar), scroll horizontal mobile.
-- Tokens HSL revisados em `src/index.css` para contraste WCAG AA mantendo `#01083c` + roxo.
+### 3. CTAs Flutuantes (`FloatingCTAs.tsx`)
+Componente fixo renderizado em `Index.tsx`:
+- **WhatsApp** (bottom-right, verde `#25D366`): abre `https://wa.me/55...` (placeholder configurável).
+- **Diagnóstico** (bottom-left, dourado): scroll suave até `#quiz`.
+- Ambos circulares 56px, ícone + label expansível no hover, `bounce-soft`, z-50, ocultos quando o hero ainda está visível (opcional via observer).
 
-## Fase 4 — KPIs Agência de Tráfego (`/admin/campanhas`)
-Nova página com:
-- Métricas: Leads, Tx Qualificação, Tx Agendamento, Tx Comparecimento, Tx Conversão, CPA, CAC, ROI, Ticket Médio, LTV.
-- Gráficos: funil 5 estágios, ROI vs Investimento, performance por campanha/SDR, evolução diária.
-- Filtros: período, campanha (multi), tenant (admin master), SDR.
-- Input manual de investimento por campanha (nova tabela `campaign_spend` com `tenant_id`, `facebook_campaign_id`, `period`, `amount`) — necessário para CPA/CAC/ROI sem integração Meta Ads completa.
+### 4. Novo `TestimonialsSection.tsx`
+6 depoimentos baseados nas imagens já no projeto (`Dr-Pedro`, `Dr-Ruan`, `Dra-Andressa`, `Dra-Patricia`, `Dr_-Diego`, `Dr-Fuvio`). Grid 3 col desktop / 1 col mobile.
+- Card: foto circular 64px + nome + especialidade + resultado destacado (ex.: "+R$ 10M em vendas").
+- 5 estrelas douradas (lucide `Star` fill).
+- Hover: card eleva, mostra parágrafo detalhado oculto (max-height transition), borda dourada acende.
 
-## Fase 5 — Integração Facebook (captura → distribuição → sync)
-- Webhook `facebook-leads-webhook` já existe — adicionar dedup robusta e validação Zod.
-- **`/admin/leads`**: tabela de leads globais não distribuídos + ação "Distribuir para Tenant" (multi-select) que cria `clinic_leads` copiando campos e UTMs.
-- **`/admin/facebook`**: já existe `FacebookConfigPage` — adicionar painel de campanhas conectadas e mapeamento de campos. **OAuth Facebook Business** depende de App Facebook aprovado e App Secret — vai como item opcional pendente de credenciais.
-- Sync de status `clinic_leads.stage` → eventos Facebook (Conversions API) fica como **Fase 5.1 opcional**, exige token de longa duração.
+### 5. `BeforeAfterSection.tsx` — Antes/Depois interativo
+- Slider horizontal (shadcn `Slider` 0-100) que controla um split entre dois "estados" visuais lado a lado.
+- 4 KPIs com count-up reagindo à posição do slider:
+  - Faturamento: R$ 28k → R$ 142k
+  - Leads/mês: 35 → 380
+  - Taxa de conversão: 2% → 11%
+  - Ticket médio: R$ 1.8k → R$ 6.5k
+- Transição suave nos números (interpolação linear) + barra de progresso dourada por KPI.
 
----
+### 6. Integração em `Index.tsx`
+Ordem final: Header → Hero → Cases → Benefits → Services → Steps → **Results** → **BeforeAfter** → **Testimonials** → SocialProof → Footer + `<FloatingCTAs />`.
 
-## Detalhes técnicos relevantes
+### Detalhes técnicos
+- Recharts já está no projeto (usado no admin Dashboard).
+- Nenhuma mudança de schema/backend.
+- Hook utilitário `src/hooks/useCountUp.ts` + `useInView.ts` (IntersectionObserver simples).
+- Nenhuma cor hardcoded — só tokens `accent`, `foreground`, `muted-foreground`, `card`, `border` + as classes utilitárias existentes (`gold-gradient-text`, `card-tech`, `card-elevated`, `gradient-accent`).
+- Imagens dos médicos da landing posiongrowth.com.br já estão como `.asset.json` em `src/assets/posion/` — reuso direto via import.
+- Referência G4 Business é só para densidade/hierarquia editorial; não copio layout, mantenho a identidade Posion.
 
-```text
-tenant_users.role já existe (admin/sdr/medico/visualizador, active boolean) — não precisa nova migration de roles.
-TenantKanban hoje usa `leads` global; precisa migrar pra `clinic_leads` com tenant_id do useTenant().
-Realtime: src/integrations/supabase/client.ts já configurado — basta REPLICA IDENTITY FULL + publication.
-```
+### Arquivos
+**Criados:** `src/components/ui/ResultsSection.tsx`, `src/components/ui/TestimonialsSection.tsx`, `src/components/ui/BeforeAfterSection.tsx`, `src/components/ui/FloatingCTAs.tsx`, `src/hooks/useCountUp.ts`, `src/hooks/useInView.ts`.
+**Editados:** `src/pages/Index.tsx` (compor seções + CTAs), `src/index.css` (keyframes), `src/components/ui/HeroSection.tsx` (count-up nos 3 números + glow no CTA), `src/components/ui/BenefitsSection.tsx` (classe `pillar-hover`).
 
----
-
-## Fora de escopo desta entrega
-- OAuth Facebook completo (precisa App Facebook aprovado + App Secret).
-- Conversions API (sync stage→Facebook): requer token longa-duração.
-- Relatórios PDF/Excel exportáveis (fase futura).
-- Agenda Dr. Matheus isolada da admin master (issue separada que você mencionou — trato em ticket próprio).
-
----
-
-## Ordem de entrega sugerida
-1. **Fase 1 (migration)** — você aprova o SQL antes de rodar.
-2. **Fase 2 (Kanban→Sales)** — destrava operação real.
-3. **Fase 3 (UI/UX)** — resolve o "visual fraco" que você reclamou.
-4. **Fase 4 (Campanhas)** — destrava agência de tráfego.
-5. **Fase 5 (Facebook)** — automatiza entrada de leads.
-
-**Posso começar pela Fase 1 (migration)?** Ou prefere reordenar (ex: UI/UX primeiro pra resolver o visual antes da operação)?
+Confirme para eu implementar.

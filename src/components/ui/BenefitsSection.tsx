@@ -48,7 +48,7 @@ const BenefitsSection = () => {
           {pillars.map((p, i) => (
             <div
               key={p.title}
-              className="card-tech p-7 animate-fade-in-up"
+              className="card-tech pillar-hover p-7 animate-fade-in-up"
               style={{ animationDelay: `${i * 0.1}s` }}
             >
               <div className="w-12 h-12 bg-accent/10 border border-accent/30 rounded-xl flex items-center justify-center mb-5">
