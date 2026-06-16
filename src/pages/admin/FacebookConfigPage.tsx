@@ -124,6 +124,10 @@ type ConfigMeta = {
   app_id: string | null;
   connected_page_name: string | null;
   token_expires_at: string | null;
+  ad_account_id: string | null;
+  default_tenant_id: string | null;
+  last_campaigns_sync_at: string | null;
+  last_leads_sync_at: string | null;
   has_page_access_token: boolean;
   has_app_secret: boolean;
   last_validated_at: string | null;
