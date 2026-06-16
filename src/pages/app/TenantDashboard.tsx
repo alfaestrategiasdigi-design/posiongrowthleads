@@ -239,6 +239,122 @@ export default function TenantDashboard() {
         </CardContent>
       </Card>
 
+      {/* 30-day Evolution */}
+      <Card>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Evolução — Últimos 30 dias</CardTitle>
+          <span className="text-xs text-muted-foreground num">Média diária: <span className="text-foreground font-medium">{BRL(avgDaily)}</span></span>
+        </CardHeader>
+        <CardContent>
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={evolution30} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gradRev" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#D4AF37" stopOpacity={0.45} />
+                    <stop offset="100%" stopColor="#D4AF37" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94A3B8" }} interval={3} />
+                <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : `${v}`} />
+                <RTooltip
+                  contentStyle={{ background: "rgba(10,17,36,0.95)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 10, fontSize: 12 }}
+                  labelStyle={{ color: "#D4AF37", fontWeight: 600 }}
+                  formatter={(v: any, n: string) => n === "total" ? [BRL(Number(v)), "Faturamento"] : [v, "Vendas"]}
+                />
+                <ReferenceLine y={avgDaily} stroke="#94A3B8" strokeDasharray="4 4" label={{ value: "média", fill: "#94A3B8", fontSize: 10, position: "right" }} />
+                <Area type="monotone" dataKey="total" stroke="#D4AF37" strokeWidth={2} fill="url(#gradRev)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Funil do Kanban + ROI */}
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Filter className="w-4 h-4 text-primary" /> Funil de Conversão (Kanban)</CardTitle></CardHeader>
+          <CardContent>
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={funnelChart} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 0 }}>
+                  <CartesianGrid horizontal={false} stroke="rgba(255,255,255,0.06)" />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: "#94A3B8" }} />
+                  <YAxis type="category" dataKey="stage" tick={{ fontSize: 11, fill: "#CBD5E1" }} width={140} />
+                  <RTooltip
+                    contentStyle={{ background: "rgba(10,17,36,0.95)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 10, fontSize: 12 }}
+                    formatter={(v: any, _n, p: any) => [`${v} leads (${PCT(p.payload.pct)})`, p.payload.stage]}
+                  />
+                  <Bar dataKey="value" radius={[0, 8, 8, 0]}>
+                    {funnelChart.map((d, i) => <Cell key={i} fill={d.color} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="grid grid-cols-5 gap-2 mt-3 pt-3 border-t border-border/40">
+              {funnelChart.map((d) => (
+                <div key={d.stage} className="text-center">
+                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground truncate" title={d.stage}>{d.stage}</div>
+                  <div className="font-display text-lg num leading-none mt-1" style={{ color: d.color }}>{d.value}</div>
+                  <div className="text-[10px] text-muted-foreground num">{PCT(d.pct)}</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><LineIcon className="w-4 h-4 text-primary" /> ROI vs Investimento</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Investimento em tráfego (mês)</label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={investment || ""}
+                  onChange={(e) => saveInvestment(Number(e.target.value) || 0)}
+                  placeholder="R$ 0,00"
+                  className="mt-1 num"
+                />
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">ROI</div>
+                <div className="font-display text-3xl num leading-none mt-1" style={{ color: roi >= 0 ? "#22C55E" : "#EF4444" }}>
+                  {investment > 0 ? `${(roi * 100).toFixed(0)}%` : "—"}
+                </div>
+              </div>
+            </div>
+            <div className="h-44 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={[
+                  { name: "Investido", value: investment, fill: "#EF4444" },
+                  { name: "Faturado", value: total, fill: "#22C55E" },
+                  { name: "Lucro", value: Math.max(0, total - investment), fill: "#D4AF37" },
+                ]} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94A3B8" }} />
+                  <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : `${v}`} />
+                  <RTooltip
+                    contentStyle={{ background: "rgba(10,17,36,0.95)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 10, fontSize: 12 }}
+                    formatter={(v: any) => [BRL(Number(v)), ""]}
+                  />
+                  <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                    {[0,1,2].map((i) => <Cell key={i} fill={["#EF4444","#22C55E","#D4AF37"][i]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/40">
+              <MiniStat label="CPL" value={cpl > 0 ? BRL(cpl) : "—"} sub={`${monthLeadsCount} leads`} />
+              <MiniStat label="CAC" value={cac > 0 ? BRL(cac) : "—"} sub={`${count} vendas`} />
+              <MiniStat label="Ticket" value={avg ? BRL(avg) : "—"} sub="médio" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Funnel / Attendance */}
       <div className="grid lg:grid-cols-2 gap-4">
         <Card>
