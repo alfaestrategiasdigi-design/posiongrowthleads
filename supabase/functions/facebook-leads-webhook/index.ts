@@ -150,16 +150,31 @@ Deno.serve(async (req) => {
     for (const entry of body.entry) {
       for (const change of entry?.changes ?? []) {
         const v = change?.value ?? {};
-        // Sem page_access_token configurado, não conseguimos hidratar via Graph API.
-        // Registramos lead com IDs e o usuário pode completar manualmente.
-        const r = await insertLead(
-          {}, // sem field_data
-          {
-            facebook_lead_id: v.leadgen_id ?? null,
-            facebook_form_id: v.form_id ?? null,
-            facebook_campaign: v.campaign_id ?? v.ad_id ?? null,
+        const leadgenId = v.leadgen_id ?? null;
+        let flat: Record<string, string> = {};
+        let formName: string | null = null;
+        let adName: string | null = null;
+        let adsetName: string | null = null;
+        let campaignName: string | null = null;
+
+        if (leadgenId) {
+          const full = await fetchLeadFromGraph(String(leadgenId));
+          if (full) {
+            flat = flattenFieldData(full.field_data);
+            adName = full.ad_name ?? null;
+            adsetName = full.adset_name ?? null;
+            campaignName = full.campaign_name ?? null;
           }
-        );
+        }
+
+        const r = await insertLead(flat, {
+          facebook_lead_id: leadgenId,
+          facebook_form_id: v.form_id ?? null,
+          facebook_campaign: campaignName ?? v.campaign_id ?? v.ad_id ?? null,
+          facebook_form_name: formName,
+          facebook_ad_name: adName,
+          facebook_adset_name: adsetName,
+        });
         results.push(r);
       }
     }
