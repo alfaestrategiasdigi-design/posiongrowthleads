@@ -11,8 +11,27 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const FB_PAGE_TOKEN = Deno.env.get("FACEBOOK_PAGE_ACCESS_TOKEN") ?? "";
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+
+// Hidrata um lead da Meta via Graph API usando o leadgen_id
+async function fetchLeadFromGraph(leadgenId: string) {
+  if (!FB_PAGE_TOKEN) return null;
+  try {
+    const fields = "id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id";
+    const url = `https://graph.facebook.com/v21.0/${leadgenId}?fields=${fields}&access_token=${encodeURIComponent(FB_PAGE_TOKEN)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.error("Graph API error", res.status, await res.text());
+      return null;
+    }
+    return await res.json();
+  } catch (e) {
+    console.error("Graph fetch failed", e);
+    return null;
+  }
+}
 
 // pega o primeiro valor não-vazio de uma lista de chaves do payload
 const pick = (obj: Record<string, any>, keys: string[]): string | null => {
@@ -131,16 +150,31 @@ Deno.serve(async (req) => {
     for (const entry of body.entry) {
       for (const change of entry?.changes ?? []) {
         const v = change?.value ?? {};
-        // Sem page_access_token configurado, não conseguimos hidratar via Graph API.
-        // Registramos lead com IDs e o usuário pode completar manualmente.
-        const r = await insertLead(
-          {}, // sem field_data
-          {
-            facebook_lead_id: v.leadgen_id ?? null,
-            facebook_form_id: v.form_id ?? null,
-            facebook_campaign: v.campaign_id ?? v.ad_id ?? null,
+        const leadgenId = v.leadgen_id ?? null;
+        let flat: Record<string, string> = {};
+        let formName: string | null = null;
+        let adName: string | null = null;
+        let adsetName: string | null = null;
+        let campaignName: string | null = null;
+
+        if (leadgenId) {
+          const full = await fetchLeadFromGraph(String(leadgenId));
+          if (full) {
+            flat = flattenFieldData(full.field_data);
+            adName = full.ad_name ?? null;
+            adsetName = full.adset_name ?? null;
+            campaignName = full.campaign_name ?? null;
           }
-        );
+        }
+
+        const r = await insertLead(flat, {
+          facebook_lead_id: leadgenId,
+          facebook_form_id: v.form_id ?? null,
+          facebook_campaign: campaignName ?? v.campaign_id ?? v.ad_id ?? null,
+          facebook_form_name: formName,
+          facebook_ad_name: adName,
+          facebook_adset_name: adsetName,
+        });
         results.push(r);
       }
     }
