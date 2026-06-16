@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Facebook, Copy, RefreshCw, CheckCircle2,
   Upload, FileSpreadsheet, Users, ExternalLink, Zap,
+  AlertCircle, KeyRound, Eye, EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
@@ -565,7 +566,7 @@ function LeadsTab({ reloadKey }: { reloadKey: number }) {
         </div>
         {leads.length === 0 ? (
           <div className="p-8 text-center text-sm text-muted-foreground">
-            Nenhum lead do Facebook ainda. Importe um CSV ou configure o Zapier.
+            Nenhum lead do Facebook ainda. Importe um CSV ou configure o webhook nativo da Meta.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -610,7 +611,7 @@ const FacebookConfigPage = () => {
           <Facebook className="w-6 h-6 text-blue-500" /> Facebook Lead Ads
         </h1>
         <p className="text-muted-foreground text-sm">
-          Receba leads de formulários do Facebook direto no Kanban — via Zapier, CSV ou webhook nativo.
+          Receba leads de formulários do Facebook direto no Kanban — via webhook nativo da Meta ou importação CSV.
         </p>
       </div>
 
