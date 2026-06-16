@@ -493,6 +493,7 @@ export type Database = {
           created_at: string | null
           email: string | null
           especialidade: string | null
+          expectativa_investimento: string | null
           facebook_campaign: string | null
           facebook_form_id: string | null
           facebook_lead_id: string | null
@@ -500,6 +501,7 @@ export type Database = {
           fechado_em: string | null
           id: string
           investiu_trafego: string | null
+          ja_realizou_procedimento: string | null
           motivo_perda: string | null
           mql: boolean | null
           nome_completo: string
@@ -527,6 +529,7 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           especialidade?: string | null
+          expectativa_investimento?: string | null
           facebook_campaign?: string | null
           facebook_form_id?: string | null
           facebook_lead_id?: string | null
@@ -534,6 +537,7 @@ export type Database = {
           fechado_em?: string | null
           id?: string
           investiu_trafego?: string | null
+          ja_realizou_procedimento?: string | null
           motivo_perda?: string | null
           mql?: boolean | null
           nome_completo: string
@@ -561,6 +565,7 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           especialidade?: string | null
+          expectativa_investimento?: string | null
           facebook_campaign?: string | null
           facebook_form_id?: string | null
           facebook_lead_id?: string | null
@@ -568,6 +573,7 @@ export type Database = {
           fechado_em?: string | null
           id?: string
           investiu_trafego?: string | null
+          ja_realizou_procedimento?: string | null
           motivo_perda?: string | null
           mql?: boolean | null
           nome_completo?: string
