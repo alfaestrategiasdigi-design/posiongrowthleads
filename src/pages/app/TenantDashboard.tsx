@@ -558,6 +558,16 @@ function BreakdownCard({ title, rows, total }: { title: string; rows: { name: st
   );
 }
 
+function MiniStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="text-center p-2 rounded-lg bg-muted/30 border border-border/40">
+      <div className="text-[9px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="font-display text-base num leading-none mt-1">{value}</div>
+      {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
 function Stat({ label, value, hint, good, bad }: { label: string; value: string; hint?: string; good?: boolean; bad?: boolean }) {
   return (
     <div className="p-3 rounded-xl bg-muted/30 border border-border/60">
