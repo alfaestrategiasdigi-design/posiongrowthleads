@@ -145,20 +145,24 @@ Deno.serve(async (req) => {
       }
     }
   } else if (Array.isArray(body?.field_data)) {
-    // Caso 2: campo único Meta enviado direto
     const flat = flattenFieldData(body.field_data);
     const r = await insertLead(flat, {
       facebook_lead_id: body.id ?? body.leadgen_id ?? null,
       facebook_form_id: body.form_id ?? null,
       facebook_campaign: body.campaign_name ?? body.campaign_id ?? null,
+      facebook_form_name: body.form_name ?? null,
+      facebook_ad_name: body.ad_name ?? null,
+      facebook_adset_name: body.adset_name ?? null,
     });
     results.push(r);
   } else {
-    // Caso 3: JSON direto (Zapier/Make/etc) — { nome, whatsapp, email, ... }
     const r = await insertLead(body, {
-      facebook_lead_id: body.facebook_lead_id ?? body.lead_id ?? null,
+      facebook_lead_id: body.facebook_lead_id ?? body.lead_id ?? body.id ?? null,
       facebook_form_id: body.form_id ?? null,
       facebook_campaign: body.campaign_name ?? body.utm_campaign ?? null,
+      facebook_form_name: body.form_name ?? null,
+      facebook_ad_name: body.ad_name ?? null,
+      facebook_adset_name: body.adset_name ?? null,
     });
     results.push(r);
   }
