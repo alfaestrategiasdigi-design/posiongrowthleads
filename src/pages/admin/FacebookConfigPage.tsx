@@ -18,7 +18,7 @@ import { Link } from "react-router-dom";
 
 const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 const WEBHOOK_URL = `https://${projectId}.supabase.co/functions/v1/facebook-leads-webhook`;
-const FB_SCOPES = "leads_retrieval,pages_show_list,pages_manage_metadata,pages_read_engagement,ads_read,ads_management,business_management";
+const FB_SCOPES = "leads_retrieval,pages_show_list,pages_manage_metadata,pages_read_engagement";
 
 // ---- Facebook JS SDK loader ----
 let fbSdkPromise: Promise<any> | null = null;
@@ -124,10 +124,6 @@ type ConfigMeta = {
   app_id: string | null;
   connected_page_name: string | null;
   token_expires_at: string | null;
-  ad_account_id: string | null;
-  default_tenant_id: string | null;
-  last_campaigns_sync_at: string | null;
-  last_leads_sync_at: string | null;
   has_page_access_token: boolean;
   has_app_secret: boolean;
   last_validated_at: string | null;
@@ -185,10 +181,6 @@ function ConfigTab() {
   const [appId, setAppId] = useState("");
   const [appSecret, setAppSecret] = useState("");
   const [showSecret, setShowSecret] = useState(false);
-  const [adAccountId, setAdAccountId] = useState("");
-  const [defaultTenantId, setDefaultTenantId] = useState<string>("");
-  const [tenants, setTenants] = useState<{ id: string; name: string }[]>([]);
-  const [syncingCamp, setSyncingCamp] = useState(false);
 
   // page picker
   const [pages, setPages] = useState<FbPage[] | null>(null);
@@ -196,20 +188,14 @@ function ConfigTab() {
   const [savingPage, setSavingPage] = useState<string | null>(null);
 
   const loadMeta = async () => {
-    const [{ data }, { data: ts }] = await Promise.all([
-      supabase.rpc("get_facebook_config_meta" as any),
-      supabase.from("tenants").select("id, name").order("name"),
-    ]);
-    const row: any = Array.isArray(data) ? data[0] : data;
+    const { data } = await supabase.rpc("get_facebook_config_meta" as any);
+    const row = Array.isArray(data) ? data[0] : data;
     if (row) {
       setMeta(row as ConfigMeta);
       setVerifyToken(row.verify_token ?? "");
       setAppId(row.app_id ?? "");
-      setAdAccountId(row.ad_account_id ?? "");
-      setDefaultTenantId(row.default_tenant_id ?? "");
       if (row.last_validation_result) setSteps(row.last_validation_result as ValidationStep[]);
     }
-    if (ts) setTenants(ts as any);
     setLoading(false);
   };
 
@@ -237,8 +223,6 @@ function ConfigTab() {
       if (verifyToken) payload.verify_token = verifyToken;
       if (appId.trim()) payload.app_id = appId.trim();
       if (appSecret) payload.app_secret = appSecret;
-      if (adAccountId.trim()) payload.ad_account_id = adAccountId.trim();
-      payload.default_tenant_id = defaultTenantId || null;
 
       const { error } = await supabase.functions.invoke("facebook-config-save", { body: payload });
       if (error) throw error;
@@ -249,21 +233,6 @@ function ConfigTab() {
       toast.error(e.message ?? "Erro ao salvar");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const syncCampaigns = async () => {
-    setSyncingCamp(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", { body: { days: 30 } });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      toast.success(`Sincronizado: ${data?.results?.length ?? 0} campanhas`);
-      await loadMeta();
-    } catch (e: any) {
-      toast.error(e.message ?? "Erro ao sincronizar");
-    } finally {
-      setSyncingCamp(false);
     }
   };
 
@@ -491,61 +460,6 @@ function ConfigTab() {
             Salve o App ID e o App Secret no passo 3 antes de conectar.
           </p>
         )}
-      </div>
-
-      {/* 4b. Marketing API / Auto-sync */}
-      <div className="bg-card border border-border/50 rounded-xl p-6 space-y-4">
-        <div>
-          <h2 className="font-semibold text-foreground flex items-center gap-2">
-            <RefreshCw className="w-4 h-4 text-accent" /> 4b. Marketing API — campanhas automáticas
-          </h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            Informe o <b>Ad Account ID</b> (encontra em <a href="https://business.facebook.com/settings/ad-accounts" target="_blank" rel="noreferrer" className="text-accent underline">Business → Contas de anúncio</a>, no formato <code className="bg-muted px-1 rounded">act_123456789</code>) e
-            opcionalmente vincule uma clínica padrão para receber os gastos. Permissões do token: <code className="bg-muted px-1 rounded">ads_read</code> (reconecte se necessário).
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">Ad Account ID</label>
-            <Input
-              value={adAccountId}
-              onChange={(e) => setAdAccountId(e.target.value)}
-              placeholder="act_1234567890123456"
-              className="font-mono text-xs"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">Conta padrão para campanhas</label>
-            <select
-              value={defaultTenantId}
-              onChange={(e) => setDefaultTenantId(e.target.value)}
-              className="w-full h-10 px-3 rounded-md bg-background border border-input text-xs"
-            >
-              <option value="">★ Admin Master (conta principal)</option>
-              {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-            <p className="text-[10px] text-muted-foreground">
-              Selecionado: <strong>{defaultTenantId ? (tenants.find(t => t.id === defaultTenantId)?.name ?? "—") : "Admin Master (conta principal)"}</strong>. Os gastos e leads das campanhas serão atribuídos a esta conta.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={saveCredentials} disabled={saving} variant="outline" size="sm">
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-            <span className="ml-2">Salvar Ad Account</span>
-          </Button>
-          <Button onClick={syncCampaigns} disabled={syncingCamp || !meta?.ad_account_id} className="gradient-accent" size="sm">
-            {syncingCamp ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            <span className="ml-2">Sincronizar campanhas agora</span>
-          </Button>
-          {meta?.last_campaigns_sync_at && (
-            <span className="text-[11px] text-muted-foreground">
-              Última sincronização: {new Date(meta.last_campaigns_sync_at).toLocaleString("pt-BR")}
-            </span>
-          )}
-        </div>
       </div>
 
       {/* Validação ponta-a-ponta */}

@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Download, Loader2, Phone, Mail, Building2, MapPin, Facebook, Bug } from "lucide-react";
+import { Search, Download, Loader2, Phone, Mail, Building2, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
@@ -23,40 +22,14 @@ const LeadsPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
-  const [lastLeadsSync, setLastLeadsSync] = useState<string | null>(null);
-
   useEffect(() => {
     const load = async () => {
-      const [{ data }, { data: cfg }] = await Promise.all([
-        supabase.from("leads").select("*").order("created_at", { ascending: false }),
-        supabase.rpc("get_facebook_config_meta" as any),
-      ]);
+      const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
       setLeads(data || []);
-      const row: any = Array.isArray(cfg) ? cfg[0] : cfg;
-      setLastLeadsSync(row?.last_leads_sync_at ?? null);
       setLoading(false);
     };
     load();
   }, []);
-
-  const fbSummary = useMemo(() => {
-    const fb = leads.filter(l => l.origem === "facebook_ads");
-    const byForm = new Map<string, { id: string; name: string; count: number }>();
-    const byStatus: Record<string, number> = {};
-    for (const l of fb) {
-      const id = (l as any).facebook_form_id || "(sem form)";
-      const name = (l as any).facebook_form_name || id;
-      const cur = byForm.get(id) || { id, name, count: 0 };
-      cur.count += 1;
-      byForm.set(id, cur);
-      byStatus[l.status] = (byStatus[l.status] || 0) + 1;
-    }
-    return {
-      total: fb.length,
-      forms: Array.from(byForm.values()).sort((a, b) => b.count - a.count),
-      statuses: Object.entries(byStatus).sort((a, b) => b[1] - a[1]),
-    };
-  }, [leads]);
 
   const filtered = leads.filter(l =>
     !searchQuery ||
@@ -92,58 +65,6 @@ const LeadsPage = () => {
           <Download className="w-4 h-4" /> Exportar
         </Button>
       </div>
-
-      {/* Resumo Facebook Ads */}
-      {fbSummary.total > 0 && (
-        <div className="bg-card rounded-xl border border-border/50 p-5 space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <Facebook className="w-5 h-5 text-blue-400" />
-              <h2 className="font-semibold text-foreground">Origem Facebook Ads</h2>
-              <span className="text-xs text-muted-foreground">({fbSummary.total} leads)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {lastLeadsSync && (
-                <span className="text-[11px] text-muted-foreground/70">
-                  Última importação: {new Date(lastLeadsSync).toLocaleString("pt-BR")}
-                </span>
-              )}
-              <Link to="/admin/facebook">
-                <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                  <Bug className="w-3.5 h-3.5" /> Diagnóstico
-                </Button>
-              </Link>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Por formulário</p>
-              <div className="space-y-1.5">
-                {fbSummary.forms.slice(0, 6).map(f => (
-                  <div key={f.id} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate text-foreground" title={f.id}>{f.name}</span>
-                    <span className="font-bold text-accent tabular-nums">{f.count}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Por status</p>
-              <div className="space-y-1.5">
-                {fbSummary.statuses.map(([st, ct]) => {
-                  const meta = statusLabels[st] ?? { label: st, color: "bg-muted text-muted-foreground" };
-                  return (
-                    <div key={st} className="flex items-center justify-between gap-2 text-xs">
-                      <span className={`px-2 py-0.5 rounded-full font-medium ${meta.color}`}>{meta.label}</span>
-                      <span className="font-bold tabular-nums text-foreground">{ct}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
