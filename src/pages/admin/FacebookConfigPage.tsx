@@ -5,15 +5,41 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Loader2, Facebook, Copy, RefreshCw, CheckCircle2,
   Upload, FileSpreadsheet, Users, ExternalLink, Zap,
-  AlertCircle, KeyRound, Eye, EyeOff,
+  AlertCircle, KeyRound, Eye, EyeOff, LogIn, Unplug,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 
 const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 const WEBHOOK_URL = `https://${projectId}.supabase.co/functions/v1/facebook-leads-webhook`;
+const FB_SCOPES = "leads_retrieval,pages_show_list,pages_manage_metadata,pages_read_engagement";
+
+// ---- Facebook JS SDK loader ----
+let fbSdkPromise: Promise<any> | null = null;
+function loadFbSdk(appId: string): Promise<any> {
+  if (fbSdkPromise) return fbSdkPromise;
+  fbSdkPromise = new Promise((resolve, reject) => {
+    if ((window as any).FB) {
+      try { (window as any).FB.init({ appId, cookie: false, xfbml: false, version: "v21.0" }); } catch {}
+      return resolve((window as any).FB);
+    }
+    (window as any).fbAsyncInit = function () {
+      (window as any).FB.init({ appId, cookie: false, xfbml: false, version: "v21.0" });
+      resolve((window as any).FB);
+    };
+    const s = document.createElement("script");
+    s.src = "https://connect.facebook.net/en_US/sdk.js";
+    s.async = true; s.defer = true; s.crossOrigin = "anonymous";
+    s.onerror = () => reject(new Error("Falha ao carregar Facebook SDK"));
+    document.body.appendChild(s);
+  });
+  return fbSdkPromise;
+}
 
 /* =====================================================================
    CSV PARSER (UTF-16 LE + TAB, formato exportado pelo Meta Ads Manager)
