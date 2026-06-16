@@ -7,8 +7,10 @@ import FinalCTASection from "@/components/ui/FinalCTASection";
 import FloatingCTAs from "@/components/ui/FloatingCTAs";
 import Footer from "@/components/ui/Footer";
 import { supabase } from "@/integrations/supabase/client";
+import { useScrollReveal } from "@/hooks/useScrollReveal";
 
 const Index = () => {
+  useScrollReveal();
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const utm_source = params.get("utm_source");
