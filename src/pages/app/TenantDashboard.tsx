@@ -3,14 +3,23 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Receipt, Target, Trophy, Users, Globe, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Receipt, Target, Trophy, Users, Globe, AlertTriangle, CheckCircle2, Filter, LineChart as LineIcon, Activity } from "lucide-react";
 import { SaleRow, BRL, PCT, summarize, groupSum, evaluationFunnel, weeklyBreakdown, categorize, isInternational, isEvaluation } from "@/lib/clinic-kpis";
+import {
+  ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Legend, ReferenceLine, Cell,
+} from "recharts";
 
 interface Goal { year: number; month: number; goal_1: number; goal_2: number; goal_3: number; }
+interface LeadRow { id: string; stage: string | null; created_at: string; }
 
 const MONTHS = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+
+const FUNNEL_STAGES = ["Novo", "Qualificado", "Avaliação Agendada", "Compareceu", "Fechado Ganho"] as const;
+const FUNNEL_COLORS = ["#60A5FA", "#A78BFA", "#F472B6", "#FBBF24", "#34D399"];
 
 export default function TenantDashboard() {
   const { tenant } = useTenant();
