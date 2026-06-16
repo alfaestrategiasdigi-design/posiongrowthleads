@@ -377,6 +377,47 @@ export default function CampanhasPage() {
         </div>
       </div>
 
+      {/* Facebook Ads — status, sync e validação de permissões */}
+      <Card>
+        <CardContent className="p-4 flex flex-wrap items-center gap-3 justify-between">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border ${
+              permState.checking
+                ? "border-border text-muted-foreground bg-muted/30"
+                : permState.ok
+                  ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/5"
+                  : "border-amber-500/30 text-amber-400 bg-amber-500/5"
+            }`}>
+              {permState.checking ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : permState.ok ? <ShieldCheck className="w-3.5 h-3.5" />
+                : <ShieldAlert className="w-3.5 h-3.5" />}
+              {permState.checking ? "Validando Marketing API…"
+                : permState.ok ? "Marketing API conectada (ads_read OK)"
+                : `Permissão ausente: ${permState.missing.join(", ") || "ads_read"}`}
+            </div>
+            {lastSync && (
+              <span className="text-xs text-muted-foreground">
+                Última sync: {new Date(lastSync).toLocaleString("pt-BR")}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={checkPermissions} disabled={permState.checking}>
+              <ShieldCheck className="w-4 h-4 mr-1.5" /> Revalidar permissões
+            </Button>
+            {!permState.ok && !permState.checking && (
+              <Button asChild variant="outline" size="sm">
+                <Link to="/admin/facebook">Reconectar Facebook</Link>
+              </Button>
+            )}
+            <Button size="sm" onClick={() => syncFacebookAds(false)} disabled={syncing || !permState.ok}>
+              {syncing ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+              Sincronizar Facebook Ads
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* KPI grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         <Kpi icon={<Wallet className="w-4 h-4" />} label="Investido" value={BRL(kpis.totalSpent)} accent="from-primary/20 to-primary/5" />
