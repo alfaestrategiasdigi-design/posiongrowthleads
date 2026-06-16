@@ -94,6 +94,8 @@ function ConfigTab() {
   const [configId, setConfigId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<any>(null);
 
   useEffect(() => {
     supabase.from("facebook_webhook_config").select("*").limit(1).maybeSingle()
