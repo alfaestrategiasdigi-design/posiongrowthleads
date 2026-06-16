@@ -263,45 +263,52 @@ function KpiCard({ icon: Icon, label, value, delta, accent, sub }: any) {
 function KpiPremium({ icon: Icon, label, value, delta, loading, sub, prevLabel }: { icon: any; label: string; value: string | null; delta?: number; loading?: boolean; sub?: string; prevLabel?: string }) {
   const showSkeleton = loading || value === null;
   const positive = (delta ?? 0) >= 0;
+  // Auto-shrink: números longos (ex: "R$ 1.245.000") nunca estouram o card
+  const len = (value ?? "").length;
+  const fontSize = len <= 8 ? 30 : len <= 12 ? 24 : len <= 16 ? 20 : 17;
+
   return (
     <div
-      className="relative p-5 group transition-all hover:border-primary/30 overflow-hidden min-w-0"
+      className="relative p-5 group transition-all overflow-hidden min-w-0"
       style={{
-        background: "linear-gradient(180deg, #0E1730 0%, #0A1124 100%)",
-        border: "1px solid rgba(255,255,255,0.06)",
-        borderRadius: 16,
-        boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 24px -12px rgba(0,0,0,0.6)",
+        background: "linear-gradient(155deg, rgba(20,30,60,0.85) 0%, rgba(10,17,36,0.95) 100%)",
+        border: "1px solid rgba(212,175,55,0.14)",
+        borderRadius: 18,
+        boxShadow: "0 1px 0 rgba(255,255,255,0.05) inset, 0 12px 32px -16px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.02)",
       }}
     >
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+      {/* Top accent line */}
+      <div className="absolute inset-x-0 top-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(212,175,55,0.5), transparent)" }} />
+      {/* Soft glow blob */}
+      <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-30 pointer-events-none"
+        style={{ background: "radial-gradient(circle, rgba(212,175,55,0.25) 0%, transparent 70%)" }} />
 
-      <div className="flex items-center justify-between mb-4">
-        <div
-          style={{ fontFamily: "Inter, sans-serif", fontSize: 10, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "#94A3B8" }}
-        >
+      <div className="flex items-start justify-between mb-4 relative">
+        <div style={{ fontFamily: "Inter, sans-serif", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "#94A3B8" }}>
           {label}
         </div>
-        <div
-          className="flex items-center justify-center shrink-0"
-          style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(212,175,55,0.10)", border: "1px solid rgba(212,175,55,0.18)" }}
-        >
-          <Icon className="w-3.5 h-3.5 text-primary" />
+        <div className="flex items-center justify-center shrink-0"
+          style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, rgba(212,175,55,0.18), rgba(212,175,55,0.06))", border: "1px solid rgba(212,175,55,0.25)" }}>
+          <Icon className="w-4 h-4" style={{ color: "#D4AF37" }} />
         </div>
       </div>
 
       {showSkeleton ? (
-        <div className="kpi-skeleton" style={{ height: 30, width: "70%", borderRadius: 6 }} />
+        <div className="kpi-skeleton" style={{ height: 32, width: "70%", borderRadius: 6 }} />
       ) : (
         <div
-          className="num leading-[1.05] tabular-nums truncate"
+          className="num tabular-nums relative"
           title={value ?? undefined}
           style={{
             fontFamily: "Syne, sans-serif",
-            fontSize: "clamp(20px, 2.1vw, 30px)",
+            fontSize,
             fontWeight: 700,
             color: "#FFFFFF",
-            letterSpacing: "-0.02em",
-            maxWidth: "100%",
+            letterSpacing: "-0.025em",
+            lineHeight: 1.08,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           }}
         >
           {value}
@@ -311,9 +318,10 @@ function KpiPremium({ icon: Icon, label, value, delta, loading, sub, prevLabel }
       {typeof delta === "number" && !showSkeleton && (
         <div className="mt-3 inline-flex items-center gap-1"
           style={{
-            background: positive ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)",
+            background: positive ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
             color: positive ? "#22C55E" : "#EF4444",
-            borderRadius: 100, padding: "2px 8px",
+            border: `1px solid ${positive ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}`,
+            borderRadius: 100, padding: "3px 9px",
             fontFamily: "Inter, sans-serif", fontSize: 10.5, fontWeight: 600,
           }}
         >
