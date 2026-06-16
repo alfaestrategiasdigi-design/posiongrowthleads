@@ -1122,7 +1122,10 @@ function ImportTab({ onImported }: { onImported: () => void }) {
 
   return (
     <div className="space-y-6">
+      <MetaImportSection onImported={onImported} />
+
       <div className="rounded-xl border border-dashed border-border/60 bg-card/60 p-8 text-center">
+
         <FileSpreadsheet className="w-10 h-10 text-accent mx-auto mb-3" />
         <h3 className="font-semibold text-foreground">Importar leads do Facebook Ads Manager</h3>
         <p className="text-xs text-muted-foreground mt-1 mb-4">
