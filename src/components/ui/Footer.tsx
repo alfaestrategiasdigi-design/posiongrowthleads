@@ -17,7 +17,7 @@ const Footer = () => {
           <div>
             <p className="text-[10px] uppercase tracking-[0.22em] text-accent/80 mb-3">Contato</p>
             <a
-              href="https://wa.me/5577810 82064?text=Olá%2C%20quero%20saber%20sobre%20a%20Posion".replace(/\s/g, "")
+              href="https://wa.me/5577810820 64?text=Olá%2C%20quero%20saber%20sobre%20a%20Posion"
               target="_blank"
               rel="noopener noreferrer"
               className="block text-foreground/80 hover:text-accent transition"
