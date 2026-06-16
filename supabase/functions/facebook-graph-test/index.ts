@@ -47,17 +47,28 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // 1) /me → confirma token e devolve info do owner (Page se for Page token, User se for User token)
-    const me = await gget("me", { fields: "id,name,category,tasks" });
+    // 1) /me básico → confirma token (funciona com qualquer tipo)
+    const meBasic = await gget("me", { fields: "id,name" });
 
-    // 2) Tenta listar formulários
+    // 2) Tenta inferir se é Page Token (category/tasks) ou User Token
+    let me = meBasic;
+    let tokenType: "page" | "user" = "user";
+    try {
+      const meExtended = await gget("me", { fields: "id,name,category,tasks" });
+      if (meExtended.category || Array.isArray(meExtended.tasks)) {
+        tokenType = "page";
+        me = meExtended;
+      }
+    } catch {
+      tokenType = "user";
+    }
+
+    // 3) Tenta listar formulários
     let forms: any[] = [];
     let formsError: string | null = null;
     let pages: any[] = [];
 
-    const isPageToken = Boolean(me.category) || Array.isArray(me.tasks);
-
-    if (isPageToken) {
+    if (tokenType === "page") {
       try {
         const f = await gget(`${me.id}/leadgen_forms`, { fields: "id,name,status,created_time,leads_count", limit: "100" });
         forms = f.data ?? [];
@@ -85,7 +96,7 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({
       ok: true,
-      tokenType: isPageToken ? "page" : "user",
+      tokenType,
       me: { id: me.id, name: me.name, category: me.category ?? null },
       pages,
       forms,
