@@ -181,7 +181,12 @@ export default function TenantKanban() {
                   )}
                   <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground">
                     <span>{l.first_contact_date ? new Date(l.first_contact_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</span>
-                    {l.sale_amount ? <span className="font-semibold text-foreground">{BRL(Number(l.sale_amount))}</span> : null}
+                    <div className="flex items-center gap-1.5">
+                      {daysIn(l.created_at) > 0 && (
+                        <span className="px-1.5 py-0.5 rounded bg-white/5">{daysIn(l.created_at)}d</span>
+                      )}
+                      {l.sale_amount ? <span className="font-semibold text-foreground">{BRL(Number(l.sale_amount))}</span> : null}
+                    </div>
                   </div>
                 </Card>
               ))}
