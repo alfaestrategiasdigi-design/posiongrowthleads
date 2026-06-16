@@ -23,14 +23,40 @@ const LeadsPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
+  const [lastLeadsSync, setLastLeadsSync] = useState<string | null>(null);
+
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
+      const [{ data }, { data: cfg }] = await Promise.all([
+        supabase.from("leads").select("*").order("created_at", { ascending: false }),
+        supabase.rpc("get_facebook_config_meta" as any),
+      ]);
       setLeads(data || []);
+      const row: any = Array.isArray(cfg) ? cfg[0] : cfg;
+      setLastLeadsSync(row?.last_leads_sync_at ?? null);
       setLoading(false);
     };
     load();
   }, []);
+
+  const fbSummary = useMemo(() => {
+    const fb = leads.filter(l => l.origem === "facebook_ads");
+    const byForm = new Map<string, { id: string; name: string; count: number }>();
+    const byStatus: Record<string, number> = {};
+    for (const l of fb) {
+      const id = (l as any).facebook_form_id || "(sem form)";
+      const name = (l as any).facebook_form_name || id;
+      const cur = byForm.get(id) || { id, name, count: 0 };
+      cur.count += 1;
+      byForm.set(id, cur);
+      byStatus[l.status] = (byStatus[l.status] || 0) + 1;
+    }
+    return {
+      total: fb.length,
+      forms: Array.from(byForm.values()).sort((a, b) => b.count - a.count),
+      statuses: Object.entries(byStatus).sort((a, b) => b[1] - a[1]),
+    };
+  }, [leads]);
 
   const filtered = leads.filter(l =>
     !searchQuery ||
