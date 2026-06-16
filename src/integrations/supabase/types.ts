@@ -527,6 +527,51 @@ export type Database = {
           },
         ]
       }
+      facebook_webhook_events: {
+        Row: {
+          ad_id: string | null
+          campaign_id: string | null
+          error: string | null
+          form_id: string | null
+          id: string
+          lead_id: string | null
+          leadgen_id: string | null
+          page_id: string | null
+          processed: boolean
+          raw_body: Json | null
+          received_at: string
+          signature_valid: boolean | null
+        }
+        Insert: {
+          ad_id?: string | null
+          campaign_id?: string | null
+          error?: string | null
+          form_id?: string | null
+          id?: string
+          lead_id?: string | null
+          leadgen_id?: string | null
+          page_id?: string | null
+          processed?: boolean
+          raw_body?: Json | null
+          received_at?: string
+          signature_valid?: boolean | null
+        }
+        Update: {
+          ad_id?: string | null
+          campaign_id?: string | null
+          error?: string | null
+          form_id?: string | null
+          id?: string
+          lead_id?: string | null
+          leadgen_id?: string | null
+          page_id?: string | null
+          processed?: boolean
+          raw_body?: Json | null
+          received_at?: string
+          signature_valid?: boolean | null
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           cidade_estado: string | null
@@ -545,6 +590,7 @@ export type Database = {
           fechado_em: string | null
           id: string
           investiu_trafego: string | null
+          is_organic: boolean
           ja_realizou_procedimento: string | null
           motivo_perda: string | null
           mql: boolean | null
@@ -584,6 +630,7 @@ export type Database = {
           fechado_em?: string | null
           id?: string
           investiu_trafego?: string | null
+          is_organic?: boolean
           ja_realizou_procedimento?: string | null
           motivo_perda?: string | null
           mql?: boolean | null
@@ -623,6 +670,7 @@ export type Database = {
           fechado_em?: string | null
           id?: string
           investiu_trafego?: string | null
+          is_organic?: boolean
           ja_realizou_procedimento?: string | null
           motivo_perda?: string | null
           mql?: boolean | null
