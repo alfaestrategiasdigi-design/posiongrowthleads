@@ -132,6 +132,23 @@ function ConfigTab() {
     toast.success(`${label} copiado`);
   };
 
+  const runGraphTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-graph-test", { body: {} });
+      if (error) throw error;
+      setTestResult(data);
+      if (data?.ok) toast.success("Token válido");
+      else toast.error(data?.error ?? "Falha no teste");
+    } catch (e: any) {
+      toast.error(e.message ?? "Erro ao testar");
+      setTestResult({ ok: false, error: e.message });
+    } finally {
+      setTesting(false);
+    }
+  };
+
   if (loading) return <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-accent" /></div>;
 
   return (
