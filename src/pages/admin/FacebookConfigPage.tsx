@@ -18,7 +18,7 @@ import { Link } from "react-router-dom";
 
 const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 const WEBHOOK_URL = `https://${projectId}.supabase.co/functions/v1/facebook-leads-webhook`;
-const FB_SCOPES = "leads_retrieval,pages_show_list,pages_manage_metadata,pages_read_engagement";
+const FB_SCOPES = "leads_retrieval,pages_show_list,pages_manage_metadata,pages_read_engagement,ads_read,ads_management,business_management";
 
 // ---- Facebook JS SDK loader ----
 let fbSdkPromise: Promise<any> | null = null;
