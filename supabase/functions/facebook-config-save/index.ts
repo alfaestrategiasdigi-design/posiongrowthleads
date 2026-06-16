@@ -61,11 +61,16 @@ Deno.serve(async (req) => {
   };
   setIf("page_access_token", body.page_access_token);
   setIf("app_secret", body.app_secret);
+  setIf("app_id", body.app_id);
   setIf("page_id", body.page_id);
   setIf("verify_token", body.verify_token);
 
   // remoções explícitas
-  if (body.clear_page_access_token === true) patch.page_access_token = null;
+  if (body.clear_page_access_token === true) {
+    patch.page_access_token = null;
+    patch.token_expires_at = null;
+    patch.connected_page_name = null;
+  }
   if (body.clear_app_secret === true) patch.app_secret = null;
 
   const { data: existing } = await admin
