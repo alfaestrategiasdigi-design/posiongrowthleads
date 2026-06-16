@@ -954,139 +954,12 @@ function MetaValidationBlock() {
    ABA 2 — Importar CSV
    ===================================================================== */
 
-type FbForm = { id: string; name: string; status?: string; leads_count?: number };
-
-function MetaImportSection({ onImported }: { onImported: () => void }) {
-  const [forms, setForms] = useState<FbForm[] | null>(null);
-  const [loadingForms, setLoadingForms] = useState(false);
-  const [formId, setFormId] = useState<string>("");
-  const today = new Date();
-  const thirtyAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  const [fromDate, setFromDate] = useState(fmt(thirtyAgo));
-  const [toDate, setToDate] = useState(fmt(today));
-  const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<any>(null);
-
-  const loadForms = async () => {
-    setLoadingForms(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("facebook-leads-export-csv", {
-        body: { action: "list_forms" },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      setForms(data.forms ?? []);
-      if (data.forms?.[0]?.id) setFormId(data.forms[0].id);
-      toast.success(`${data.forms?.length ?? 0} formulários encontrados`);
-    } catch (e: any) {
-      toast.error(e.message ?? "Erro ao listar formulários");
-    } finally {
-      setLoadingForms(false);
-    }
-  };
-
-  const runImport = async () => {
-    if (!formId) { toast.error("Selecione um formulário"); return; }
-    setImporting(true);
-    setResult(null);
-    try {
-      const from = Math.floor(new Date(fromDate + "T00:00:00Z").getTime() / 1000);
-      const to   = Math.floor(new Date(toDate   + "T23:59:59Z").getTime() / 1000);
-      const { data, error } = await supabase.functions.invoke("facebook-leads-export-csv", {
-        body: { action: "import", form_id: formId, from_date: from, to_date: to },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      setResult(data);
-      toast.success(`${data.inserted} novos · ${data.deduped} já existiam · ${data.organic} orgânicos · ${data.errors} falhas`);
-      onImported();
-    } catch (e: any) {
-      toast.error(e.message ?? "Erro ao importar");
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  return (
-    <div className="rounded-xl border border-border/50 bg-card p-6 space-y-4">
-      <div>
-        <h3 className="font-semibold text-foreground flex items-center gap-2">
-          <Download className="w-4 h-4 text-accent" /> Importar do Meta por período
-        </h3>
-        <p className="text-xs text-muted-foreground mt-1">
-          Usa o endpoint oficial <code className="text-[10px] bg-muted/40 px-1 rounded">/ads/lead_gen/export_csv</code> da Meta.
-          Requer página conectada e permissão <b>leads_retrieval</b>. Duplicados (mesmo lead ID) são ignorados.
-        </p>
-      </div>
-
-      {!forms && (
-        <Button variant="outline" onClick={loadForms} disabled={loadingForms}>
-          {loadingForms ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-          Carregar formulários da página
-        </Button>
-      )}
-
-      {forms && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="space-y-1.5 md:col-span-2">
-            <label className="text-xs font-medium text-foreground">Formulário</label>
-            <select
-              value={formId}
-              onChange={(e) => setFormId(e.target.value)}
-              className="w-full h-9 px-3 rounded-md border border-input bg-background text-xs text-foreground"
-            >
-              {forms.length === 0 && <option value="">Nenhum formulário encontrado</option>}
-              {forms.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name} · {f.status ?? "?"} · {f.leads_count ?? 0} leads · {f.id}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">De</label>
-            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="text-xs" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">Até</label>
-            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="text-xs" />
-          </div>
-          <div className="md:col-span-2 flex gap-2">
-            <Button onClick={runImport} disabled={importing || !formId} className="gradient-accent">
-              {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-              Importar leads do período
-            </Button>
-            <Button variant="outline" onClick={loadForms} disabled={loadingForms} title="Recarregar formulários">
-              <RefreshCw className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {result && (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs space-y-1">
-          <div><b className="text-emerald-300">Concluído</b> · {result.total} linhas processadas</div>
-          <div className="text-muted-foreground">
-            {result.inserted} novos · {result.deduped} duplicados · {result.organic} orgânicos · {result.errors} falhas
-          </div>
-          {result.error_samples?.length > 0 && (
-            <div className="text-amber-300 text-[10px] mt-1">Amostra de erros: {result.error_samples.join(" | ")}</div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function ImportTab({ onImported }: { onImported: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState("");
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{ inserted: number; deduped: number; errors: number } | null>(null);
-
-
 
   const handleFile = async (file: File) => {
     setFileName(file.name);
@@ -1122,10 +995,7 @@ function ImportTab({ onImported }: { onImported: () => void }) {
 
   return (
     <div className="space-y-6">
-      <MetaImportSection onImported={onImported} />
-
       <div className="rounded-xl border border-dashed border-border/60 bg-card/60 p-8 text-center">
-
         <FileSpreadsheet className="w-10 h-10 text-accent mx-auto mb-3" />
         <h3 className="font-semibold text-foreground">Importar leads do Facebook Ads Manager</h3>
         <p className="text-xs text-muted-foreground mt-1 mb-4">
