@@ -170,60 +170,126 @@ export type Database = {
           arrival_date: string | null
           attended: string | null
           channel: string | null
+          contact_count: number
           created_at: string
+          email: string | null
+          evaluation_attended: boolean
+          evaluation_attended_at: string | null
           evaluation_date: string | null
+          evaluation_scheduled_at: string | null
+          facebook_campaign_id: string | null
+          facebook_lead_id: string | null
           first_contact_date: string | null
           full_name: string
           id: string
           international: boolean
+          last_contact_at: string | null
+          last_contact_by: string | null
+          lead_type: string | null
+          metadata: Json
+          negotiation_value: number | null
           notes: string | null
           payment_method: string | null
           procedure_interest: string | null
+          product: string | null
+          responsible_role: string | null
+          responsible_user_id: string | null
           sale_amount: number | null
           seller_name: string | null
+          source_landing_page: string | null
           stage: string
+          status: string
+          tags: string[]
           tenant_id: string
           updated_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
           whatsapp: string
         }
         Insert: {
           arrival_date?: string | null
           attended?: string | null
           channel?: string | null
+          contact_count?: number
           created_at?: string
+          email?: string | null
+          evaluation_attended?: boolean
+          evaluation_attended_at?: string | null
           evaluation_date?: string | null
+          evaluation_scheduled_at?: string | null
+          facebook_campaign_id?: string | null
+          facebook_lead_id?: string | null
           first_contact_date?: string | null
           full_name: string
           id?: string
           international?: boolean
+          last_contact_at?: string | null
+          last_contact_by?: string | null
+          lead_type?: string | null
+          metadata?: Json
+          negotiation_value?: number | null
           notes?: string | null
           payment_method?: string | null
           procedure_interest?: string | null
+          product?: string | null
+          responsible_role?: string | null
+          responsible_user_id?: string | null
           sale_amount?: number | null
           seller_name?: string | null
+          source_landing_page?: string | null
           stage?: string
+          status?: string
+          tags?: string[]
           tenant_id: string
           updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
           whatsapp: string
         }
         Update: {
           arrival_date?: string | null
           attended?: string | null
           channel?: string | null
+          contact_count?: number
           created_at?: string
+          email?: string | null
+          evaluation_attended?: boolean
+          evaluation_attended_at?: string | null
           evaluation_date?: string | null
+          evaluation_scheduled_at?: string | null
+          facebook_campaign_id?: string | null
+          facebook_lead_id?: string | null
           first_contact_date?: string | null
           full_name?: string
           id?: string
           international?: boolean
+          last_contact_at?: string | null
+          last_contact_by?: string | null
+          lead_type?: string | null
+          metadata?: Json
+          negotiation_value?: number | null
           notes?: string | null
           payment_method?: string | null
           procedure_interest?: string | null
+          product?: string | null
+          responsible_role?: string | null
+          responsible_user_id?: string | null
           sale_amount?: number | null
           seller_name?: string | null
+          source_landing_page?: string | null
           stage?: string
+          status?: string
+          tags?: string[]
           tenant_id?: string
           updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
           whatsapp?: string
         }
         Relationships: [
@@ -1008,59 +1074,117 @@ export type Database = {
       sales: {
         Row: {
           amount: number
+          amount_paid: number
+          amount_pending: number
           attended: string | null
           category: string | null
           channel: string | null
+          channel_origin: string | null
+          clinic_lead_id: string | null
+          completed: boolean
+          completed_date: string | null
           created_at: string
+          facebook_campaign_id: string | null
           first_contact_date: string | null
           id: string
           international: boolean
+          metadata: Json
           notes: string | null
           patient_id: string | null
           patient_name: string
           payment_method: string | null
+          payment_status: string
+          procedure_category: string | null
+          procedure_id: string | null
+          procedure_name: string | null
           product: string | null
           sale_date: string
+          scheduled_date: string | null
+          seller_id: string | null
           seller_name: string | null
           tenant_id: string
+          updated_at: string
+          utm_campaign: string | null
+          utm_source: string | null
         }
         Insert: {
           amount?: number
+          amount_paid?: number
+          amount_pending?: number
           attended?: string | null
           category?: string | null
           channel?: string | null
+          channel_origin?: string | null
+          clinic_lead_id?: string | null
+          completed?: boolean
+          completed_date?: string | null
           created_at?: string
+          facebook_campaign_id?: string | null
           first_contact_date?: string | null
           id?: string
           international?: boolean
+          metadata?: Json
           notes?: string | null
           patient_id?: string | null
           patient_name: string
           payment_method?: string | null
+          payment_status?: string
+          procedure_category?: string | null
+          procedure_id?: string | null
+          procedure_name?: string | null
           product?: string | null
           sale_date: string
+          scheduled_date?: string | null
+          seller_id?: string | null
           seller_name?: string | null
           tenant_id: string
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_source?: string | null
         }
         Update: {
           amount?: number
+          amount_paid?: number
+          amount_pending?: number
           attended?: string | null
           category?: string | null
           channel?: string | null
+          channel_origin?: string | null
+          clinic_lead_id?: string | null
+          completed?: boolean
+          completed_date?: string | null
           created_at?: string
+          facebook_campaign_id?: string | null
           first_contact_date?: string | null
           id?: string
           international?: boolean
+          metadata?: Json
           notes?: string | null
           patient_id?: string | null
           patient_name?: string
           payment_method?: string | null
+          payment_status?: string
+          procedure_category?: string | null
+          procedure_id?: string | null
+          procedure_name?: string | null
           product?: string | null
           sale_date?: string
+          scheduled_date?: string | null
+          seller_id?: string | null
           seller_name?: string | null
           tenant_id?: string
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_source?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "sales_clinic_lead_id_fkey"
+            columns: ["clinic_lead_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_leads"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "sales_patient_id_fkey"
             columns: ["patient_id"]
