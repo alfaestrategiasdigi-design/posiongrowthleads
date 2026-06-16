@@ -39,9 +39,13 @@ async function insertLead(payload: Record<string, string>, meta: {
   facebook_lead_id?: string | null;
   facebook_form_id?: string | null;
   facebook_campaign?: string | null;
+  facebook_form_name?: string | null;
+  facebook_ad_name?: string | null;
+  facebook_adset_name?: string | null;
 }) {
   const nome      = pick(payload, ["full_name","nome","nome_completo","name","first_name"]);
-  const whatsapp  = pick(payload, ["phone_number","phone","whatsapp","telefone","celular"]);
+  let whatsapp    = pick(payload, ["phone_number","phone","whatsapp","telefone","celular"]);
+  if (whatsapp) whatsapp = whatsapp.replace(/^p:\+?/i, "").replace(/\D/g, "");
   const email     = pick(payload, ["email","e_mail"]);
   const empresa   = pick(payload, ["company_name","empresa","clinica","nome_empresa","nome_clinica"]);
   const cidade    = pick(payload, ["city","cidade","cidade_estado"]);
