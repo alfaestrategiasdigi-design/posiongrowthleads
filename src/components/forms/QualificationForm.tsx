@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,19 @@ const investiuTrafegoOptions = [
   "Faço tráfego internamente",
   "Tenho agência atualmente",
 ];
+const jaRealizouOptions = [
+  "Sim, já realizei antes",
+  "Não, será a primeira vez",
+  "Estou pesquisando ainda",
+];
+const expectativaInvestimentoOptions = [
+  "Até R$ 5 mil",
+  "R$ 5 mil a R$ 15 mil",
+  "R$ 15 mil a R$ 30 mil",
+  "R$ 30 mil a R$ 60 mil",
+  "Acima de R$ 60 mil",
+  "Ainda não defini",
+];
 const faturamentoOptions = [
   "Abaixo de R$10 mil",
   "R$10 mil a R$30 mil",
@@ -32,24 +45,26 @@ const faturamentoOptions = [
 type FormData = {
   nomeCompleto: string;
   whatsapp: string;
-  email: string;
   nomeClinica: string;
   cidadeEstado: string;
   especialidade: string;
   numProfissionais: string;
   investiuTrafego: string;
+  jaRealizouProcedimento: string;
+  expectativaInvestimento: string;
   faturamentoMensal: string;
 };
 
 const schema = z.object({
   nomeCompleto: z.string().trim().min(3, "Informe seu nome").max(120),
   whatsapp: z.string().min(14, "WhatsApp com DDD").max(20),
-  email: z.string().trim().email("E-mail inválido").max(160),
   nomeClinica: z.string().trim().min(2, "Informe o nome da clínica").max(120),
-  cidadeEstado: z.string().trim().min(2, "Informe cidade / UF").max(120),
+  cidadeEstado: z.string().trim().min(2, "Informe sua localização").max(120),
   especialidade: z.string().min(1, "Selecione a especialidade"),
   numProfissionais: z.string().min(1, "Selecione uma opção"),
   investiuTrafego: z.string().min(1, "Selecione uma opção"),
+  jaRealizouProcedimento: z.string().min(1, "Selecione uma opção"),
+  expectativaInvestimento: z.string().min(1, "Selecione uma opção"),
   faturamentoMensal: z.string().min(1, "Selecione uma opção"),
 });
 
@@ -59,7 +74,7 @@ type Step = {
   field: keyof FormData;
   label: string;
   question: string;
-  type: "text" | "tel" | "email" | "choice";
+  type: "text" | "tel" | "choice";
   placeholder?: string;
   options?: string[];
 };
@@ -67,31 +82,21 @@ type Step = {
 const steps: Step[] = [
   { field: "nomeCompleto", label: "Quem é você", question: "Qual o seu nome?", type: "text", placeholder: "Nome do responsável (médico/gestor)" },
   { field: "whatsapp", label: "Contato", question: "Qual seu WhatsApp com DDD?", type: "tel", placeholder: "(00) 00000-0000" },
-  { field: "email", label: "E-mail", question: "Em qual e-mail podemos te chamar?", type: "email", placeholder: "seu@email.com" },
   { field: "nomeClinica", label: "Sua clínica", question: "Qual o nome da sua clínica?", type: "text", placeholder: "Nome da clínica" },
-  { field: "cidadeEstado", label: "Localização", question: "Cidade e estado?", type: "text", placeholder: "Cidade, UF" },
+  { field: "cidadeEstado", label: "Localização", question: "Onde você está localizado? (cidade e estado)", type: "text", placeholder: "Ex.: São Paulo, SP" },
   { field: "especialidade", label: "Especialidade", question: "Qual é a sua especialidade ou nicho?", type: "choice", options: especialidadeOptions },
   { field: "numProfissionais", label: "Equipe", question: "Quantos profissionais atendem na clínica?", type: "choice", options: numProfissionaisOptions },
   { field: "investiuTrafego", label: "Tráfego", question: "Você já investiu em tráfego pago?", type: "choice", options: investiuTrafegoOptions },
+  { field: "jaRealizouProcedimento", label: "Histórico", question: "Você já realizou algum procedimento estético ou tratamento antes?", type: "choice", options: jaRealizouOptions },
+  { field: "expectativaInvestimento", label: "Investimento", question: "Qual sua expectativa de investimento para o procedimento desejado?", type: "choice", options: expectativaInvestimentoOptions },
   { field: "faturamentoMensal", label: "Faturamento", question: "Qual o faturamento mensal atual?", type: "choice", options: faturamentoOptions },
 ];
 
 const initial: FormData = {
-  nomeCompleto: "", whatsapp: "", email: "", nomeClinica: "",
+  nomeCompleto: "", whatsapp: "", nomeClinica: "",
   cidadeEstado: "", especialidade: "", numProfissionais: "",
-  investiuTrafego: "", faturamentoMensal: "",
-};
-
-const fieldDbMap: Record<keyof FormData, string> = {
-  nomeCompleto: "nome_completo",
-  whatsapp: "whatsapp",
-  email: "email",
-  nomeClinica: "nome_empresa",
-  cidadeEstado: "cidade_estado",
-  especialidade: "especialidade",
-  numProfissionais: "num_profissionais",
-  investiuTrafego: "investiu_trafego",
-  faturamentoMensal: "faturamento_mensal",
+  investiuTrafego: "", jaRealizouProcedimento: "",
+  expectativaInvestimento: "", faturamentoMensal: "",
 };
 
 const QualificationForm = () => {
@@ -160,7 +165,6 @@ const QualificationForm = () => {
       const parsed = schema.parse(data);
       const qualified = evaluateQualified(parsed as FormData);
 
-      // Recuperar UTMs salvos do tracking
       let utms: any = {};
       try {
         const raw = localStorage.getItem("posion_utms");
@@ -170,12 +174,13 @@ const QualificationForm = () => {
       const { error } = await supabase.from("leads").insert({
         nome_completo: parsed.nomeCompleto,
         whatsapp: parsed.whatsapp,
-        email: parsed.email,
         nome_empresa: parsed.nomeClinica,
         cidade_estado: parsed.cidadeEstado,
         especialidade: parsed.especialidade,
         num_profissionais: parsed.numProfissionais,
         investiu_trafego: parsed.investiuTrafego,
+        ja_realizou_procedimento: parsed.jaRealizouProcedimento,
+        expectativa_investimento: parsed.expectativaInvestimento,
         faturamento_mensal: parsed.faturamentoMensal,
         status: qualified ? "novo" : "desqualificado",
         revendedor_iniciante: false,
@@ -202,7 +207,6 @@ const QualificationForm = () => {
 
   return (
     <div className="card-elevated p-6 md:p-8 animate-slide-up">
-      {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/30 flex items-center justify-center">
@@ -218,7 +222,6 @@ const QualificationForm = () => {
         </span>
       </div>
 
-      {/* Progress */}
       <div className="h-1 w-full bg-secondary rounded-full overflow-hidden mb-7">
         <div
           className="h-full gradient-accent transition-all duration-500 ease-out"
@@ -226,12 +229,10 @@ const QualificationForm = () => {
         />
       </div>
 
-      {/* Question */}
       <h3 className="font-display text-2xl md:text-3xl text-foreground mb-6 leading-snug">
         {current.question}
       </h3>
 
-      {/* Input */}
       <div key={current.field} className="animate-fade-in-up">
         {current.type === "choice" ? (
           <div className="grid gap-2">
@@ -283,7 +284,6 @@ const QualificationForm = () => {
 
       {error && <p className="text-sm text-destructive mt-3">{error}</p>}
 
-      {/* Nav */}
       <div className="flex items-center justify-between mt-8">
         <Button
           type="button"
