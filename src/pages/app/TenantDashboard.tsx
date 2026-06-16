@@ -97,6 +97,62 @@ export default function TenantDashboard() {
   const intl = useMemo(() => monthSales.filter(isInternational), [monthSales]);
   const intlTotal = intl.reduce((s, r) => s + Number(r.amount), 0);
 
+  // Funil do Kanban (clinic_leads) — leads criados no mês selecionado
+  const funnelChart = useMemo(() => {
+    const monthLeads = leads.filter((l) => {
+      const d = new Date(l.created_at);
+      return d.getFullYear() === year && d.getMonth() + 1 === month;
+    });
+    const ORDER = ["Novo", "Qualificado", "Avaliação Agendada", "Compareceu", "Fechado Ganho"];
+    const counts: Record<string, number> = {};
+    ORDER.forEach((s) => (counts[s] = 0));
+    for (const l of monthLeads) {
+      const idx = ORDER.indexOf(l.stage || "");
+      // Cada lead conta para o estágio em que está + todos os anteriores (funil cumulativo)
+      const reachedIdx = idx >= 0 ? idx : (l.stage === "Em Negociação" ? 4 : -1);
+      if (reachedIdx >= 0) for (let i = 0; i <= reachedIdx; i++) counts[ORDER[i]]++;
+    }
+    const top = counts[ORDER[0]] || 1;
+    return ORDER.map((stage, i) => ({
+      stage,
+      value: counts[stage],
+      pct: counts[stage] / top,
+      color: FUNNEL_COLORS[i],
+    }));
+  }, [leads, year, month]);
+
+  // Evolução dos últimos 30 dias (terminando no último dia do mês selecionado)
+  const evolution30 = useMemo(() => {
+    const last = new Date(year, month, 0); // último dia do mês
+    const today = new Date();
+    const end = last > today ? today : last;
+    const data: { date: string; label: string; total: number; count: number }[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(end);
+      d.setDate(end.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      const rows = sales.filter((s) => s.sale_date === key);
+      data.push({
+        date: key,
+        label: `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`,
+        total: rows.reduce((a, r) => a + Number(r.amount || 0), 0),
+        count: rows.length,
+      });
+    }
+    return data;
+  }, [sales, year, month]);
+
+  const avgDaily = evolution30.length ? evolution30.reduce((a, r) => a + r.total, 0) / evolution30.length : 0;
+
+  // ROI vs Investimento
+  const roi = investment > 0 ? (total - investment) / investment : 0;
+  const cac = count > 0 && investment > 0 ? investment / count : 0;
+  const monthLeadsCount = useMemo(() => leads.filter((l) => {
+    const d = new Date(l.created_at);
+    return d.getFullYear() === year && d.getMonth() + 1 === month;
+  }).length, [leads, year, month]);
+  const cpl = monthLeadsCount > 0 && investment > 0 ? investment / monthLeadsCount : 0;
+
   // Available months from data
   const availableMonths = useMemo(() => {
     const set = new Set<string>();
