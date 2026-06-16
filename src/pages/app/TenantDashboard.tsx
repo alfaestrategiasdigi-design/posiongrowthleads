@@ -3,22 +3,46 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Receipt, Target, Trophy, Users, Globe, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Receipt, Target, Trophy, Users, Globe, AlertTriangle, CheckCircle2, Filter, LineChart as LineIcon, Activity } from "lucide-react";
 import { SaleRow, BRL, PCT, summarize, groupSum, evaluationFunnel, weeklyBreakdown, categorize, isInternational, isEvaluation } from "@/lib/clinic-kpis";
+import {
+  ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Legend, ReferenceLine, Cell,
+} from "recharts";
 
 interface Goal { year: number; month: number; goal_1: number; goal_2: number; goal_3: number; }
+interface LeadRow { id: string; stage: string | null; created_at: string; }
 
 const MONTHS = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+
+const FUNNEL_STAGES = ["Novo", "Qualificado", "Avaliação Agendada", "Compareceu", "Fechado Ganho"] as const;
+const FUNNEL_COLORS = ["#60A5FA", "#A78BFA", "#F472B6", "#FBBF24", "#34D399"];
 
 export default function TenantDashboard() {
   const { tenant } = useTenant();
   const [sales, setSales] = useState<SaleRow[]>([]);
+  const [leads, setLeads] = useState<LeadRow[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [year, setYear] = useState(2026);
-  const [month, setMonth] = useState(5);
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+
+  // Investimento mensal (armazenado localmente por tenant+ano-mês)
+  const invKey = tenant ? `posion:invest:${tenant.id}:${year}-${month}` : "";
+  const [investment, setInvestment] = useState<number>(0);
+  useEffect(() => {
+    if (!invKey) return;
+    const v = Number(localStorage.getItem(invKey) || 0);
+    setInvestment(isFinite(v) ? v : 0);
+  }, [invKey]);
+  const saveInvestment = (v: number) => {
+    setInvestment(v);
+    if (invKey) localStorage.setItem(invKey, String(v));
+  };
 
   useEffect(() => {
     if (!tenant) return;
@@ -26,9 +50,11 @@ export default function TenantDashboard() {
     Promise.all([
       supabase.from("sales").select("*").eq("tenant_id", tenant.id).order("sale_date", { ascending: true }),
       supabase.from("monthly_goals").select("*").eq("tenant_id", tenant.id),
-    ]).then(([s, g]) => {
+      supabase.from("clinic_leads").select("id,stage,created_at").eq("tenant_id", tenant.id),
+    ]).then(([s, g, l]) => {
       setSales((s.data || []) as SaleRow[]);
       setGoals((g.data || []) as Goal[]);
+      setLeads((l.data || []) as LeadRow[]);
       setLoading(false);
     });
   }, [tenant]);
@@ -70,6 +96,62 @@ export default function TenantDashboard() {
   const weeks = useMemo(() => weeklyBreakdown(monthSales), [monthSales]);
   const intl = useMemo(() => monthSales.filter(isInternational), [monthSales]);
   const intlTotal = intl.reduce((s, r) => s + Number(r.amount), 0);
+
+  // Funil do Kanban (clinic_leads) — leads criados no mês selecionado
+  const funnelChart = useMemo(() => {
+    const monthLeads = leads.filter((l) => {
+      const d = new Date(l.created_at);
+      return d.getFullYear() === year && d.getMonth() + 1 === month;
+    });
+    const ORDER = ["Novo", "Qualificado", "Avaliação Agendada", "Compareceu", "Fechado Ganho"];
+    const counts: Record<string, number> = {};
+    ORDER.forEach((s) => (counts[s] = 0));
+    for (const l of monthLeads) {
+      const idx = ORDER.indexOf(l.stage || "");
+      // Cada lead conta para o estágio em que está + todos os anteriores (funil cumulativo)
+      const reachedIdx = idx >= 0 ? idx : (l.stage === "Em Negociação" ? 4 : -1);
+      if (reachedIdx >= 0) for (let i = 0; i <= reachedIdx; i++) counts[ORDER[i]]++;
+    }
+    const top = counts[ORDER[0]] || 1;
+    return ORDER.map((stage, i) => ({
+      stage,
+      value: counts[stage],
+      pct: counts[stage] / top,
+      color: FUNNEL_COLORS[i],
+    }));
+  }, [leads, year, month]);
+
+  // Evolução dos últimos 30 dias (terminando no último dia do mês selecionado)
+  const evolution30 = useMemo(() => {
+    const last = new Date(year, month, 0); // último dia do mês
+    const today = new Date();
+    const end = last > today ? today : last;
+    const data: { date: string; label: string; total: number; count: number }[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(end);
+      d.setDate(end.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      const rows = sales.filter((s) => s.sale_date === key);
+      data.push({
+        date: key,
+        label: `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`,
+        total: rows.reduce((a, r) => a + Number(r.amount || 0), 0),
+        count: rows.length,
+      });
+    }
+    return data;
+  }, [sales, year, month]);
+
+  const avgDaily = evolution30.length ? evolution30.reduce((a, r) => a + r.total, 0) / evolution30.length : 0;
+
+  // ROI vs Investimento
+  const roi = investment > 0 ? (total - investment) / investment : 0;
+  const cac = count > 0 && investment > 0 ? investment / count : 0;
+  const monthLeadsCount = useMemo(() => leads.filter((l) => {
+    const d = new Date(l.created_at);
+    return d.getFullYear() === year && d.getMonth() + 1 === month;
+  }).length, [leads, year, month]);
+  const cpl = monthLeadsCount > 0 && investment > 0 ? investment / monthLeadsCount : 0;
 
   // Available months from data
   const availableMonths = useMemo(() => {
@@ -156,6 +238,122 @@ export default function TenantDashboard() {
           })}
         </CardContent>
       </Card>
+
+      {/* 30-day Evolution */}
+      <Card>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Evolução — Últimos 30 dias</CardTitle>
+          <span className="text-xs text-muted-foreground num">Média diária: <span className="text-foreground font-medium">{BRL(avgDaily)}</span></span>
+        </CardHeader>
+        <CardContent>
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={evolution30} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gradRev" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#D4AF37" stopOpacity={0.45} />
+                    <stop offset="100%" stopColor="#D4AF37" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94A3B8" }} interval={3} />
+                <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : `${v}`} />
+                <RTooltip
+                  contentStyle={{ background: "rgba(10,17,36,0.95)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 10, fontSize: 12 }}
+                  labelStyle={{ color: "#D4AF37", fontWeight: 600 }}
+                  formatter={(v: any, n: string) => n === "total" ? [BRL(Number(v)), "Faturamento"] : [v, "Vendas"]}
+                />
+                <ReferenceLine y={avgDaily} stroke="#94A3B8" strokeDasharray="4 4" label={{ value: "média", fill: "#94A3B8", fontSize: 10, position: "right" }} />
+                <Area type="monotone" dataKey="total" stroke="#D4AF37" strokeWidth={2} fill="url(#gradRev)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Funil do Kanban + ROI */}
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Filter className="w-4 h-4 text-primary" /> Funil de Conversão (Kanban)</CardTitle></CardHeader>
+          <CardContent>
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={funnelChart} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 0 }}>
+                  <CartesianGrid horizontal={false} stroke="rgba(255,255,255,0.06)" />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: "#94A3B8" }} />
+                  <YAxis type="category" dataKey="stage" tick={{ fontSize: 11, fill: "#CBD5E1" }} width={140} />
+                  <RTooltip
+                    contentStyle={{ background: "rgba(10,17,36,0.95)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 10, fontSize: 12 }}
+                    formatter={(v: any, _n, p: any) => [`${v} leads (${PCT(p.payload.pct)})`, p.payload.stage]}
+                  />
+                  <Bar dataKey="value" radius={[0, 8, 8, 0]}>
+                    {funnelChart.map((d, i) => <Cell key={i} fill={d.color} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="grid grid-cols-5 gap-2 mt-3 pt-3 border-t border-border/40">
+              {funnelChart.map((d) => (
+                <div key={d.stage} className="text-center">
+                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground truncate" title={d.stage}>{d.stage}</div>
+                  <div className="font-display text-lg num leading-none mt-1" style={{ color: d.color }}>{d.value}</div>
+                  <div className="text-[10px] text-muted-foreground num">{PCT(d.pct)}</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><LineIcon className="w-4 h-4 text-primary" /> ROI vs Investimento</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Investimento em tráfego (mês)</label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={investment || ""}
+                  onChange={(e) => saveInvestment(Number(e.target.value) || 0)}
+                  placeholder="R$ 0,00"
+                  className="mt-1 num"
+                />
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">ROI</div>
+                <div className="font-display text-3xl num leading-none mt-1" style={{ color: roi >= 0 ? "#22C55E" : "#EF4444" }}>
+                  {investment > 0 ? `${(roi * 100).toFixed(0)}%` : "—"}
+                </div>
+              </div>
+            </div>
+            <div className="h-44 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={[
+                  { name: "Investido", value: investment, fill: "#EF4444" },
+                  { name: "Faturado", value: total, fill: "#22C55E" },
+                  { name: "Lucro", value: Math.max(0, total - investment), fill: "#D4AF37" },
+                ]} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94A3B8" }} />
+                  <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : `${v}`} />
+                  <RTooltip
+                    contentStyle={{ background: "rgba(10,17,36,0.95)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 10, fontSize: 12 }}
+                    formatter={(v: any) => [BRL(Number(v)), ""]}
+                  />
+                  <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                    {[0,1,2].map((i) => <Cell key={i} fill={["#EF4444","#22C55E","#D4AF37"][i]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/40">
+              <MiniStat label="CPL" value={cpl > 0 ? BRL(cpl) : "—"} sub={`${monthLeadsCount} leads`} />
+              <MiniStat label="CAC" value={cac > 0 ? BRL(cac) : "—"} sub={`${count} vendas`} />
+              <MiniStat label="Ticket" value={avg ? BRL(avg) : "—"} sub="médio" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Funnel / Attendance */}
       <div className="grid lg:grid-cols-2 gap-4">
@@ -357,6 +555,16 @@ function BreakdownCard({ title, rows, total }: { title: string; rows: { name: st
         {rows.length === 0 && <div className="text-sm text-muted-foreground">Sem dados.</div>}
       </CardContent>
     </Card>
+  );
+}
+
+function MiniStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="text-center p-2 rounded-lg bg-muted/30 border border-border/40">
+      <div className="text-[9px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="font-display text-base num leading-none mt-1">{value}</div>
+      {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
+    </div>
   );
 }
 
