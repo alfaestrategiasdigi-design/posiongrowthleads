@@ -87,14 +87,27 @@ Deno.serve(async (req) => {
     steps.push({ id: "page_token", label: "Page Access Token válido", ok: false, level: "error", message: "Token não salvo" });
   } else {
     try {
-      const r = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name,category,tasks&access_token=${encodeURIComponent(pat)}`);
-      const j = await r.json();
-      if (!r.ok) {
-        steps.push({ id: "page_token", label: "Page Access Token válido", ok: false, level: "error", message: j?.error?.message ?? `HTTP ${r.status}` });
+      // Passo 3a: /me básico (id,name) — funciona com qualquer token
+      const r1 = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(pat)}`);
+      const j1 = await r1.json();
+      if (!r1.ok) {
+        steps.push({ id: "page_token", label: "Page Access Token válido", ok: false, level: "error", message: j1?.error?.message ?? `HTTP ${r1.status}` });
       } else {
-        me = j;
-        tokenType = (j.category || Array.isArray(j.tasks)) ? "page" : "user";
-        steps.push({ id: "page_token", label: "Page Access Token válido", ok: true, level: "ok", message: `${tokenType === "page" ? "Page Token" : "User Token"} · ${j.name} (${j.id})` });
+        me = j1;
+        // Passo 3b: tenta /me com category/tasks para saber se é Page Token
+        try {
+          const r2 = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name,category,tasks&access_token=${encodeURIComponent(pat)}`);
+          const j2 = await r2.json();
+          if (r2.ok && (j2.category || Array.isArray(j2.tasks))) {
+            tokenType = "page";
+            me = j2;
+          } else {
+            tokenType = "user";
+          }
+        } catch {
+          tokenType = "user";
+        }
+        steps.push({ id: "page_token", label: "Page Access Token válido", ok: true, level: "ok", message: `${tokenType === "page" ? "Page Token" : "User Token"} · ${j1.name} (${j1.id})` });
       }
     } catch (e: any) {
       steps.push({ id: "page_token", label: "Page Access Token válido", ok: false, level: "error", message: e.message });
