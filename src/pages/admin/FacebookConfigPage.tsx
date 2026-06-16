@@ -726,7 +726,10 @@ function BackfillAndDebugBlock() {
         )}
       </div>
 
+      <MetaValidationBlock />
+
       <div className="bg-card border border-border/50 rounded-xl p-6 space-y-4">
+
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h2 className="font-semibold text-foreground flex items-center gap-2">
