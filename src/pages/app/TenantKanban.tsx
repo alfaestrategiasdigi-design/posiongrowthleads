@@ -16,16 +16,21 @@ type Stage =
   | "negociando" | "fechado_ganho" | "fechado_perdido" | "no_show" | "futuro";
 
 const STAGES: { id: Stage; title: string; accent: string; bg: string }[] = [
-  { id: "contato_iniciado",   title: "Contato Iniciado",  accent: "#4F8CFF", bg: "rgba(79,140,255,0.15)" },
-  { id: "qualificando",       title: "Qualificando",      accent: "#A78BFA", bg: "rgba(167,139,250,0.15)" },
-  { id: "avaliacao_agendada", title: "Avaliação Agendada",accent: "#D4AF37", bg: "rgba(212,175,55,0.15)" },
-  { id: "avaliacao_realizada",title: "Avaliação Realizada",accent: "#D4AF37", bg: "rgba(212,175,55,0.22)" },
-  { id: "negociando",         title: "Negociando",        accent: "#F59E0B", bg: "rgba(245,158,11,0.15)" },
-  { id: "fechado_ganho",      title: "Fechado Ganho",     accent: "#22C55E", bg: "rgba(34,197,94,0.15)" },
-  { id: "fechado_perdido",    title: "Fechado Perdido",   accent: "#EF4444", bg: "rgba(239,68,68,0.15)" },
-  { id: "no_show",            title: "No-show",           accent: "#94A3B8", bg: "rgba(148,163,184,0.15)" },
-  { id: "futuro",             title: "Futuro",            accent: "#2DD4BF", bg: "rgba(45,212,191,0.15)" },
+  { id: "contato_iniciado",   title: "Novo",                accent: "#4F8CFF", bg: "rgba(79,140,255,0.15)" },
+  { id: "qualificando",       title: "Qualificado",         accent: "#A78BFA", bg: "rgba(167,139,250,0.15)" },
+  { id: "avaliacao_agendada", title: "Avaliação Agendada",  accent: "#D4AF37", bg: "rgba(212,175,55,0.15)" },
+  { id: "avaliacao_realizada",title: "Compareceu",          accent: "#D4AF37", bg: "rgba(212,175,55,0.22)" },
+  { id: "negociando",         title: "Em Negociação",       accent: "#F59E0B", bg: "rgba(245,158,11,0.15)" },
+  { id: "fechado_ganho",      title: "Fechado Ganho",       accent: "#22C55E", bg: "rgba(34,197,94,0.15)" },
+  { id: "fechado_perdido",    title: "Fechado Perdido",     accent: "#EF4444", bg: "rgba(239,68,68,0.15)" },
+  { id: "no_show",            title: "Sem Resposta",        accent: "#94A3B8", bg: "rgba(148,163,184,0.15)" },
+  { id: "futuro",             title: "Cancelado",           accent: "#64748B", bg: "rgba(100,116,139,0.15)" },
 ];
+
+function daysIn(date: string | null) {
+  if (!date) return 0;
+  return Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
+}
 
 type Lead = {
   id: string; full_name: string; whatsapp: string; channel: string | null;
