@@ -919,6 +919,56 @@ export type Database = {
           },
         ]
       }
+      posion_contracts: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          id: string
+          monthly_fee: number
+          notes: string | null
+          plan_name: string | null
+          setup_fee: number
+          start_date: string
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          monthly_fee?: number
+          notes?: string | null
+          plan_name?: string | null
+          setup_fee?: number
+          start_date?: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          monthly_fee?: number
+          notes?: string | null
+          plan_name?: string | null
+          setup_fee?: number
+          start_date?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posion_contracts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       procedures: {
         Row: {
           active: boolean
