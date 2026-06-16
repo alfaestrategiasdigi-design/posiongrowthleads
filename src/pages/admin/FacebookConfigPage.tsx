@@ -11,6 +11,7 @@ import {
   Loader2, Facebook, Copy, RefreshCw, CheckCircle2,
   Upload, FileSpreadsheet, Users, ExternalLink, Zap,
   AlertCircle, KeyRound, Eye, EyeOff, LogIn, Unplug,
+  Download, Bug,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
@@ -488,6 +489,9 @@ function ConfigTab() {
         )}
       </div>
 
+      {/* Backfill + Debug */}
+      <BackfillAndDebugBlock />
+
       {/* Guia rápido */}
       <div className="bg-accent/5 border border-accent/20 rounded-xl p-6 space-y-3">
         <h2 className="font-semibold text-foreground">Configuração do App no painel da Meta (uma vez só)</h2>
@@ -539,6 +543,127 @@ function ConfigTab() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/* =====================================================================
+   Backfill (importação retroativa via Graph API) + Debug endpoint
+   ===================================================================== */
+
+function BackfillAndDebugBlock() {
+  const [formIds, setFormIds] = useState("");
+  const [maxPerForm, setMaxPerForm] = useState("200");
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [debugLoading, setDebugLoading] = useState(false);
+  const [debug, setDebug] = useState<any>(null);
+
+  const runBackfill = async () => {
+    setRunning(true);
+    setResult(null);
+    try {
+      const ids = formIds.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+      const { data, error } = await supabase.functions.invoke("facebook-backfill-leads", {
+        body: { form_ids: ids, max_per_form: Number(maxPerForm) || 200 },
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error ?? "Falha");
+      setResult(data);
+      toast.success(`Importação concluída: ${data.totals.imported} novos · ${data.totals.deduped} duplicados · ${data.totals.failed} falhas`);
+    } catch (e: any) {
+      toast.error(e.message ?? "Erro na importação");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const runDebug = async () => {
+    setDebugLoading(true);
+    setDebug(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-debug", { body: {} });
+      if (error) throw error;
+      setDebug(data);
+    } catch (e: any) {
+      toast.error(e.message ?? "Erro no debug");
+    } finally {
+      setDebugLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="bg-card border border-border/50 rounded-xl p-6 space-y-4">
+        <div>
+          <h2 className="font-semibold text-foreground flex items-center gap-2">
+            <Download className="w-4 h-4 text-accent" /> 6. Importação retroativa (Graph API)
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Busca leads <b>já existentes</b> nos formulários da página via Graph API e insere no banco
+            (duplicados ignorados pelo <code>facebook_lead_id</code>). Deixe IDs em branco para importar de todos os formulários.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-[1fr,160px] gap-2">
+          <Input
+            value={formIds}
+            onChange={(e) => setFormIds(e.target.value)}
+            placeholder="IDs separados por vírgula (ex: 1858043458199562) — vazio = todos"
+            className="font-mono text-xs"
+          />
+          <Input
+            value={maxPerForm}
+            onChange={(e) => setMaxPerForm(e.target.value)}
+            type="number"
+            placeholder="máx por form"
+            className="text-xs"
+          />
+        </div>
+        <Button onClick={runBackfill} disabled={running} className="gradient-accent">
+          {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          <span className="ml-2">Importar leads existentes</span>
+        </Button>
+
+        {result && (
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs space-y-2">
+            <div className="font-semibold text-emerald-300">
+              Total: {result.totals.fetched} buscados · {result.totals.imported} novos · {result.totals.deduped} duplicados · {result.totals.failed} falhas
+            </div>
+            <ul className="space-y-1 text-muted-foreground">
+              {result.by_form.map((f: any) => (
+                <li key={f.form_id}>
+                  • <b className="text-foreground">{f.form_name ?? f.form_id}</b> ({f.form_id}) — buscados: {f.fetched}, novos: {f.imported}, duplicados: {f.deduped}, falhas: {f.failed}
+                  {f.error && <span className="text-red-400"> · erro: {f.error}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-card border border-border/50 rounded-xl p-6 space-y-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="font-semibold text-foreground flex items-center gap-2">
+              <Bug className="w-4 h-4 text-accent" /> 7. Diagnóstico (token, banco, subscriptions)
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Mostra status do token, conexão com o banco, último lead salvo, inscrições da Meta na página
+              e contagem de leads por formulário direto da Graph API.
+            </p>
+          </div>
+          <Button onClick={runDebug} disabled={debugLoading} variant="outline">
+            {debugLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bug className="w-4 h-4" />}
+            <span className="ml-2">Rodar diagnóstico</span>
+          </Button>
+        </div>
+
+        {debug && (
+          <pre className="bg-muted/30 border border-border/40 rounded-lg p-3 text-[10px] overflow-x-auto max-h-96 font-mono">
+            {JSON.stringify(debug, null, 2)}
+          </pre>
+        )}
+      </div>
+    </>
   );
 }
 
