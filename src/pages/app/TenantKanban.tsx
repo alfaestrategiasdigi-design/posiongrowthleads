@@ -288,6 +288,9 @@ function WinSaleDialog({ lead, tenantId, onClose, onSaved }: {
   const [amount, setAmount] = useState("");
   const [product, setProduct] = useState("");
   const [seller, setSeller] = useState("");
+  const [payment, setPayment] = useState("PIX");
+  const [scheduled, setScheduled] = useState("");
+  const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -295,22 +298,40 @@ function WinSaleDialog({ lead, tenantId, onClose, onSaved }: {
       setAmount(lead.sale_amount ? String(lead.sale_amount) : "");
       setProduct(lead.procedure_interest || "");
       setSeller(lead.seller_name || "");
+      setPayment("PIX");
+      setScheduled("");
+      setNotes("");
     }
   }, [lead]);
 
   async function save() {
     if (!lead) return;
     const amt = Number(amount);
-    if (!amt || amt <= 0) { toast.error("Informe um valor válido"); return; }
+    if (!amt || amt <= 0) { toast.error("Informe um valor válido (> 0)"); return; }
+    if (!product) { toast.error("Selecione o procedimento"); return; }
+
+    // evita venda duplicada
+    const { data: dup } = await supabase
+      .from("sales").select("id").eq("clinic_lead_id", lead.id).limit(1).maybeSingle();
+    if (dup) { toast.error("Já existe uma venda registrada para este lead"); return; }
+
     setSaving(true);
     const today = new Date().toISOString().slice(0, 10);
     const [u1, u2] = await Promise.all([
       supabase.from("clinic_leads").update({ stage: "fechado_ganho", sale_amount: amt }).eq("id", lead.id),
       supabase.from("sales").insert({
-        tenant_id: tenantId, patient_name: lead.full_name, product: product || "—",
-        seller_name: seller || "—", channel: lead.channel, amount: amt,
-        sale_date: today, first_contact_date: lead.first_contact_date,
+        tenant_id: tenantId,
+        clinic_lead_id: lead.id,
+        patient_name: lead.full_name,
+        product, procedure_name: product,
+        seller_name: seller || "—",
+        channel: lead.channel, channel_origin: lead.channel,
+        amount: amt, sale_date: today,
+        scheduled_date: scheduled || null,
+        payment_method: payment,
+        first_contact_date: lead.first_contact_date,
         attended: "SIM", international: lead.international,
+        notes: notes || null,
       }),
     ]);
     setSaving(false);
@@ -323,25 +344,40 @@ function WinSaleDialog({ lead, tenantId, onClose, onSaved }: {
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>Registrar venda — {lead?.full_name}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <div><Label>Valor da venda *</Label><Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Valor (R$) *</Label><Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" /></div>
+            <div>
+              <Label>Forma pagto</Label>
+              <Select value={payment} onValueChange={setPayment}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["PIX","Cartão","Boleto","Dinheiro","Crédito Recorrente","Outros"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <div>
-            <Label>Produto</Label>
+            <Label>Procedimento *</Label>
             <Select value={product} onValueChange={setProduct}>
               <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>{PRODUCTS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div>
-            <Label>Vendedor</Label>
-            <Select value={seller} onValueChange={setSeller}>
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent>{SELLERS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Vendedor</Label>
+              <Select value={seller} onValueChange={setSeller}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>{SELLERS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Data procedimento</Label><Input type="date" value={scheduled} onChange={(e) => setScheduled(e.target.value)} /></div>
           </div>
+          <div><Label>Notas</Label><Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações..." /></div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar venda"}</Button>
+          <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirmar venda"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
