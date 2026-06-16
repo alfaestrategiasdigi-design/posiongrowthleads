@@ -1,14 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Header from "@/components/ui/Header";
 import HeroSection from "@/components/ui/HeroSection";
 import CasesSection from "@/components/ui/CasesSection";
 import BenefitsSection from "@/components/ui/BenefitsSection";
-import ServicesSection from "@/components/ui/ServicesSection";
-import StepsSection from "@/components/ui/StepsSection";
-import ResultsSection from "@/components/ui/ResultsSection";
-import BeforeAfterSection from "@/components/ui/BeforeAfterSection";
-import TestimonialsSection from "@/components/ui/TestimonialsSection";
-import SocialProof from "@/components/ui/SocialProof";
+import FinalCTASection from "@/components/ui/FinalCTASection";
 import FloatingCTAs from "@/components/ui/FloatingCTAs";
 import Footer from "@/components/ui/Footer";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,12 +38,7 @@ const Index = () => {
         <HeroSection />
         <CasesSection />
         <BenefitsSection />
-        <ServicesSection />
-        <StepsSection />
-        <ResultsSection />
-        <BeforeAfterSection />
-        <TestimonialsSection />
-        <SocialProof />
+        <FinalCTASection />
       </main>
       <Footer />
       <FloatingCTAs />
