@@ -20,7 +20,7 @@ const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 async function loadConfig() {
   const { data, error } = await admin
     .from("facebook_webhook_config")
-    .select("verify_token, page_access_token, app_secret, page_id")
+    .select("verify_token, page_access_token, app_secret, page_id, default_tenant_id")
     .limit(1).maybeSingle();
   if (error) console.error("[webhook] erro carregando config:", error.message);
   return data;
@@ -87,6 +87,7 @@ export async function insertLead(payload: Record<string, string>, meta: {
   facebook_form_name?: string | null;
   facebook_ad_name?: string | null;
   facebook_adset_name?: string | null;
+  tenant_id?: string | null;
 }) {
   const nome      = pick(payload, ["full_name","nome","nome_completo","name","first_name"]);
   let whatsapp    = pick(payload, ["phone_number","phone","whatsapp","telefone","celular"]);
@@ -121,7 +122,7 @@ export async function insertLead(payload: Record<string, string>, meta: {
   if (trafego)   notesParts.push(`Tráfego pago: ${trafego}`);
   const observacoes = notesParts.length ? notesParts.join(" | ") : null;
 
-  const { data, error } = await admin.from("leads").insert({
+  const insertPayload: any = {
     nome_completo: nome ?? "Lead Facebook Ads",
     whatsapp: whatsapp ?? "",
     email,
@@ -140,9 +141,14 @@ export async function insertLead(payload: Record<string, string>, meta: {
     facebook_adset_name: meta.facebook_adset_name,
     observacoes,
     utm_source: "facebook",
-    utm_medium: "lead_ads",
-    utm_campaign: meta.facebook_campaign ?? meta.facebook_ad_name ?? null,
-  }).select("id").single();
+    utm_medium: "paid",
+    utm_campaign: meta.facebook_campaign ?? null,
+    utm_content: meta.facebook_ad_name ?? null,
+    utm_term: meta.facebook_adset_name ?? null,
+  };
+  if (meta.tenant_id) insertPayload.tenant_id = meta.tenant_id;
+
+  const { data, error } = await admin.from("leads").insert(insertPayload).select("id").single();
 
   if (error) {
     console.error("[webhook] Erro ao salvar lead:", error.message, error.details ?? "");
@@ -244,6 +250,7 @@ Deno.serve(async (req) => {
           facebook_form_name: null,
           facebook_ad_name: adName,
           facebook_adset_name: adsetName,
+          tenant_id: (cfg as any)?.default_tenant_id ?? null,
         });
         results.push(r);
 
@@ -265,6 +272,7 @@ Deno.serve(async (req) => {
       facebook_form_name: body.form_name ?? null,
       facebook_ad_name: body.ad_name ?? null,
       facebook_adset_name: body.adset_name ?? null,
+      tenant_id: (cfg as any)?.default_tenant_id ?? null,
     });
     results.push(r);
   } else {
@@ -275,6 +283,7 @@ Deno.serve(async (req) => {
       facebook_form_name: body.form_name ?? null,
       facebook_ad_name: body.ad_name ?? null,
       facebook_adset_name: body.adset_name ?? null,
+      tenant_id: (cfg as any)?.default_tenant_id ?? null,
     });
     results.push(r);
   }

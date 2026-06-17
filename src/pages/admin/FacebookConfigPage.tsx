@@ -8,10 +8,13 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Accordion, AccordionItem, AccordionTrigger, AccordionContent,
+} from "@/components/ui/accordion";
+import {
   Loader2, Facebook, Copy, RefreshCw, CheckCircle2,
   Upload, FileSpreadsheet, Users, ExternalLink, Zap,
   AlertCircle, KeyRound, Eye, EyeOff, LogIn, Unplug,
-  Download, Bug,
+  Download, Bug, Settings2, Target,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
@@ -361,162 +364,127 @@ function ConfigTab() {
   if (loading) return <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-accent" /></div>;
 
   const isConnected = meta?.has_page_access_token && meta?.connected_page_name;
+  const isPlaceholderAdAccount = !!meta?.ad_account_id && /^act_1234/.test(meta.ad_account_id);
+  const adAccountOk = !!meta?.ad_account_id && !isPlaceholderAdAccount;
+  const defaultTenantOk = !!defaultTenantId;
 
   return (
     <div className="space-y-6">
-      {/* Webhook URL */}
-      <div className="bg-card border border-border/50 rounded-xl p-6 space-y-3">
-        <h2 className="font-semibold text-foreground">1. URL do Webhook</h2>
-        <p className="text-xs text-muted-foreground">Use esta URL como <b>Callback URL</b> no painel da Meta (App → Webhooks → Page → leadgen).</p>
-        <div className="flex gap-2">
-          <Input readOnly value={WEBHOOK_URL} className="font-mono text-xs" />
-          <Button variant="outline" onClick={() => copy(WEBHOOK_URL, "URL")}><Copy className="w-4 h-4" /></Button>
-        </div>
-      </div>
-
-      {/* Verify Token */}
-      <div className="bg-card border border-border/50 rounded-xl p-6 space-y-3">
-        <h2 className="font-semibold text-foreground">2. Verify Token</h2>
-        <p className="text-xs text-muted-foreground">String aleatória que a Meta envia no handshake do webhook. Cole o mesmo valor no painel da Meta.</p>
-        <div className="flex gap-2">
-          <Input value={verifyToken} onChange={(e) => setVerifyToken(e.target.value)} placeholder="cole ou gere um token..." className="font-mono text-xs" />
-          <Button variant="outline" onClick={generateToken} title="Gerar token aleatório"><RefreshCw className="w-4 h-4" /></Button>
-          <Button variant="outline" onClick={() => copy(verifyToken, "Verify Token")} disabled={!verifyToken}><Copy className="w-4 h-4" /></Button>
-        </div>
-      </div>
-
-      {/* Credenciais do App Meta */}
-      <div className="bg-card border border-border/50 rounded-xl p-6 space-y-4">
-        <div>
-          <h2 className="font-semibold text-foreground flex items-center gap-2">
-            <KeyRound className="w-4 h-4 text-accent" /> 3. Credenciais do App Meta
-          </h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            Cole o <b>App ID</b> e <b>App Secret</b> do seu app criado em{" "}
-            <a href="https://developers.facebook.com/apps" target="_blank" rel="noreferrer" className="text-accent underline">developers.facebook.com/apps</a>.
-            São necessários para o botão "Conectar com Facebook" funcionar.
-          </p>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-foreground flex items-center gap-2">
-            App ID
-            {meta?.app_id && <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-400">{meta.app_id}</Badge>}
-          </label>
-          <Input
-            value={appId}
-            onChange={(e) => setAppId(e.target.value)}
-            placeholder="ex: 1234567890123456"
-            className="font-mono text-xs"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-foreground flex items-center gap-2">
-            App Secret
-            {meta?.has_app_secret && <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-400">salvo</Badge>}
-          </label>
-          <div className="flex gap-2">
-            <Input
-              type={showSecret ? "text" : "password"}
-              value={appSecret}
-              onChange={(e) => setAppSecret(e.target.value)}
-              placeholder={meta?.has_app_secret ? "•••••••• (deixe vazio para manter)" : "cole o app secret aqui"}
-              className="font-mono text-xs"
-              autoComplete="off"
-            />
-            <Button variant="outline" onClick={() => setShowSecret(s => !s)} type="button">
-              {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </Button>
+      {/* ============ SETUP RÁPIDO — 3 PASSOS ============ */}
+      <div className="rounded-xl border border-accent/30 bg-gradient-to-br from-accent/10 via-card to-card p-6 space-y-5">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="font-semibold text-foreground flex items-center gap-2">
+              <Zap className="w-5 h-5 text-accent" /> Setup rápido
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Três passos. Depois os leads chegam sozinhos no Kanban com UTMs e a página de Campanhas mostra o investimento.
+            </p>
           </div>
-        </div>
-
-        <Button onClick={saveCredentials} disabled={saving} className="gradient-accent">
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-          <span className="ml-2">Salvar credenciais do App</span>
-        </Button>
-      </div>
-
-      {/* Conectar com Facebook */}
-      <div className="bg-card border border-border/50 rounded-xl p-6 space-y-4">
-        <div>
-          <h2 className="font-semibold text-foreground flex items-center gap-2">
-            <Facebook className="w-4 h-4 text-blue-500" /> 4. Conectar conta do Facebook
-          </h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            Faça login com sua conta Meta, escolha a página de negócios e o sistema cuida do resto
-            (Page Access Token de longa duração, inscrição no webhook leadgen, etc).
-          </p>
-        </div>
-
-        {isConnected ? (
-          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-              <div>
-                <div className="text-sm font-semibold text-foreground">{meta?.connected_page_name}</div>
-                <div className="text-xs text-muted-foreground">
-                  Page ID: <span className="font-mono">{meta?.page_id}</span>
-                  {meta?.token_expires_at && (
-                    <span className="ml-2">· token válido até {new Date(meta.token_expires_at).toLocaleDateString("pt-BR")}</span>
-                  )}
-                </div>
-              </div>
+          {isConnected && adAccountOk && defaultTenantOk && (
+            <div className="text-xs text-emerald-400 flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4" /> Tudo pronto
             </div>
-            <div className="flex gap-2">
+          )}
+        </div>
+
+        {/* Passo 1 — Conectar */}
+        <div className="rounded-lg border border-border/60 bg-background/40 p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${isConnected ? "bg-emerald-500/20 text-emerald-400" : "bg-accent/20 text-accent"}`}>1</span>
+              <span className="font-medium text-foreground text-sm">Conectar a página do Facebook</span>
+            </div>
+            {isConnected && (
+              <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-400">
+                ✓ {meta?.connected_page_name}
+              </Badge>
+            )}
+          </div>
+          {isConnected ? (
+            <div className="flex gap-2 flex-wrap">
               <Button variant="outline" size="sm" onClick={handleFacebookLogin} disabled={connecting}>
                 {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                <span className="ml-2">Reconectar</span>
+                <span className="ml-2">Reconectar / Trocar página</span>
               </Button>
               <Button variant="outline" size="sm" onClick={disconnect} className="text-red-400 hover:text-red-300">
                 <Unplug className="w-4 h-4 mr-1" /> Desconectar
               </Button>
             </div>
-          </div>
-        ) : (
-          <Button
-            onClick={handleFacebookLogin}
-            disabled={connecting || !meta?.app_id || !meta?.has_app_secret}
-            className="bg-[#1877F2] hover:bg-[#1665d8] text-white"
-            size="lg"
-          >
-            {connecting ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
-            <span className="ml-2">Conectar com Facebook</span>
-          </Button>
-        )}
-
-        {(!meta?.app_id || !meta?.has_app_secret) && !isConnected && (
-          <p className="text-xs text-amber-300 flex items-start gap-1">
-            <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-            Salve o App ID e o App Secret no passo 3 antes de conectar.
-          </p>
-        )}
-      </div>
-
-      {/* 4b. Marketing API / Auto-sync */}
-      <div className="bg-card border border-border/50 rounded-xl p-6 space-y-4">
-        <div>
-          <h2 className="font-semibold text-foreground flex items-center gap-2">
-            <RefreshCw className="w-4 h-4 text-accent" /> 4b. Marketing API — campanhas automáticas
-          </h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            Informe o <b>Ad Account ID</b> (encontra em <a href="https://business.facebook.com/settings/ad-accounts" target="_blank" rel="noreferrer" className="text-accent underline">Business → Contas de anúncio</a>, no formato <code className="bg-muted px-1 rounded">act_123456789</code>) e
-            opcionalmente vincule uma clínica padrão para receber os gastos. Permissões do token: <code className="bg-muted px-1 rounded">ads_read</code> (reconecte se necessário).
-          </p>
+          ) : (
+            <>
+              <Button
+                onClick={handleFacebookLogin}
+                disabled={connecting || !meta?.app_id || !meta?.has_app_secret}
+                className="bg-[#1877F2] hover:bg-[#1665d8] text-white"
+              >
+                {connecting ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
+                <span className="ml-2">Conectar com Facebook</span>
+              </Button>
+              {(!meta?.app_id || !meta?.has_app_secret) && (
+                <p className="text-xs text-amber-300 flex items-start gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  Antes preencha o App ID + App Secret em "Configurações avançadas" abaixo.
+                </p>
+              )}
+            </>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">Ad Account ID</label>
+        {/* Passo 2 — Ad Account */}
+        <div className={`rounded-lg border p-4 space-y-3 ${adAccountOk ? "border-border/60 bg-background/40" : "border-amber-500/30 bg-amber-500/5"}`}>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${adAccountOk ? "bg-emerald-500/20 text-emerald-400" : "bg-accent/20 text-accent"}`}>2</span>
+              <span className="font-medium text-foreground text-sm">Conta de anúncios (Ad Account)</span>
+            </div>
+            {adAccountOk && (
+              <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-400 font-mono">
+                {meta?.ad_account_id}
+              </Badge>
+            )}
+          </div>
+          {isPlaceholderAdAccount && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] text-amber-200 flex items-start gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              O Ad Account salvo é um placeholder (<code className="font-mono">{meta?.ad_account_id}</code>). É por isso que a página de <b>Campanhas</b> mostra "permissão ads_read ausente" — a chamada falha porque a conta não existe.
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-2">
             <Input
               value={adAccountId}
               onChange={(e) => setAdAccountId(e.target.value)}
               placeholder="act_1234567890123456"
               className="font-mono text-xs"
             />
+            <Button onClick={saveCredentials} disabled={saving || !adAccountId.trim()} variant="outline" size="sm">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              <span className="ml-2">Salvar</span>
+            </Button>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">Conta padrão para campanhas</label>
+          <p className="text-[11px] text-muted-foreground">
+            Pegue em{" "}
+            <a href="https://business.facebook.com/settings/ad-accounts" target="_blank" rel="noreferrer" className="text-accent underline">
+              Business → Contas de anúncio
+            </a>
+            . Formato: <code className="font-mono bg-muted/50 px-1 rounded">act_</code> + ID numérico. <b>Não use placeholder.</b>
+          </p>
+        </div>
+
+        {/* Passo 3 — Default tenant */}
+        <div className={`rounded-lg border p-4 space-y-3 ${defaultTenantOk ? "border-border/60 bg-background/40" : "border-amber-500/30 bg-amber-500/5"}`}>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${defaultTenantOk ? "bg-emerald-500/20 text-emerald-400" : "bg-accent/20 text-accent"}`}>3</span>
+              <span className="font-medium text-foreground text-sm">Clínica padrão para receber os leads</span>
+            </div>
+            {defaultTenantOk && (
+              <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-400">
+                {tenants.find(t => t.id === defaultTenantId)?.name ?? "definida"}
+              </Badge>
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-2">
             <select
               value={defaultTenantId}
               onChange={(e) => setDefaultTenantId(e.target.value)}
@@ -525,100 +493,151 @@ function ConfigTab() {
               <option value="">★ Admin Master (conta principal)</option>
               {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
-            <p className="text-[10px] text-muted-foreground">
-              Selecionado: <strong>{defaultTenantId ? (tenants.find(t => t.id === defaultTenantId)?.name ?? "—") : "Admin Master (conta principal)"}</strong>. Os gastos e leads das campanhas serão atribuídos a esta conta.
-            </p>
+            <Button onClick={saveCredentials} disabled={saving} variant="outline" size="sm">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              <span className="ml-2">Salvar</span>
+            </Button>
           </div>
+          <p className="text-[11px] text-muted-foreground">
+            Toda lead que chegar pelo webhook ou backfill vai para esta clínica e aparece no Kanban com UTMs preenchidos automaticamente.
+          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={saveCredentials} disabled={saving} variant="outline" size="sm">
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-            <span className="ml-2">Salvar Ad Account</span>
-          </Button>
-          <Button onClick={syncCampaigns} disabled={syncingCamp || !meta?.ad_account_id} className="gradient-accent" size="sm">
-            {syncingCamp ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            <span className="ml-2">Sincronizar campanhas agora</span>
-          </Button>
-          {meta?.last_campaigns_sync_at && (
-            <span className="text-[11px] text-muted-foreground">
-              Última sincronização: {new Date(meta.last_campaigns_sync_at).toLocaleString("pt-BR")}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Validação ponta-a-ponta */}
-      <div className="bg-card border border-border/50 rounded-xl p-6 space-y-4">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <h2 className="font-semibold text-foreground">5. Validar webhook completo</h2>
-            <p className="text-xs text-muted-foreground mt-1">
-              Executa 6 checagens: Verify Token, handshake da Meta, token de página, permissões, formulários de Lead Ads e App Secret.
-            </p>
-            {meta?.last_validated_at && (
-              <p className="text-[11px] text-muted-foreground mt-1 opacity-70">
-                Última validação: {new Date(meta.last_validated_at).toLocaleString("pt-BR")}
-              </p>
+        {/* Sync rápido */}
+        {isConnected && adAccountOk && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/40">
+            <Button onClick={syncCampaigns} disabled={syncingCamp} className="gradient-accent" size="sm">
+              {syncingCamp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Target className="w-4 h-4" />}
+              <span className="ml-2">Sincronizar campanhas agora</span>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/admin/campanhas">Ver Campanhas →</Link>
+            </Button>
+            {meta?.last_campaigns_sync_at && (
+              <span className="text-[11px] text-muted-foreground">
+                Última sync: {new Date(meta.last_campaigns_sync_at).toLocaleString("pt-BR")}
+              </span>
             )}
-          </div>
-          <Button onClick={runValidation} disabled={validating} className="gradient-accent">
-            {validating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-            <span className="ml-2">Validar agora</span>
-          </Button>
-        </div>
-
-        {steps && (
-          <div className="space-y-2">
-            {steps.map((s) => <StepRow key={s.id} step={s} />)}
           </div>
         )}
       </div>
 
-      {/* Backfill + Debug */}
-      <BackfillAndDebugBlock />
+      {/* ============ CONFIGURAÇÕES AVANÇADAS ============ */}
+      <Accordion type="single" collapsible className="bg-card border border-border/50 rounded-xl">
+        <AccordionItem value="advanced" className="border-0">
+          <AccordionTrigger className="px-6 hover:no-underline">
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              <Settings2 className="w-4 h-4 text-accent" />
+              Configurações avançadas (App, Webhook, Validações, Backfill)
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="px-6 pb-6">
+            <div className="space-y-6">
+              {/* Webhook URL */}
+              <div className="bg-background/40 border border-border/40 rounded-lg p-4 space-y-3">
+                <h3 className="font-semibold text-foreground text-sm">URL do Webhook (Callback)</h3>
+                <p className="text-xs text-muted-foreground">Cole no painel Meta → App → Webhooks → Page → leadgen.</p>
+                <div className="flex gap-2">
+                  <Input readOnly value={WEBHOOK_URL} className="font-mono text-xs" />
+                  <Button variant="outline" onClick={() => copy(WEBHOOK_URL, "URL")}><Copy className="w-4 h-4" /></Button>
+                </div>
+              </div>
 
-      {/* Guia rápido */}
-      <div className="bg-accent/5 border border-accent/20 rounded-xl p-6 space-y-3">
-        <h2 className="font-semibold text-foreground">Configuração do App no painel da Meta (uma vez só)</h2>
-        <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-          <li>Em <a href="https://developers.facebook.com/apps" target="_blank" rel="noreferrer" className="text-accent underline">developers.facebook.com/apps</a>, crie um App tipo <b>Business</b> (ou use o "Posion Leads").</li>
-          <li>Em <b>App settings → Basic</b>, copie o <b>App ID</b> e <b>App Secret</b> e cole no passo 3 acima.</li>
-          <li>Adicione o produto <b>Facebook Login → Web</b> e em <b>Valid OAuth Redirect URIs</b> adicione: <code className="bg-muted px-1 rounded">{typeof window !== "undefined" ? window.location.origin : ""}/</code></li>
-          <li>Em <b>App settings → Basic → App Domains</b> adicione: <code className="bg-muted px-1 rounded">{typeof window !== "undefined" ? window.location.hostname : ""}</code></li>
-          <li>Em <b>Webhooks → Page</b>, adicione subscription para <code className="bg-muted px-1 rounded">leadgen</code> usando a URL (passo 1) e o Verify Token (passo 2).</li>
-          <li>Clique em <b>Conectar com Facebook</b> (passo 4) — pronto.</li>
-          <li>Para receber leads de qualquer usuário (não só testers), envie o app para <b>App Review</b> com as permissões <code className="bg-muted px-1 rounded">leads_retrieval</code> + <code className="bg-muted px-1 rounded">pages_show_list</code> + <code className="bg-muted px-1 rounded">pages_manage_metadata</code>.</li>
-        </ol>
-      </div>
+              {/* Verify Token */}
+              <div className="bg-background/40 border border-border/40 rounded-lg p-4 space-y-3">
+                <h3 className="font-semibold text-foreground text-sm">Verify Token</h3>
+                <div className="flex gap-2">
+                  <Input value={verifyToken} onChange={(e) => setVerifyToken(e.target.value)} placeholder="cole ou gere..." className="font-mono text-xs" />
+                  <Button variant="outline" onClick={generateToken}><RefreshCw className="w-4 h-4" /></Button>
+                  <Button variant="outline" onClick={() => copy(verifyToken, "Verify Token")} disabled={!verifyToken}><Copy className="w-4 h-4" /></Button>
+                </div>
+                <Button onClick={saveCredentials} disabled={saving} size="sm" variant="outline">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  <span className="ml-2">Salvar</span>
+                </Button>
+              </div>
+
+              {/* App ID + Secret */}
+              <div className="bg-background/40 border border-border/40 rounded-lg p-4 space-y-3">
+                <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-accent" /> Credenciais do App Meta
+                </h3>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">App ID
+                    {meta?.app_id && <Badge variant="outline" className="ml-2 text-[10px] border-emerald-500/40 text-emerald-400">{meta.app_id}</Badge>}
+                  </label>
+                  <Input value={appId} onChange={(e) => setAppId(e.target.value)} placeholder="ex: 1234567890123456" className="font-mono text-xs" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">App Secret
+                    {meta?.has_app_secret && <Badge variant="outline" className="ml-2 text-[10px] border-emerald-500/40 text-emerald-400">salvo</Badge>}
+                  </label>
+                  <div className="flex gap-2">
+                    <Input type={showSecret ? "text" : "password"} value={appSecret} onChange={(e) => setAppSecret(e.target.value)}
+                      placeholder={meta?.has_app_secret ? "•••••••• (deixe vazio para manter)" : "cole o app secret"}
+                      className="font-mono text-xs" autoComplete="off" />
+                    <Button variant="outline" onClick={() => setShowSecret(s => !s)} type="button">
+                      {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <Button onClick={saveCredentials} disabled={saving} className="gradient-accent" size="sm">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  <span className="ml-2">Salvar credenciais</span>
+                </Button>
+              </div>
+
+              {/* Validação completa */}
+              <div className="bg-background/40 border border-border/40 rounded-lg p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <h3 className="font-semibold text-foreground text-sm">Validar webhook ponta-a-ponta</h3>
+                    <p className="text-xs text-muted-foreground">6 checagens: token, handshake, permissões, formulários, app secret.</p>
+                  </div>
+                  <Button onClick={runValidation} disabled={validating} size="sm" className="gradient-accent">
+                    {validating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                    <span className="ml-2">Validar</span>
+                  </Button>
+                </div>
+                {steps && <div className="space-y-2">{steps.map((s) => <StepRow key={s.id} step={s} />)}</div>}
+              </div>
+
+              {/* Backfill, Validation Block, Debug */}
+              <BackfillAndDebugBlock />
+
+              {/* Guia */}
+              <div className="bg-accent/5 border border-accent/20 rounded-lg p-4 space-y-2">
+                <h3 className="font-semibold text-foreground text-sm">Setup do App Meta (uma vez)</h3>
+                <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
+                  <li>Em <a href="https://developers.facebook.com/apps" target="_blank" rel="noreferrer" className="text-accent underline">developers.facebook.com/apps</a>, App tipo <b>Business</b>.</li>
+                  <li>App settings → Basic: copie App ID + App Secret.</li>
+                  <li>Facebook Login → Web — adicione em Valid OAuth Redirect URIs: <code className="bg-muted px-1 rounded">{typeof window !== "undefined" ? window.location.origin : ""}/</code></li>
+                  <li>Webhooks → Page → assine <code className="bg-muted px-1 rounded">leadgen</code> com a URL e Verify Token acima.</li>
+                  <li>App Review: solicite <code className="bg-muted px-1 rounded">leads_retrieval</code>, <code className="bg-muted px-1 rounded">pages_show_list</code>, <code className="bg-muted px-1 rounded">pages_manage_metadata</code>, <code className="bg-muted px-1 rounded">ads_read</code>.</li>
+                </ol>
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       {/* Page picker dialog */}
       <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Escolha a página</DialogTitle>
-            <DialogDescription>
-              Selecione a página de negócios que receberá os leads. Você pode reconectar e trocar a qualquer momento.
-            </DialogDescription>
+            <DialogDescription>Página de negócios que receberá os leads.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2 max-h-80 overflow-y-auto">
             {pages?.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => selectPage(p)}
-                disabled={!!savingPage}
-                className="w-full text-left rounded-lg border border-border/50 hover:border-accent/50 bg-card hover:bg-accent/5 p-3 transition disabled:opacity-50"
-              >
+              <button key={p.id} onClick={() => selectPage(p)} disabled={!!savingPage}
+                className="w-full text-left rounded-lg border border-border/50 hover:border-accent/50 bg-card hover:bg-accent/5 p-3 transition disabled:opacity-50">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="font-medium text-foreground text-sm">{p.name}</div>
                     <div className="text-xs text-muted-foreground">{p.category ?? "—"} · <span className="font-mono">{p.id}</span></div>
                   </div>
-                  {savingPage === p.id ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-accent" />
-                  ) : (
-                    <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
-                  )}
+                  {savingPage === p.id ? <Loader2 className="w-4 h-4 animate-spin text-accent" /> : <CheckCircle2 className="w-4 h-4 text-muted-foreground" />}
                 </div>
               </button>
             ))}
@@ -1336,7 +1355,7 @@ const FacebookConfigPage = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="leads" className="space-y-4">
+      <Tabs defaultValue="config" className="space-y-4">
         <TabsList>
           <TabsTrigger value="leads">Leads do Facebook</TabsTrigger>
           <TabsTrigger value="import">Importar CSV</TabsTrigger>

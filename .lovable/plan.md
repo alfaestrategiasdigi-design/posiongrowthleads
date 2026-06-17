@@ -1,80 +1,104 @@
-## Análise: conformidade com o guia oficial Meta Webhooks for Leadgen
+# Diagnóstico do que está travando hoje
 
-Comparei o guia que você colou com a implementação atual do projeto. Resumo do que **já está correto** e do que **precisa ser ajustado**.
+Li a configuração atual no banco e identifiquei exatamente por que nada funciona:
 
----
-
-### ✅ O que já está conforme o guia
-
-| Requisito Meta | Status no projeto | Onde |
+| Item | Status atual | Causa |
 |---|---|---|
-| Endpoint público de Webhook (GET challenge + POST eventos) | OK | `facebook-leads-webhook/index.ts` |
-| Verify Token (hub.verify_token) | OK | comparação contra `facebook_webhook_config.verify_token` |
-| Validação HMAC `x-hub-signature-256` com App Secret | OK | `verifyHubSignature()` |
-| Buscar lead na Graph API via `leadgen_id` | OK | `fetchLeadFromGraph()` v21.0 |
-| Page Access Token armazenado no banco | OK | `facebook_webhook_config.page_access_token` |
-| Subscribe automático do app à Página no campo `leadgen` | OK | `facebook-oauth-save-page` chama `POST /{page-id}/subscribed_apps?subscribed_fields=leadgen` |
-| Persistência do lead + dedupe por `facebook_lead_id` | OK | `insertLead()` |
-| Escopos OAuth | Parcial — já solicita `leads_retrieval`, `pages_show_list`, `pages_manage_metadata`, `pages_read_engagement`, `ads_read`, `ads_management`, `business_management` |
+| Token | "User Token · Posion Growth" | Está salvo um **User Token**, não um **Page Access Token** → por isso `leadgen_forms` retorna 0 e webhooks não disparam |
+| Ad Account ID | `act_123456789` | É **placeholder fake** → daí o erro "Permissão ausente: ads_read" em Campanhas (a chamada nem chega na Meta com conta válida) |
+| Página conectada | Posion Growth ✓ | OK |
+| Default tenant para leads | vazio | Leads importados não têm para onde ir |
+| Permissões | Não validáveis | Esperado com User Token, mas precisamos do Page Token |
 
----
+**Conclusão:** o app Meta existe e a página está autorizada, mas a tela hoje tem caminhos demais (App ID, App Secret, Verify Token, Webhook URL, Backfill, CSV, Validação, Reinscrever, Campanhas, Ads Read...) — e dois campos críticos estão errados. Por isso parece que nada funciona.
 
-### ⚠️ Lacunas frente ao guia (o que falta ou precisa de hardening)
+# O que vou implementar
 
-**1. Verificação se o app está realmente inscrito na Página**
-O guia recomenda um `GET /{page-id}/subscribed_apps` para confirmar a inscrição. Hoje fazemos o POST no `save-page` mas não temos UI que mostre se a inscrição continua ativa (a Meta pode revogar silenciosamente). Falta:
-- Botão "Verificar inscrição da Página" em `/admin/facebook` que chama `GET /{page-id}/subscribed_apps` e mostra o resultado.
-- Botão "Reinscrever" que refaz o POST se o app sumiu da lista.
+## 1. Reescrever `/admin/facebook` como fluxo de 3 passos
 
-**2. Validação das 5 permissões exigidas pelo guia**
-Hoje só validamos `ads_read`. O guia exige confirmar também `leads_retrieval`, `pages_manage_metadata`, `pages_show_list`, `pages_read_engagement`, `ads_management`. Falta:
-- Estender `facebook-campaigns-sync` (modo `check_permissions`) ou criar `facebook-permissions-check` que retorne o status de **todas** as 5 permissões + `ads_read`.
-- UI em `/admin/facebook` com check-list verde/vermelho por permissão.
+Esconder tudo que é diagnóstico atrás de um accordion "Avançado / Diagnóstico". A tela principal fica:
 
-**3. Diagnóstico do ciclo completo do webhook**
-O guia mostra que cada evento traz `leadgen_id, page_id, form_id, ad_id, created_time`. Hoje logamos via `console.log` mas não há tabela de auditoria. Útil ter:
-- Tabela `facebook_webhook_events` (raw payload, signature_ok, leadgen_id, processed_at, lead_id resultante, error).
-- Painel "Últimos eventos recebidos" em `/admin/facebook` mostrando os 50 mais recentes — facilita debug quando a Meta envia mas o lead não aparece.
+```text
+┌─ Passo 1 · Conectar Meta ────────────────┐
+│  [ Conectar com Facebook ]  (FB Login JS) │
+│  ✓ Conectado como: Posion Growth          │
+└───────────────────────────────────────────┘
+┌─ Passo 2 · Conta de Anúncios ────────────┐
+│  Conta: [ Posion Growth — act_172… ▼ ]   │
+│  (lista puxada de /me/adaccounts)        │
+└───────────────────────────────────────────┘
+┌─ Passo 3 · Para onde mandar os leads ────┐
+│  Clínica padrão: [ Posion Master ▼ ]     │
+│  ☑ Inscrever webhook (leadgen)            │
+│  ☑ Importar últimos 30 dias agora        │
+│  [ Concluir configuração ]                │
+└───────────────────────────────────────────┘
+```
 
-**4. Page token longevidade**
-Tokens de Página derivados de long-lived user token normalmente não expiram, mas o guia recomenda monitorar. Hoje gravamos `token_expires_at = now + 60d` artificialmente. Melhor:
-- Chamar `GET /debug_token` periodicamente e gravar o `expires_at` real.
-- Endpoint `facebook-token-debug` + indicador na UI.
+O botão **Concluir** faz em sequência (uma única edge function `facebook-connect-finalize`):
+1. Troca user token curto → user token longo
+2. Pega o **Page Access Token** da página escolhida (esse é o token que será salvo, corrigindo o problema #1)
+3. Salva `page_id`, `page_access_token`, `ad_account_id` real, `default_tenant_id`
+4. `POST /{page_id}/subscribed_apps?subscribed_fields=leadgen`
+5. Roda backfill dos últimos 30 dias (reaproveita `facebook-backfill-leads`)
+6. Retorna um resumo: "✓ Página conectada · ✓ Webhook ativo · ✓ 47 leads importados"
 
-**5. Reentrega / retries**
-A Meta reenvia eventos por até 36h se receber não-2xx. Hoje retornamos 200 mesmo quando `insertLead` falha (resposta `{ received, results }`). Isso é correto para evitar tempestade de retry, mas perdemos eventos com erro. Falta:
-- Salvar todo evento bruto (item 3) antes de processar, para que erros possam ser reprocessados manualmente via `facebook-backfill-leads`.
+## 2. Corrigir a página de Campanhas
 
----
+- Tirar o "Conta padrão para campanhas" duplicado (já vem do passo 2).
+- Antes de chamar a Graph API, validar `ad_account_id` ≠ placeholder; se for, mostrar CTA "Voltar para conexão Meta".
+- A mensagem "permissão ads_read ausente" só aparece se a Meta realmente retornar esse erro — hoje ela aparece porque a conta é fake.
 
-### Plano de implementação proposto
+## 3. UTMs automáticos (estilo Tintim)
 
-**Fase 1 — Auditoria visível (alta prioridade)**
-1. Migration: criar `facebook_webhook_events` (raw_body jsonb, signature_valid bool, leadgen_id text, form_id text, page_id text, processed bool, lead_id uuid null, error text, received_at). GRANTs + RLS admin-only.
-2. Editar `facebook-leads-webhook/index.ts` para inserir 1 linha por `change` antes de processar, e atualizar com `lead_id`/`error` depois.
-3. Nova Edge Function `facebook-permissions-check` — retorna status das 6 permissões (`leads_retrieval`, `pages_manage_metadata`, `pages_show_list`, `pages_read_engagement`, `ads_management`, `ads_read`).
-4. Nova Edge Function `facebook-page-subscription-check` — chama `GET /{page-id}/subscribed_apps`, retorna se nosso app está na lista; ação "Reinscrever" disponível.
+Ao importar um lead via webhook ou backfill, gerar e salvar UTMs derivados do próprio anúncio (já temos `campaign_name`, `ad_name`, `adset_name`):
 
-**Fase 2 — UI em `/admin/facebook`**
-5. Bloco "5. Permissões da Página" com checklist verde/vermelho das 6 permissões + botão Revalidar.
-6. Bloco "6. Inscrição da Página" mostrando se nosso app está em `subscribed_apps`, com botão Reinscrever.
-7. Bloco "7. Últimos eventos do Webhook" — tabela com os 50 eventos mais recentes da nova tabela (status, leadgen_id, lead resultante, erro).
+```
+utm_source   = facebook
+utm_medium   = paid  (ou organic se is_organic)
+utm_campaign = <campaign_name normalizado>
+utm_content  = <ad_name>
+utm_term     = <adset_name>
+```
 
-**Fase 3 — Robustez do token (opcional, pode ficar para depois)**
-8. Edge Function `facebook-token-debug` chamando `GET /debug_token` e atualizando `token_expires_at` real.
+Já existe parcialmente — vou padronizar e aplicar em `facebook-leads-webhook`, `facebook-backfill-leads` e `facebook-leads-export-csv`.
 
----
+## 4. Esconder/agrupar telas hoje confusas
 
-### Detalhes técnicos
+Mover para um único bloco "Avançado" (collapsed por padrão):
+- Verify Token / Webhook URL / App Secret
+- Validação Meta (6. checklist de permissões)
+- Reinscrever página
+- Auditoria de eventos
+- Importar histórico CSV
+- Backfill manual por form
 
-- **Schema novo**: `facebook_webhook_events` com índice em `received_at desc` e `leadgen_id`.
-- **Edge functions novas**: `facebook-permissions-check`, `facebook-page-subscription-check`, `facebook-token-debug` (Fase 3).
-- **Edge function alterada**: `facebook-leads-webhook` (passa a gravar evento bruto antes de processar; mantém retorno 200 sempre).
-- **Frontend alterado**: `src/pages/admin/FacebookConfigPage.tsx` (3 blocos novos).
-- **Sem mudança de escopos OAuth** — todos os 6 já estão sendo solicitados em `facebook-oauth-exchange`.
+O usuário comum não toca em nada disso — só usa os 3 passos.
 
----
+# O que você (usuário) precisa fazer 1 vez no app Meta
 
-### Pergunta para você
+Para o passo 2 funcionar e Campanhas pararem de dar "ads_read ausente", o app Meta precisa ter estas permissões aprovadas (App Review):
 
-Quer que eu execute o plano completo (Fases 1+2+3) ou só **Fase 1+2** (auditoria + UI), deixando o monitoramento de token para depois?
+- `pages_show_list` · `pages_read_engagement` · `pages_manage_metadata`
+- `leads_retrieval`
+- **`ads_read`** ← essa é a que falta hoje
+- `ads_management` (opcional, só se quiser editar campanhas pela plataforma)
+
+Em **Modo de Desenvolvimento** do app, basta você ser admin/dev/tester do app — sem App Review. Para liberar para outros usuários (modo Live), precisa enviar para revisão.
+
+# Arquivos que serão alterados
+
+- `src/pages/admin/FacebookConfigPage.tsx` — reescrita do topo (3 passos), todo o resto vai para `<Accordion>` "Avançado"
+- `src/pages/admin/CampanhasPage.tsx` — remove duplicação + guard de ad_account_id fake
+- `supabase/functions/facebook-connect-finalize/index.ts` — **nova**, orquestra passos 1–6
+- `supabase/functions/facebook-leads-webhook/index.ts` — UTMs padronizados
+- `supabase/functions/facebook-backfill-leads/index.ts` — UTMs padronizados
+- `supabase/functions/facebook-leads-export-csv/index.ts` — UTMs padronizados
+
+# Fora de escopo (proposto)
+
+- Não vou criar um app Meta novo — o seu já existe.
+- Não vou submeter App Review por você (precisa ser feito no painel do Meta).
+- Não vou trocar Z-API/WhatsApp.
+
+Confirma que sigo por aí? Se quiser, posso também já remover de vez as telas avançadas (em vez de só esconder) — me diga.

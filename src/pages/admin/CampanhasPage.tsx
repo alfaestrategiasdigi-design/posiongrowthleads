@@ -72,9 +72,13 @@ export default function CampanhasPage() {
   // Facebook Ads sync state
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [adAccountId, setAdAccountId] = useState<string | null>(null);
   const [permState, setPermState] = useState<{ ok: boolean; granted: string[]; missing: string[]; checking: boolean }>({
     ok: false, granted: [], missing: [], checking: true,
   });
+
+  const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
+  const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
 
   useEffect(() => {
     (async () => {
@@ -83,11 +87,17 @@ export default function CampanhasPage() {
       const { data: cfg } = await supabase.rpc("get_facebook_config_meta" as any);
       const row: any = Array.isArray(cfg) ? cfg[0] : cfg;
       setLastSync(row?.last_campaigns_sync_at ?? null);
+      setAdAccountId(row?.ad_account_id ?? null);
     })();
   }, []);
 
   const checkPermissions = async () => {
     setPermState(s => ({ ...s, checking: true }));
+    if (!adAccountConfigured) {
+      // Sem ad account real, nem vale chamar — não exibir falso "ads_read ausente"
+      setPermState({ ok: false, granted: [], missing: [], checking: false });
+      return;
+    }
     try {
       const { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", {
         body: { check_permissions: true },
@@ -104,7 +114,7 @@ export default function CampanhasPage() {
     }
   };
 
-  useEffect(() => { checkPermissions(); }, []);
+  useEffect(() => { checkPermissions(); /* eslint-disable-next-line */ }, [adAccountId]);
 
   const syncFacebookAds = async (silent = false) => {
     setSyncing(true);
@@ -129,13 +139,13 @@ export default function CampanhasPage() {
     }
   };
 
-  // auto-sync if stale (>15min) and permissions ok
+  // auto-sync if stale (>15min) and permissions ok and ad account real
   useEffect(() => {
-    if (!permState.ok || permState.checking) return;
+    if (!adAccountConfigured || !permState.ok || permState.checking) return;
     const ageMin = lastSync ? (Date.now() - new Date(lastSync).getTime()) / 60000 : 9999;
     if (ageMin > 15) syncFacebookAds(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [permState.ok, permState.checking]);
+  }, [permState.ok, permState.checking, adAccountConfigured]);
 
   const load = async () => {
     setLoading(true);
@@ -382,18 +392,25 @@ export default function CampanhasPage() {
         <CardContent className="p-4 flex flex-wrap items-center gap-3 justify-between">
           <div className="flex items-center gap-3 flex-wrap">
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border ${
-              permState.checking
-                ? "border-border text-muted-foreground bg-muted/30"
-                : permState.ok
-                  ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/5"
-                  : "border-amber-500/30 text-amber-400 bg-amber-500/5"
+              !adAccountConfigured
+                ? "border-amber-500/30 text-amber-400 bg-amber-500/5"
+                : permState.checking
+                  ? "border-border text-muted-foreground bg-muted/30"
+                  : permState.ok
+                    ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/5"
+                    : "border-amber-500/30 text-amber-400 bg-amber-500/5"
             }`}>
-              {permState.checking ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              {!adAccountConfigured ? <ShieldAlert className="w-3.5 h-3.5" />
+                : permState.checking ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 : permState.ok ? <ShieldCheck className="w-3.5 h-3.5" />
                 : <ShieldAlert className="w-3.5 h-3.5" />}
-              {permState.checking ? "Validando Marketing API…"
-                : permState.ok ? "Marketing API conectada (ads_read OK)"
-                : `Permissão ausente: ${permState.missing.join(", ") || "ads_read"}`}
+              {!adAccountConfigured
+                ? (isPlaceholderAdAccount
+                    ? `Ad Account é placeholder (${adAccountId}) — configure o real em /admin/facebook`
+                    : "Ad Account não configurada — vá em /admin/facebook, passo 2")
+                : permState.checking ? "Validando Marketing API…"
+                : permState.ok ? `Marketing API conectada · ${adAccountId}`
+                : `Permissão ausente: ${permState.missing.join(", ") || "ads_read"} — reconecte com escopo ads_read`}
             </div>
             {lastSync && (
               <span className="text-xs text-muted-foreground">
@@ -402,18 +419,26 @@ export default function CampanhasPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={checkPermissions} disabled={permState.checking}>
-              <ShieldCheck className="w-4 h-4 mr-1.5" /> Revalidar permissões
-            </Button>
-            {!permState.ok && !permState.checking && (
-              <Button asChild variant="outline" size="sm">
-                <Link to="/admin/facebook">Reconectar Facebook</Link>
+            {!adAccountConfigured ? (
+              <Button asChild size="sm" className="gradient-accent">
+                <Link to="/admin/facebook">Configurar Facebook →</Link>
               </Button>
+            ) : (
+              <>
+                <Button variant="outline" size="sm" onClick={checkPermissions} disabled={permState.checking}>
+                  <ShieldCheck className="w-4 h-4 mr-1.5" /> Revalidar
+                </Button>
+                {!permState.ok && !permState.checking && (
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/admin/facebook">Reconectar Facebook</Link>
+                  </Button>
+                )}
+                <Button size="sm" onClick={() => syncFacebookAds(false)} disabled={syncing || !permState.ok}>
+                  {syncing ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+                  Sincronizar Facebook Ads
+                </Button>
+              </>
             )}
-            <Button size="sm" onClick={() => syncFacebookAds(false)} disabled={syncing || !permState.ok}>
-              {syncing ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
-              Sincronizar Facebook Ads
-            </Button>
           </div>
         </CardContent>
       </Card>

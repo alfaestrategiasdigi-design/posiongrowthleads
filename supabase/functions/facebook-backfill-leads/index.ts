@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
   const maxPerForm: number = Number(payload.max_per_form ?? 200);
 
   const { data: cfg } = await admin
-    .from("facebook_webhook_config").select("page_access_token, page_id").limit(1).maybeSingle();
+    .from("facebook_webhook_config").select("page_access_token, page_id, default_tenant_id").limit(1).maybeSingle();
   const token = cfg?.page_access_token || FB_TOKEN_ENV;
   if (!token) {
     return new Response(JSON.stringify({ error: "Token do Facebook não configurado (banco e secret vazios)" }), {
@@ -164,10 +164,13 @@ Deno.serve(async (req) => {
           facebook_adset_name: lead.adset_name ?? null,
           observacoes: observacoesParts.length ? observacoesParts.join(" | ") : null,
           utm_source: "facebook",
-          utm_medium: "lead_ads",
-          utm_campaign: lead.campaign_name ?? lead.ad_name ?? null,
+          utm_medium: "paid",
+          utm_campaign: lead.campaign_name ?? null,
+          utm_content: lead.ad_name ?? null,
+          utm_term: lead.adset_name ?? null,
+          tenant_id: (cfg as any)?.default_tenant_id ?? null,
           created_at: lead.created_time ?? undefined,
-        });
+        } as any);
         if (error) {
           console.error("[backfill] erro insert:", error.message);
           failed++;
