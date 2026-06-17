@@ -87,6 +87,7 @@ export async function insertLead(payload: Record<string, string>, meta: {
   facebook_form_name?: string | null;
   facebook_ad_name?: string | null;
   facebook_adset_name?: string | null;
+  tenant_id?: string | null;
 }) {
   const nome      = pick(payload, ["full_name","nome","nome_completo","name","first_name"]);
   let whatsapp    = pick(payload, ["phone_number","phone","whatsapp","telefone","celular"]);
