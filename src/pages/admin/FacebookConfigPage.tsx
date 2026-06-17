@@ -1355,7 +1355,7 @@ const FacebookConfigPage = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="leads" className="space-y-4">
+      <Tabs defaultValue="config" className="space-y-4">
         <TabsList>
           <TabsTrigger value="leads">Leads do Facebook</TabsTrigger>
           <TabsTrigger value="import">Importar CSV</TabsTrigger>
