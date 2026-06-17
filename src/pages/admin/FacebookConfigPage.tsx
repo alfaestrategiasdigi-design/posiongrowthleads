@@ -361,6 +361,8 @@ function ConfigTab() {
     }
   };
 
+  if (loading) return <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-accent" /></div>;
+
   const isConnected = meta?.has_page_access_token && meta?.connected_page_name;
   const isPlaceholderAdAccount = !!meta?.ad_account_id && /^act_1234/.test(meta.ad_account_id);
   const adAccountOk = !!meta?.ad_account_id && !isPlaceholderAdAccount;
