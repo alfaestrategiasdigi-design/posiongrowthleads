@@ -13,6 +13,7 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const PROJECT_REF = new URL(SUPABASE_URL).host.split(".")[0];
 const WEBHOOK_URL = `https://${PROJECT_REF}.supabase.co/functions/v1/facebook-leads-webhook`;
+const FB_TOKEN_ENV = Deno.env.get("FACEBOOK_PAGE_ACCESS_TOKEN") ?? "";
 
 type Step = { id: string; label: string; ok: boolean; level: "ok" | "error" | "warn"; message: string; detail?: any };
 
@@ -79,24 +80,24 @@ Deno.serve(async (req) => {
     steps.push({ id: "webhook_get", label: "Webhook responde ao challenge", ok: false, level: "error", message: "pulado — sem verify_token" });
   }
 
-  // 3. Page Access Token válido
-  const pat = cfg?.page_access_token as string | undefined;
+  // 3. Facebook token válido (user token > page token > env token)
+  const token = cfg?.user_access_token || cfg?.page_access_token || FB_TOKEN_ENV;
   let tokenType: "page" | "user" | null = null;
   let me: any = null;
-  if (!pat) {
-    steps.push({ id: "page_token", label: "Page Access Token válido", ok: false, level: "error", message: "Token não salvo" });
+  if (!token) {
+    steps.push({ id: "page_token", label: "Token do Facebook válido", ok: false, level: "error", message: "Token não salvo" });
   } else {
     try {
       // Passo 3a: /me básico (id,name) — funciona com qualquer token
-      const r1 = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(pat)}`);
+      const r1 = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(token)}`);
       const j1 = await r1.json();
       if (!r1.ok) {
-        steps.push({ id: "page_token", label: "Page Access Token válido", ok: false, level: "error", message: j1?.error?.message ?? `HTTP ${r1.status}` });
+        steps.push({ id: "page_token", label: "Token do Facebook válido", ok: false, level: "error", message: j1?.error?.message ?? `HTTP ${r1.status}` });
       } else {
         me = j1;
         // Passo 3b: tenta /me com category/tasks para saber se é Page Token
         try {
-          const r2 = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name,category,tasks&access_token=${encodeURIComponent(pat)}`);
+          const r2 = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name,category,tasks&access_token=${encodeURIComponent(token)}`);
           const j2 = await r2.json();
           if (r2.ok && (j2.category || Array.isArray(j2.tasks))) {
             tokenType = "page";
@@ -107,17 +108,17 @@ Deno.serve(async (req) => {
         } catch {
           tokenType = "user";
         }
-        steps.push({ id: "page_token", label: "Page Access Token válido", ok: true, level: "ok", message: `${tokenType === "page" ? "Page Token" : "User Token"} · ${j1.name} (${j1.id})` });
+        steps.push({ id: "page_token", label: "Token do Facebook válido", ok: true, level: "ok", message: `${tokenType === "page" ? "Page Token" : "User Token"} · ${j1.name} (${j1.id})` });
       }
     } catch (e: any) {
-      steps.push({ id: "page_token", label: "Page Access Token válido", ok: false, level: "error", message: e.message });
+      steps.push({ id: "page_token", label: "Token do Facebook válido", ok: false, level: "error", message: e.message });
     }
   }
 
   // 4. Permissões
-  if (pat) {
+  if (token) {
     try {
-      const r = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${encodeURIComponent(pat)}`);
+      const r = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${encodeURIComponent(token)}`);
       const j = await r.json();
       if (r.ok && Array.isArray(j.data)) {
         const granted = new Set(j.data.filter((p: any) => p.status === "granted").map((p: any) => p.permission));
@@ -138,16 +139,16 @@ Deno.serve(async (req) => {
   }
 
   // 5. Listar formulários
-  if (pat && me) {
+  if (token && me) {
     try {
       let forms: any[] = [];
       if (tokenType === "page") {
-        const r = await fetch(`https://graph.facebook.com/v21.0/${me.id}/leadgen_forms?fields=id,name,status,leads_count&limit=100&access_token=${encodeURIComponent(pat)}`);
+        const r = await fetch(`https://graph.facebook.com/v21.0/${me.id}/leadgen_forms?fields=id,name,status,leads_count&limit=100&access_token=${encodeURIComponent(token)}`);
         const j = await r.json();
         if (r.ok && Array.isArray(j.data)) forms = j.data;
         else throw new Error(j?.error?.message ?? `HTTP ${r.status}`);
       } else {
-        const acc = await fetch(`https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token&limit=50&access_token=${encodeURIComponent(pat)}`).then(r => r.json());
+        const acc = await fetch(`https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token&limit=50&access_token=${encodeURIComponent(token)}`).then(r => r.json());
         for (const p of acc?.data ?? []) {
           const r = await fetch(`https://graph.facebook.com/v21.0/${p.id}/leadgen_forms?fields=id,name,status,leads_count&limit=100&access_token=${encodeURIComponent(p.access_token)}`);
           const j = await r.json();

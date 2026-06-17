@@ -32,10 +32,10 @@ Deno.serve(async (req) => {
 
   const { data: cfg } = await admin
     .from("facebook_webhook_config")
-    .select("page_id, page_access_token, app_id")
+    .select("page_id, page_access_token, user_access_token, app_id")
     .limit(1).maybeSingle();
   const pageId = cfg?.page_id;
-  const token = cfg?.page_access_token || Deno.env.get("FACEBOOK_PAGE_ACCESS_TOKEN") || "";
+  const token = cfg?.user_access_token || cfg?.page_access_token || Deno.env.get("FACEBOOK_PAGE_ACCESS_TOKEN") || "";
   if (!pageId || !token) return json({ error: "Página não conectada. Faça login no Passo 4." }, 400);
 
   try {

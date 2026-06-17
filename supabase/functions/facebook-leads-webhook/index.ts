@@ -199,9 +199,9 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "invalid json" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }});
   }
 
-  const FB_PAGE_TOKEN = cfg?.page_access_token || FB_TOKEN_ENV || "";
+  const FB_PAGE_TOKEN = cfg?.user_access_token || cfg?.page_access_token || FB_TOKEN_ENV || "";
   if (!FB_PAGE_TOKEN) {
-    console.error("[webhook] FACEBOOK_PAGE_ACCESS_TOKEN ausente (banco + secret vazios) — leads do Meta serão registrados só com leadgen_id");
+    console.error("[webhook] token do Facebook ausente (banco + secret vazios) — leads do Meta serão registrados só com leadgen_id");
   }
 
   const results: any[] = [];

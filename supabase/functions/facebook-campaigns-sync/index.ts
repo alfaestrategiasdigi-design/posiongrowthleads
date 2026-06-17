@@ -13,6 +13,59 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const FB_TOKEN_ENV = Deno.env.get("FACEBOOK_PAGE_ACCESS_TOKEN") ?? "";
 
+const normalizeAdAccountId = (value: any) => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith("act_") ? trimmed : `act_${trimmed}`;
+};
+
+const discoverAdAccount = async (token: string): Promise<string | null> => {
+  const urls = [
+    new URL("https://graph.facebook.com/v21.0/me/adaccounts"),
+    new URL("https://graph.facebook.com/v21.0/me/businesses"),
+  ];
+
+  urls[0].searchParams.set("fields", "id,account_id,name");
+  urls[0].searchParams.set("limit", "50");
+  urls[0].searchParams.set("access_token", token);
+
+  try {
+    const res = await fetch(urls[0]);
+    const json = await res.json();
+    if (res.ok && Array.isArray(json.data) && json.data.length > 0) {
+      return normalizeAdAccountId(json.data[0].account_id ?? json.data[0].id);
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    const bizRes = await fetch(urls[1]);
+    const bizJson = await bizRes.json();
+    if (bizRes.ok && Array.isArray(bizJson.data)) {
+      for (const biz of bizJson.data) {
+        try {
+          const owned = new URL(`https://graph.facebook.com/v21.0/${biz.id}/owned_ad_accounts`);
+          owned.searchParams.set("fields", "id,account_id,name");
+          owned.searchParams.set("limit", "50");
+          owned.searchParams.set("access_token", token);
+          const ownRes = await fetch(owned);
+          const ownJson = await ownRes.json();
+          if (ownRes.ok && Array.isArray(ownJson.data) && ownJson.data.length > 0) {
+            return normalizeAdAccountId(ownJson.data[0].account_id ?? ownJson.data[0].id);
+          }
+        } catch {
+          // ignore per business
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -82,13 +135,18 @@ Deno.serve(async (req) => {
     }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
-  let adAccountId = cfg?.ad_account_id?.trim();
+  let adAccountId = normalizeAdAccountId(cfg?.ad_account_id);
+  if (!adAccountId && cfg?.user_access_token) {
+    adAccountId = await discoverAdAccount(cfg.user_access_token);
+    if (adAccountId) {
+      await admin.from("facebook_webhook_config").update({ ad_account_id: adAccountId }).not("id", "is", null);
+    }
+  }
   if (!adAccountId) {
     return new Response(JSON.stringify({ error: "Ad Account ID não configurado." }), {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-  if (!adAccountId.startsWith("act_")) adAccountId = `act_${adAccountId}`;
   const tenantId: string | null = cfg?.default_tenant_id ?? null;
 
   const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
