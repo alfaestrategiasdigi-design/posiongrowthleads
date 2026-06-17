@@ -72,9 +72,13 @@ export default function CampanhasPage() {
   // Facebook Ads sync state
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [adAccountId, setAdAccountId] = useState<string | null>(null);
   const [permState, setPermState] = useState<{ ok: boolean; granted: string[]; missing: string[]; checking: boolean }>({
     ok: false, granted: [], missing: [], checking: true,
   });
+
+  const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
+  const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
 
   useEffect(() => {
     (async () => {
@@ -83,11 +87,17 @@ export default function CampanhasPage() {
       const { data: cfg } = await supabase.rpc("get_facebook_config_meta" as any);
       const row: any = Array.isArray(cfg) ? cfg[0] : cfg;
       setLastSync(row?.last_campaigns_sync_at ?? null);
+      setAdAccountId(row?.ad_account_id ?? null);
     })();
   }, []);
 
   const checkPermissions = async () => {
     setPermState(s => ({ ...s, checking: true }));
+    if (!adAccountConfigured) {
+      // Sem ad account real, nem vale chamar — não exibir falso "ads_read ausente"
+      setPermState({ ok: false, granted: [], missing: [], checking: false });
+      return;
+    }
     try {
       const { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", {
         body: { check_permissions: true },
@@ -104,7 +114,7 @@ export default function CampanhasPage() {
     }
   };
 
-  useEffect(() => { checkPermissions(); }, []);
+  useEffect(() => { checkPermissions(); /* eslint-disable-next-line */ }, [adAccountId]);
 
   const syncFacebookAds = async (silent = false) => {
     setSyncing(true);
