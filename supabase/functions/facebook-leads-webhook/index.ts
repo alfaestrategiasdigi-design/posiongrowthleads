@@ -199,9 +199,6 @@ Deno.serve(async (req) => {
   }
 
   const results: any[] = [];
-  const sigValid = cfg?.app_secret
-    ? true // se chegou aqui com app_secret, já passou na validação acima
-    : null;
 
   if (Array.isArray(body?.entry)) {
     for (const entry of body.entry) {
@@ -209,19 +206,6 @@ Deno.serve(async (req) => {
         const v = change?.value ?? {};
         const leadgenId = v.leadgen_id ?? null;
         console.log(`[webhook] Leadgen ID: ${leadgenId}`);
-
-        // Persistência do evento bruto (auditoria)
-        const { data: evt } = await admin.from("facebook_webhook_events").insert({
-          signature_valid: sigValid,
-          page_id: v.page_id ? String(v.page_id) : (entry.id ? String(entry.id) : null),
-          form_id: v.form_id ? String(v.form_id) : null,
-          leadgen_id: leadgenId ? String(leadgenId) : null,
-          ad_id: v.ad_id ? String(v.ad_id) : null,
-          campaign_id: v.campaign_id ? String(v.campaign_id) : null,
-          raw_body: change,
-        }).select("id").single();
-        const evtId = evt?.id ?? null;
-
         let flat: Record<string, string> = {};
         let adName: string | null = null;
         let adsetName: string | null = null;
@@ -246,14 +230,6 @@ Deno.serve(async (req) => {
           facebook_adset_name: adsetName,
         });
         results.push(r);
-
-        if (evtId) {
-          await admin.from("facebook_webhook_events").update({
-            processed: !!r.ok,
-            lead_id: r.id ?? null,
-            error: r.ok ? null : (r.error ?? null),
-          }).eq("id", evtId);
-        }
       }
     }
   } else if (Array.isArray(body?.field_data)) {

@@ -1,80 +1,116 @@
-## Análise: conformidade com o guia oficial Meta Webhooks for Leadgen
 
-Comparei o guia que você colou com a implementação atual do projeto. Resumo do que **já está correto** e do que **precisa ser ajustado**.
+## Objetivo
 
----
-
-### ✅ O que já está conforme o guia
-
-| Requisito Meta | Status no projeto | Onde |
-|---|---|---|
-| Endpoint público de Webhook (GET challenge + POST eventos) | OK | `facebook-leads-webhook/index.ts` |
-| Verify Token (hub.verify_token) | OK | comparação contra `facebook_webhook_config.verify_token` |
-| Validação HMAC `x-hub-signature-256` com App Secret | OK | `verifyHubSignature()` |
-| Buscar lead na Graph API via `leadgen_id` | OK | `fetchLeadFromGraph()` v21.0 |
-| Page Access Token armazenado no banco | OK | `facebook_webhook_config.page_access_token` |
-| Subscribe automático do app à Página no campo `leadgen` | OK | `facebook-oauth-save-page` chama `POST /{page-id}/subscribed_apps?subscribed_fields=leadgen` |
-| Persistência do lead + dedupe por `facebook_lead_id` | OK | `insertLead()` |
-| Escopos OAuth | Parcial — já solicita `leads_retrieval`, `pages_show_list`, `pages_manage_metadata`, `pages_read_engagement`, `ads_read`, `ads_management`, `business_management` |
+1. Tornar o `/admin` (Dashboard) **100% comercial**: leads, funil, performance de campanhas Facebook Ads — sem MRR/contratos.
+2. Mover métricas financeiras (MRR, ARR, Churn, contratos ativos) para a aba **Contratos** (`/admin/contracts`).
+3. Em `/admin/leads`: novo bloco "Origem Facebook" com contagem por formulário e por status, e link para diagnóstico.
+4. **Tudo automático**: importação de leads + leitura de campanhas do Facebook (Ad Account) com sincronização periódica.
+5. Sidebar "Campanhas" continua como hoje — mas alimentada automaticamente.
 
 ---
 
-### ⚠️ Lacunas frente ao guia (o que falta ou precisa de hardening)
+## 1. Backend: credenciais Ad Account + auto-sync
 
-**1. Verificação se o app está realmente inscrito na Página**
-O guia recomenda um `GET /{page-id}/subscribed_apps` para confirmar a inscrição. Hoje fazemos o POST no `save-page` mas não temos UI que mostre se a inscrição continua ativa (a Meta pode revogar silenciosamente). Falta:
-- Botão "Verificar inscrição da Página" em `/admin/facebook` que chama `GET /{page-id}/subscribed_apps` e mostra o resultado.
-- Botão "Reinscrever" que refaz o POST se o app sumiu da lista.
+### 1.1 Schema (migração)
+Adicionar à `facebook_webhook_config`:
+- `ad_account_id` (text, ex.: `act_1234567890`)
+- `last_campaigns_sync_at` (timestamptz)
+- `last_leads_sync_at` (timestamptz)
 
-**2. Validação das 5 permissões exigidas pelo guia**
-Hoje só validamos `ads_read`. O guia exige confirmar também `leads_retrieval`, `pages_manage_metadata`, `pages_show_list`, `pages_read_engagement`, `ads_management`. Falta:
-- Estender `facebook-campaigns-sync` (modo `check_permissions`) ou criar `facebook-permissions-check` que retorne o status de **todas** as 5 permissões + `ads_read`.
-- UI em `/admin/facebook` com check-list verde/vermelho por permissão.
+Atualizar `get_facebook_config_meta()` para expor `ad_account_id`, `last_campaigns_sync_at`, `last_leads_sync_at`.
 
-**3. Diagnóstico do ciclo completo do webhook**
-O guia mostra que cada evento traz `leadgen_id, page_id, form_id, ad_id, created_time`. Hoje logamos via `console.log` mas não há tabela de auditoria. Útil ter:
-- Tabela `facebook_webhook_events` (raw payload, signature_ok, leadgen_id, processed_at, lead_id resultante, error).
-- Painel "Últimos eventos recebidos" em `/admin/facebook` mostrando os 50 mais recentes — facilita debug quando a Meta envia mas o lead não aparece.
+### 1.2 Reconexão Facebook com `ads_read`
+Atualizar `facebook-oauth-exchange` para solicitar escopo `ads_read,ads_management,business_management` além dos já existentes (`leads_retrieval`, `pages_show_list`, etc.). O usuário precisa **reconectar 1×** após o deploy para receber o token com permissão Marketing API.
 
-**4. Page token longevidade**
-Tokens de Página derivados de long-lived user token normalmente não expiram, mas o guia recomenda monitorar. Hoje gravamos `token_expires_at = now + 60d` artificialmente. Melhor:
-- Chamar `GET /debug_token` periodicamente e gravar o `expires_at` real.
-- Endpoint `facebook-token-debug` + indicador na UI.
+### 1.3 Nova Edge Function: `facebook-campaigns-sync`
+- Lê `ad_account_id` + `page_access_token` (ou env fallback) de `facebook_webhook_config`.
+- Chama `GET /{ad_account_id}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time`.
+- Para cada campanha, chama `GET /{campaign_id}/insights?fields=spend,impressions,clicks,actions&date_preset=last_30d` (ou range customizado).
+- Faz **upsert** em `campaign_spend` (chave: `tenant_id + campaign_id + period_start`):
+  - `channel = 'meta_ads'`
+  - `campaign_id`, `campaign_name`, `amount_spent`, `impressions`, `clicks`
+  - `leads_generated` = count das ações `lead`/`onsite_conversion.lead_grouped`
+  - `period_start/period_end` = janela do insight (rolling 30d ou day-by-day)
+- Atualiza `last_campaigns_sync_at`.
+- Endpoint admin-only (verifica `has_role`).
 
-**5. Reentrega / retries**
-A Meta reenvia eventos por até 36h se receber não-2xx. Hoje retornamos 200 mesmo quando `insertLead` falha (resposta `{ received, results }`). Isso é correto para evitar tempestade de retry, mas perdemos eventos com erro. Falta:
-- Salvar todo evento bruto (item 3) antes de processar, para que erros possam ser reprocessados manualmente via `facebook-backfill-leads`.
+### 1.4 Auto-cron (pg_cron + pg_net)
+Agendar via `supabase--insert` (não migration):
+- `facebook-campaigns-sync` a cada **15 min**
+- `facebook-backfill-leads` a cada **5 min** (incremental — só formulários da página)
+- Ambos com `apikey` anon header + JWT de service (chamada server-to-server via header customizado validado dentro da function por shared secret env var `INTERNAL_CRON_SECRET`).
 
----
-
-### Plano de implementação proposto
-
-**Fase 1 — Auditoria visível (alta prioridade)**
-1. Migration: criar `facebook_webhook_events` (raw_body jsonb, signature_valid bool, leadgen_id text, form_id text, page_id text, processed bool, lead_id uuid null, error text, received_at). GRANTs + RLS admin-only.
-2. Editar `facebook-leads-webhook/index.ts` para inserir 1 linha por `change` antes de processar, e atualizar com `lead_id`/`error` depois.
-3. Nova Edge Function `facebook-permissions-check` — retorna status das 6 permissões (`leads_retrieval`, `pages_manage_metadata`, `pages_show_list`, `pages_read_engagement`, `ads_management`, `ads_read`).
-4. Nova Edge Function `facebook-page-subscription-check` — chama `GET /{page-id}/subscribed_apps`, retorna se nosso app está na lista; ação "Reinscrever" disponível.
-
-**Fase 2 — UI em `/admin/facebook`**
-5. Bloco "5. Permissões da Página" com checklist verde/vermelho das 6 permissões + botão Revalidar.
-6. Bloco "6. Inscrição da Página" mostrando se nosso app está em `subscribed_apps`, com botão Reinscrever.
-7. Bloco "7. Últimos eventos do Webhook" — tabela com os 50 eventos mais recentes da nova tabela (status, leadgen_id, lead resultante, erro).
-
-**Fase 3 — Robustez do token (opcional, pode ficar para depois)**
-8. Edge Function `facebook-token-debug` chamando `GET /debug_token` e atualizando `token_expires_at` real.
+### 1.5 Tenant mapping
+- Como hoje só existe 1 página conectada globalmente, `campaign_spend.tenant_id` para campanhas auto-importadas usa o `tenant_id` configurado em `facebook_webhook_config` (novo campo `default_tenant_id`, FK `tenants.id`, nullable). Se nulo, salva com `tenant_id = NULL` e exibe agregado em "Todas as clínicas".
 
 ---
 
-### Detalhes técnicos
+## 2. Frontend: Dashboard `/admin` comercial
 
-- **Schema novo**: `facebook_webhook_events` com índice em `received_at desc` e `leadgen_id`.
-- **Edge functions novas**: `facebook-permissions-check`, `facebook-page-subscription-check`, `facebook-token-debug` (Fase 3).
-- **Edge function alterada**: `facebook-leads-webhook` (passa a gravar evento bruto antes de processar; mantém retorno 200 sempre).
-- **Frontend alterado**: `src/pages/admin/FacebookConfigPage.tsx` (3 blocos novos).
-- **Sem mudança de escopos OAuth** — todos os 6 já estão sendo solicitados em `facebook-oauth-exchange`.
+Reescrever `src/pages/admin/Dashboard.tsx`:
+
+**KPIs topo (cards animados):**
+- Leads totais (período)
+- Leads Facebook Ads
+- Qualificados / Tx qualificação
+- Agendados
+- Fechados / Tx conversão
+- Investido / CPL / ROI (vindo de `campaign_spend`)
+
+**Gráficos:**
+- Linha: Leads por dia (últimos 7/30/90d)
+- Área: Investido × Receita
+- Pizza: Origem dos leads (`facebook_ads`, `site`, `whatsapp`, etc.)
+- Barras: Top 5 campanhas Facebook por leads
+
+**Filtros:** período (7/30/90/todos) + clínica (tenant).
+
+**Realtime:** assinar `leads` table → recarrega contadores quando chega lead novo.
+
+## 3. `/admin/leads` — bloco "Origem Facebook"
+
+Em `src/pages/admin/LeadsPage.tsx`, adicionar acima da tabela:
+- Card "Resumo Facebook Ads"
+  - Total de leads por `facebook_form_id` (com `facebook_form_name`)
+  - Breakdown por `status` (novo, qualificado, agendado, etc.) — barras horizontais
+  - Botão "Ver diagnóstico" → navega para `/admin/facebook` (aba diagnóstico)
+  - Indicador "Última importação: há X min" (de `last_leads_sync_at`)
+
+## 4. `/admin/campanhas` — auto-leitura
+
+Em `src/pages/admin/CampanhasPage.tsx`:
+- Botão "Sincronizar agora" → invoca `facebook-campaigns-sync`.
+- Indicador "Última sincronização" + auto-refresh a cada 60s.
+- Manter o botão "Novo investimento" para canais não-Meta (Google, TikTok).
+- Tabela de campanhas passa a exibir tag "Auto" para linhas vindas da Marketing API.
+
+## 5. `/admin/contracts` — receber MRR/ARR
+
+Mover blocos de MRR, ARR, Churn, Plan Mix e MRR Trend do Dashboard atual para o topo de `ContractsPage.tsx`.
 
 ---
 
-### Pergunta para você
+## Detalhes técnicos
 
-Quer que eu execute o plano completo (Fases 1+2+3) ou só **Fase 1+2** (auditoria + UI), deixando o monitoramento de token para depois?
+**Tabelas tocadas:** `facebook_webhook_config` (alter), `campaign_spend` (upsert), `leads` (read), `posion_contracts` (read em Contracts).
+
+**Edge functions:**
+- nova: `supabase/functions/facebook-campaigns-sync/index.ts`
+- alterada: `supabase/functions/facebook-oauth-exchange/index.ts` (escopo)
+
+**Secret novo:** `INTERNAL_CRON_SECRET` (para chamadas pg_cron→edge).
+
+**Permissões Meta extras necessárias no App:** `ads_read` (App Review pode ser exigida para produção; em modo dev funciona com o token do admin do Business).
+
+---
+
+## Sequência de execução
+
+1. Migração schema (`ad_account_id`, sync timestamps, `default_tenant_id` + RPC).
+2. Criar `facebook-campaigns-sync` + atualizar `facebook-oauth-exchange`.
+3. Agendar cron (campaigns 15m, leads 5m).
+4. Reescrever Dashboard.tsx (comercial).
+5. Adicionar bloco Facebook em LeadsPage.tsx.
+6. Adicionar auto-sync UI em CampanhasPage.tsx.
+7. Mover MRR/ARR para ContractsPage.tsx.
+8. Pedir ao usuário: reconectar Facebook + informar Ad Account ID em `/admin/facebook`.

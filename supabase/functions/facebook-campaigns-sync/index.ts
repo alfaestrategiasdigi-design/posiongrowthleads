@@ -43,7 +43,6 @@ Deno.serve(async (req) => {
   let body: any = {};
   try { body = await req.json(); } catch { /* no body */ }
   const days = Math.max(1, Math.min(90, Number(body.days ?? 30)));
-  const checkOnly = body.check_permissions === true;
 
   const { data: cfg } = await admin
     .from("facebook_webhook_config")
@@ -56,32 +55,6 @@ Deno.serve(async (req) => {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-
-  // Verifica permissões do token primeiro
-  const permsRes = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${encodeURIComponent(token)}`);
-  const permsJson = await permsRes.json();
-  const granted: string[] = Array.isArray(permsJson?.data)
-    ? permsJson.data.filter((p: any) => p.status === "granted").map((p: any) => p.permission)
-    : [];
-  const required = ["ads_read"];
-  const missing = required.filter(r => !granted.includes(r));
-
-  if (checkOnly) {
-    return new Response(JSON.stringify({
-      ok: missing.length === 0,
-      granted, missing,
-      ad_account_id: cfg?.ad_account_id ?? null,
-      last_campaigns_sync_at: null,
-    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-  }
-
-  if (missing.length > 0) {
-    return new Response(JSON.stringify({
-      error: `Permissões da Marketing API ausentes: ${missing.join(", ")}. Reconecte sua conta do Facebook e marque essas permissões.`,
-      missing, granted, need_reconnect: true,
-    }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-  }
-
   let adAccountId = cfg?.ad_account_id?.trim();
   if (!adAccountId) {
     return new Response(JSON.stringify({ error: "Ad Account ID não configurado." }), {
