@@ -140,8 +140,10 @@ export async function insertLead(payload: Record<string, string>, meta: {
     facebook_adset_name: meta.facebook_adset_name,
     observacoes,
     utm_source: "facebook",
-    utm_medium: "lead_ads",
-    utm_campaign: meta.facebook_campaign ?? meta.facebook_ad_name ?? null,
+    utm_medium: "paid",
+    utm_campaign: meta.facebook_campaign ?? null,
+    utm_content: meta.facebook_ad_name ?? null,
+    utm_term: meta.facebook_adset_name ?? null,
   }).select("id").single();
 
   if (error) {
