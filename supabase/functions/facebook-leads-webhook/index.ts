@@ -20,7 +20,7 @@ const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 async function loadConfig() {
   const { data, error } = await admin
     .from("facebook_webhook_config")
-    .select("verify_token, page_access_token, app_secret, page_id")
+    .select("verify_token, page_access_token, app_secret, page_id, default_tenant_id")
     .limit(1).maybeSingle();
   if (error) console.error("[webhook] erro carregando config:", error.message);
   return data;
