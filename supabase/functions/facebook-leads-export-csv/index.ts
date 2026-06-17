@@ -219,7 +219,7 @@ Deno.serve(async (req) => {
         created_at: createdTime && !isNaN(Date.parse(createdTime))
           ? new Date(createdTime).toISOString()
           : undefined,
-      });
+      } as any);
       if (error) {
         errors++;
         if (errorMsgs.length < 5) errorMsgs.push(error.message);
