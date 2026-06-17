@@ -20,6 +20,7 @@ const REQUIRED = [
   "pages_read_engagement",
   "ads_management",
   "ads_read",
+  "business_management",
 ];
 
 Deno.serve(async (req) => {
@@ -40,9 +41,9 @@ Deno.serve(async (req) => {
 
   const { data: cfg } = await admin
     .from("facebook_webhook_config")
-    .select("page_access_token")
+    .select("page_access_token, user_access_token")
     .limit(1).maybeSingle();
-  const token = cfg?.page_access_token || Deno.env.get("FACEBOOK_PAGE_ACCESS_TOKEN") || "";
+  const token = cfg?.user_access_token || cfg?.page_access_token || Deno.env.get("FACEBOOK_PAGE_ACCESS_TOKEN") || "";
   if (!token) return json({ error: "Token de página ausente. Reconecte sua conta." }, 400);
 
   try {

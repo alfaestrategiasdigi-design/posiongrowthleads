@@ -45,8 +45,14 @@ Deno.serve(async (req) => {
   const { data: cfg } = await admin
     .from("facebook_webhook_config").select("*").limit(1).maybeSingle();
 
-  const token = cfg?.page_access_token || FB_TOKEN_ENV;
-  const tokenSource = cfg?.page_access_token ? "database" : FB_TOKEN_ENV ? "env_secret" : "none";
+  const token = cfg?.user_access_token || cfg?.page_access_token || FB_TOKEN_ENV;
+  const tokenSource = cfg?.user_access_token
+    ? "db_user_access_token"
+    : cfg?.page_access_token
+      ? "db_page_access_token"
+      : FB_TOKEN_ENV
+        ? "env_secret"
+        : "none";
 
   // Supabase connectivity
   const { count: leadsTotal, error: dbErr } = await admin

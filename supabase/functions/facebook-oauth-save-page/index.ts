@@ -65,13 +65,25 @@ Deno.serve(async (req) => {
   // mas guardamos uma data de "checagem" defensiva
   const expiresAt = new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString();
 
-  const patch = {
+  const normalizeAdAccountId = (value: any) => {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    return trimmed.startsWith("act_") ? trimmed : `act_${trimmed}`;
+  };
+
+  const patch: any = {
     page_id: pageId,
     connected_page_name: pageName || null,
     page_access_token: pageAccessToken,
     token_expires_at: expiresAt,
     updated_at: new Date().toISOString(),
   };
+  // opção: salvar ad_account_id junto se fornecido
+  const normalizedAdAccountId = normalizeAdAccountId(body?.ad_account_id);
+  if (normalizedAdAccountId) patch.ad_account_id = normalizedAdAccountId;
+  if (body?.user_access_token) patch.user_access_token = String(body.user_access_token).trim() || null;
+  if (body?.user_access_token_expires_at) patch.user_access_token_expires_at = String(body.user_access_token_expires_at).trim() || null;
 
   if (existing) {
     const { error } = await admin

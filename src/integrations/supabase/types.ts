@@ -480,6 +480,8 @@ export type Database = {
           token_expires_at: string | null
           updated_at: string
           verify_token: string
+          user_access_token: string | null
+          user_access_token_expires_at: string | null
         }
         Insert: {
           ad_account_id?: string | null
@@ -498,6 +500,8 @@ export type Database = {
           token_expires_at?: string | null
           updated_at?: string
           verify_token: string
+          user_access_token?: string | null
+          user_access_token_expires_at?: string | null
         }
         Update: {
           ad_account_id?: string | null
@@ -516,6 +520,10 @@ export type Database = {
           token_expires_at?: string | null
           updated_at?: string
           verify_token?: string
+          user_access_token?: string | null
+          user_access_token_expires_at?: string | null
+          user_access_token?: string | null
+          user_access_token_expires_at?: string | null
         }
         Relationships: [
           {

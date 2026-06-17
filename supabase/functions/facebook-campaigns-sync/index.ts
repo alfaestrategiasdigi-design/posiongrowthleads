@@ -47,10 +47,10 @@ Deno.serve(async (req) => {
 
   const { data: cfg } = await admin
     .from("facebook_webhook_config")
-    .select("page_access_token, ad_account_id, default_tenant_id")
+    .select("page_access_token, user_access_token, ad_account_id, default_tenant_id")
     .limit(1).maybeSingle();
 
-  const token = cfg?.page_access_token || FB_TOKEN_ENV;
+  const token = cfg?.user_access_token || cfg?.page_access_token || FB_TOKEN_ENV;
   if (!token) {
     return new Response(JSON.stringify({ error: "Token Facebook ausente. Reconecte com escopo ads_read." }), {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
