@@ -110,14 +110,18 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Verifica permissões do token primeiro
-  const permsRes = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${encodeURIComponent(token)}`);
+  // Verifica permissões — só dá pra checar de forma confiável com User Token.
+  // Page Access Tokens retornam data:[] em /me/permissions, então não bloqueamos
+  // por essa lista vazia — deixamos a Graph API responder com o erro real se faltar escopo.
+  const permsToken = cfg?.user_access_token || token;
+  const permsRes = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${encodeURIComponent(permsToken)}`);
   const permsJson = await permsRes.json();
   const granted: string[] = Array.isArray(permsJson?.data)
     ? permsJson.data.filter((p: any) => p.status === "granted").map((p: any) => p.permission)
     : [];
   const required = ["ads_read"];
-  const missing = required.filter(r => !granted.includes(r));
+  const hasPermsList = granted.length > 0;
+  const missing = hasPermsList ? required.filter(r => !granted.includes(r)) : [];
 
   if (checkOnly) {
     return new Response(JSON.stringify({
@@ -125,6 +129,7 @@ Deno.serve(async (req) => {
       granted, missing,
       ad_account_id: cfg?.ad_account_id ?? null,
       last_campaigns_sync_at: null,
+      note: hasPermsList ? undefined : "Não foi possível listar permissões (provável Page Token). Validação acontecerá na chamada real.",
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
