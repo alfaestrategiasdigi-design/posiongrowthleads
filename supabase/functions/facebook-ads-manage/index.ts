@@ -78,7 +78,8 @@ Deno.serve(async (req) => {
     }, 200);
   }
 
-  let adAccount = (cfg?.ad_account_id ?? "").trim();
+  // Allow the caller to override the saved ad_account_id (so the admin can browse any accessible account).
+  let adAccount = String(payload.ad_account_id ?? cfg?.ad_account_id ?? "").trim();
   if (adAccount && !adAccount.startsWith("act_")) adAccount = `act_${adAccount}`;
 
 
@@ -99,7 +100,47 @@ Deno.serve(async (req) => {
           limit: "200",
         });
         if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
-        return json({ ok: true, data: r.body.data ?? [] });
+        const campaigns: any[] = r.body.data ?? [];
+
+        // Optional: enrich each campaign with aggregated insights for the window.
+        if (payload.with_insights && campaigns.length) {
+          const since = String(payload.since ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
+          const until = String(payload.until ?? new Date().toISOString().slice(0, 10));
+          const fields = "spend,impressions,clicks,ctr,cpc,cpm,reach,frequency,actions,cost_per_action_type";
+          const results = await Promise.all(campaigns.map(async (c) => {
+            const ir = await fbGet(`${c.id}/insights`, token, {
+              fields, time_range: JSON.stringify({ since, until }), level: "campaign",
+            });
+            const row = ir.ok ? (ir.body.data?.[0] ?? null) : null;
+            let leads = 0, purchases = 0, purchase_value = 0;
+            for (const a of row?.actions ?? []) {
+              if (a.action_type === "lead" || a.action_type === "leadgen.other" || a.action_type === "onsite_conversion.lead_grouped") {
+                leads += Number(a.value || 0);
+              }
+              if (a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase") {
+                purchases += Number(a.value || 0);
+              }
+            }
+            for (const a of row?.action_values ?? []) {
+              if (a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase") {
+                purchase_value += Number(a.value || 0);
+              }
+            }
+            const spend = Number(row?.spend || 0);
+            return {
+              ...c,
+              insights: row ? {
+                spend, impressions: Number(row.impressions || 0), clicks: Number(row.clicks || 0),
+                ctr: Number(row.ctr || 0), cpc: Number(row.cpc || 0), cpm: Number(row.cpm || 0),
+                reach: Number(row.reach || 0), frequency: Number(row.frequency || 0),
+                leads, cpl: leads > 0 ? spend / leads : 0,
+                purchases, purchase_value, roas: spend > 0 ? purchase_value / spend : 0,
+              } : null,
+            };
+          }));
+          return json({ ok: true, data: results, ad_account_id: adAccount, since, until });
+        }
+        return json({ ok: true, data: campaigns, ad_account_id: adAccount });
       }
 
       case "list_adsets": {

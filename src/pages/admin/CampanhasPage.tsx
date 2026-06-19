@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Trash2, TrendingUp, DollarSign, Target, Users, MousePointerClick, Activity, Wallet, Percent, RefreshCw, ShieldCheck, ShieldAlert, Loader2, Crown } from "lucide-react";
+import { Plus, Trash2, TrendingUp, DollarSign, Target, Users, MousePointerClick, Activity, Wallet, Percent, RefreshCw, ShieldCheck, ShieldAlert, Loader2, Crown, Star, Play, Pause, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 import { requestFacebookReconnect, detectNeedReconnect } from "@/components/facebook/ReconnectFacebookDialog";
 import {
@@ -98,9 +98,26 @@ export default function CampanhasPage() {
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [adAccountId, setAdAccountId] = useState<string | null>(null);
+  const [settingActive, setSettingActive] = useState<string | null>(null);
   const [permState, setPermState] = useState<{ ok: boolean; granted: string[]; missing: string[]; checking: boolean }>({
     ok: false, granted: [], missing: [], checking: true,
   });
+
+  // Live Meta campaigns + insights for the selected ad account
+  type MetaCampaign = {
+    id: string; name: string; status: string; effective_status: string;
+    objective?: string; daily_budget?: string; lifetime_budget?: string;
+    insights?: {
+      spend: number; impressions: number; clicks: number; ctr: number;
+      cpc: number; cpm: number; reach: number; frequency: number;
+      leads: number; cpl: number;
+      purchases: number; purchase_value: number; roas: number;
+    } | null;
+  };
+  const [metaCampaigns, setMetaCampaigns] = useState<MetaCampaign[]>([]);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(false);
+  const [campaignsAccountId, setCampaignsAccountId] = useState<string | null>(null);
+  const [togglingCampaign, setTogglingCampaign] = useState<string | null>(null);
 
   const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
   const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
@@ -457,6 +474,83 @@ export default function CampanhasPage() {
     loadRules();
   };
 
+  // Define a conta de anúncio "ativa" para o admin master (grava em facebook_webhook_config.ad_account_id).
+  const setActiveAdAccount = async (account: AdAccount) => {
+    setSettingActive(account.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-config-save", {
+        body: { ad_account_id: account.id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setAdAccountId(account.id);
+      toast({ title: "Conta ativa definida", description: `${account.name} (${account.id})` });
+      // Carrega campanhas imediatamente
+      loadMetaCampaigns(account.id);
+      checkPermissions();
+    } catch (e: any) {
+      toast({ title: "Falha ao definir conta ativa", description: e.message ?? "", variant: "destructive" });
+    } finally {
+      setSettingActive(null);
+    }
+  };
+
+  const loadMetaCampaigns = async (accountId?: string | null, didReconnect = false) => {
+    const acc = accountId ?? (adAccountFilter !== "all" ? adAccountFilter : adAccountId);
+    if (!acc) { setMetaCampaigns([]); setCampaignsAccountId(null); return; }
+    setLoadingCampaigns(true);
+    setCampaignsAccountId(acc);
+    try {
+      const days = period === "all" ? 90 : Number(period);
+      const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+      const until = new Date().toISOString().slice(0, 10);
+      let { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
+        body: { action: "list_campaigns", ad_account_id: acc, with_insights: true, since, until },
+      });
+      const det = await detectNeedReconnect(data, error);
+      if (det.need && !didReconnect) {
+        const ok = await requestFacebookReconnect({ reason: det.reason, missing: det.payload?.missing });
+        if (ok) return loadMetaCampaigns(acc, true);
+        return;
+      }
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setMetaCampaigns((data?.data ?? []) as MetaCampaign[]);
+    } catch (e: any) {
+      toast({ title: "Falha ao carregar campanhas", description: e.message ?? "", variant: "destructive" });
+      setMetaCampaigns([]);
+    } finally {
+      setLoadingCampaigns(false);
+    }
+  };
+
+  const toggleCampaignStatus = async (c: MetaCampaign) => {
+    const target = c.effective_status === "ACTIVE" ? "PAUSED" : "ACTIVE";
+    setTogglingCampaign(c.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
+        body: { action: "set_status", object_id: c.id, status: target },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({ title: target === "ACTIVE" ? "Campanha ativada" : "Campanha pausada", description: c.name });
+      loadMetaCampaigns(campaignsAccountId);
+    } catch (e: any) {
+      toast({ title: "Falha ao alterar status", description: e.message ?? "", variant: "destructive" });
+    } finally {
+      setTogglingCampaign(null);
+    }
+  };
+
+  // Auto-load Meta campaigns when filter / active account changes
+  useEffect(() => {
+    if (!permState.ok) return;
+    const acc = adAccountFilter !== "all" ? adAccountFilter : adAccountId;
+    if (acc) loadMetaCampaigns(acc);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adAccountFilter, adAccountId, permState.ok, period]);
+
+
   return (
 
     <div className="p-6 space-y-6 animate-fade-in">
@@ -633,16 +727,23 @@ export default function CampanhasPage() {
                     <TableHead>ID</TableHead>
                     <TableHead>Moeda</TableHead>
                     <TableHead>Cliente vinculado</TableHead>
-                    <TableHead className="text-right">Ação</TableHead>
+                    <TableHead>Status admin</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {adAccounts.map((a) => {
                     const tid = accountTenantMap.get(a.id);
                     const tname = tid ? tenants.find((t) => t.id === tid)?.name : null;
+                    const isActive = adAccountId === a.id;
                     return (
-                      <TableRow key={a.id}>
-                        <TableCell className="font-medium">{a.name}</TableCell>
+                      <TableRow key={a.id} className={isActive ? "bg-accent/5" : ""}>
+                        <TableCell className="font-medium">
+                          <span className="flex items-center gap-1.5">
+                            {isActive && <Star className="w-3.5 h-3.5 text-accent fill-accent" />}
+                            {a.name}
+                          </span>
+                        </TableCell>
                         <TableCell className="font-mono text-xs">{a.id}</TableCell>
                         <TableCell className="text-xs">{a.currency ?? "—"}</TableCell>
                         <TableCell>
@@ -652,10 +753,38 @@ export default function CampanhasPage() {
                             <Badge variant="outline" className="text-muted-foreground">Sem vínculo</Badge>
                           )}
                         </TableCell>
+                        <TableCell>
+                          {isActive ? (
+                            <Badge className="bg-accent/15 text-accent border-accent/30">
+                              <Crown className="w-3 h-3 mr-1" /> Conta ativa
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">
-                          <Button size="sm" variant="outline" onClick={() => openLinkDialog(a)}>
-                            {tname ? "Alterar" : "Vincular cliente"}
-                          </Button>
+                          <div className="flex items-center gap-2 justify-end flex-wrap">
+                            <Button
+                              size="sm"
+                              variant={isActive ? "secondary" : "default"}
+                              disabled={isActive || settingActive === a.id}
+                              onClick={() => setActiveAdAccount(a)}
+                              className={!isActive ? "gradient-accent text-[hsl(232_65%_5%)]" : ""}
+                            >
+                              {settingActive === a.id ? (
+                                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                              ) : (
+                                <Star className="w-3.5 h-3.5 mr-1.5" />
+                              )}
+                              {isActive ? "Ativa" : "Definir como ativa"}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => openLinkDialog(a)}>
+                              {tname ? "Alterar cliente" : "Vincular cliente"}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => { setAdAccountFilter(a.id); loadMetaCampaigns(a.id); }}>
+                              Ver campanhas
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -666,6 +795,154 @@ export default function CampanhasPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Campanhas ao vivo (Meta Marketing API) */}
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              Campanhas — Facebook Ads (ao vivo)
+              {campaignsAccountId && (
+                <Badge variant="outline" className="font-mono text-[10px]">{campaignsAccountId}</Badge>
+              )}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Lista direta da Marketing API com performance, ROAS, CPL e ações no período selecionado.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => loadMetaCampaigns(campaignsAccountId ?? (adAccountFilter !== "all" ? adAccountFilter : adAccountId))}
+            disabled={loadingCampaigns || !permState.ok}
+          >
+            {loadingCampaigns ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+            Atualizar
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {!permState.ok ? (
+            <div className="text-sm text-muted-foreground py-6 text-center">
+              Conecte o Facebook com as permissões da Marketing API para ver as campanhas ao vivo.
+            </div>
+          ) : !campaignsAccountId ? (
+            <div className="text-sm text-muted-foreground py-6 text-center">
+              Selecione uma conta de anúncio acima (ou clique em <b>Definir como ativa</b>) para listar as campanhas.
+            </div>
+          ) : loadingCampaigns ? (
+            <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Carregando campanhas e insights…
+            </div>
+          ) : metaCampaigns.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-6 text-center">
+              Nenhuma campanha encontrada nesta conta.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Campanha</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Objetivo</TableHead>
+                    <TableHead className="text-right">Orçamento</TableHead>
+                    <TableHead className="text-right">Gasto</TableHead>
+                    <TableHead className="text-right">Impr.</TableHead>
+                    <TableHead className="text-right">Cliques</TableHead>
+                    <TableHead className="text-right">CTR</TableHead>
+                    <TableHead className="text-right">CPC</TableHead>
+                    <TableHead className="text-right">Leads</TableHead>
+                    <TableHead className="text-right">CPL</TableHead>
+                    <TableHead className="text-right">ROAS</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {metaCampaigns.map((c, i) => {
+                    const ins = c.insights;
+                    const budget = c.daily_budget
+                      ? `${BRL(Number(c.daily_budget) / 100)}/dia`
+                      : c.lifetime_budget
+                        ? `${BRL(Number(c.lifetime_budget) / 100)} total`
+                        : "—";
+                    const statusColor =
+                      c.effective_status === "ACTIVE" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" :
+                      c.effective_status === "PAUSED" ? "bg-amber-500/15 text-amber-400 border-amber-500/30" :
+                      "bg-muted text-muted-foreground border-border";
+                    return (
+                      <TableRow key={c.id} className={i % 2 === 0 ? "bg-muted/20" : ""}>
+                        <TableCell className="font-medium max-w-[260px] truncate" title={c.name}>{c.name}</TableCell>
+                        <TableCell><Badge variant="outline" className={statusColor}>{c.effective_status}</Badge></TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{c.objective?.replace("OUTCOME_", "") ?? "—"}</TableCell>
+                        <TableCell className="text-right text-xs">{budget}</TableCell>
+                        <TableCell className="text-right tabular-nums">{ins ? BRL(ins.spend) : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{ins ? ins.impressions.toLocaleString("pt-BR") : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{ins ? ins.clicks.toLocaleString("pt-BR") : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{ins ? `${ins.ctr.toFixed(2)}%` : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{ins ? BRL(ins.cpc) : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{ins ? ins.leads.toLocaleString("pt-BR") : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{ins && ins.leads > 0 ? BRL(ins.cpl) : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {ins && ins.spend > 0 ? (
+                            <span className={ins.roas >= 1 ? "text-emerald-400" : "text-rose-400"}>
+                              {ins.roas.toFixed(2)}x
+                            </span>
+                          ) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center gap-1 justify-end">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              title={c.effective_status === "ACTIVE" ? "Pausar" : "Ativar"}
+                              disabled={togglingCampaign === c.id}
+                              onClick={() => toggleCampaignStatus(c)}
+                            >
+                              {togglingCampaign === c.id ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : c.effective_status === "ACTIVE" ? <Pause className="w-4 h-4" />
+                                : <Play className="w-4 h-4 text-emerald-400" />}
+                            </Button>
+                            <Button asChild size="icon" variant="ghost" title="Abrir no Gerenciador">
+                              <a href={`https://business.facebook.com/adsmanager/manage/campaigns?selected_campaign_ids=${c.id}`} target="_blank" rel="noreferrer">
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+
+              {/* Resumo da conta */}
+              {(() => {
+                const total = metaCampaigns.reduce((acc, c) => {
+                  const i = c.insights;
+                  if (!i) return acc;
+                  acc.spend += i.spend; acc.leads += i.leads; acc.clicks += i.clicks;
+                  acc.impr += i.impressions; acc.rev += i.purchase_value;
+                  return acc;
+                }, { spend: 0, leads: 0, clicks: 0, impr: 0, rev: 0 });
+                const cpl = total.leads > 0 ? total.spend / total.leads : 0;
+                const ctr = total.impr > 0 ? (total.clicks / total.impr) * 100 : 0;
+                return (
+                  <div className="mt-4 grid grid-cols-2 md:grid-cols-6 gap-2 text-xs">
+                    <SumTile label="Gasto" value={BRL(total.spend)} />
+                    <SumTile label="Impressões" value={total.impr.toLocaleString("pt-BR")} />
+                    <SumTile label="Cliques" value={total.clicks.toLocaleString("pt-BR")} />
+                    <SumTile label="CTR" value={`${ctr.toFixed(2)}%`} />
+                    <SumTile label="Leads" value={total.leads.toLocaleString("pt-BR")} />
+                    <SumTile label="CPL médio" value={total.leads ? BRL(cpl) : "—"} />
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+
 
       {/* Dialog: vincular conta de anúncio a um cliente */}
       <Dialog open={linkDialog.open} onOpenChange={(o) => setLinkDialog((s) => ({ ...s, open: o }))}>
@@ -849,6 +1126,15 @@ export default function CampanhasPage() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function SumTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border/50 bg-card/60 px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-sm font-semibold tabular-nums mt-0.5">{value}</div>
     </div>
   );
 }
