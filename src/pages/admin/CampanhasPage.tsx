@@ -727,16 +727,23 @@ export default function CampanhasPage() {
                     <TableHead>ID</TableHead>
                     <TableHead>Moeda</TableHead>
                     <TableHead>Cliente vinculado</TableHead>
-                    <TableHead className="text-right">Ação</TableHead>
+                    <TableHead>Status admin</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {adAccounts.map((a) => {
                     const tid = accountTenantMap.get(a.id);
                     const tname = tid ? tenants.find((t) => t.id === tid)?.name : null;
+                    const isActive = adAccountId === a.id;
                     return (
-                      <TableRow key={a.id}>
-                        <TableCell className="font-medium">{a.name}</TableCell>
+                      <TableRow key={a.id} className={isActive ? "bg-accent/5" : ""}>
+                        <TableCell className="font-medium">
+                          <span className="flex items-center gap-1.5">
+                            {isActive && <Star className="w-3.5 h-3.5 text-accent fill-accent" />}
+                            {a.name}
+                          </span>
+                        </TableCell>
                         <TableCell className="font-mono text-xs">{a.id}</TableCell>
                         <TableCell className="text-xs">{a.currency ?? "—"}</TableCell>
                         <TableCell>
@@ -746,10 +753,38 @@ export default function CampanhasPage() {
                             <Badge variant="outline" className="text-muted-foreground">Sem vínculo</Badge>
                           )}
                         </TableCell>
+                        <TableCell>
+                          {isActive ? (
+                            <Badge className="bg-accent/15 text-accent border-accent/30">
+                              <Crown className="w-3 h-3 mr-1" /> Conta ativa
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">
-                          <Button size="sm" variant="outline" onClick={() => openLinkDialog(a)}>
-                            {tname ? "Alterar" : "Vincular cliente"}
-                          </Button>
+                          <div className="flex items-center gap-2 justify-end flex-wrap">
+                            <Button
+                              size="sm"
+                              variant={isActive ? "secondary" : "default"}
+                              disabled={isActive || settingActive === a.id}
+                              onClick={() => setActiveAdAccount(a)}
+                              className={!isActive ? "gradient-accent text-[hsl(232_65%_5%)]" : ""}
+                            >
+                              {settingActive === a.id ? (
+                                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                              ) : (
+                                <Star className="w-3.5 h-3.5 mr-1.5" />
+                              )}
+                              {isActive ? "Ativa" : "Definir como ativa"}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => openLinkDialog(a)}>
+                              {tname ? "Alterar cliente" : "Vincular cliente"}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => { setAdAccountFilter(a.id); loadMetaCampaigns(a.id); }}>
+                              Ver campanhas
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
