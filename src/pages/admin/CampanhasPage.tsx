@@ -46,15 +46,39 @@ const BRL = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
 const PCT = (n: number) => `${(n * 100).toFixed(1)}%`;
 
+type AdAccount = {
+  id: string;            // act_XXXX
+  account_id: string;    // XXXX
+  name: string;
+  account_status?: number;
+  currency?: string;
+  business_name?: string;
+};
+type RoutingRule = {
+  id: string;
+  tenant_id: string;
+  match_type: string;
+  match_value: string;
+  ad_account_id: string | null;
+  active: boolean;
+};
+
 export default function CampanhasPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [tenantId, setTenantId] = useState<string>("all");
+  const [adAccounts, setAdAccounts] = useState<AdAccount[]>([]);
+  const [rules, setRules] = useState<RoutingRule[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  // 'all' = admin master (todas as contas) | act_XXXX
+  const [adAccountFilter, setAdAccountFilter] = useState<string>("all");
   const [period, setPeriod] = useState<"30" | "60" | "90" | "all">("30");
   const [spends, setSpends] = useState<Spend[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [linkDialog, setLinkDialog] = useState<{ open: boolean; account?: AdAccount; tenantId: string }>({
+    open: false, tenantId: "",
+  });
   const [form, setForm] = useState({
     tenant_id: "",
     period_start: new Date().toISOString().slice(0, 10),
@@ -80,6 +104,43 @@ export default function CampanhasPage() {
   const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
   const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
 
+  // ad_account_id -> tenant_id (from routing rules)
+  const accountTenantMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of rules) {
+      if (!r.active) continue;
+      const key = r.match_type === "ad_account_id" ? r.match_value : r.ad_account_id;
+      if (key) m.set(key.startsWith("act_") ? key : `act_${key}`, r.tenant_id);
+    }
+    return m;
+  }, [rules]);
+
+  const selectedTenantId = adAccountFilter === "all" ? null : accountTenantMap.get(adAccountFilter) ?? null;
+
+  const loadAdAccounts = async () => {
+    setLoadingAccounts(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
+        body: { action: "list_ad_accounts" },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setAdAccounts((data?.data ?? []) as AdAccount[]);
+    } catch (e: any) {
+      // mantém vazio; UI exibirá CTA para conectar
+    } finally {
+      setLoadingAccounts(false);
+    }
+  };
+
+  const loadRules = async () => {
+    const { data } = await supabase
+      .from("lead_routing_rules")
+      .select("id, tenant_id, match_type, match_value, ad_account_id, active")
+      .order("priority", { ascending: true });
+    setRules((data ?? []) as any);
+  };
+
   useEffect(() => {
     (async () => {
       const { data } = await supabase.from("tenants").select("id, name, slug").order("name");
@@ -88,8 +149,11 @@ export default function CampanhasPage() {
       const row: any = Array.isArray(cfg) ? cfg[0] : cfg;
       setLastSync(row?.last_campaigns_sync_at ?? null);
       setAdAccountId(row?.ad_account_id ?? null);
+      loadRules();
+      loadAdAccounts();
     })();
   }, []);
+
 
   const checkPermissions = async () => {
     setPermState(s => ({ ...s, checking: true }));
@@ -157,11 +221,12 @@ export default function CampanhasPage() {
     let sq = supabase.from("campaign_spend").select("*").order("period_start", { ascending: false });
     let lq = supabase.from("clinic_leads").select("id, tenant_id, stage, created_at, channel, utm_campaign, facebook_campaign_id");
     let saq = supabase.from("sales").select("id, tenant_id, amount, amount_paid, created_at, utm_campaign, facebook_campaign_id");
-    if (tenantId !== "all") {
-      sq = sq.eq("tenant_id", tenantId);
-      lq = lq.eq("tenant_id", tenantId);
-      saq = saq.eq("tenant_id", tenantId);
+    if (selectedTenantId) {
+      sq = sq.eq("tenant_id", selectedTenantId);
+      lq = lq.eq("tenant_id", selectedTenantId);
+      saq = saq.eq("tenant_id", selectedTenantId);
     }
+
     if (cutoff) {
       sq = sq.gte("period_start", cutoff.slice(0, 10));
       lq = lq.gte("created_at", cutoff);
@@ -177,7 +242,7 @@ export default function CampanhasPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId, period]);
+  }, [selectedTenantId, period]);
 
   const kpis = useMemo(() => {
     const totalSpent = spends.reduce((s, x) => s + Number(x.amount_spent || 0), 0);
@@ -317,7 +382,44 @@ export default function CampanhasPage() {
     load();
   };
 
+  const openLinkDialog = (account: AdAccount) => {
+    setLinkDialog({ open: true, account, tenantId: accountTenantMap.get(account.id) ?? "" });
+  };
+
+  const saveAccountLink = async () => {
+    const account = linkDialog.account;
+    if (!account) return;
+    const tenantId = linkDialog.tenantId;
+    // Remove existing rule(s) for this ad account
+    await supabase
+      .from("lead_routing_rules")
+      .delete()
+      .eq("match_type", "ad_account_id")
+      .eq("match_value", account.id);
+    if (tenantId && tenantId !== "__none__") {
+      const { error } = await supabase.from("lead_routing_rules").insert({
+        tenant_id: tenantId,
+        match_type: "ad_account_id",
+        match_value: account.id,
+        match_label: account.name,
+        ad_account_id: account.id,
+        priority: 10,
+        active: true,
+      } as any);
+      if (error) {
+        toast({ title: "Erro ao vincular", description: error.message, variant: "destructive" });
+        return;
+      }
+      toast({ title: "Conta vinculada", description: `${account.name} → ${tenants.find(t => t.id === tenantId)?.name ?? ""}` });
+    } else {
+      toast({ title: "Vínculo removido", description: account.name });
+    }
+    setLinkDialog({ open: false, tenantId: "" });
+    loadRules();
+  };
+
   return (
+
     <div className="p-6 space-y-6 animate-fade-in">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -325,15 +427,34 @@ export default function CampanhasPage() {
           <p className="text-sm text-muted-foreground">KPIs de performance, ROI, CPA, CAC e funil de conversão.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Select value={tenantId} onValueChange={setTenantId}>
-            <SelectTrigger className="w-[260px]"><SelectValue placeholder="Conta" /></SelectTrigger>
+          <Select value={adAccountFilter} onValueChange={setAdAccountFilter}>
+            <SelectTrigger className="w-[300px]"><SelectValue placeholder="Conta de anúncio" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">
-                <span className="flex items-center gap-2"><Crown className="w-3.5 h-3.5 text-accent" /> Admin Master (conta principal)</span>
+                <span className="flex items-center gap-2"><Crown className="w-3.5 h-3.5 text-accent" /> Admin Master (todas as contas)</span>
               </SelectItem>
-              {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+              {adAccounts.length === 0 && (
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                  {loadingAccounts ? "Carregando contas…" : "Nenhuma conta de anúncio acessível."}
+                </div>
+              )}
+              {adAccounts.map((a) => {
+                const tid = accountTenantMap.get(a.id);
+                const tname = tid ? tenants.find((t) => t.id === tid)?.name : null;
+                return (
+                  <SelectItem key={a.id} value={a.id}>
+                    <span className="flex flex-col">
+                      <span className="font-medium">{a.name}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {a.id}{tname ? ` · ${tname}` : " · sem cliente vinculado"}
+                      </span>
+                    </span>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
+
           <Select value={period} onValueChange={(v: any) => setPeriod(v)}>
             <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -443,7 +564,107 @@ export default function CampanhasPage() {
         </CardContent>
       </Card>
 
+      {/* Contas de anúncio — vínculo com clientes */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Contas de anúncio</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Vincule cada conta do Facebook Ads a um cliente do sistema para rotear automaticamente leads e métricas.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={loadAdAccounts} disabled={loadingAccounts}>
+            {loadingAccounts ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+            Atualizar
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {adAccounts.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-4 text-center">
+              {loadingAccounts
+                ? "Carregando contas de anúncio…"
+                : "Nenhuma conta acessível. Verifique a conexão do Facebook e as permissões ads_read/ads_management."}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Conta</TableHead>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Moeda</TableHead>
+                    <TableHead>Cliente vinculado</TableHead>
+                    <TableHead className="text-right">Ação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {adAccounts.map((a) => {
+                    const tid = accountTenantMap.get(a.id);
+                    const tname = tid ? tenants.find((t) => t.id === tid)?.name : null;
+                    return (
+                      <TableRow key={a.id}>
+                        <TableCell className="font-medium">{a.name}</TableCell>
+                        <TableCell className="font-mono text-xs">{a.id}</TableCell>
+                        <TableCell className="text-xs">{a.currency ?? "—"}</TableCell>
+                        <TableCell>
+                          {tname ? (
+                            <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">{tname}</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-muted-foreground">Sem vínculo</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button size="sm" variant="outline" onClick={() => openLinkDialog(a)}>
+                            {tname ? "Alterar" : "Vincular cliente"}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Dialog: vincular conta de anúncio a um cliente */}
+      <Dialog open={linkDialog.open} onOpenChange={(o) => setLinkDialog((s) => ({ ...s, open: o }))}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Vincular conta de anúncio</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="text-sm">
+              <div className="font-medium">{linkDialog.account?.name}</div>
+              <div className="text-xs text-muted-foreground font-mono">{linkDialog.account?.id}</div>
+            </div>
+            <div>
+              <Label>Cliente do sistema</Label>
+              <Select
+                value={linkDialog.tenantId || "__none__"}
+                onValueChange={(v) => setLinkDialog((s) => ({ ...s, tenantId: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Selecionar cliente" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Sem vínculo —</SelectItem>
+                  {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground mt-2">
+                Cria uma regra de roteamento (<code>ad_account_id</code> → cliente) para leads e métricas.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setLinkDialog({ open: false, tenantId: "" })}>Cancelar</Button>
+            <Button onClick={saveAccountLink}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* KPI grid */}
+
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         <Kpi icon={<Wallet className="w-4 h-4" />} label="Investido" value={BRL(kpis.totalSpent)} accent="from-primary/20 to-primary/5" />
         <Kpi icon={<Users className="w-4 h-4" />} label="Leads" value={kpis.totalLeads.toString()} />
