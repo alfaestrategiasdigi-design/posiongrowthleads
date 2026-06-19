@@ -636,6 +636,8 @@ export type Database = {
           page_id: string | null
           token_expires_at: string | null
           updated_at: string
+          user_access_token: string | null
+          user_token_expires_at: string | null
           verify_token: string
         }
         Insert: {
@@ -654,6 +656,8 @@ export type Database = {
           page_id?: string | null
           token_expires_at?: string | null
           updated_at?: string
+          user_access_token?: string | null
+          user_token_expires_at?: string | null
           verify_token: string
         }
         Update: {
@@ -672,6 +676,8 @@ export type Database = {
           page_id?: string | null
           token_expires_at?: string | null
           updated_at?: string
+          user_access_token?: string | null
+          user_token_expires_at?: string | null
           verify_token?: string
         }
         Relationships: [
@@ -1951,6 +1957,7 @@ export type Database = {
           default_tenant_id: string
           has_app_secret: boolean
           has_page_access_token: boolean
+          has_user_access_token: boolean
           id: string
           last_campaigns_sync_at: string
           last_leads_sync_at: string
@@ -1959,6 +1966,7 @@ export type Database = {
           page_id: string
           token_expires_at: string
           updated_at: string
+          user_token_expires_at: string
           verify_token: string
         }[]
       }
