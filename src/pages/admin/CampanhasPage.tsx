@@ -98,9 +98,26 @@ export default function CampanhasPage() {
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [adAccountId, setAdAccountId] = useState<string | null>(null);
+  const [settingActive, setSettingActive] = useState<string | null>(null);
   const [permState, setPermState] = useState<{ ok: boolean; granted: string[]; missing: string[]; checking: boolean }>({
     ok: false, granted: [], missing: [], checking: true,
   });
+
+  // Live Meta campaigns + insights for the selected ad account
+  type MetaCampaign = {
+    id: string; name: string; status: string; effective_status: string;
+    objective?: string; daily_budget?: string; lifetime_budget?: string;
+    insights?: {
+      spend: number; impressions: number; clicks: number; ctr: number;
+      cpc: number; cpm: number; reach: number; frequency: number;
+      leads: number; cpl: number;
+      purchases: number; purchase_value: number; roas: number;
+    } | null;
+  };
+  const [metaCampaigns, setMetaCampaigns] = useState<MetaCampaign[]>([]);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(false);
+  const [campaignsAccountId, setCampaignsAccountId] = useState<string | null>(null);
+  const [togglingCampaign, setTogglingCampaign] = useState<string | null>(null);
 
   const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
   const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
