@@ -199,28 +199,43 @@ export default function CampanhasPage() {
   const syncFacebookAds = async (silent = false, didReconnect = false) => {
     setSyncing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", { body: { days: 30 } });
-      if (error) throw error;
-      if (data?.error) {
-        if (data?.need_reconnect && !didReconnect) {
-          toast({ title: "Reconectando com o Facebook…", description: "Conceda ads_read e ads_management." });
-          const ok = await reconnectFacebook().catch((e) => {
-            toast({ title: "Falha ao reconectar", description: e.message, variant: "destructive" });
-            return false;
-          });
-          if (ok) {
-            await checkPermissions();
-            return syncFacebookAds(silent, true);
+      let { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", { body: { days: 30 } });
+
+      // Edge function returned non-2xx — try to read the JSON body from the error context.
+      if (error && !data) {
+        try {
+          const ctx: any = (error as any).context;
+          if (ctx && typeof ctx.json === "function") data = await ctx.json();
+          else if (ctx && typeof ctx.text === "function") {
+            const t = await ctx.text();
+            try { data = JSON.parse(t); } catch { data = { error: t }; }
           }
-          return;
-        }
-        if (data?.need_reconnect) {
-          toast({ title: "Reconecte o Facebook", description: data.error, variant: "destructive" });
-        } else if (!silent) {
-          toast({ title: "Falha ao sincronizar", description: data.error, variant: "destructive" });
+        } catch { /* ignore */ }
+      }
+
+      const msg: string = data?.error ?? (error as any)?.message ?? "";
+      const needsReconnect =
+        data?.need_reconnect === true ||
+        /ads_read|ads_management|token de usuário|reconecte|nonexisting field \(adaccounts\)/i.test(msg);
+
+      if (needsReconnect && !didReconnect) {
+        toast({ title: "Reconectando com o Facebook…", description: "Conceda ads_read e ads_management." });
+        const ok = await reconnectFacebook().catch((e) => {
+          toast({ title: "Falha ao reconectar", description: e.message, variant: "destructive" });
+          return false;
+        });
+        if (ok) {
+          await checkPermissions();
+          return syncFacebookAds(silent, true);
         }
         return;
       }
+
+      if (error || data?.error) {
+        if (!silent) toast({ title: "Falha ao sincronizar", description: msg || "Erro desconhecido", variant: "destructive" });
+        return;
+      }
+
       if (!silent) toast({ title: `Sincronizado: ${data?.results?.length ?? 0} campanhas` });
       setLastSync(new Date().toISOString());
       load();
