@@ -233,23 +233,8 @@ export default function ConexaoWhatsappPage() {
           </Card>
         </TabsContent>
 
-        {/* ============== Z-API ============== */}
-        <TabsContent value="zapi">
-          <Card>
-            <CardHeader>
-              <CardTitle>Z-API (conexão por QR Code)</CardTitle>
-              <CardDescription>
-                Continua disponível como fallback. Use a tela <code className="font-mono text-xs">/admin/conexao</code> antiga
-                para gerenciar — em breve será migrada para esta página.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button variant="outline" onClick={() => (window.location.href = "/admin/conexao")}>
-                Abrir configuração Z-API
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
+
+
 
         {/* ============== WEBHOOK ============== */}
         <TabsContent value="webhook">
