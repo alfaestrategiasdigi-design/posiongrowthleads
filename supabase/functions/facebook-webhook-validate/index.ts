@@ -114,51 +114,65 @@ Deno.serve(async (req) => {
     }
   }
 
-  // 4. Permissões
-  if (pat) {
+  // 4. Permissões — prefere user_access_token (Page tokens não expõem /me/permissions)
+  const userTok = (cfg?.user_access_token as string | undefined) ?? undefined;
+  const permTok = userTok ?? pat;
+  if (permTok) {
     try {
-      const r = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${encodeURIComponent(pat)}`);
+      const r = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${encodeURIComponent(permTok)}`);
       const j = await r.json();
       if (r.ok && Array.isArray(j.data)) {
         const granted = new Set(j.data.filter((p: any) => p.status === "granted").map((p: any) => p.permission));
-        const needed = ["leads_retrieval", "pages_show_list", "pages_manage_metadata"];
+        const needed = ["leads_retrieval", "pages_show_list", "pages_manage_metadata", "pages_read_engagement"];
         const missing = needed.filter((p) => !granted.has(p));
         if (missing.length === 0) {
           steps.push({ id: "perms", label: "Permissões concedidas", ok: true, level: "ok", message: needed.join(", ") });
         } else {
-          steps.push({ id: "perms", label: "Permissões concedidas", ok: false, level: "warn", message: `Faltam: ${missing.join(", ")}` });
+          steps.push({ id: "perms", label: "Permissões concedidas", ok: false, level: "warn", message: `Faltam: ${missing.join(", ")} · concedidas: ${[...granted].join(", ") || "nenhuma"}` });
         }
+      } else if (userTok) {
+        steps.push({ id: "perms", label: "Permissões concedidas", ok: false, level: "error", message: j?.error?.message ?? `HTTP ${r.status}` });
       } else {
-        // Page tokens não expõem /me/permissions; só avisa
-        steps.push({ id: "perms", label: "Permissões concedidas", ok: true, level: "warn", message: "Não foi possível listar (normal em Page Token)" });
+        steps.push({ id: "perms", label: "Permissões concedidas", ok: true, level: "warn", message: "Não foi possível listar (normal em Page Token) — reconecte com User Token para ver as permissões" });
       }
     } catch (e: any) {
       steps.push({ id: "perms", label: "Permissões concedidas", ok: false, level: "warn", message: e.message });
     }
   }
 
-  // 5. Listar formulários
-  if (pat && me) {
+  // 5. Listar formulários — tenta page token, depois user token (varre todas as páginas)
+  if (pat || userTok) {
     try {
-      let forms: any[] = [];
-      if (tokenType === "page") {
+      const forms: any[] = [];
+      const seen = new Set<string>();
+      const pushForms = (arr: any[], pageInfo?: { id: string; name: string }) => {
+        for (const f of arr) {
+          if (seen.has(f.id)) continue;
+          seen.add(f.id);
+          forms.push(pageInfo ? { ...f, page_id: pageInfo.id, page_name: pageInfo.name } : f);
+        }
+      };
+
+      if (pat && tokenType === "page" && me?.id) {
         const r = await fetch(`https://graph.facebook.com/v21.0/${me.id}/leadgen_forms?fields=id,name,status,leads_count&limit=100&access_token=${encodeURIComponent(pat)}`);
         const j = await r.json();
-        if (r.ok && Array.isArray(j.data)) forms = j.data;
-        else throw new Error(j?.error?.message ?? `HTTP ${r.status}`);
-      } else {
-        const acc = await fetch(`https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token&limit=50&access_token=${encodeURIComponent(pat)}`).then(r => r.json());
+        if (r.ok && Array.isArray(j.data)) pushForms(j.data, { id: me.id, name: me.name });
+      }
+
+      if (userTok) {
+        const acc = await fetch(`https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token&limit=100&access_token=${encodeURIComponent(userTok)}`).then(r => r.json());
         for (const p of acc?.data ?? []) {
-          const r = await fetch(`https://graph.facebook.com/v21.0/${p.id}/leadgen_forms?fields=id,name,status,leads_count&limit=100&access_token=${encodeURIComponent(p.access_token)}`);
+          const tok = p.access_token ?? userTok;
+          const r = await fetch(`https://graph.facebook.com/v21.0/${p.id}/leadgen_forms?fields=id,name,status,leads_count&limit=100&access_token=${encodeURIComponent(tok)}`);
           const j = await r.json();
-          if (r.ok && Array.isArray(j.data)) {
-            for (const f of j.data) forms.push({ ...f, page_id: p.id, page_name: p.name });
-          }
+          if (r.ok && Array.isArray(j.data)) pushForms(j.data, { id: p.id, name: p.name });
         }
       }
+
       steps.push({
         id: "forms", label: "Formulários de Lead Ads", ok: forms.length > 0, level: forms.length > 0 ? "ok" : "warn",
-        message: `${forms.length} formulário(s) encontrado(s)`, detail: forms,
+        message: forms.length > 0 ? `${forms.length} formulário(s) encontrado(s)` : "0 formulário(s) — verifique se a Página tem campanhas de Lead Ads ativas e se o token tem acesso a ela",
+        detail: forms,
       });
     } catch (e: any) {
       steps.push({ id: "forms", label: "Formulários de Lead Ads", ok: false, level: "error", message: e.message });
