@@ -796,6 +796,154 @@ export default function CampanhasPage() {
         </CardContent>
       </Card>
 
+      {/* Campanhas ao vivo (Meta Marketing API) */}
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              Campanhas — Facebook Ads (ao vivo)
+              {campaignsAccountId && (
+                <Badge variant="outline" className="font-mono text-[10px]">{campaignsAccountId}</Badge>
+              )}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Lista direta da Marketing API com performance, ROAS, CPL e ações no período selecionado.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => loadMetaCampaigns(campaignsAccountId ?? (adAccountFilter !== "all" ? adAccountFilter : adAccountId))}
+            disabled={loadingCampaigns || !permState.ok}
+          >
+            {loadingCampaigns ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+            Atualizar
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {!permState.ok ? (
+            <div className="text-sm text-muted-foreground py-6 text-center">
+              Conecte o Facebook com as permissões da Marketing API para ver as campanhas ao vivo.
+            </div>
+          ) : !campaignsAccountId ? (
+            <div className="text-sm text-muted-foreground py-6 text-center">
+              Selecione uma conta de anúncio acima (ou clique em <b>Definir como ativa</b>) para listar as campanhas.
+            </div>
+          ) : loadingCampaigns ? (
+            <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Carregando campanhas e insights…
+            </div>
+          ) : metaCampaigns.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-6 text-center">
+              Nenhuma campanha encontrada nesta conta.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Campanha</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Objetivo</TableHead>
+                    <TableHead className="text-right">Orçamento</TableHead>
+                    <TableHead className="text-right">Gasto</TableHead>
+                    <TableHead className="text-right">Impr.</TableHead>
+                    <TableHead className="text-right">Cliques</TableHead>
+                    <TableHead className="text-right">CTR</TableHead>
+                    <TableHead className="text-right">CPC</TableHead>
+                    <TableHead className="text-right">Leads</TableHead>
+                    <TableHead className="text-right">CPL</TableHead>
+                    <TableHead className="text-right">ROAS</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {metaCampaigns.map((c, i) => {
+                    const ins = c.insights;
+                    const budget = c.daily_budget
+                      ? `${BRL(Number(c.daily_budget) / 100)}/dia`
+                      : c.lifetime_budget
+                        ? `${BRL(Number(c.lifetime_budget) / 100)} total`
+                        : "—";
+                    const statusColor =
+                      c.effective_status === "ACTIVE" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" :
+                      c.effective_status === "PAUSED" ? "bg-amber-500/15 text-amber-400 border-amber-500/30" :
+                      "bg-muted text-muted-foreground border-border";
+                    return (
+                      <TableRow key={c.id} className={i % 2 === 0 ? "bg-muted/20" : ""}>
+                        <TableCell className="font-medium max-w-[260px] truncate" title={c.name}>{c.name}</TableCell>
+                        <TableCell><Badge variant="outline" className={statusColor}>{c.effective_status}</Badge></TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{c.objective?.replace("OUTCOME_", "") ?? "—"}</TableCell>
+                        <TableCell className="text-right text-xs">{budget}</TableCell>
+                        <TableCell className="text-right tabular-nums">{ins ? BRL(ins.spend) : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{ins ? ins.impressions.toLocaleString("pt-BR") : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{ins ? ins.clicks.toLocaleString("pt-BR") : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{ins ? `${ins.ctr.toFixed(2)}%` : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{ins ? BRL(ins.cpc) : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{ins ? ins.leads.toLocaleString("pt-BR") : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{ins && ins.leads > 0 ? BRL(ins.cpl) : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {ins && ins.spend > 0 ? (
+                            <span className={ins.roas >= 1 ? "text-emerald-400" : "text-rose-400"}>
+                              {ins.roas.toFixed(2)}x
+                            </span>
+                          ) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center gap-1 justify-end">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              title={c.effective_status === "ACTIVE" ? "Pausar" : "Ativar"}
+                              disabled={togglingCampaign === c.id}
+                              onClick={() => toggleCampaignStatus(c)}
+                            >
+                              {togglingCampaign === c.id ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : c.effective_status === "ACTIVE" ? <Pause className="w-4 h-4" />
+                                : <Play className="w-4 h-4 text-emerald-400" />}
+                            </Button>
+                            <Button asChild size="icon" variant="ghost" title="Abrir no Gerenciador">
+                              <a href={`https://business.facebook.com/adsmanager/manage/campaigns?selected_campaign_ids=${c.id}`} target="_blank" rel="noreferrer">
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+
+              {/* Resumo da conta */}
+              {(() => {
+                const total = metaCampaigns.reduce((acc, c) => {
+                  const i = c.insights;
+                  if (!i) return acc;
+                  acc.spend += i.spend; acc.leads += i.leads; acc.clicks += i.clicks;
+                  acc.impr += i.impressions; acc.rev += i.purchase_value;
+                  return acc;
+                }, { spend: 0, leads: 0, clicks: 0, impr: 0, rev: 0 });
+                const cpl = total.leads > 0 ? total.spend / total.leads : 0;
+                const ctr = total.impr > 0 ? (total.clicks / total.impr) * 100 : 0;
+                return (
+                  <div className="mt-4 grid grid-cols-2 md:grid-cols-6 gap-2 text-xs">
+                    <SumTile label="Gasto" value={BRL(total.spend)} />
+                    <SumTile label="Impressões" value={total.impr.toLocaleString("pt-BR")} />
+                    <SumTile label="Cliques" value={total.clicks.toLocaleString("pt-BR")} />
+                    <SumTile label="CTR" value={`${ctr.toFixed(2)}%`} />
+                    <SumTile label="Leads" value={total.leads.toLocaleString("pt-BR")} />
+                    <SumTile label="CPL médio" value={total.leads ? BRL(cpl) : "—"} />
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+
+
       {/* Dialog: vincular conta de anúncio a um cliente */}
       <Dialog open={linkDialog.open} onOpenChange={(o) => setLinkDialog((s) => ({ ...s, open: o }))}>
         <DialogContent className="max-w-md">
