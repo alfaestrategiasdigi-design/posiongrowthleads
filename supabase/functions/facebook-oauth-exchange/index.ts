@@ -83,6 +83,17 @@ Deno.serve(async (req) => {
     }
     const longUserToken: string = exchJson.access_token;
     const userTokenExpiresIn: number = exchJson.expires_in ?? 60 * 24 * 3600;
+    const userTokenExpiresAt = new Date(Date.now() + userTokenExpiresIn * 1000).toISOString();
+
+    // Persist long-lived USER token — required by Marketing API endpoints (ads_read/ads_management)
+    await admin
+      .from("facebook_webhook_config")
+      .update({
+        user_access_token: longUserToken,
+        user_token_expires_at: userTokenExpiresAt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", cfg.id);
 
     // 2) Lista páginas administradas com seus page_access_tokens (que já vêm de longa duração)
     const pagesUrl = new URL("https://graph.facebook.com/v21.0/me/accounts");
@@ -102,6 +113,7 @@ Deno.serve(async (req) => {
       category: p.category ?? null,
       tasks: p.tasks ?? [],
     }));
+
 
     return new Response(JSON.stringify({
       ok: true,
