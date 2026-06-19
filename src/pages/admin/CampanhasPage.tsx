@@ -1130,6 +1130,15 @@ export default function CampanhasPage() {
   );
 }
 
+function SumTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border/50 bg-card/60 px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-sm font-semibold tabular-nums mt-0.5">{value}</div>
+    </div>
+  );
+}
+
 function Kpi({ icon, label, value, accent = "from-muted to-muted/30" }: { icon: React.ReactNode; label: string; value: string; accent?: string }) {
   return (
     <div className={`relative overflow-hidden rounded-xl border border-border/50 bg-gradient-to-br ${accent} p-4 transition-transform hover:scale-[1.02]`}>
