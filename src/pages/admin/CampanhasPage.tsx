@@ -134,17 +134,9 @@ export default function CampanhasPage() {
           }
         } catch { /* ignore */ }
       }
-      const needsReconnect =
-        (data?.need_reconnect === true) ||
-        /token de usuário|ads_read|reconecte|nonexisting field \(adaccounts\)/i.test(
-          String(data?.error ?? error?.message ?? "")
-        );
-      if (needsReconnect && !opts?.didReconnect) {
-        toast({ title: "Reconectando com o Facebook…", description: "Conceda as permissões da Marketing API (ads_read, ads_management)." });
-        const ok = await reconnectFacebook().catch((e) => {
-          toast({ title: "Falha ao reconectar", description: e.message, variant: "destructive" });
-          return false;
-        });
+      const det = await detectNeedReconnect(data, error);
+      if (det.need && !opts?.didReconnect) {
+        const ok = await requestFacebookReconnect({ reason: det.reason, missing: det.payload?.missing });
         if (ok) return loadAdAccounts({ didReconnect: true });
         return;
       }
