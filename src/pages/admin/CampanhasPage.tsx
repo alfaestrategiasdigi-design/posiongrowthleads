@@ -221,11 +221,12 @@ export default function CampanhasPage() {
     let sq = supabase.from("campaign_spend").select("*").order("period_start", { ascending: false });
     let lq = supabase.from("clinic_leads").select("id, tenant_id, stage, created_at, channel, utm_campaign, facebook_campaign_id");
     let saq = supabase.from("sales").select("id, tenant_id, amount, amount_paid, created_at, utm_campaign, facebook_campaign_id");
-    if (tenantId !== "all") {
-      sq = sq.eq("tenant_id", tenantId);
-      lq = lq.eq("tenant_id", tenantId);
-      saq = saq.eq("tenant_id", tenantId);
+    if (selectedTenantId) {
+      sq = sq.eq("tenant_id", selectedTenantId);
+      lq = lq.eq("tenant_id", selectedTenantId);
+      saq = saq.eq("tenant_id", selectedTenantId);
     }
+
     if (cutoff) {
       sq = sq.gte("period_start", cutoff.slice(0, 10));
       lq = lq.gte("created_at", cutoff);
