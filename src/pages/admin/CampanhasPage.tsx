@@ -242,7 +242,7 @@ export default function CampanhasPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId, period]);
+  }, [selectedTenantId, period]);
 
   const kpis = useMemo(() => {
     const totalSpent = spends.reduce((s, x) => s + Number(x.amount_spent || 0), 0);
