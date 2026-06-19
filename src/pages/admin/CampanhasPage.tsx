@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Plus, Trash2, TrendingUp, DollarSign, Target, Users, MousePointerClick, Activity, Wallet, Percent, RefreshCw, ShieldCheck, ShieldAlert, Loader2, Crown } from "lucide-react";
 import { Link } from "react-router-dom";
+import { reconnectFacebook } from "@/lib/facebook-reconnect";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   LineChart, Line, AreaChart, Area,
@@ -117,12 +118,26 @@ export default function CampanhasPage() {
 
   const selectedTenantId = adAccountFilter === "all" ? null : accountTenantMap.get(adAccountFilter) ?? null;
 
-  const loadAdAccounts = async () => {
+  const loadAdAccounts = async (opts?: { didReconnect?: boolean }) => {
     setLoadingAccounts(true);
     try {
       const { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
         body: { action: "list_ad_accounts" },
       });
+      const needsReconnect =
+        (data?.need_reconnect === true) ||
+        /token de usuário|ads_read|reconecte|nonexisting field \(adaccounts\)/i.test(
+          String(data?.error ?? error?.message ?? "")
+        );
+      if (needsReconnect && !opts?.didReconnect) {
+        toast({ title: "Reconectando com o Facebook…", description: "Conceda as permissões da Marketing API (ads_read, ads_management)." });
+        const ok = await reconnectFacebook().catch((e) => {
+          toast({ title: "Falha ao reconectar", description: e.message, variant: "destructive" });
+          return false;
+        });
+        if (ok) return loadAdAccounts({ didReconnect: true });
+        return;
+      }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setAdAccounts((data?.data ?? []) as AdAccount[]);
@@ -132,6 +147,7 @@ export default function CampanhasPage() {
       setLoadingAccounts(false);
     }
   };
+
 
   const loadRules = async () => {
     const { data } = await supabase
@@ -180,12 +196,24 @@ export default function CampanhasPage() {
 
   useEffect(() => { checkPermissions(); /* eslint-disable-next-line */ }, [adAccountId]);
 
-  const syncFacebookAds = async (silent = false) => {
+  const syncFacebookAds = async (silent = false, didReconnect = false) => {
     setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", { body: { days: 30 } });
       if (error) throw error;
       if (data?.error) {
+        if (data?.need_reconnect && !didReconnect) {
+          toast({ title: "Reconectando com o Facebook…", description: "Conceda ads_read e ads_management." });
+          const ok = await reconnectFacebook().catch((e) => {
+            toast({ title: "Falha ao reconectar", description: e.message, variant: "destructive" });
+            return false;
+          });
+          if (ok) {
+            await checkPermissions();
+            return syncFacebookAds(silent, true);
+          }
+          return;
+        }
         if (data?.need_reconnect) {
           toast({ title: "Reconecte o Facebook", description: data.error, variant: "destructive" });
         } else if (!silent) {
@@ -202,6 +230,7 @@ export default function CampanhasPage() {
       setSyncing(false);
     }
   };
+
 
   // auto-sync if stale (>15min) and permissions ok and ad account real
   useEffect(() => {
@@ -573,7 +602,7 @@ export default function CampanhasPage() {
               Vincule cada conta do Facebook Ads a um cliente do sistema para rotear automaticamente leads e métricas.
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={loadAdAccounts} disabled={loadingAccounts}>
+          <Button variant="outline" size="sm" onClick={() => loadAdAccounts()} disabled={loadingAccounts}>
             {loadingAccounts ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
             Atualizar
           </Button>
