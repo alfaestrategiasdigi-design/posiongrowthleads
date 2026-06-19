@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, MessageCircle, Kanban, Users, Settings, LogOut, UserPlus, ListChecks, Facebook, Calendar, Building2, TrendingUp, FileText, Megaphone } from "lucide-react";
+import { LayoutDashboard, MessageCircle, Kanban, Users, Settings, LogOut, UserPlus, ListChecks, Facebook, Calendar, Building2, TrendingUp, FileText, Megaphone, Plug } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar,
@@ -27,7 +27,7 @@ const navItems = [
   { title: "Campanhas", url: "/admin/campanhas", icon: TrendingUp },
   { title: "Gerenciar Anúncios", url: "/admin/meta-ads", icon: Megaphone },
   { title: "Qualificação", url: "/admin/qualificacao", icon: ListChecks },
-  { title: "Conexão", url: "/admin/conexao", icon: Settings },
+  { title: "Conexão WhatsApp", url: "/admin/conexao-whatsapp", icon: Plug },
   { title: "Usuários", url: "/admin/usuarios", icon: UserPlus },
 ];
 
