@@ -258,7 +258,18 @@ function ConfigTab() {
   const syncCampaigns = async () => {
     setSyncingCamp(true);
     try {
-      const { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", { body: { days: 30 } });
+      let { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", { body: { days: 30 } });
+      const needsReconnect =
+        (error as any)?.context?.status === 403 ||
+        data?.need_reconnect ||
+        /ads_read|ads_management|Token de USUÁRIO|nonexisting field \(adaccounts\)/i.test(
+          (error as any)?.message ?? data?.error ?? ""
+        );
+      if (needsReconnect) {
+        toast.info("Reconectando com permissões da Marketing API...");
+        await handleFacebookLogin();
+        ({ data, error } = await supabase.functions.invoke("facebook-campaigns-sync", { body: { days: 30 } }));
+      }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success(`Sincronizado: ${data?.results?.length ?? 0} campanhas`);
