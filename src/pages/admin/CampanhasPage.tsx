@@ -118,12 +118,26 @@ export default function CampanhasPage() {
 
   const selectedTenantId = adAccountFilter === "all" ? null : accountTenantMap.get(adAccountFilter) ?? null;
 
-  const loadAdAccounts = async () => {
+  const loadAdAccounts = async (opts?: { didReconnect?: boolean }) => {
     setLoadingAccounts(true);
     try {
       const { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
         body: { action: "list_ad_accounts" },
       });
+      const needsReconnect =
+        (data?.need_reconnect === true) ||
+        /token de usuário|ads_read|reconecte|nonexisting field \(adaccounts\)/i.test(
+          String(data?.error ?? error?.message ?? "")
+        );
+      if (needsReconnect && !opts?.didReconnect) {
+        toast({ title: "Reconectando com o Facebook…", description: "Conceda as permissões da Marketing API (ads_read, ads_management)." });
+        const ok = await reconnectFacebook().catch((e) => {
+          toast({ title: "Falha ao reconectar", description: e.message, variant: "destructive" });
+          return false;
+        });
+        if (ok) return loadAdAccounts({ didReconnect: true });
+        return;
+      }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setAdAccounts((data?.data ?? []) as AdAccount[]);
@@ -133,6 +147,7 @@ export default function CampanhasPage() {
       setLoadingAccounts(false);
     }
   };
+
 
   const loadRules = async () => {
     const { data } = await supabase
