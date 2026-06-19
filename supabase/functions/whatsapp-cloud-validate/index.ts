@@ -20,13 +20,13 @@ Deno.serve(async (req) => {
     if (!token) return json({ error: "unauthorized", reason: "missing_token" }, 401);
 
     const admin = createClient(supabaseUrl, serviceKey);
-    const { data: userData, error: userErr } = await admin.auth.getUser(token);
-    if (userErr || !userData?.user) {
-      return json({ error: "unauthorized", reason: userErr?.message ?? "invalid_token" }, 401);
+    const { data: claimsData, error: claimsErr } = await admin.auth.getClaims(token);
+    if (claimsErr || !claimsData?.claims?.sub) {
+      return json({ error: "unauthorized", reason: claimsErr?.message ?? "invalid_token" }, 401);
     }
-    const user = userData.user;
+    const userId = claimsData.claims.sub as string;
 
-    const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", user.id);
+    const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", userId);
     const isAdmin = roles?.some((r: any) => r.role === "admin");
     if (!isAdmin) return json({ error: "forbidden" }, 403);
 
