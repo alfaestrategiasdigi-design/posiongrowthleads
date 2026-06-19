@@ -1,104 +1,106 @@
-# Diagnóstico do que está travando hoje
+## Visão geral
 
-Li a configuração atual no banco e identifiquei exatamente por que nada funciona:
+Transformar a plataforma em um **hub master de aquisição B2B** onde você (admin) controla 1 app Meta com todas as permissões, distribui leads para clínicas-cliente via roteamento por `form_id`/campanha, e cada clínica acessa WhatsApp Cloud API oficial, Kanban comercial e métricas de campanha — tudo dentro do sistema, com estética dark premium alinhada à proposta de valor: **"Do clique no anúncio ao fechamento, sem perder lead no caminho."**
 
-| Item | Status atual | Causa |
-|---|---|---|
-| Token | "User Token · Posion Growth" | Está salvo um **User Token**, não um **Page Access Token** → por isso `leadgen_forms` retorna 0 e webhooks não disparam |
-| Ad Account ID | `act_123456789` | É **placeholder fake** → daí o erro "Permissão ausente: ads_read" em Campanhas (a chamada nem chega na Meta com conta válida) |
-| Página conectada | Posion Growth ✓ | OK |
-| Default tenant para leads | vazio | Leads importados não têm para onde ir |
-| Permissões | Não validáveis | Esperado com User Token, mas precisamos do Page Token |
+---
 
-**Conclusão:** o app Meta existe e a página está autorizada, mas a tela hoje tem caminhos demais (App ID, App Secret, Verify Token, Webhook URL, Backfill, CSV, Validação, Reinscrever, Campanhas, Ads Read...) — e dois campos críticos estão errados. Por isso parece que nada funciona.
+## 1. Roteamento Meta → Tenant (Admin Master)
 
-# O que vou implementar
+Nova tela `/admin/roteamento-leads`:
 
-## 1. Reescrever `/admin/facebook` como fluxo de 3 passos
+- Tabela `lead_routing_rules` (tenant_id, match_type [form_id|campaign_id|page_id|adset_id], match_value, ad_account_id, priority, active)
+- UI: lista formulários/campanhas detectados via Graph API + dropdown de tenant para cada um
+- Edge function `facebook-leads-webhook` atualizada: ao receber leadgen, consulta rules → grava `lead.tenant_id` correto (fallback: `default_tenant_id`)
+- Backfill respeita as mesmas regras
+- Validação automática a cada 6h: token Page, assinaturas webhook, permissões — auto-correção quando possível, alerta visual quando não
 
-Esconder tudo que é diagnóstico atrás de um accordion "Avançado / Diagnóstico". A tela principal fica:
+## 2. WhatsApp Cloud API oficial (renomeação + setup in-app)
 
-```text
-┌─ Passo 1 · Conectar Meta ────────────────┐
-│  [ Conectar com Facebook ]  (FB Login JS) │
-│  ✓ Conectado como: Posion Growth          │
-└───────────────────────────────────────────┘
-┌─ Passo 2 · Conta de Anúncios ────────────┐
-│  Conta: [ Posion Growth — act_172… ▼ ]   │
-│  (lista puxada de /me/adaccounts)        │
-└───────────────────────────────────────────┘
-┌─ Passo 3 · Para onde mandar os leads ────┐
-│  Clínica padrão: [ Posion Master ▼ ]     │
-│  ☑ Inscrever webhook (leadgen)            │
-│  ☑ Importar últimos 30 dias agora        │
-│  [ Concluir configuração ]                │
-└───────────────────────────────────────────┘
-```
+Sidebar: "Conexão WhatsApp" (substitui "Conexão"). Página `/admin/conexao-whatsapp`:
 
-O botão **Concluir** faz em sequência (uma única edge function `facebook-connect-finalize`):
-1. Troca user token curto → user token longo
-2. Pega o **Page Access Token** da página escolhida (esse é o token que será salvo, corrigindo o problema #1)
-3. Salva `page_id`, `page_access_token`, `ad_account_id` real, `default_tenant_id`
-4. `POST /{page_id}/subscribed_apps?subscribed_fields=leadgen`
-5. Roda backfill dos últimos 30 dias (reaproveita `facebook-backfill-leads`)
-6. Retorna um resumo: "✓ Página conectada · ✓ Webhook ativo · ✓ 47 leads importados"
+- **Aba "Cloud API" (padrão)**: campos para WABA ID, Phone Number ID, Access Token, App Secret, Verify Token; botão "Validar conexão" testa via Graph; exibe URL do webhook para colar no Meta
+- **Aba "Templates"**: lista templates aprovados via API, permite enviar template para iniciar conversa (janela 24h)
+- **Aba "Z-API (legado)"**: mantém a integração atual como fallback
+- Tabela `whatsapp_connections` (tenant_id, provider [cloud|zapi], waba_id, phone_number_id, display_number, status, verified_at)
+- Edge functions novas:
+  - `whatsapp-cloud-webhook` — recebe mensagens, mídia, status; cria/atualiza `conversations` + `messages` + `leads` (cria lead novo se número desconhecido)
+  - `whatsapp-cloud-send` — envia texto, template, mídia
+  - `whatsapp-cloud-validate` — testa token + webhook + número
+- Inbox `/admin/whatsapp` passa a unificar Cloud + Z-API (filtro por origem)
 
-## 2. Corrigir a página de Campanhas
+> Cloud API não usa QR. Para QR, fica a opção Z-API legado (já existente).
 
-- Tirar o "Conta padrão para campanhas" duplicado (já vem do passo 2).
-- Antes de chamar a Graph API, validar `ad_account_id` ≠ placeholder; se for, mostrar CTA "Voltar para conexão Meta".
-- A mensagem "permissão ads_read ausente" só aparece se a Meta realmente retornar esse erro — hoje ela aparece porque a conta é fake.
+## 3. Marketing Insights completo (todas as métricas)
 
-## 3. UTMs automáticos (estilo Tintim)
+Expandir `facebook-campaigns-sync`:
 
-Ao importar um lead via webhook ou backfill, gerar e salvar UTMs derivados do próprio anúncio (já temos `campaign_name`, `ad_name`, `adset_name`):
+- Tabela `campaign_insights` (campaign_id, date, level [campaign|adset|ad], spend, impressions, reach, clicks, ctr, cpc, cpm, frequency, leads, cost_per_lead, purchases, purchase_value, roas, video_views, link_clicks)
+- Tabela `campaign_insights_breakdown` (insight_id, breakdown_type [age|gender|region|placement|device|publisher_platform], breakdown_value, métricas…)
+- Cron diário 03:00: puxa últimos 30 dias por `ad_account_id` (todas as contas do admin), nível ad + breakdowns
+- Tela `/admin/meta-ads` ganha aba "Insights" com filtros (período, conta, campanha, breakdown) e gráficos
 
-```
-utm_source   = facebook
-utm_medium   = paid  (ou organic se is_organic)
-utm_campaign = <campaign_name normalizado>
-utm_content  = <ad_name>
-utm_term     = <adset_name>
-```
+## 4. Kanban comercial reformulado
 
-Já existe parcialmente — vou padronizar e aplicar em `facebook-leads-webhook`, `facebook-backfill-leads` e `facebook-leads-export-csv`.
+Estágios novos (substituem MQL atual): **Qualificado → Oportunidade → Reunião Agendada → Negociação → Proposta Aceita → Perdido**
 
-## 4. Esconder/agrupar telas hoje confusas
+- Migration: rename de status no enum + atualização de `KanbanBoard.tsx`, `LeadCard.tsx`, `pipeline stages` config
+- Cada coluna mostra contagem + valor potencial somado
+- Drag-and-drop dispara automações (ex.: "Reunião Agendada" cria evento na agenda; "Proposta Aceita" gera contrato)
+- Motivo de perda obrigatório ao mover para "Perdido"
 
-Mover para um único bloco "Avançado" (collapsed por padrão):
-- Verify Token / Webhook URL / App Secret
-- Validação Meta (6. checklist de permissões)
-- Reinscrever página
-- Auditoria de eventos
-- Importar histórico CSV
-- Backfill manual por form
+## 5. Dashboard principal premium
 
-O usuário comum não toca em nada disso — só usa os 3 passos.
+`/admin/dashboard` redesenhado:
 
-# O que você (usuário) precisa fazer 1 vez no app Meta
+- **Funil de aquisição**: gasto → impressões → cliques → leads → MQL → reunião → fechamento (com CPL, CAC, taxa de conversão por etapa)
+- **Cards de topo**: leads hoje/semana/mês, CPL médio, ROAS, ticket médio, ciclo de venda
+- **Gráficos**: leads por dia × gasto, performance por campanha (top 5), origem dos leads (Facebook/Instagram/orgânico), heatmap de horários
+- **Saúde do sistema**: status do token Meta, último webhook recebido, conexão WhatsApp, sincronização (badges verde/amarelo/vermelho)
+- **Por tenant**: filtro global no topo permite ver consolidado ou por clínica
 
-Para o passo 2 funcionar e Campanhas pararem de dar "ads_read ausente", o app Meta precisa ter estas permissões aprovadas (App Review):
+## 6. Identidade visual — dark premium "B2B tech"
 
-- `pages_show_list` · `pages_read_engagement` · `pages_manage_metadata`
-- `leads_retrieval`
-- **`ads_read`** ← essa é a que falta hoje
-- `ads_management` (opcional, só se quiser editar campanhas pela plataforma)
+Sobrescrever `index.css` + `tailwind.config.ts`:
 
-Em **Modo de Desenvolvimento** do app, basta você ser admin/dev/tester do app — sem App Review. Para liberar para outros usuários (modo Live), precisa enviar para revisão.
+- **Fundo**: preto profundo `#05050A` com camadas `#0B0B14` / `#11111F`
+- **Acento primário**: roxo elétrico `#7C3AED` → azul `#3B82F6` (gradiente)
+- **Sucesso/alerta**: verde neon `#10F2A0` / âmbar `#F59E0B` / vermelho `#EF4444`
+- **Tipografia**: Space Grotesk (headings) + Inter (body) via `@fontsource`
+- **Glassmorphism sutil** em cards (`bg-white/[0.03]` + `backdrop-blur` + borda `white/10`)
+- **Microanimações**: fade-up nos cards, contagem progressiva nos KPIs, pulse no status verde
+- 100% responsivo (sidebar colapsa em mobile, tabelas viram cards)
+- Substituir todos os `text-white`/`bg-black` hardcoded por tokens semânticos
 
-# Arquivos que serão alterados
+---
 
-- `src/pages/admin/FacebookConfigPage.tsx` — reescrita do topo (3 passos), todo o resto vai para `<Accordion>` "Avançado"
-- `src/pages/admin/CampanhasPage.tsx` — remove duplicação + guard de ad_account_id fake
-- `supabase/functions/facebook-connect-finalize/index.ts` — **nova**, orquestra passos 1–6
-- `supabase/functions/facebook-leads-webhook/index.ts` — UTMs padronizados
-- `supabase/functions/facebook-backfill-leads/index.ts` — UTMs padronizados
-- `supabase/functions/facebook-leads-export-csv/index.ts` — UTMs padronizados
+## Seção técnica
 
-# Fora de escopo (proposto)
+### Migrations
+1. `lead_routing_rules` + grants + RLS (admin only)
+2. `whatsapp_connections` + grants + RLS
+3. `campaign_insights` + `campaign_insights_breakdown` + índices por data
+4. Rename enum status do lead (qualificado, oportunidade, reuniao_agendada, negociacao, proposta_aceita, perdido) + migração de dados existentes
 
-- Não vou criar um app Meta novo — o seu já existe.
-- Não vou submeter App Review por você (precisa ser feito no painel do Meta).
-- Não vou trocar Z-API/WhatsApp.
+### Secrets (vou pedir)
+`META_APP_SECRET`, `WHATSAPP_CLOUD_ACCESS_TOKEN`, `WHATSAPP_CLOUD_PHONE_NUMBER_ID`, `WHATSAPP_CLOUD_WABA_ID`, `WHATSAPP_CLOUD_VERIFY_TOKEN` (você já tem `FACEBOOK_PAGE_ACCESS_TOKEN`)
 
-Confirma que sigo por aí? Se quiser, posso também já remover de vez as telas avançadas (em vez de só esconder) — me diga.
+### Edge functions novas
+- `whatsapp-cloud-webhook`, `whatsapp-cloud-send`, `whatsapp-cloud-validate`
+- `meta-insights-sync` (cron diário)
+- `meta-health-check` (cron 6h — valida token, webhook, permissões; auto-renova quando possível)
+
+### Ordem de execução
+1. Identidade visual (base para todo o resto)
+2. Migrations (rotas + WA + insights + kanban enum)
+3. Roteamento Meta → Tenant + auto-validações
+4. WhatsApp Cloud API (conexão + webhook + inbox)
+5. Insights API completa + breakdowns
+6. Kanban reformulado
+7. Dashboard premium
+
+---
+
+## Fora do escopo desta entrega
+- Conversions API (Pixel server-side) — pode entrar em fase 2
+- WhatsApp Business On-Premise (descontinuado pela Meta)
+- Integração com CRMs externos (HubSpot/RD/Pipedrive)
