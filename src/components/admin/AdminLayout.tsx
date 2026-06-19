@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "./AppSidebar";
+import AdminErrorBoundary from "./AdminErrorBoundary";
+import ReconnectFacebookDialog from "@/components/facebook/ReconnectFacebookDialog";
 import { Loader2, Lock, AlertCircle, LogOut, Mail, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -135,9 +137,10 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
             <SidebarTrigger />
           </header>
           <div className="flex-1 overflow-auto">
-            {children}
+            <AdminErrorBoundary>{children}</AdminErrorBoundary>
           </div>
         </main>
+        <ReconnectFacebookDialog />
       </div>
     </SidebarProvider>
   );

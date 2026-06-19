@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Plus, Trash2, TrendingUp, DollarSign, Target, Users, MousePointerClick, Activity, Wallet, Percent, RefreshCw, ShieldCheck, ShieldAlert, Loader2, Crown } from "lucide-react";
 import { Link } from "react-router-dom";
-import { reconnectFacebook } from "@/lib/facebook-reconnect";
+import { requestFacebookReconnect, detectNeedReconnect } from "@/components/facebook/ReconnectFacebookDialog";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   LineChart, Line, AreaChart, Area,
@@ -134,17 +134,9 @@ export default function CampanhasPage() {
           }
         } catch { /* ignore */ }
       }
-      const needsReconnect =
-        (data?.need_reconnect === true) ||
-        /token de usuário|ads_read|reconecte|nonexisting field \(adaccounts\)/i.test(
-          String(data?.error ?? error?.message ?? "")
-        );
-      if (needsReconnect && !opts?.didReconnect) {
-        toast({ title: "Reconectando com o Facebook…", description: "Conceda as permissões da Marketing API (ads_read, ads_management)." });
-        const ok = await reconnectFacebook().catch((e) => {
-          toast({ title: "Falha ao reconectar", description: e.message, variant: "destructive" });
-          return false;
-        });
+      const det = await detectNeedReconnect(data, error);
+      if (det.need && !opts?.didReconnect) {
+        const ok = await requestFacebookReconnect({ reason: det.reason, missing: det.payload?.missing });
         if (ok) return loadAdAccounts({ didReconnect: true });
         return;
       }
@@ -223,23 +215,16 @@ export default function CampanhasPage() {
         } catch { /* ignore */ }
       }
 
-      const msg: string = data?.error ?? (error as any)?.message ?? "";
-      const needsReconnect =
-        data?.need_reconnect === true ||
-        /ads_read|ads_management|token de usuário|reconecte|nonexisting field \(adaccounts\)/i.test(msg);
-
-      if (needsReconnect && !didReconnect) {
-        toast({ title: "Reconectando com o Facebook…", description: "Conceda ads_read e ads_management." });
-        const ok = await reconnectFacebook().catch((e) => {
-          toast({ title: "Falha ao reconectar", description: e.message, variant: "destructive" });
-          return false;
-        });
+      const det = await detectNeedReconnect(data, error);
+      if (det.need && !didReconnect) {
+        const ok = await requestFacebookReconnect({ reason: det.reason, missing: det.payload?.missing });
         if (ok) {
           await checkPermissions();
           return syncFacebookAds(silent, true);
         }
         return;
       }
+      const msg: string = data?.error ?? (error as any)?.message ?? "";
 
       if (error || data?.error) {
         if (!silent) toast({ title: "Falha ao sincronizar", description: msg || "Erro desconhecido", variant: "destructive" });
