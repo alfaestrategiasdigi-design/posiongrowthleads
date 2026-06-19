@@ -1753,11 +1753,14 @@ export type Database = {
       }
       whatsapp_connections: {
         Row: {
+          access_token: string | null
+          app_secret: string | null
           business_account_name: string | null
           created_at: string
           display_name: string | null
           display_phone_number: string | null
           id: string
+          is_default: boolean
           last_error: string | null
           last_validated_at: string | null
           metadata: Json
@@ -1765,17 +1768,21 @@ export type Database = {
           provider: string
           status: string
           tenant_id: string | null
+          token_expires_at: string | null
           updated_at: string
           verify_token: string | null
           waba_id: string | null
           webhook_subscribed: boolean
         }
         Insert: {
+          access_token?: string | null
+          app_secret?: string | null
           business_account_name?: string | null
           created_at?: string
           display_name?: string | null
           display_phone_number?: string | null
           id?: string
+          is_default?: boolean
           last_error?: string | null
           last_validated_at?: string | null
           metadata?: Json
@@ -1783,17 +1790,21 @@ export type Database = {
           provider: string
           status?: string
           tenant_id?: string | null
+          token_expires_at?: string | null
           updated_at?: string
           verify_token?: string | null
           waba_id?: string | null
           webhook_subscribed?: boolean
         }
         Update: {
+          access_token?: string | null
+          app_secret?: string | null
           business_account_name?: string | null
           created_at?: string
           display_name?: string | null
           display_phone_number?: string | null
           id?: string
+          is_default?: boolean
           last_error?: string | null
           last_validated_at?: string | null
           metadata?: Json
@@ -1801,6 +1812,7 @@ export type Database = {
           provider?: string
           status?: string
           tenant_id?: string | null
+          token_expires_at?: string | null
           updated_at?: string
           verify_token?: string | null
           waba_id?: string | null
@@ -1874,7 +1886,59 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      whatsapp_connections_public: {
+        Row: {
+          business_account_name: string | null
+          created_at: string | null
+          display_name: string | null
+          display_phone_number: string | null
+          id: string | null
+          is_default: boolean | null
+          last_validated_at: string | null
+          provider: string | null
+          status: string | null
+          tenant_id: string | null
+          updated_at: string | null
+          webhook_subscribed: boolean | null
+        }
+        Insert: {
+          business_account_name?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          display_phone_number?: string | null
+          id?: string | null
+          is_default?: boolean | null
+          last_validated_at?: string | null
+          provider?: string | null
+          status?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          webhook_subscribed?: boolean | null
+        }
+        Update: {
+          business_account_name?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          display_phone_number?: string | null
+          id?: string | null
+          is_default?: boolean | null
+          last_validated_at?: string | null
+          provider?: string | null
+          status?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          webhook_subscribed?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       current_tenant_ids: { Args: never; Returns: string[] }
