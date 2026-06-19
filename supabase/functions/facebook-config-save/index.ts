@@ -56,24 +56,15 @@ Deno.serve(async (req) => {
 
   // monta patch só com campos enviados (não-vazios)
   const patch: Record<string, any> = { updated_at: new Date().toISOString() };
-  const normalizeAdAccountId = (value: any) => {
-    if (typeof value !== "string") return null;
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    return trimmed.startsWith("act_") ? trimmed : `act_${trimmed}`;
-  };
   const setIf = (k: string, v: any) => {
     if (typeof v === "string" && v.trim()) patch[k] = v.trim();
   };
   setIf("page_access_token", body.page_access_token);
-  setIf("user_access_token", body.user_access_token);
-  setIf("user_access_token_expires_at", body.user_access_token_expires_at);
   setIf("app_secret", body.app_secret);
   setIf("app_id", body.app_id);
   setIf("page_id", body.page_id);
   setIf("verify_token", body.verify_token);
-  const normalizedAdAccountId = normalizeAdAccountId(body.ad_account_id);
-  if (normalizedAdAccountId) patch.ad_account_id = normalizedAdAccountId;
+  setIf("ad_account_id", body.ad_account_id);
 
   if (body.default_tenant_id === null) {
     patch.default_tenant_id = null;
@@ -83,15 +74,8 @@ Deno.serve(async (req) => {
 
   if (body.clear_page_access_token === true) {
     patch.page_access_token = null;
-    patch.page_id = null;
     patch.token_expires_at = null;
     patch.connected_page_name = null;
-    patch.user_access_token = null;
-    patch.user_access_token_expires_at = null;
-  }
-  if (body.clear_user_access_token === true) {
-    patch.user_access_token = null;
-    patch.user_access_token_expires_at = null;
   }
   if (body.clear_app_secret === true) patch.app_secret = null;
   if (body.clear_ad_account_id === true) patch.ad_account_id = null;

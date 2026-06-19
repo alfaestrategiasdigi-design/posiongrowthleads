@@ -96,8 +96,8 @@ Deno.serve(async (req) => {
 
   const { data: cfg } = await admin
     .from("facebook_webhook_config")
-    .select("user_access_token, page_access_token, page_id").limit(1).maybeSingle();
-  const token = cfg?.user_access_token || cfg?.page_access_token || FB_TOKEN_ENV;
+    .select("page_access_token, page_id").limit(1).maybeSingle();
+  const token = cfg?.page_access_token || FB_TOKEN_ENV;
   if (!token) {
     return new Response(JSON.stringify({ error: "Token do Facebook não configurado" }), {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },

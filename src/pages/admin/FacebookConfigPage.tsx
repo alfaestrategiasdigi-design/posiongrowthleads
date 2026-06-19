@@ -195,12 +195,8 @@ function ConfigTab() {
 
   // page picker
   const [pages, setPages] = useState<FbPage[] | null>(null);
-  const [adAccounts, setAdAccounts] = useState<{ id: string; account_id: string; name: string }[] | null>(null);
-  const [selectedAdAccount, setSelectedAdAccount] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [savingPage, setSavingPage] = useState<string | null>(null);
-  const [longLivedUserToken, setLongLivedUserToken] = useState<string | null>(null);
-  const [longLivedUserTokenExpiresAt, setLongLivedUserTokenExpiresAt] = useState<string | null>(null);
 
   const loadMeta = async () => {
     const [{ data }, { data: ts }] = await Promise.all([
@@ -290,8 +286,6 @@ function ConfigTab() {
         return;
       }
       const shortToken = resp.authResponse.accessToken;
-      setLongLivedUserToken(null);
-      setLongLivedUserTokenExpiresAt(null);
 
       const { data, error } = await supabase.functions.invoke("facebook-oauth-exchange", {
         body: { short_lived_token: shortToken },
@@ -303,13 +297,6 @@ function ConfigTab() {
         return;
       }
       setPages(data.pages);
-      setLongLivedUserToken(data.long_lived_user_token ?? null);
-      setLongLivedUserTokenExpiresAt(data.long_user_token_expires_at ?? null);
-      if (Array.isArray(data.ad_accounts) && data.ad_accounts.length > 0) {
-        setAdAccounts(data.ad_accounts);
-        // pre-seleciona o primeiro account_id (formato act_... se possível)
-        setSelectedAdAccount(data.ad_accounts[0].account_id || data.ad_accounts[0].id);
-      } else setAdAccounts(null);
       setPickerOpen(true);
     } catch (e: any) {
       toast.error(e.message ?? "Falha ao conectar");
@@ -321,17 +308,12 @@ function ConfigTab() {
   const selectPage = async (page: FbPage) => {
     setSavingPage(page.id);
     try {
-      const payload: any = {
-        page_id: page.id,
-        page_name: page.name,
-        page_access_token: page.access_token,
-        user_access_token: longLivedUserToken,
-        user_access_token_expires_at: longLivedUserTokenExpiresAt,
-      };
-      if (selectedAdAccount) payload.ad_account_id = selectedAdAccount;
-
       const { data, error } = await supabase.functions.invoke("facebook-oauth-save-page", {
-        body: payload,
+        body: {
+          page_id: page.id,
+          page_name: page.name,
+          page_access_token: page.access_token,
+        },
       });
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error ?? "Falha ao salvar");
@@ -341,8 +323,6 @@ function ConfigTab() {
       });
       setPickerOpen(false);
       setPages(null);
-      setSelectedAdAccount(null);
-      setAdAccounts(null);
       await loadMeta();
     } catch (e: any) {
       toast.error(e.message ?? "Falha ao salvar página");
@@ -648,24 +628,7 @@ function ConfigTab() {
             <DialogTitle>Escolha a página</DialogTitle>
             <DialogDescription>Página de negócios que receberá os leads.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 max-h-80 overflow-y-auto">
-            {adAccounts && (
-              <div className="p-2 rounded-md border border-border/40 bg-background/30">
-                <div className="text-xs font-medium mb-2">Contas de anúncio detectadas</div>
-                <div className="space-y-1">
-                  {adAccounts.map(a => (
-                    <label key={a.id} className="flex items-center gap-2 text-xs">
-                      <input type="radio" name="ad_account" value={a.account_id || a.id} checked={selectedAdAccount === (a.account_id || a.id)}
-                        onChange={() => setSelectedAdAccount(a.account_id || a.id)} className="h-4 w-4" />
-                      <span className="font-mono">{a.account_id || a.id}</span>
-                      <span className="ml-2 text-muted-foreground">{a.name}</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="text-[11px] text-muted-foreground mt-2">Selecione a conta que corresponde aos anúncios da sua clínica (formato: <code className="font-mono">act_123</code>).</div>
-              </div>
-            )}
-
+          <div className="space-y-2 max-h-80 overflow-y-auto">
             {pages?.map((p) => (
               <button key={p.id} onClick={() => selectPage(p)} disabled={!!savingPage}
                 className="w-full text-left rounded-lg border border-border/50 hover:border-accent/50 bg-card hover:bg-accent/5 p-3 transition disabled:opacity-50">

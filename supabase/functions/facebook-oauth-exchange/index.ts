@@ -83,7 +83,6 @@ Deno.serve(async (req) => {
     }
     const longUserToken: string = exchJson.access_token;
     const userTokenExpiresIn: number = exchJson.expires_in ?? 60 * 24 * 3600;
-    const userTokenExpiresAt = new Date(Date.now() + Number(userTokenExpiresIn) * 1000).toISOString();
 
     // 2) Lista páginas administradas com seus page_access_tokens (que já vêm de longa duração)
     const pagesUrl = new URL("https://graph.facebook.com/v21.0/me/accounts");
@@ -104,94 +103,10 @@ Deno.serve(async (req) => {
       tasks: p.tasks ?? [],
     }));
 
-    const normalizeAdAccount = (account: any) => {
-      const id = account?.id ? String(account.id).trim() : null;
-      let account_id = account?.account_id ? String(account.account_id).trim() : id;
-      if (account_id && !account_id.startsWith("act_")) account_id = `act_${account_id}`;
-      return id || account_id ? {
-        id: id ?? account_id,
-        account_id: account_id ?? id,
-        name: account?.name ?? null,
-      } : null;
-    };
-
-    const uniqueAccounts = (accounts: Array<{ id: string; account_id: string; name: string | null }>) => {
-      const seen = new Set<string>();
-      return accounts.filter((account) => {
-        const key = account.account_id || account.id;
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-    };
-
-    let adAccounts: Array<{ id: string; account_id: string; name: string | null }> = [];
-
-    const fetchAccountList = async (url: URL) => {
-      const res = await fetch(url);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
-      return Array.isArray(json.data) ? json.data : [];
-    };
-
-    try {
-      const adUrl = new URL("https://graph.facebook.com/v21.0/me/adaccounts");
-      adUrl.searchParams.set("fields", "id,account_id,name");
-      adUrl.searchParams.set("limit", "200");
-      adUrl.searchParams.set("access_token", longUserToken);
-      const directAccounts = await fetchAccountList(adUrl);
-      adAccounts.push(...directAccounts.map((a: any) => normalizeAdAccount(a)).filter(Boolean) as any[]);
-    } catch (e: any) {
-      console.error("[oauth-exchange] failed to list direct ad accounts:", e?.message ?? e);
-    }
-
-    try {
-      const businessesUrl = new URL("https://graph.facebook.com/v21.0/me/businesses");
-      businessesUrl.searchParams.set("fields", "id,name");
-      businessesUrl.searchParams.set("limit", "50");
-      businessesUrl.searchParams.set("access_token", longUserToken);
-      const businessesJson = await fetch(businessesUrl).then((r) => r.json());
-      if (Array.isArray(businessesJson.data)) {
-        for (const biz of businessesJson.data) {
-          try {
-            const ownedUrl = new URL(`https://graph.facebook.com/v21.0/${biz.id}/owned_ad_accounts`);
-            ownedUrl.searchParams.set("fields", "id,account_id,name");
-            ownedUrl.searchParams.set("limit", "200");
-            ownedUrl.searchParams.set("access_token", longUserToken);
-            const ownedAccounts = await fetchAccountList(ownedUrl);
-            adAccounts.push(...ownedAccounts.map((a: any) => normalizeAdAccount(a)).filter(Boolean) as any[]);
-          } catch (e: any) {
-            console.error(`[oauth-exchange] failed to list owned_ad_accounts for business ${biz.id}:`, e?.message ?? e);
-          }
-          try {
-            const clientUrl = new URL(`https://graph.facebook.com/v21.0/${biz.id}/client_ad_accounts`);
-            clientUrl.searchParams.set("fields", "id,account_id,name");
-            clientUrl.searchParams.set("limit", "200");
-            clientUrl.searchParams.set("access_token", longUserToken);
-            const clientAccounts = await fetchAccountList(clientUrl);
-            adAccounts.push(...clientAccounts.map((a: any) => normalizeAdAccount(a)).filter(Boolean) as any[]);
-          } catch (e: any) {
-            console.error(`[oauth-exchange] failed to list client_ad_accounts for business ${biz.id}:`, e?.message ?? e);
-          }
-        }
-      }
-    } catch (e: any) {
-      console.error("[oauth-exchange] failed to list businesses:", e?.message ?? e);
-    }
-
-    adAccounts = uniqueAccounts(adAccounts).map((account) => ({
-      id: account.id,
-      account_id: account.account_id.startsWith("act_") ? account.account_id : account.account_id,
-      name: account.name,
-    }));
-
     return new Response(JSON.stringify({
       ok: true,
       long_user_token_expires_in: userTokenExpiresIn,
-      long_user_token_expires_at: userTokenExpiresAt,
-      long_lived_user_token: longUserToken,
       pages,
-      ad_accounts: adAccounts,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e: any) {
     return new Response(JSON.stringify({ ok: false, error: e.message }), {
