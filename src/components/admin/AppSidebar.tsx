@@ -25,6 +25,7 @@ const navItems = [
   { title: "WhatsApp", url: "/admin/whatsapp", icon: MessageCircle },
   { title: "Facebook Ads", url: "/admin/facebook", icon: Facebook },
   { title: "Campanhas", url: "/admin/campanhas", icon: TrendingUp },
+  { title: "Gerenciar Anúncios", url: "/admin/meta-ads", icon: Megaphone },
   { title: "Qualificação", url: "/admin/qualificacao", icon: ListChecks },
   { title: "Conexão", url: "/admin/conexao", icon: Settings },
   { title: "Usuários", url: "/admin/usuarios", icon: UserPlus },
