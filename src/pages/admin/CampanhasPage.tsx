@@ -382,7 +382,44 @@ export default function CampanhasPage() {
     load();
   };
 
+  const openLinkDialog = (account: AdAccount) => {
+    setLinkDialog({ open: true, account, tenantId: accountTenantMap.get(account.id) ?? "" });
+  };
+
+  const saveAccountLink = async () => {
+    const account = linkDialog.account;
+    if (!account) return;
+    const tenantId = linkDialog.tenantId;
+    // Remove existing rule(s) for this ad account
+    await supabase
+      .from("lead_routing_rules")
+      .delete()
+      .eq("match_type", "ad_account_id")
+      .eq("match_value", account.id);
+    if (tenantId && tenantId !== "__none__") {
+      const { error } = await supabase.from("lead_routing_rules").insert({
+        tenant_id: tenantId,
+        match_type: "ad_account_id",
+        match_value: account.id,
+        match_label: account.name,
+        ad_account_id: account.id,
+        priority: 10,
+        active: true,
+      } as any);
+      if (error) {
+        toast({ title: "Erro ao vincular", description: error.message, variant: "destructive" });
+        return;
+      }
+      toast({ title: "Conta vinculada", description: `${account.name} → ${tenants.find(t => t.id === tenantId)?.name ?? ""}` });
+    } else {
+      toast({ title: "Vínculo removido", description: account.name });
+    }
+    setLinkDialog({ open: false, tenantId: "" });
+    loadRules();
+  };
+
   return (
+
     <div className="p-6 space-y-6 animate-fade-in">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
