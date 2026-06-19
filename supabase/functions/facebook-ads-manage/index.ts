@@ -62,14 +62,23 @@ Deno.serve(async (req) => {
 
   const { data: cfg } = await admin
     .from("facebook_webhook_config")
-    .select("page_access_token, ad_account_id")
+    .select("page_access_token, user_access_token, ad_account_id")
     .limit(1).maybeSingle();
 
-  const token = cfg?.page_access_token || FB_TOKEN_ENV;
+  // Marketing API (ad accounts, campaigns, insights) requires a USER token with ads_read/ads_management.
+  // Page tokens cannot list /me/adaccounts or read ads data.
+  const token = cfg?.user_access_token || cfg?.page_access_token || FB_TOKEN_ENV;
   if (!token) return json({ error: "Token Facebook ausente. Conecte a página." }, 400);
+  if (!cfg?.user_access_token) {
+    return json({
+      error: "Token de USUÁRIO do Facebook ausente. Reconecte sua conta concedendo as permissões ads_read e ads_management para acessar a Marketing API.",
+      need_reconnect: true,
+    }, 403);
+  }
 
   let adAccount = (cfg?.ad_account_id ?? "").trim();
   if (adAccount && !adAccount.startsWith("act_")) adAccount = `act_${adAccount}`;
+
 
   try {
     switch (action) {
