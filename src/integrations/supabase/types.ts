@@ -133,6 +133,163 @@ export type Database = {
           },
         ]
       }
+      campaign_insights: {
+        Row: {
+          ad_account_id: string
+          ad_id: string | null
+          ad_name: string | null
+          adset_id: string | null
+          adset_name: string | null
+          campaign_id: string | null
+          campaign_name: string | null
+          clicks: number | null
+          cost_per_lead: number | null
+          cpc: number | null
+          cpm: number | null
+          created_at: string
+          ctr: number | null
+          date_start: string
+          frequency: number | null
+          id: string
+          impressions: number | null
+          leads: number | null
+          level: string
+          link_clicks: number | null
+          purchase_value: number | null
+          purchases: number | null
+          raw: Json | null
+          reach: number | null
+          roas: number | null
+          spend: number | null
+          tenant_id: string | null
+          updated_at: string
+          video_views: number | null
+        }
+        Insert: {
+          ad_account_id: string
+          ad_id?: string | null
+          ad_name?: string | null
+          adset_id?: string | null
+          adset_name?: string | null
+          campaign_id?: string | null
+          campaign_name?: string | null
+          clicks?: number | null
+          cost_per_lead?: number | null
+          cpc?: number | null
+          cpm?: number | null
+          created_at?: string
+          ctr?: number | null
+          date_start: string
+          frequency?: number | null
+          id?: string
+          impressions?: number | null
+          leads?: number | null
+          level: string
+          link_clicks?: number | null
+          purchase_value?: number | null
+          purchases?: number | null
+          raw?: Json | null
+          reach?: number | null
+          roas?: number | null
+          spend?: number | null
+          tenant_id?: string | null
+          updated_at?: string
+          video_views?: number | null
+        }
+        Update: {
+          ad_account_id?: string
+          ad_id?: string | null
+          ad_name?: string | null
+          adset_id?: string | null
+          adset_name?: string | null
+          campaign_id?: string | null
+          campaign_name?: string | null
+          clicks?: number | null
+          cost_per_lead?: number | null
+          cpc?: number | null
+          cpm?: number | null
+          created_at?: string
+          ctr?: number | null
+          date_start?: string
+          frequency?: number | null
+          id?: string
+          impressions?: number | null
+          leads?: number | null
+          level?: string
+          link_clicks?: number | null
+          purchase_value?: number | null
+          purchases?: number | null
+          raw?: Json | null
+          reach?: number | null
+          roas?: number | null
+          spend?: number | null
+          tenant_id?: string | null
+          updated_at?: string
+          video_views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_insights_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_insights_breakdown: {
+        Row: {
+          breakdown_type: string
+          breakdown_value: string
+          clicks: number | null
+          created_at: string
+          id: string
+          impressions: number | null
+          insight_id: string
+          leads: number | null
+          purchase_value: number | null
+          purchases: number | null
+          raw: Json | null
+          spend: number | null
+        }
+        Insert: {
+          breakdown_type: string
+          breakdown_value: string
+          clicks?: number | null
+          created_at?: string
+          id?: string
+          impressions?: number | null
+          insight_id: string
+          leads?: number | null
+          purchase_value?: number | null
+          purchases?: number | null
+          raw?: Json | null
+          spend?: number | null
+        }
+        Update: {
+          breakdown_type?: string
+          breakdown_value?: string
+          clicks?: number | null
+          created_at?: string
+          id?: string
+          impressions?: number | null
+          insight_id?: string
+          leads?: number | null
+          purchase_value?: number | null
+          purchases?: number | null
+          raw?: Json | null
+          spend?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_insights_breakdown_insight_id_fkey"
+            columns: ["insight_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_insights"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_spend: {
         Row: {
           amount_spent: number
@@ -571,6 +728,56 @@ export type Database = {
           signature_valid?: boolean | null
         }
         Relationships: []
+      }
+      lead_routing_rules: {
+        Row: {
+          active: boolean
+          ad_account_id: string | null
+          created_at: string
+          id: string
+          match_label: string | null
+          match_type: string
+          match_value: string
+          notes: string | null
+          priority: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          ad_account_id?: string | null
+          created_at?: string
+          id?: string
+          match_label?: string | null
+          match_type: string
+          match_value: string
+          notes?: string | null
+          priority?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          ad_account_id?: string | null
+          created_at?: string
+          id?: string
+          match_label?: string | null
+          match_type?: string
+          match_value?: string
+          notes?: string | null
+          priority?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_routing_rules_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       leads: {
         Row: {
@@ -1543,6 +1750,71 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      whatsapp_connections: {
+        Row: {
+          business_account_name: string | null
+          created_at: string
+          display_name: string | null
+          display_phone_number: string | null
+          id: string
+          last_error: string | null
+          last_validated_at: string | null
+          metadata: Json
+          phone_number_id: string | null
+          provider: string
+          status: string
+          tenant_id: string | null
+          updated_at: string
+          verify_token: string | null
+          waba_id: string | null
+          webhook_subscribed: boolean
+        }
+        Insert: {
+          business_account_name?: string | null
+          created_at?: string
+          display_name?: string | null
+          display_phone_number?: string | null
+          id?: string
+          last_error?: string | null
+          last_validated_at?: string | null
+          metadata?: Json
+          phone_number_id?: string | null
+          provider: string
+          status?: string
+          tenant_id?: string | null
+          updated_at?: string
+          verify_token?: string | null
+          waba_id?: string | null
+          webhook_subscribed?: boolean
+        }
+        Update: {
+          business_account_name?: string | null
+          created_at?: string
+          display_name?: string | null
+          display_phone_number?: string | null
+          id?: string
+          last_error?: string | null
+          last_validated_at?: string | null
+          metadata?: Json
+          phone_number_id?: string | null
+          provider?: string
+          status?: string
+          tenant_id?: string | null
+          updated_at?: string
+          verify_token?: string | null
+          waba_id?: string | null
+          webhook_subscribed?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       zapi_connections: {
         Row: {
