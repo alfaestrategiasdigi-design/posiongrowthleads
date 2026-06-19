@@ -16,6 +16,7 @@ import CreateUserPage from "./pages/admin/CreateUserPage";
 import QualificacaoPage from "./pages/admin/QualificacaoPage";
 import FacebookConfigPage from "./pages/admin/FacebookConfigPage";
 import CampanhasPage from "./pages/admin/CampanhasPage";
+import MetaAdsManagerPage from "./pages/admin/MetaAdsManagerPage";
 import AppointmentsPage from "./pages/admin/AppointmentsPage";
 import TenantsPage from "./pages/admin/TenantsPage";
 import ContractsPage from "./pages/admin/ContractsPage";
