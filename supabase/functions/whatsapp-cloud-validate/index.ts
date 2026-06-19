@@ -16,14 +16,16 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const authHeader = req.headers.get("Authorization") ?? "";
-
-    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user } } = await userClient.auth.getUser();
-    if (!user) return json({ error: "unauthorized" }, 401);
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (!token) return json({ error: "unauthorized", reason: "missing_token" }, 401);
 
     const admin = createClient(supabaseUrl, serviceKey);
+    const { data: userData, error: userErr } = await admin.auth.getUser(token);
+    if (userErr || !userData?.user) {
+      return json({ error: "unauthorized", reason: userErr?.message ?? "invalid_token" }, 401);
+    }
+    const user = userData.user;
+
     const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", user.id);
     const isAdmin = roles?.some((r: any) => r.role === "admin");
     if (!isAdmin) return json({ error: "forbidden" }, 403);
