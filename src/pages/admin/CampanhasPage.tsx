@@ -215,23 +215,16 @@ export default function CampanhasPage() {
         } catch { /* ignore */ }
       }
 
-      const msg: string = data?.error ?? (error as any)?.message ?? "";
-      const needsReconnect =
-        data?.need_reconnect === true ||
-        /ads_read|ads_management|token de usuário|reconecte|nonexisting field \(adaccounts\)/i.test(msg);
-
-      if (needsReconnect && !didReconnect) {
-        toast({ title: "Reconectando com o Facebook…", description: "Conceda ads_read e ads_management." });
-        const ok = await reconnectFacebook().catch((e) => {
-          toast({ title: "Falha ao reconectar", description: e.message, variant: "destructive" });
-          return false;
-        });
+      const det = await detectNeedReconnect(data, error);
+      if (det.need && !didReconnect) {
+        const ok = await requestFacebookReconnect({ reason: det.reason, missing: det.payload?.missing });
         if (ok) {
           await checkPermissions();
           return syncFacebookAds(silent, true);
         }
         return;
       }
+      const msg: string = data?.error ?? (error as any)?.message ?? "";
 
       if (error || data?.error) {
         if (!silent) toast({ title: "Falha ao sincronizar", description: msg || "Erro desconhecido", variant: "destructive" });
