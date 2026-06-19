@@ -474,6 +474,83 @@ export default function CampanhasPage() {
     loadRules();
   };
 
+  // Define a conta de anúncio "ativa" para o admin master (grava em facebook_webhook_config.ad_account_id).
+  const setActiveAdAccount = async (account: AdAccount) => {
+    setSettingActive(account.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-config-save", {
+        body: { ad_account_id: account.id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setAdAccountId(account.id);
+      toast({ title: "Conta ativa definida", description: `${account.name} (${account.id})` });
+      // Carrega campanhas imediatamente
+      loadMetaCampaigns(account.id);
+      checkPermissions();
+    } catch (e: any) {
+      toast({ title: "Falha ao definir conta ativa", description: e.message ?? "", variant: "destructive" });
+    } finally {
+      setSettingActive(null);
+    }
+  };
+
+  const loadMetaCampaigns = async (accountId?: string | null, didReconnect = false) => {
+    const acc = accountId ?? (adAccountFilter !== "all" ? adAccountFilter : adAccountId);
+    if (!acc) { setMetaCampaigns([]); setCampaignsAccountId(null); return; }
+    setLoadingCampaigns(true);
+    setCampaignsAccountId(acc);
+    try {
+      const days = period === "all" ? 90 : Number(period);
+      const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+      const until = new Date().toISOString().slice(0, 10);
+      let { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
+        body: { action: "list_campaigns", ad_account_id: acc, with_insights: true, since, until },
+      });
+      const det = await detectNeedReconnect(data, error);
+      if (det.need && !didReconnect) {
+        const ok = await requestFacebookReconnect({ reason: det.reason, missing: det.payload?.missing });
+        if (ok) return loadMetaCampaigns(acc, true);
+        return;
+      }
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setMetaCampaigns((data?.data ?? []) as MetaCampaign[]);
+    } catch (e: any) {
+      toast({ title: "Falha ao carregar campanhas", description: e.message ?? "", variant: "destructive" });
+      setMetaCampaigns([]);
+    } finally {
+      setLoadingCampaigns(false);
+    }
+  };
+
+  const toggleCampaignStatus = async (c: MetaCampaign) => {
+    const target = c.effective_status === "ACTIVE" ? "PAUSED" : "ACTIVE";
+    setTogglingCampaign(c.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
+        body: { action: "set_status", object_id: c.id, status: target },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({ title: target === "ACTIVE" ? "Campanha ativada" : "Campanha pausada", description: c.name });
+      loadMetaCampaigns(campaignsAccountId);
+    } catch (e: any) {
+      toast({ title: "Falha ao alterar status", description: e.message ?? "", variant: "destructive" });
+    } finally {
+      setTogglingCampaign(null);
+    }
+  };
+
+  // Auto-load Meta campaigns when filter / active account changes
+  useEffect(() => {
+    if (!permState.ok) return;
+    const acc = adAccountFilter !== "all" ? adAccountFilter : adAccountId;
+    if (acc) loadMetaCampaigns(acc);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adAccountFilter, adAccountId, permState.ok, period]);
+
+
   return (
 
     <div className="p-6 space-y-6 animate-fade-in">
