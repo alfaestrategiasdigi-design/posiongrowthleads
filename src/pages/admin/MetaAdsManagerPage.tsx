@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { Play, Pause, Archive, Plus, RefreshCw, Loader2, ChevronRight, DollarSign } from "lucide-react";
-import { reconnectFacebook } from "@/lib/facebook-reconnect";
+import { requestFacebookReconnect, detectNeedReconnect } from "@/components/facebook/ReconnectFacebookDialog";
 
 type Campaign = {
   id: string;
