@@ -589,7 +589,7 @@ export default function CampanhasPage() {
               Vincule cada conta do Facebook Ads a um cliente do sistema para rotear automaticamente leads e métricas.
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={loadAdAccounts} disabled={loadingAccounts}>
+          <Button variant="outline" size="sm" onClick={() => loadAdAccounts()} disabled={loadingAccounts}>
             {loadingAccounts ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
             Atualizar
           </Button>
