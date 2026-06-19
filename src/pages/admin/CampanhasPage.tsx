@@ -564,7 +564,107 @@ export default function CampanhasPage() {
         </CardContent>
       </Card>
 
+      {/* Contas de anúncio — vínculo com clientes */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Contas de anúncio</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Vincule cada conta do Facebook Ads a um cliente do sistema para rotear automaticamente leads e métricas.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={loadAdAccounts} disabled={loadingAccounts}>
+            {loadingAccounts ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+            Atualizar
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {adAccounts.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-4 text-center">
+              {loadingAccounts
+                ? "Carregando contas de anúncio…"
+                : "Nenhuma conta acessível. Verifique a conexão do Facebook e as permissões ads_read/ads_management."}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Conta</TableHead>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Moeda</TableHead>
+                    <TableHead>Cliente vinculado</TableHead>
+                    <TableHead className="text-right">Ação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {adAccounts.map((a) => {
+                    const tid = accountTenantMap.get(a.id);
+                    const tname = tid ? tenants.find((t) => t.id === tid)?.name : null;
+                    return (
+                      <TableRow key={a.id}>
+                        <TableCell className="font-medium">{a.name}</TableCell>
+                        <TableCell className="font-mono text-xs">{a.id}</TableCell>
+                        <TableCell className="text-xs">{a.currency ?? "—"}</TableCell>
+                        <TableCell>
+                          {tname ? (
+                            <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">{tname}</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-muted-foreground">Sem vínculo</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button size="sm" variant="outline" onClick={() => openLinkDialog(a)}>
+                            {tname ? "Alterar" : "Vincular cliente"}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Dialog: vincular conta de anúncio a um cliente */}
+      <Dialog open={linkDialog.open} onOpenChange={(o) => setLinkDialog((s) => ({ ...s, open: o }))}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Vincular conta de anúncio</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="text-sm">
+              <div className="font-medium">{linkDialog.account?.name}</div>
+              <div className="text-xs text-muted-foreground font-mono">{linkDialog.account?.id}</div>
+            </div>
+            <div>
+              <Label>Cliente do sistema</Label>
+              <Select
+                value={linkDialog.tenantId || "__none__"}
+                onValueChange={(v) => setLinkDialog((s) => ({ ...s, tenantId: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Selecionar cliente" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Sem vínculo —</SelectItem>
+                  {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground mt-2">
+                Cria uma regra de roteamento (<code>ad_account_id</code> → cliente) para leads e métricas.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setLinkDialog({ open: false, tenantId: "" })}>Cancelar</Button>
+            <Button onClick={saveAccountLink}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* KPI grid */}
+
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         <Kpi icon={<Wallet className="w-4 h-4" />} label="Investido" value={BRL(kpis.totalSpent)} accent="from-primary/20 to-primary/5" />
         <Kpi icon={<Users className="w-4 h-4" />} label="Leads" value={kpis.totalLeads.toString()} />
