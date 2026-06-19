@@ -130,11 +130,27 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="min-h-screen flex w-full tech-shell">
         <AppSidebar />
         <main className="flex-1 flex flex-col overflow-hidden">
-          <header className="h-14 border-b border-border flex items-center px-4 bg-card/50 backdrop-blur-sm shrink-0">
-            <SidebarTrigger />
+          <header className="h-14 tech-header flex items-center px-4 shrink-0 gap-4">
+            <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
+            <div className="hidden md:flex items-center gap-3">
+              <span className="tech-pill">
+                <span className="tech-dot" /> Sistema operacional
+              </span>
+              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground/70">
+                v2.0 · Posion OS
+              </span>
+            </div>
+            <div className="ml-auto flex items-center gap-3">
+              <span className="hidden sm:inline text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground/70">
+                {new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase()}
+              </span>
+              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300/70 truncate max-w-[180px]">
+                {user.email}
+              </span>
+            </div>
           </header>
           <div className="flex-1 overflow-auto">
             <AdminErrorBoundary>{children}</AdminErrorBoundary>
