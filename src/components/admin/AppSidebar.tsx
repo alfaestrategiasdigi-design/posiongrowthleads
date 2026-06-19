@@ -27,7 +27,7 @@ const navItems = [
   { title: "Campanhas", url: "/admin/campanhas", icon: TrendingUp },
   { title: "Gerenciar Anúncios", url: "/admin/meta-ads", icon: Megaphone },
   { title: "Qualificação", url: "/admin/qualificacao", icon: ListChecks },
-  { title: "Conexão", url: "/admin/conexao", icon: Settings },
+  { title: "Conexão WhatsApp", url: "/admin/conexao-whatsapp", icon: Plug },
   { title: "Usuários", url: "/admin/usuarios", icon: UserPlus },
 ];
 
