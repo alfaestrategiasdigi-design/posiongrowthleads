@@ -390,15 +390,34 @@ export default function CampanhasPage() {
           <p className="text-sm text-muted-foreground">KPIs de performance, ROI, CPA, CAC e funil de conversão.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Select value={tenantId} onValueChange={setTenantId}>
-            <SelectTrigger className="w-[260px]"><SelectValue placeholder="Conta" /></SelectTrigger>
+          <Select value={adAccountFilter} onValueChange={setAdAccountFilter}>
+            <SelectTrigger className="w-[300px]"><SelectValue placeholder="Conta de anúncio" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">
-                <span className="flex items-center gap-2"><Crown className="w-3.5 h-3.5 text-accent" /> Admin Master (conta principal)</span>
+                <span className="flex items-center gap-2"><Crown className="w-3.5 h-3.5 text-accent" /> Admin Master (todas as contas)</span>
               </SelectItem>
-              {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+              {adAccounts.length === 0 && (
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                  {loadingAccounts ? "Carregando contas…" : "Nenhuma conta de anúncio acessível."}
+                </div>
+              )}
+              {adAccounts.map((a) => {
+                const tid = accountTenantMap.get(a.id);
+                const tname = tid ? tenants.find((t) => t.id === tid)?.name : null;
+                return (
+                  <SelectItem key={a.id} value={a.id}>
+                    <span className="flex flex-col">
+                      <span className="font-medium">{a.name}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {a.id}{tname ? ` · ${tname}` : " · sem cliente vinculado"}
+                      </span>
+                    </span>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
+
           <Select value={period} onValueChange={(v: any) => setPeriod(v)}>
             <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
             <SelectContent>
