@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
     return json({
       error: "Token de USUÁRIO do Facebook ausente. Reconecte sua conta concedendo as permissões ads_read e ads_management para acessar a Marketing API.",
       need_reconnect: true,
-    }, 403);
+    });
   }
 
   let adAccount = (cfg?.ad_account_id ?? "").trim();
