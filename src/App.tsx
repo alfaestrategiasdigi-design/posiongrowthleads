@@ -11,7 +11,7 @@ import Dashboard from "./pages/admin/Dashboard";
 import WhatsAppChat from "./pages/admin/WhatsAppChat";
 import KanbanPage from "./pages/admin/KanbanPage";
 import LeadsPage from "./pages/admin/LeadsPage";
-import ConexaoPage from "./pages/admin/ConexaoPage";
+
 import ConexaoWhatsappPage from "./pages/admin/ConexaoWhatsappPage";
 import CreateUserPage from "./pages/admin/CreateUserPage";
 import QualificacaoPage from "./pages/admin/QualificacaoPage";
