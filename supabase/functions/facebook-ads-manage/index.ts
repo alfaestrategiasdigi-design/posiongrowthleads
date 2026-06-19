@@ -66,14 +66,16 @@ Deno.serve(async (req) => {
     .limit(1).maybeSingle();
 
   // Marketing API (ad accounts, campaigns, insights) requires a USER token with ads_read/ads_management.
-  // Page tokens cannot list /me/adaccounts or read ads data.
-  const token = cfg?.user_access_token || cfg?.page_access_token || FB_TOKEN_ENV;
-  if (!token) return json({ error: "Token Facebook ausente. Conecte a página." }, 400);
-  if (!cfg?.user_access_token) {
+  // Page tokens/env fallback cannot list /me/adaccounts or read ads data, so missing user token is a
+  // normal reconnect state for the UI — never a 4xx runtime error.
+  const token = String(cfg?.user_access_token ?? "").trim();
+  if (!token) {
     return json({
+      ok: false,
       error: "Token de USUÁRIO do Facebook ausente. Reconecte sua conta concedendo as permissões ads_read e ads_management para acessar a Marketing API.",
       need_reconnect: true,
-    });
+      reconnect_reason: "missing_user_access_token",
+    }, 200);
   }
 
   let adAccount = (cfg?.ad_account_id ?? "").trim();
