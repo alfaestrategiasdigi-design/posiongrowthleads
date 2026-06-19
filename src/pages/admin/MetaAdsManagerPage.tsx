@@ -58,28 +58,13 @@ async function call(action: string, params: Record<string, any> = {}, opts?: { d
   let { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
     body: { action, ...params },
   });
-  if (error && !data) {
-    try {
-      const ctx: any = (error as any).context;
-      if (ctx && typeof ctx.json === "function") data = await ctx.json();
-      else if (ctx && typeof ctx.text === "function") {
-        const t = await ctx.text();
-        try { data = JSON.parse(t); } catch { data = { error: t }; }
-      }
-    } catch { /* ignore */ }
+  const det = await detectNeedReconnect(data, error);
+  if (det.need && !opts?.didReconnect) {
+    const ok = await requestFacebookReconnect({ reason: det.reason, missing: det.payload?.missing });
+    if (ok) return call(action, params, { didReconnect: true });
+    return { ok: false, cancelled: true };
   }
   const msg = String(data?.error ?? error?.message ?? "");
-  const needsReconnect =
-    data?.need_reconnect === true ||
-    /token de usuário|ads_read|ads_management|reconecte|nonexisting field \(adaccounts\)/i.test(msg);
-  if (needsReconnect && !opts?.didReconnect) {
-    toast({ title: "Reconectando com o Facebook…", description: "Conceda ads_read e ads_management." });
-    const ok = await reconnectFacebook().catch((e) => {
-      toast({ title: "Falha ao reconectar", description: e.message, variant: "destructive" });
-      return false;
-    });
-    if (ok) return call(action, params, { didReconnect: true });
-  }
   if (error) throw new Error(msg || error.message);
   if (data?.error) throw new Error(data.error);
   return data;
