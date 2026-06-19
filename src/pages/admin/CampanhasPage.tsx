@@ -196,12 +196,24 @@ export default function CampanhasPage() {
 
   useEffect(() => { checkPermissions(); /* eslint-disable-next-line */ }, [adAccountId]);
 
-  const syncFacebookAds = async (silent = false) => {
+  const syncFacebookAds = async (silent = false, didReconnect = false) => {
     setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", { body: { days: 30 } });
       if (error) throw error;
       if (data?.error) {
+        if (data?.need_reconnect && !didReconnect) {
+          toast({ title: "Reconectando com o Facebook…", description: "Conceda ads_read e ads_management." });
+          const ok = await reconnectFacebook().catch((e) => {
+            toast({ title: "Falha ao reconectar", description: e.message, variant: "destructive" });
+            return false;
+          });
+          if (ok) {
+            await checkPermissions();
+            return syncFacebookAds(silent, true);
+          }
+          return;
+        }
         if (data?.need_reconnect) {
           toast({ title: "Reconecte o Facebook", description: data.error, variant: "destructive" });
         } else if (!silent) {
@@ -218,6 +230,7 @@ export default function CampanhasPage() {
       setSyncing(false);
     }
   };
+
 
   // auto-sync if stale (>15min) and permissions ok and ad account real
   useEffect(() => {
