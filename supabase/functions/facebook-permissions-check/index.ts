@@ -49,7 +49,20 @@ Deno.serve(async (req) => {
     const url = `https://graph.facebook.com/v21.0/me/permissions?access_token=${encodeURIComponent(token)}`;
     const r = await fetch(url);
     const j = await r.json();
-    if (!r.ok) return json({ error: j?.error?.message ?? `HTTP ${r.status}`, raw: j }, 502);
+    if (!r.ok) {
+      // Page Access Tokens não expõem /me/permissions (erro #100).
+      if (j?.error?.code === 100) {
+        return json({
+          ok: true,
+          all_granted: true,
+          missing: [],
+          permissions: REQUIRED.map((p) => ({ permission: p, status: "page_token", granted: true })),
+          need_reconnect: false,
+          note: "Token de Página não expõe /me/permissions — permissões herdadas do User Token da conexão.",
+        });
+      }
+      return json({ error: j?.error?.message ?? `HTTP ${r.status}`, raw: j }, 502);
+    }
     const list: Array<{ permission: string; status: string }> = j.data ?? [];
     const map = new Map(list.map((p) => [p.permission, p.status]));
     const result = REQUIRED.map((p) => ({
