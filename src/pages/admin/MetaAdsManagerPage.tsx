@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { Play, Pause, Archive, Plus, RefreshCw, Loader2, ChevronRight, DollarSign } from "lucide-react";
+import { reconnectFacebook } from "@/lib/facebook-reconnect";
 
 type Campaign = {
   id: string;
@@ -53,11 +54,33 @@ function statusVariant(s: string): "default" | "secondary" | "destructive" | "ou
   return "outline";
 }
 
-async function call(action: string, params: Record<string, any> = {}) {
-  const { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
+async function call(action: string, params: Record<string, any> = {}, opts?: { didReconnect?: boolean }) {
+  let { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
     body: { action, ...params },
   });
-  if (error) throw new Error(error.message);
+  if (error && !data) {
+    try {
+      const ctx: any = (error as any).context;
+      if (ctx && typeof ctx.json === "function") data = await ctx.json();
+      else if (ctx && typeof ctx.text === "function") {
+        const t = await ctx.text();
+        try { data = JSON.parse(t); } catch { data = { error: t }; }
+      }
+    } catch { /* ignore */ }
+  }
+  const msg = String(data?.error ?? error?.message ?? "");
+  const needsReconnect =
+    data?.need_reconnect === true ||
+    /token de usuário|ads_read|ads_management|reconecte|nonexisting field \(adaccounts\)/i.test(msg);
+  if (needsReconnect && !opts?.didReconnect) {
+    toast({ title: "Reconectando com o Facebook…", description: "Conceda ads_read e ads_management." });
+    const ok = await reconnectFacebook().catch((e) => {
+      toast({ title: "Falha ao reconectar", description: e.message, variant: "destructive" });
+      return false;
+    });
+    if (ok) return call(action, params, { didReconnect: true });
+  }
+  if (error) throw new Error(msg || error.message);
   if (data?.error) throw new Error(data.error);
   return data;
 }
