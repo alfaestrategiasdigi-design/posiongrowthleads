@@ -46,15 +46,39 @@ const BRL = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
 const PCT = (n: number) => `${(n * 100).toFixed(1)}%`;
 
+type AdAccount = {
+  id: string;            // act_XXXX
+  account_id: string;    // XXXX
+  name: string;
+  account_status?: number;
+  currency?: string;
+  business_name?: string;
+};
+type RoutingRule = {
+  id: string;
+  tenant_id: string;
+  match_type: string;
+  match_value: string;
+  ad_account_id: string | null;
+  active: boolean;
+};
+
 export default function CampanhasPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [tenantId, setTenantId] = useState<string>("all");
+  const [adAccounts, setAdAccounts] = useState<AdAccount[]>([]);
+  const [rules, setRules] = useState<RoutingRule[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  // 'all' = admin master (todas as contas) | act_XXXX
+  const [adAccountFilter, setAdAccountFilter] = useState<string>("all");
   const [period, setPeriod] = useState<"30" | "60" | "90" | "all">("30");
   const [spends, setSpends] = useState<Spend[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [linkDialog, setLinkDialog] = useState<{ open: boolean; account?: AdAccount; tenantId: string }>({
+    open: false, tenantId: "",
+  });
   const [form, setForm] = useState({
     tenant_id: "",
     period_start: new Date().toISOString().slice(0, 10),
@@ -80,6 +104,43 @@ export default function CampanhasPage() {
   const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
   const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
 
+  // ad_account_id -> tenant_id (from routing rules)
+  const accountTenantMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of rules) {
+      if (!r.active) continue;
+      const key = r.match_type === "ad_account_id" ? r.match_value : r.ad_account_id;
+      if (key) m.set(key.startsWith("act_") ? key : `act_${key}`, r.tenant_id);
+    }
+    return m;
+  }, [rules]);
+
+  const selectedTenantId = adAccountFilter === "all" ? null : accountTenantMap.get(adAccountFilter) ?? null;
+
+  const loadAdAccounts = async () => {
+    setLoadingAccounts(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
+        body: { action: "list_ad_accounts" },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setAdAccounts((data?.data ?? []) as AdAccount[]);
+    } catch (e: any) {
+      // mantém vazio; UI exibirá CTA para conectar
+    } finally {
+      setLoadingAccounts(false);
+    }
+  };
+
+  const loadRules = async () => {
+    const { data } = await supabase
+      .from("lead_routing_rules")
+      .select("id, tenant_id, match_type, match_value, ad_account_id, active")
+      .order("priority", { ascending: true });
+    setRules((data ?? []) as any);
+  };
+
   useEffect(() => {
     (async () => {
       const { data } = await supabase.from("tenants").select("id, name, slug").order("name");
@@ -88,8 +149,11 @@ export default function CampanhasPage() {
       const row: any = Array.isArray(cfg) ? cfg[0] : cfg;
       setLastSync(row?.last_campaigns_sync_at ?? null);
       setAdAccountId(row?.ad_account_id ?? null);
+      loadRules();
+      loadAdAccounts();
     })();
   }, []);
+
 
   const checkPermissions = async () => {
     setPermState(s => ({ ...s, checking: true }));
