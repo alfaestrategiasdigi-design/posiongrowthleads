@@ -66,7 +66,7 @@ export default function SystemHealthCard() {
     }
 
     // WhatsApp
-    const { data: wa } = await supabase.from("whatsapp_connections").select("status,phone_number,last_seen_at").limit(5);
+    const { data: wa } = await supabase.from("whatsapp_connections").select("status,display_phone_number,last_validated_at").limit(5);
     const connected = (wa ?? []).filter((w: any) => w.status === "connected" || w.status === "open");
     if ((wa ?? []).length === 0) {
       out.push({ label: "WhatsApp", status: "warn", detail: "Nenhuma conexão" });
