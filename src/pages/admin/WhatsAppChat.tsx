@@ -285,7 +285,7 @@ const WhatsAppChat = () => {
             </div>
             <h2 className="text-xl font-semibold text-foreground mb-2">WhatsApp CRM</h2>
             <p className="text-muted-foreground text-sm max-w-sm">
-              Selecione uma conversa ou configure a conexão Z-API para começar a receber mensagens.
+              Selecione uma conversa ou configure a conexão WhatsApp Cloud API para começar a receber mensagens.
             </p>
           </div>
         </div>

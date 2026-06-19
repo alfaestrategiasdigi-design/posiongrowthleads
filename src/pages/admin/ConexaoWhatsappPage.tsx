@@ -143,7 +143,7 @@ export default function ConexaoWhatsappPage() {
             Conexão WhatsApp
           </h1>
           <p className="text-muted-foreground mt-1">
-            Configure a integração oficial Meta (Cloud API) ou Z-API. Todas as validações acontecem aqui dentro.
+            Configure a integração oficial Meta (Cloud API). Todas as validações acontecem aqui dentro.
           </p>
         </div>
         <StatusBadge />
@@ -152,9 +152,9 @@ export default function ConexaoWhatsappPage() {
       <Tabs defaultValue="cloud" className="w-full">
         <TabsList>
           <TabsTrigger value="cloud" className="gap-2"><ShieldCheck className="w-4 h-4" />Cloud API (Oficial)</TabsTrigger>
-          <TabsTrigger value="zapi" className="gap-2"><QrCode className="w-4 h-4" />Z-API (QR — legado)</TabsTrigger>
           <TabsTrigger value="webhook" className="gap-2"><Webhook className="w-4 h-4" />Webhook</TabsTrigger>
         </TabsList>
+
 
         {/* ============== CLOUD API ============== */}
         <TabsContent value="cloud" className="space-y-6">
@@ -233,23 +233,8 @@ export default function ConexaoWhatsappPage() {
           </Card>
         </TabsContent>
 
-        {/* ============== Z-API ============== */}
-        <TabsContent value="zapi">
-          <Card>
-            <CardHeader>
-              <CardTitle>Z-API (conexão por QR Code)</CardTitle>
-              <CardDescription>
-                Continua disponível como fallback. Use a tela <code className="font-mono text-xs">/admin/conexao</code> antiga
-                para gerenciar — em breve será migrada para esta página.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button variant="outline" onClick={() => (window.location.href = "/admin/conexao")}>
-                Abrir configuração Z-API
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
+
+
 
         {/* ============== WEBHOOK ============== */}
         <TabsContent value="webhook">
