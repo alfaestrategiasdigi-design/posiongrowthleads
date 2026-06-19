@@ -137,9 +137,10 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
             <SidebarTrigger />
           </header>
           <div className="flex-1 overflow-auto">
-            {children}
+            <AdminErrorBoundary>{children}</AdminErrorBoundary>
           </div>
         </main>
+        <ReconnectFacebookDialog />
       </div>
     </SidebarProvider>
   );
