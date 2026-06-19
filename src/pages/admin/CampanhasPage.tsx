@@ -121,9 +121,19 @@ export default function CampanhasPage() {
   const loadAdAccounts = async (opts?: { didReconnect?: boolean }) => {
     setLoadingAccounts(true);
     try {
-      const { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
+      let { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
         body: { action: "list_ad_accounts" },
       });
+      if (error && !data) {
+        try {
+          const ctx: any = (error as any).context;
+          if (ctx && typeof ctx.json === "function") data = await ctx.json();
+          else if (ctx && typeof ctx.text === "function") {
+            const t = await ctx.text();
+            try { data = JSON.parse(t); } catch { data = { error: t }; }
+          }
+        } catch { /* ignore */ }
+      }
       const needsReconnect =
         (data?.need_reconnect === true) ||
         /token de usuário|ads_read|reconecte|nonexisting field \(adaccounts\)/i.test(
