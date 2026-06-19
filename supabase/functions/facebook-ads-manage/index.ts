@@ -73,6 +73,14 @@ Deno.serve(async (req) => {
 
   try {
     switch (action) {
+      case "list_ad_accounts": {
+        const r = await fbGet(`me/adaccounts`, token, {
+          fields: "account_id,id,name,account_status,currency,business_name,timezone_name",
+          limit: "200",
+        });
+        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        return json({ ok: true, data: r.body.data ?? [] });
+      }
       case "list_campaigns": {
         if (!adAccount) return json({ error: "Ad Account não configurado" }, 400);
         const r = await fbGet(`${adAccount}/campaigns`, token, {
@@ -82,6 +90,7 @@ Deno.serve(async (req) => {
         if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
         return json({ ok: true, data: r.body.data ?? [] });
       }
+
       case "list_adsets": {
         const campaignId = String(payload.campaign_id ?? "");
         if (!campaignId) return json({ error: "campaign_id obrigatório" }, 400);
