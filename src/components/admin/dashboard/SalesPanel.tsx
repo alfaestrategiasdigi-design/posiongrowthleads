@@ -149,9 +149,9 @@ export default function SalesPanel({ tenants, sales, contracts, isAdmin, onContr
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <MiniKpi icon={DollarSign} label="Receita" value={fmt(op.total)} accent="emerald" />
             <MiniKpi icon={CheckCircle2} label="Recebido" value={fmt(op.paid)} accent="emerald" />
-            <MiniKpi icon={Clock} label="A receber" value={fmt(op.pending)} accent="amber" />
+            <MiniKpi icon={Clock} label="A receber" value={fmt(op.pending)} accent="violet" />
             <MiniKpi icon={Users2} label="Vendas" value={String(op.cnt)} accent="sky" />
-            <MiniKpi icon={TrendingUp} label="Ticket médio" value={fmt(op.ticket)} accent="gold" />
+            <MiniKpi icon={TrendingUp} label="Ticket médio" value={fmt(op.ticket)} accent="indigo" />
           </div>
 
           {/* Ranking de clientes */}
