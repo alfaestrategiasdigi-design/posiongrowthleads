@@ -181,6 +181,29 @@ const Dashboard = () => {
     return { grid, max };
   }, [fLeads]);
 
+  // breakdown por tenant (apenas no modo "todos")
+  const byTenant = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; leads: number; revenue: number; invested: number; sales: number }>();
+    for (const t of tenants) map.set(t.id, { id: t.id, name: t.name, leads: 0, revenue: 0, invested: 0, sales: 0 });
+    for (const l of leads) {
+      if (!l.tenant_id) continue;
+      const cur = map.get(l.tenant_id); if (cur) cur.leads += 1;
+    }
+    for (const s of sales) {
+      if (!s.tenant_id) continue;
+      const cur = map.get(s.tenant_id); if (cur) { cur.revenue += Number(s.amount || 0); cur.sales += 1; }
+    }
+    for (const sp of spends) {
+      if (!sp.tenant_id) continue;
+      const cur = map.get(sp.tenant_id); if (cur) cur.invested += Number(sp.amount_spent || 0);
+    }
+    return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue || b.leads - a.leads);
+  }, [tenants, leads, sales, spends]);
+
+  const activeTenants = byTenant.filter(t => t.leads > 0 || t.revenue > 0 || t.invested > 0);
+  const inactiveTenants = byTenant.filter(t => !(t.leads > 0 || t.revenue > 0 || t.invested > 0));
+  const totalTenantRevenue = byTenant.reduce((a, t) => a + t.revenue, 0);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full p-12">
