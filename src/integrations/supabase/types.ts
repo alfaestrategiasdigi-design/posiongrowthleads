@@ -295,6 +295,7 @@ export type Database = {
           amount_spent: number
           campaign_id: string | null
           campaign_name: string | null
+          campaign_status: string | null
           channel: string
           clicks: number
           created_at: string
@@ -312,6 +313,7 @@ export type Database = {
           amount_spent?: number
           campaign_id?: string | null
           campaign_name?: string | null
+          campaign_status?: string | null
           channel?: string
           clicks?: number
           created_at?: string
@@ -329,6 +331,7 @@ export type Database = {
           amount_spent?: number
           campaign_id?: string | null
           campaign_name?: string | null
+          campaign_status?: string | null
           channel?: string
           clicks?: number
           created_at?: string
@@ -529,6 +532,8 @@ export type Database = {
           lead_id: string | null
           nao_lidas: number
           nome_contato: string | null
+          provider: string | null
+          remote_jid: string | null
           telefone: string
           tenant_id: string | null
           ultima_interacao: string | null
@@ -541,6 +546,8 @@ export type Database = {
           lead_id?: string | null
           nao_lidas?: number
           nome_contato?: string | null
+          provider?: string | null
+          remote_jid?: string | null
           telefone: string
           tenant_id?: string | null
           ultima_interacao?: string | null
@@ -553,6 +560,8 @@ export type Database = {
           lead_id?: string | null
           nao_lidas?: number
           nome_contato?: string | null
+          provider?: string | null
+          remote_jid?: string | null
           telefone?: string
           tenant_id?: string | null
           ultima_interacao?: string | null
@@ -794,7 +803,9 @@ export type Database = {
           especialidade: string | null
           expectativa_investimento: string | null
           extras: Json
+          facebook_ad_id: string | null
           facebook_ad_name: string | null
+          facebook_adset_id: string | null
           facebook_adset_name: string | null
           facebook_campaign: string | null
           facebook_form_id: string | null
@@ -837,7 +848,9 @@ export type Database = {
           especialidade?: string | null
           expectativa_investimento?: string | null
           extras?: Json
+          facebook_ad_id?: string | null
           facebook_ad_name?: string | null
+          facebook_adset_id?: string | null
           facebook_adset_name?: string | null
           facebook_campaign?: string | null
           facebook_form_id?: string | null
@@ -880,7 +893,9 @@ export type Database = {
           especialidade?: string | null
           expectativa_investimento?: string | null
           extras?: Json
+          facebook_ad_id?: string | null
           facebook_ad_name?: string | null
+          facebook_adset_id?: string | null
           facebook_adset_name?: string | null
           facebook_campaign?: string | null
           facebook_form_id?: string | null
@@ -1024,34 +1039,43 @@ export type Database = {
           conteudo: string
           conversation_id: string
           created_at: string
+          direction: string | null
           id: string
           lida: boolean
           media_url: string | null
           sender: string
+          status: string | null
           tenant_id: string | null
           tipo: string
+          wamid: string | null
         }
         Insert: {
           conteudo: string
           conversation_id: string
           created_at?: string
+          direction?: string | null
           id?: string
           lida?: boolean
           media_url?: string | null
           sender: string
+          status?: string | null
           tenant_id?: string | null
           tipo?: string
+          wamid?: string | null
         }
         Update: {
           conteudo?: string
           conversation_id?: string
           created_at?: string
+          direction?: string | null
           id?: string
           lida?: boolean
           media_url?: string | null
           sender?: string
+          status?: string | null
           tenant_id?: string | null
           tipo?: string
+          wamid?: string | null
         }
         Relationships: [
           {
@@ -1955,6 +1979,7 @@ export type Database = {
           tenant_id: string | null
           token: string
           updated_at: string
+          webhook_secret: string | null
           webhook_url: string | null
         }
         Insert: {
@@ -1970,6 +1995,7 @@ export type Database = {
           tenant_id?: string | null
           token: string
           updated_at?: string
+          webhook_secret?: string | null
           webhook_url?: string | null
         }
         Update: {
@@ -1985,6 +2011,7 @@ export type Database = {
           tenant_id?: string | null
           token?: string
           updated_at?: string
+          webhook_secret?: string | null
           webhook_url?: string | null
         }
         Relationships: [
