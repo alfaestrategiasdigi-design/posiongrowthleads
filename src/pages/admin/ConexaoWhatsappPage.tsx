@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import {
   MessageCircle, CheckCircle2, XCircle, AlertCircle, Loader2, Copy, Webhook,
   ShieldCheck, Smartphone, KeyRound, Building2, Save, PlayCircle, QrCode,
+  Send, Inbox, Activity, SendHorizonal,
 } from "lucide-react";
 
 type WAConn = {
