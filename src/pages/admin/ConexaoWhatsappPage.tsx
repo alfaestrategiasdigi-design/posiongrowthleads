@@ -49,7 +49,50 @@ export default function ConexaoWhatsappPage() {
   const [appSecret, setAppSecret] = useState("");
   const [verifyToken, setVerifyToken] = useState("");
 
-  useEffect(() => { load(); }, []);
+  // traffic state
+  const [traffic, setTraffic] = useState<{
+    sent24: number; recv24: number; sent7: number; recv7: number; sent30: number; recv30: number;
+    last: { sender: string; created_at: string } | null;
+  }>({ sent24: 0, recv24: 0, sent7: 0, recv7: 0, sent30: 0, recv30: 0, last: null });
+
+  // test-send state
+  const [testOpen, setTestOpen] = useState(false);
+  const [testTo, setTestTo] = useState("");
+  const [testMsg, setTestMsg] = useState("Mensagem de teste do painel Posion ✅");
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => { load(); loadTraffic(); }, []);
+
+  useEffect(() => {
+    const ch = supabase.channel("wa-traffic")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => loadTraffic())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
+  async function loadTraffic() {
+    const now = Date.now();
+    const d24 = new Date(now - 24 * 3600_000).toISOString();
+    const d7 = new Date(now - 7 * 86400_000).toISOString();
+    const d30 = new Date(now - 30 * 86400_000).toISOString();
+    const [m24, m7, m30, last] = await Promise.all([
+      supabase.from("messages").select("sender", { count: "exact", head: false }).gte("created_at", d24).limit(5000),
+      supabase.from("messages").select("sender", { count: "exact", head: false }).gte("created_at", d7).limit(10000),
+      supabase.from("messages").select("sender", { count: "exact", head: false }).gte("created_at", d30).limit(20000),
+      supabase.from("messages").select("sender, created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    const count = (rows: any[] | null, who: string) => (rows ?? []).filter((r: any) => r.sender === who).length;
+    setTraffic({
+      sent24: count(m24.data as any, "usuario"),
+      recv24: count(m24.data as any, "cliente"),
+      sent7: count(m7.data as any, "usuario"),
+      recv7: count(m7.data as any, "cliente"),
+      sent30: count(m30.data as any, "usuario"),
+      recv30: count(m30.data as any, "cliente"),
+      last: (last.data as any) ?? null,
+    });
+  }
+
 
   async function load() {
     setLoading(true);
