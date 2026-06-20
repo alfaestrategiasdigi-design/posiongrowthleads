@@ -237,7 +237,11 @@ export default function CampanhasPage() {
   const syncFacebookAds = async (silent = false, didReconnect = false) => {
     setSyncing(true);
     try {
-      let { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", { body: { days: 30 } });
+      const days = period === "all" ? 90 : Number(period);
+      const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+      const until = new Date().toISOString().slice(0, 10);
+      let { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", { body: { since, until } });
+
 
       // Edge function returned non-2xx — try to read the JSON body from the error context.
       if (error && !data) {
