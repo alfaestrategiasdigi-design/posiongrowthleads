@@ -282,6 +282,66 @@ const Dashboard = () => {
         <KpiTile icon={Clock} label="Ciclo médio" value={stats.cycleDays} suffix=" d" accent="sky" decimals={1} sub="dias até fechar" />
       </div>
 
+      {/* Breakdown por cliente — só no modo "todos" */}
+      {tenantFilter === "all" && byTenant.length > 0 && (
+        <div id="tenant-breakdown" className="card-elevated p-6">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Distribuição</p>
+              <h3 className="font-display text-lg text-foreground normal-case tracking-normal">
+                Por cliente · {byTenant.length} {byTenant.length === 1 ? "cliente" : "clientes"}
+              </h3>
+            </div>
+            <span className="text-[11px] text-muted-foreground">
+              {activeTenants.length} com dados · {inactiveTenants.length} sem dados no período
+            </span>
+          </div>
+          <div className="space-y-2.5">
+            {byTenant.map((t) => {
+              const isActive = t.leads > 0 || t.revenue > 0 || t.invested > 0;
+              const pct = totalTenantRevenue > 0 ? (t.revenue / totalTenantRevenue) * 100 : 0;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTenantFilter(t.id)}
+                  className={`w-full text-left rounded-xl border px-4 py-3 transition hover:scale-[1.005] hover:border-accent/50 ${
+                    isActive ? "bg-card/60 border-border" : "bg-card/30 border-border/40 opacity-70"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-1.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? "bg-emerald-400" : "bg-muted-foreground/40"}`} />
+                      <span className="text-sm font-medium text-foreground truncate">{t.name}</span>
+                      {!isActive && (
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 border border-border/40 rounded px-1.5 py-0.5">sem dados</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 text-xs tabular-nums flex-shrink-0">
+                      <span className="text-muted-foreground">{t.leads} leads</span>
+                      <span className="text-muted-foreground">{t.sales} vendas</span>
+                      <span className="text-emerald-400 font-semibold">
+                        R$ {t.revenue.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="h-1.5 bg-card/40 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${Math.max(pct, isActive ? 2 : 0)}%`,
+                        background: isActive
+                          ? "linear-gradient(90deg, hsl(142 71% 55%), hsl(199 89% 60%))"
+                          : "hsl(215 25% 35%)",
+                      }}
+                    />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Funil 7 etapas */}
       <div className="card-elevated p-6">
         <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Funil</p>
