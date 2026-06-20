@@ -21,6 +21,40 @@ function json(body: any, status = 200) {
   });
 }
 
+// Facebook rate-limit / transient codes that should NOT crash the client.
+// 17 = User request limit, 4 = App request limit, 32 = Page-level rate limit,
+// 613 = Custom-level rate limit, 80004 = Ads insights throttling.
+function fbErr(body: any) {
+  const code = Number(body?.error?.code ?? 0);
+  const sub = Number(body?.error?.error_subcode ?? 0);
+  const rateLimited = [17, 4, 32, 613, 80004].includes(code);
+  return json({
+    ok: false,
+    error: body?.error?.message ?? body?.error?.error_user_msg ?? "Erro do Facebook",
+    error_user_title: body?.error?.error_user_title,
+    error_user_msg: body?.error?.error_user_msg,
+    rate_limited: rateLimited,
+    fallback: rateLimited,
+    code, error_subcode: sub,
+    raw: body,
+  }, 200);
+}
+
+// Run async tasks with a small concurrency cap so we never hammer the Graph API.
+async function mapLimit<T, R>(items: T[], limit: number, fn: (it: T, i: number) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const idx = i++;
+      if (idx >= items.length) return;
+      out[idx] = await fn(items[idx], idx);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
 async function fbGet(path: string, token: string, params: Record<string, string> = {}) {
   const url = new URL(`${GRAPH}/${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
@@ -90,7 +124,7 @@ Deno.serve(async (req) => {
           fields: "account_id,id,name,account_status,currency,business_name,timezone_name",
           limit: "200",
         });
-        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        if (!r.ok) return fbErr(r.body);
         return json({ ok: true, data: r.body.data ?? [] });
       }
       case "list_campaigns": {
@@ -99,7 +133,7 @@ Deno.serve(async (req) => {
           fields: "id,name,status,effective_status,objective,daily_budget,lifetime_budget,start_time,stop_time,created_time",
           limit: "200",
         });
-        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        if (!r.ok) return fbErr(r.body);
         const campaigns: any[] = r.body.data ?? [];
 
         // Optional: enrich each campaign with aggregated insights for the window.
@@ -107,7 +141,7 @@ Deno.serve(async (req) => {
           const since = String(payload.since ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
           const until = String(payload.until ?? new Date().toISOString().slice(0, 10));
           const fields = "spend,impressions,clicks,ctr,cpc,cpm,reach,frequency,actions,cost_per_action_type";
-          const results = await Promise.all(campaigns.map(async (c) => {
+          const results = await mapLimit(campaigns, 3, async (c) => {
             const ir = await fbGet(`${c.id}/insights`, token, {
               fields, time_range: JSON.stringify({ since, until }), level: "campaign",
             });
@@ -137,7 +171,7 @@ Deno.serve(async (req) => {
                 purchases, purchase_value, roas: spend > 0 ? purchase_value / spend : 0,
               } : null,
             };
-          }));
+          });
           return json({ ok: true, data: results, ad_account_id: adAccount, since, until });
         }
         return json({ ok: true, data: campaigns, ad_account_id: adAccount });
@@ -150,7 +184,7 @@ Deno.serve(async (req) => {
           fields: "id,name,status,effective_status,daily_budget,lifetime_budget,optimization_goal,billing_event,bid_amount",
           limit: "200",
         });
-        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        if (!r.ok) return fbErr(r.body);
         return json({ ok: true, data: r.body.data ?? [] });
       }
       case "list_ads": {
@@ -161,7 +195,7 @@ Deno.serve(async (req) => {
           fields: "id,name,status,effective_status,adset_id,campaign_id,creative",
           limit: "200",
         });
-        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        if (!r.ok) return fbErr(r.body);
         return json({ ok: true, data: r.body.data ?? [] });
       }
       case "set_status": {
@@ -171,7 +205,7 @@ Deno.serve(async (req) => {
         const allowed = ["ACTIVE", "PAUSED", "ARCHIVED", "DELETED"];
         if (!id || !allowed.includes(status)) return json({ error: "object_id e status válidos obrigatórios" }, 400);
         const r = await fbPost(id, token, { status });
-        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        if (!r.ok) return fbErr(r.body);
         return json({ ok: true, result: r.body });
       }
       case "update_budget": {
@@ -183,7 +217,7 @@ Deno.serve(async (req) => {
         if (payload.lifetime_budget != null) body.lifetime_budget = String(Math.round(Number(payload.lifetime_budget) * 100));
         if (!Object.keys(body).length) return json({ error: "Informe daily_budget ou lifetime_budget (em reais)" }, 400);
         const r = await fbPost(id, token, body);
-        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        if (!r.ok) return fbErr(r.body);
         return json({ ok: true, result: r.body });
       }
       case "create_campaign": {
@@ -196,7 +230,7 @@ Deno.serve(async (req) => {
           name, objective, status,
           special_ad_categories: payload.special_ad_categories ?? [],
         });
-        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        if (!r.ok) return fbErr(r.body);
         return json({ ok: true, result: r.body });
       }
       case "insights": {
@@ -209,7 +243,7 @@ Deno.serve(async (req) => {
           fields: "spend,impressions,clicks,ctr,cpc,cpm,actions",
           time_range: JSON.stringify({ since, until }),
         });
-        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        if (!r.ok) return fbErr(r.body);
         return json({ ok: true, data: r.body.data ?? [] });
       }
       default:
