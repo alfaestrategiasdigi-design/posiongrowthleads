@@ -5,11 +5,12 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "./AppSidebar";
 import AdminErrorBoundary from "./AdminErrorBoundary";
 import ReconnectFacebookDialog from "@/components/facebook/ReconnectFacebookDialog";
-import { Loader2, Lock, AlertCircle, LogOut, Mail, KeyRound } from "lucide-react";
+import { Loader2, Lock, AlertCircle, LogOut, Mail, KeyRound, Sparkles, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getPostLoginRedirect } from "@/lib/auth/post-login-redirect";
 import type { User } from "@supabase/supabase-js";
+import logoAsset from "@/assets/posion/logo-posion.png.asset.json";
 
 interface AdminLayoutProps {
   children: ReactNode;
