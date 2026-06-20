@@ -31,7 +31,7 @@ type Spend = { id: string; channel: string; campaign_name: string | null; campai
 type Sale = { id: string; amount: number; amount_paid: number; amount_pending: number; payment_status: string; sale_date: string; clinic_lead_id: string | null; tenant_id: string; facebook_campaign_id: string | null; seller_name: string | null; procedure_category: string | null; international: boolean };
 type Tenant = { id: string; name: string };
 
-const COLORS = ["hsl(45 75% 70%)", "hsl(199 89% 60%)", "hsl(280 65% 65%)", "hsl(142 71% 55%)", "hsl(0 70% 65%)", "hsl(215 25% 55%)"];
+const COLORS = ["hsl(245 78% 62%)", "hsl(265 85% 68%)", "hsl(199 89% 60%)", "hsl(142 71% 55%)", "hsl(280 65% 65%)", "hsl(215 25% 55%)"];
 
 // Funil 7 etapas (exclui ganho/perdido, mostrados separadamente)
 const FUNNEL_7 = PIPELINE_STAGES.filter(s => s.id !== "ganho" && s.id !== "perdido");
