@@ -12,6 +12,8 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { useInView } from "@/hooks/useInView";
 import { PIPELINE_STAGES } from "@/types/admin";
 import SystemHealthCard from "@/components/admin/dashboard/SystemHealthCard";
+import SalesPanel from "@/components/admin/dashboard/SalesPanel";
+import type { SaasContract } from "@/components/admin/dashboard/SaasContractDialog";
 
 type Lead = {
   id: string;
