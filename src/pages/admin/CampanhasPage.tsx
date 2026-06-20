@@ -294,7 +294,7 @@ export default function CampanhasPage() {
         : new Date(Date.now() - Number(period) * 86400000).toISOString();
 
     let sq = supabase.from("campaign_spend").select("*").order("period_start", { ascending: false });
-    let lq = supabase.from("clinic_leads").select("id, tenant_id, stage, created_at, channel, utm_campaign, facebook_campaign_id");
+    let lq = supabase.from("leads").select("id, tenant_id, status, created_at, origem, utm_campaign, facebook_campaign, facebook_form_name, reuniao_agendada_em, reuniao_realizada_em, fechado_em");
     let saq = supabase.from("sales").select("id, tenant_id, amount, amount_paid, created_at, utm_campaign, facebook_campaign_id");
     if (selectedTenantId) {
       sq = sq.eq("tenant_id", selectedTenantId);
