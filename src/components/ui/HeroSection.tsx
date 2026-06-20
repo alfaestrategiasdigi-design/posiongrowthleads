@@ -44,14 +44,14 @@ const HeroSection = () => {
       ref={sectionRef}
       className="relative overflow-hidden pt-10 md:pt-14 pb-16 md:pb-24 px-4"
     >
-      {/* Aurora background */}
+      {/* Aurora background — indigo / violet */}
       <div
         ref={bgRef}
         className="absolute inset-0 pointer-events-none transition-transform duration-300 ease-out"
       >
-        <div className="absolute -top-32 left-1/4 w-[36rem] h-[36rem] bg-[hsl(42_70%_55%/0.10)] rounded-full blur-[160px]" />
-        <div className="absolute top-1/3 -right-32 w-[34rem] h-[34rem] bg-[hsl(220_80%_30%/0.25)] rounded-full blur-[160px]" />
-        <div className="absolute bottom-0 left-0 w-[28rem] h-[28rem] bg-[hsl(38_60%_45%/0.08)] rounded-full blur-[140px]" />
+        <div className="absolute -top-32 left-1/4 w-[36rem] h-[36rem] bg-[hsl(245_78%_60%/0.18)] rounded-full blur-[160px]" />
+        <div className="absolute top-1/3 -right-32 w-[34rem] h-[34rem] bg-[hsl(265_85%_65%/0.14)] rounded-full blur-[160px]" />
+        <div className="absolute bottom-0 left-0 w-[28rem] h-[28rem] bg-[hsl(230_80%_55%/0.10)] rounded-full blur-[140px]" />
       </div>
 
       <div ref={ref} className="container mx-auto max-w-7xl relative z-10">
@@ -59,8 +59,11 @@ const HeroSection = () => {
           {/* LEFT — headline */}
           <div ref={titleRef} className="transition-transform duration-300 ease-out lg:sticky lg:top-24">
             <div data-reveal className="reveal">
-              <span className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.28em] text-accent/90 border border-accent/30 bg-accent/5 px-3 py-1.5 rounded-full mb-6">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+              <span className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.28em] text-primary/90 border border-primary/30 bg-primary/10 px-3 py-1.5 rounded-full mb-6">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 animate-ping" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                </span>
                 Atendimento exclusivo
               </span>
             </div>
@@ -87,26 +90,28 @@ const HeroSection = () => {
             <div
               data-reveal
               data-reveal-delay="240"
-              className="reveal grid grid-cols-3 gap-4 max-w-lg pt-6 border-t border-border/40"
+              className="reveal flex items-center gap-8 max-w-lg pt-6 border-t border-border/40"
             >
               <div>
-                <p className="font-display text-2xl md:text-3xl gold-gradient-text tabular-nums leading-none">
+                <p className="font-display text-2xl md:text-3xl text-foreground tabular-nums leading-none">
                   +{fmtInt(clinics)}
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-2 uppercase tracking-wider">
                   clínicas
                 </p>
               </div>
+              <div className="h-10 w-px bg-primary/20" />
               <div>
-                <p className="font-display text-2xl md:text-3xl gold-gradient-text tabular-nums leading-none">
+                <p className="font-display text-2xl md:text-3xl text-foreground tabular-nums leading-none">
                   R${fmtInt(media)}M+
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-2 uppercase tracking-wider">
                   em mídia
                 </p>
               </div>
+              <div className="h-10 w-px bg-primary/20" />
               <div>
-                <p className="font-display text-2xl md:text-3xl gold-gradient-text tabular-nums leading-none">
+                <p className="font-display text-2xl md:text-3xl text-foreground tabular-nums leading-none">
                   {fmtInt(digits)} díg.
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-2 uppercase tracking-wider">
