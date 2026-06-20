@@ -557,6 +557,129 @@ export default function CampanhasPage() {
     }
   };
 
+  // ===== Generic Marketing API call with reconnect handling =====
+  const callFb = async (action: string, params: Record<string, any> = {}, didReconnect = false): Promise<any> => {
+    const { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
+      body: { action, ...params },
+    });
+    const det = await detectNeedReconnect(data, error);
+    if (det.need && !didReconnect) {
+      const ok = await requestFacebookReconnect({ reason: det.reason, missing: det.payload?.missing });
+      if (ok) return callFb(action, params, true);
+      throw new Error("Reconexão cancelada");
+    }
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data;
+  };
+
+  const toggleExpandCampaign = async (c: MetaCampaign) => {
+    if (expandedCampaign === c.id) { setExpandedCampaign(null); return; }
+    setExpandedCampaign(c.id);
+    setExpandedAdset(null);
+    if (!adsetsByCampaign[c.id]) {
+      setLoadingAdsetsFor(c.id);
+      try {
+        const r = await callFb("list_adsets", { campaign_id: c.id });
+        setAdsetsByCampaign((s) => ({ ...s, [c.id]: r.data ?? [] }));
+      } catch (e: any) {
+        toast({ title: "Falha ao listar conjuntos", description: e.message, variant: "destructive" });
+      } finally { setLoadingAdsetsFor(null); }
+    }
+  };
+
+  const toggleExpandAdset = async (a: AdSet) => {
+    if (expandedAdset === a.id) { setExpandedAdset(null); return; }
+    setExpandedAdset(a.id);
+    if (!adsByAdset[a.id]) {
+      setLoadingAdsFor(a.id);
+      try {
+        const r = await callFb("list_ads", { adset_id: a.id });
+        setAdsByAdset((s) => ({ ...s, [a.id]: r.data ?? [] }));
+      } catch (e: any) {
+        toast({ title: "Falha ao listar anúncios", description: e.message, variant: "destructive" });
+      } finally { setLoadingAdsFor(null); }
+    }
+  };
+
+  const toggleObjectStatus = async (id: string, currentStatus: string, kind: "adset" | "ad", parentId: string) => {
+    const next = currentStatus === "ACTIVE" ? "PAUSED" : "ACTIVE";
+    setBusyObject(id);
+    try {
+      await callFb("set_status", { object_id: id, status: next });
+      toast({ title: next === "ACTIVE" ? "Ativado" : "Pausado" });
+      if (kind === "adset") {
+        const r = await callFb("list_adsets", { campaign_id: parentId });
+        setAdsetsByCampaign((s) => ({ ...s, [parentId]: r.data ?? [] }));
+      } else {
+        const r = await callFb("list_ads", { adset_id: parentId });
+        setAdsByAdset((s) => ({ ...s, [parentId]: r.data ?? [] }));
+      }
+    } catch (e: any) {
+      toast({ title: "Falha", description: e.message, variant: "destructive" });
+    } finally { setBusyObject(null); }
+  };
+
+  const archiveObject = async (id: string, kind: "campaign" | "adset" | "ad", parentId?: string) => {
+    if (!confirm("Arquivar este item? Ele sai da lista ativa.")) return;
+    setBusyObject(id);
+    try {
+      await callFb("set_status", { object_id: id, status: "ARCHIVED" });
+      toast({ title: "Arquivado" });
+      if (kind === "campaign") loadMetaCampaigns(campaignsAccountId);
+      else if (kind === "adset" && parentId) {
+        const r = await callFb("list_adsets", { campaign_id: parentId });
+        setAdsetsByCampaign((s) => ({ ...s, [parentId]: r.data ?? [] }));
+      } else if (kind === "ad" && parentId) {
+        const r = await callFb("list_ads", { adset_id: parentId });
+        setAdsByAdset((s) => ({ ...s, [parentId]: r.data ?? [] }));
+      }
+    } catch (e: any) {
+      toast({ title: "Falha", description: e.message, variant: "destructive" });
+    } finally { setBusyObject(null); }
+  };
+
+  const submitCreateCampaign = async () => {
+    if (!newCamp.name) { toast({ title: "Nome obrigatório", variant: "destructive" }); return; }
+    setBusyObject("create");
+    try {
+      const acc = adAccountFilter !== "all" ? adAccountFilter : adAccountId;
+      await callFb("create_campaign", { name: newCamp.name, objective: newCamp.objective, status: "PAUSED", ad_account_id: acc });
+      toast({ title: "Campanha criada (pausada)", description: "Configure conjunto e criativos antes de ativar." });
+      setCreateCampOpen(false);
+      setNewCamp({ name: "", objective: "OUTCOME_LEADS" });
+      loadMetaCampaigns(campaignsAccountId);
+    } catch (e: any) {
+      toast({ title: "Falha ao criar", description: e.message, variant: "destructive" });
+    } finally { setBusyObject(null); }
+  };
+
+  const openBudgetDialog = (id: string, name: string, current?: string) => {
+    setBudgetDialog({ open: true, id, name, current });
+    setBudgetValue(current ? (Number(current) / 100).toFixed(2) : "");
+  };
+
+  const submitBudget = async () => {
+    if (!budgetDialog.id) return;
+    const v = Number(budgetValue.replace(",", "."));
+    if (!isFinite(v) || v <= 0) { toast({ title: "Valor inválido", variant: "destructive" }); return; }
+    setBusyObject(budgetDialog.id);
+    try {
+      await callFb("update_budget", { object_id: budgetDialog.id, daily_budget: v });
+      toast({ title: "Orçamento atualizado", description: `R$ ${v.toFixed(2)} / dia` });
+      setBudgetDialog({ open: false });
+      setBudgetValue("");
+      loadMetaCampaigns(campaignsAccountId);
+      // Refresh any open adsets
+      if (expandedCampaign) {
+        const r = await callFb("list_adsets", { campaign_id: expandedCampaign });
+        setAdsetsByCampaign((s) => ({ ...s, [expandedCampaign]: r.data ?? [] }));
+      }
+    } catch (e: any) {
+      toast({ title: "Falha", description: e.message, variant: "destructive" });
+    } finally { setBusyObject(null); }
+  };
+
   // Auto-load Meta campaigns when filter / active account changes
   useEffect(() => {
     if (!permState.ok) return;
