@@ -6,92 +6,93 @@
 
 @layer base {
   :root {
-    /* POSION — Premium Dark Navy + Champagne Gold */
-    --background: 232 65% 5%;
+    /* POSION — Midnight Indigo (B2B tech) */
+    --background: 240 44% 6%;
     --foreground: 0 0% 100%;
 
-    --card: 226 53% 9%;
+    --card: 238 44% 14%;
     --card-foreground: 0 0% 100%;
 
-    --popover: 226 53% 9%;
+    --popover: 238 44% 14%;
     --popover-foreground: 0 0% 100%;
 
-    --primary: 46 65% 52%;
-    --primary-foreground: 232 65% 5%;
+    --primary: 245 78% 59%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 224 53% 12%;
+    --secondary: 240 35% 12%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 224 53% 12%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 240 30% 14%;
+    --muted-foreground: 230 20% 70%;
 
-    --accent: 46 65% 52%;
-    --accent-foreground: 232 65% 5%;
+    --accent: 245 78% 59%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 224 30% 18%;
-    --input: 224 53% 12%;
-    --ring: 46 65% 52%;
+    --border: 240 30% 20%;
+    --input: 240 35% 12%;
+    --ring: 245 78% 59%;
 
     --radius: 0.75rem;
 
-    --header-bg: 232 65% 4%;
+    --header-bg: 240 50% 5%;
     --header-foreground: 0 0% 100%;
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
     --whatsapp: 142 70% 49%;
     --whatsapp-foreground: 0 0% 100%;
 
-    --gold: 46 65% 52%;
-    --gold-bright: 46 75% 67%;
-    --gold-deep: 42 60% 42%;
+    /* Legacy "gold" tokens repurposed to indigo/violet so existing classes still work */
+    --gold: 245 78% 59%;
+    --gold-bright: 255 91% 76%;
+    --gold-deep: 245 60% 45%;
 
-    --sidebar-background: 226 56% 7%;
+    --sidebar-background: 240 50% 6%;
     --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 46 65% 52%;
-    --sidebar-primary-foreground: 232 65% 5%;
-    --sidebar-accent: 224 53% 12%;
+    --sidebar-primary: 245 78% 59%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 35% 12%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 224 30% 16%;
-    --sidebar-ring: 46 65% 52%;
+    --sidebar-border: 240 30% 18%;
+    --sidebar-ring: 245 78% 59%;
   }
 
   .dark {
-    --background: 232 65% 5%;
+    --background: 240 44% 6%;
     --foreground: 0 0% 100%;
-    --card: 226 53% 9%;
+    --card: 238 44% 14%;
     --card-foreground: 0 0% 100%;
-    --popover: 226 53% 9%;
+    --popover: 238 44% 14%;
     --popover-foreground: 0 0% 100%;
-    --primary: 46 65% 52%;
-    --primary-foreground: 232 65% 5%;
-    --secondary: 224 53% 12%;
+    --primary: 245 78% 59%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 35% 12%;
     --secondary-foreground: 0 0% 100%;
-    --muted: 224 53% 12%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 46 65% 52%;
-    --accent-foreground: 232 65% 5%;
+    --muted: 240 30% 14%;
+    --muted-foreground: 230 20% 70%;
+    --accent: 245 78% 59%;
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 224 30% 18%;
-    --input: 224 53% 12%;
-    --ring: 46 65% 52%;
-    --header-bg: 232 65% 4%;
+    --border: 240 30% 20%;
+    --input: 240 35% 12%;
+    --ring: 245 78% 59%;
+    --header-bg: 240 50% 5%;
     --header-foreground: 0 0% 100%;
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
     --whatsapp: 142 70% 49%;
     --whatsapp-foreground: 0 0% 100%;
-    --sidebar-background: 226 56% 7%;
+    --sidebar-background: 240 50% 6%;
     --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 46 65% 52%;
-    --sidebar-primary-foreground: 232 65% 5%;
-    --sidebar-accent: 224 53% 12%;
+    --sidebar-primary: 245 78% 59%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 35% 12%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 224 30% 16%;
-    --sidebar-ring: 46 65% 52%;
+    --sidebar-border: 240 30% 18%;
+    --sidebar-ring: 245 78% 59%;
   }
 }
 
