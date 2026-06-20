@@ -42,8 +42,10 @@ Deno.serve(async (req) => {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* no body */ }
-  const days = Math.max(1, Math.min(90, Number(body.days ?? 30)));
   const checkOnly = body.check_permissions === true;
+  const days = Math.max(1, Math.min(180, Number(body.days ?? 30)));
+  const sinceArg = typeof body.since === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.since) ? body.since : null;
+  const untilArg = typeof body.until === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.until) ? body.until : null;
 
   const { data: cfg } = await admin
     .from("facebook_webhook_config")
