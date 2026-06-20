@@ -280,13 +280,24 @@ Deno.serve(async (req) => {
         if (!id) return json({ error: "object_id obrigatório" }, 400);
         const since = String(payload.since ?? new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10));
         const until = String(payload.until ?? new Date().toISOString().slice(0, 10));
+        const cacheKey = `i|${id}|${since}|${until}`;
+        const cached = cacheGet(cacheKey);
+        if (cached?.fresh) {
+          return json({ ok: true, data: cached.value ? [cached.value] : [], cache: "hit" });
+        }
         const r = await fbGet(`${id}/insights`, token, {
           fields: "spend,impressions,clicks,ctr,cpc,cpm,actions",
           time_range: JSON.stringify({ since, until }),
         });
-        if (!r.ok) return fbErr(r.body);
-        return json({ ok: true, data: r.body.data ?? [] });
+        if (!r.ok) {
+          if (cached) return json({ ok: true, data: cached.value ? [cached.value] : [], cache: "stale" });
+          return fbErr(r.body);
+        }
+        const row = r.body.data?.[0] ?? null;
+        cacheSet(cacheKey, row);
+        return json({ ok: true, data: r.body.data ?? [], cache: "miss" });
       }
+
       default:
         return json({ error: `Ação desconhecida: ${action}` }, 400);
     }
