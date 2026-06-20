@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
                 purchases, purchase_value, roas: spend > 0 ? purchase_value / spend : 0,
               } : null,
             };
-          }));
+          });
           return json({ ok: true, data: results, ad_account_id: adAccount, since, until });
         }
         return json({ ok: true, data: campaigns, ad_account_id: adAccount });
