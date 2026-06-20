@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
           const since = String(payload.since ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
           const until = String(payload.until ?? new Date().toISOString().slice(0, 10));
           const fields = "spend,impressions,clicks,ctr,cpc,cpm,reach,frequency,actions,cost_per_action_type";
-          const results = await Promise.all(campaigns.map(async (c) => {
+          const results = await mapLimit(campaigns, 3, async (c) => {
             const ir = await fbGet(`${c.id}/insights`, token, {
               fields, time_range: JSON.stringify({ since, until }), level: "campaign",
             });
