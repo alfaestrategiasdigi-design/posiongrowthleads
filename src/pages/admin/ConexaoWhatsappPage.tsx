@@ -224,6 +224,126 @@ export default function ConexaoWhatsappPage() {
 
         {/* ============== CLOUD API ============== */}
         <TabsContent value="cloud" className="space-y-6">
+          {/* Diagnóstico da API Oficial */}
+          {(() => {
+            const credsOk = !!(conn?.waba_id && conn?.phone_number_id && conn?.access_token);
+            const tokenOk = conn?.status === "connected";
+            const webhookOk = !!conn?.webhook_subscribed;
+            const noTraffic = traffic.sent30 === 0 && traffic.recv30 === 0;
+            const Item = ({ ok, label, hint }: { ok: boolean | null; label: string; hint?: string }) => (
+              <div className="flex items-start gap-3 p-3 rounded-md border border-border/40 bg-card/40">
+                {ok === null
+                  ? <AlertCircle className="w-4 h-4 mt-0.5 text-muted-foreground" />
+                  : ok
+                    ? <CheckCircle2 className="w-4 h-4 mt-0.5 text-emerald-400" />
+                    : <XCircle className="w-4 h-4 mt-0.5 text-rose-400" />}
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">{label}</div>
+                  {hint && <div className="text-[11px] text-muted-foreground mt-0.5 truncate">{hint}</div>}
+                </div>
+              </div>
+            );
+            return (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><ShieldCheck className="w-5 h-5" />Diagnóstico da API Oficial</CardTitle>
+                  <CardDescription>
+                    Estado da integração Meta Cloud em tempo real. Use isto para diagnosticar problemas no envio/recebimento.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <Item ok={credsOk} label="Credenciais salvas" hint={credsOk ? `WABA ${conn?.waba_id} · Phone ${conn?.phone_number_id}` : "Preencha WABA, Phone Number ID e Access Token"} />
+                    <Item ok={tokenOk} label="Token validado pela Meta" hint={tokenOk ? `${conn?.display_phone_number ?? "—"} · ${conn?.business_account_name ?? ""}` : "Clique em Validar conexão"} />
+                    <Item ok={webhookOk} label="Webhook assinado" hint={webhookOk ? "Eventos chegando neste backend" : "Assine o campo messages no painel Meta"} />
+                    <Item ok={!conn?.last_error} label="Sem erros recentes" hint={conn?.last_error ?? "Nenhum erro reportado"} />
+                  </div>
+                  {noTraffic && credsOk && (
+                    <div className="p-3 rounded-md bg-amber-500/10 border border-amber-500/30 text-sm text-amber-300">
+                      <strong>Sem tráfego nos últimos 30 dias.</strong>{" "}
+                      {!tokenOk && "A conexão ainda está pendente — clique em Validar conexão. "}
+                      {tokenOk && !webhookOk && "O token está OK mas o webhook não foi assinado: copie a Callback URL/Verify Token (aba Webhook) e configure no app Meta. "}
+                      {tokenOk && webhookOk && "Envie uma mensagem de teste para confirmar o envio end-to-end."}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
+
+          {/* Tráfego de mensagens */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Activity className="w-5 h-5" />Tráfego de mensagens</CardTitle>
+              <CardDescription>
+                Atualizado em tempo real a partir da tabela <span className="font-mono text-xs">messages</span>.
+                {traffic.last && <> Última: <span className="font-mono text-xs">{new Date(traffic.last.created_at).toLocaleString("pt-BR")}</span> ({traffic.last.sender === "cliente" ? "recebida" : "enviada"})</>}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {[
+                  { label: "24 horas", sent: traffic.sent24, recv: traffic.recv24 },
+                  { label: "7 dias", sent: traffic.sent7, recv: traffic.recv7 },
+                  { label: "30 dias", sent: traffic.sent30, recv: traffic.recv30 },
+                ].map((b) => (
+                  <div key={b.label} className="rounded-lg border border-border/40 bg-card/40 p-4">
+                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">{b.label}</div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-emerald-400">
+                        <Send className="w-4 h-4" />
+                        <div>
+                          <div className="text-xl font-bold tabular-nums">{b.sent}</div>
+                          <div className="text-[10px] text-muted-foreground">Enviadas</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-sky-400">
+                        <Inbox className="w-4 h-4" />
+                        <div>
+                          <div className="text-xl font-bold tabular-nums">{b.recv}</div>
+                          <div className="text-[10px] text-muted-foreground">Recebidas</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end mt-4">
+                <Button variant="secondary" size="sm" onClick={() => setTestOpen(true)} disabled={!conn} className="gap-2">
+                  <SendHorizonal className="w-4 h-4" /> Enviar mensagem de teste
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Dialog de teste */}
+          <Dialog open={testOpen} onOpenChange={setTestOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Enviar mensagem de teste</DialogTitle>
+                <DialogDescription>O número precisa ter aceitado a sessão de 24h ou estar na sandbox da Meta.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div>
+                  <Label>Número (E.164)</Label>
+                  <Input value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="5511999998888" className="font-mono" />
+                </div>
+                <div>
+                  <Label>Mensagem</Label>
+                  <Input value={testMsg} onChange={(e) => setTestMsg(e.target.value)} />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setTestOpen(false)}>Cancelar</Button>
+                <Button onClick={sendTest} disabled={sending} className="gap-2">
+                  {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <SendHorizonal className="w-4 h-4" />}
+                  Enviar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Building2 className="w-5 h-5" />Credenciais da conta WhatsApp Business</CardTitle>
