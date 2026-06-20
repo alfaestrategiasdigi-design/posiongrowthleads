@@ -1405,6 +1405,57 @@ export default function CampanhasPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Dialog: criar campanha */}
+      <Dialog open={createCampOpen} onOpenChange={setCreateCampOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Nova campanha</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nome</Label>
+              <Input value={newCamp.name} onChange={(e) => setNewCamp({ ...newCamp, name: e.target.value })} placeholder="Ex.: Captação Clínicas — SP" />
+            </div>
+            <div>
+              <Label>Objetivo</Label>
+              <Select value={newCamp.objective} onValueChange={(v) => setNewCamp({ ...newCamp, objective: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["OUTCOME_LEADS","OUTCOME_SALES","OUTCOME_TRAFFIC","OUTCOME_ENGAGEMENT","OUTCOME_AWARENESS","OUTCOME_APP_PROMOTION"].map((o) =>
+                    <SelectItem key={o} value={o}>{o.replace("OUTCOME_", "")}</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              A campanha é criada <b>pausada</b>. Configure conjunto e criativos no Ads Manager antes de ativar.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCreateCampOpen(false)}>Cancelar</Button>
+            <Button onClick={submitCreateCampaign} disabled={busyObject === "create"}>
+              {busyObject === "create" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Criar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: editar orçamento */}
+      <Dialog open={budgetDialog.open} onOpenChange={(o) => !o && setBudgetDialog({ open: false })}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Orçamento diário · {budgetDialog.name}</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <Label>Novo valor (R$ por dia)</Label>
+            <Input type="number" step="0.01" value={budgetValue} onChange={(e) => setBudgetValue(e.target.value)} placeholder="50.00" />
+            <p className="text-xs text-muted-foreground">Atual: {budgetDialog.current ? BRL(Number(budgetDialog.current)/100) : "—"}</p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setBudgetDialog({ open: false })}>Cancelar</Button>
+            <Button onClick={submitBudget} disabled={busyObject === budgetDialog.id}>
+              {busyObject === budgetDialog.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Atualizar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
