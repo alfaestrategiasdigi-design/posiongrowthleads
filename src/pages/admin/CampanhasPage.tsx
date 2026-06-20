@@ -324,18 +324,19 @@ export default function CampanhasPage() {
     const totalImpressions = spends.reduce((s, x) => s + Number(x.impressions || 0), 0);
     const totalClicks = spends.reduce((s, x) => s + Number(x.clicks || 0), 0);
     const totalLeadsReported = spends.reduce((s, x) => s + Number(x.leads_generated || 0), 0);
+    // Prefer real CRM leads; fall back to reported leads only if CRM is empty.
     const totalLeads = leads.length || totalLeadsReported;
 
-    const qualified = leads.filter((l) =>
-      ["qualificado", "avaliacao_agendada", "compareceu", "em_negociacao", "fechado_ganho"].includes(l.stage),
-    ).length;
-    const scheduled = leads.filter((l) =>
-      ["avaliacao_agendada", "compareceu", "em_negociacao", "fechado_ganho"].includes(l.stage),
-    ).length;
-    const attended = leads.filter((l) =>
-      ["compareceu", "em_negociacao", "fechado_ganho"].includes(l.stage),
-    ).length;
-    const won = leads.filter((l) => l.stage === "fechado_ganho").length;
+    // Status → funnel stage (aligned with PIPELINE_STAGES in src/types/admin.ts)
+    const QUAL = new Set(["mql","sql","reuniao_agendada","reuniao_realizada","proposta","negociacao","ganho","convertido","fechado_ganho"]);
+    const SCHED = new Set(["reuniao_agendada","reuniao_realizada","proposta","negociacao","ganho","convertido","fechado_ganho"]);
+    const ATTEND = new Set(["reuniao_realizada","proposta","negociacao","ganho","convertido","fechado_ganho"]);
+    const WON = new Set(["ganho","convertido","fechado_ganho"]);
+
+    const qualified = leads.filter((l) => QUAL.has(l.status)).length;
+    const scheduled = leads.filter((l) => SCHED.has(l.status) || !!l.reuniao_agendada_em).length;
+    const attended = leads.filter((l) => ATTEND.has(l.status) || !!l.reuniao_realizada_em).length;
+    const won = leads.filter((l) => WON.has(l.status) || !!l.fechado_em).length;
 
     const revenue = sales.reduce((s, x) => s + Number(x.amount || 0), 0);
     const collected = sales.reduce((s, x) => s + Number(x.amount_paid || 0), 0);
@@ -361,9 +362,10 @@ export default function CampanhasPage() {
       attendRate: scheduled > 0 ? attended / scheduled : 0,
       conversionRate: totalLeads > 0 ? won / totalLeads : 0,
       roi: totalSpent > 0 ? (revenue - totalSpent) / totalSpent : 0,
-      ltv: ticket, // proxy: ticket médio (sem recall ainda)
+      ltv: ticket,
     };
   }, [spends, leads, sales]);
+
 
   const perCampaign = useMemo(() => {
     const map = new Map<string, { name: string; spent: number; leads: number; sales: number; revenue: number }>();
