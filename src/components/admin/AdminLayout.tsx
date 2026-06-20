@@ -5,11 +5,12 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "./AppSidebar";
 import AdminErrorBoundary from "./AdminErrorBoundary";
 import ReconnectFacebookDialog from "@/components/facebook/ReconnectFacebookDialog";
-import { Loader2, Lock, AlertCircle, LogOut, Mail, KeyRound } from "lucide-react";
+import { Loader2, Lock, AlertCircle, LogOut, Mail, KeyRound, Sparkles, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getPostLoginRedirect } from "@/lib/auth/post-login-redirect";
 import type { User } from "@supabase/supabase-js";
+import logoAsset from "@/assets/posion/logo-posion.png.asset.json";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -66,46 +67,80 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="bg-card rounded-2xl shadow-2xl p-8 md:p-10 max-w-md w-full border border-border/50 animate-scale-in">
-          <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Lock className="w-8 h-8 text-accent" />
+      <div className="min-h-screen bg-background flex items-center justify-center px-4 relative overflow-hidden">
+        {/* Decorative background */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.12),transparent_60%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,hsl(var(--primary)/0.08),transparent_55%)]" />
+          <div className="absolute inset-0 opacity-[0.04] bg-[linear-gradient(hsl(var(--primary))_1px,transparent_1px),linear-gradient(90deg,hsl(var(--primary))_1px,transparent_1px)] bg-[size:48px_48px]" />
+          <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-primary/10 blur-3xl" />
+          <div className="absolute -bottom-32 -right-32 w-96 h-96 rounded-full bg-primary/10 blur-3xl" />
+        </div>
+
+        <div className="relative w-full max-w-md animate-scale-in">
+          <div className="flex flex-col items-center mb-6">
+            <img src={logoAsset.url} alt="Posion" className="h-12 w-auto mb-4 drop-shadow-[0_0_20px_hsl(var(--primary)/0.5)]" />
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.25em] text-primary/80">
+              <Sparkles className="w-3 h-3" /> Posion OS · v2.0
+            </span>
           </div>
-          <h1 className="text-2xl font-bold text-foreground text-center mb-2">Área Administrativa</h1>
-          <p className="text-muted-foreground text-center mb-6">Faça login para acessar o painel</p>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="form-label">E-mail</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} className="pl-10" required />
+
+          <div className="relative rounded-2xl border border-primary/20 bg-card/60 backdrop-blur-xl p-8 md:p-10 shadow-[0_30px_80px_-20px_hsl(var(--primary)/0.35)]">
+            <div className="absolute inset-0 rounded-2xl pointer-events-none ring-1 ring-inset ring-primary/10" />
+            <div className="relative">
+              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/30 to-primary/5 border border-primary/30 flex items-center justify-center mx-auto mb-5 shadow-[0_0_30px_hsl(var(--primary)/0.4)]">
+                <Lock className="w-6 h-6 text-primary" />
               </div>
+              <h1 className="gold-gradient-text text-center text-3xl font-bold tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+                Área Administrativa
+              </h1>
+              <p className="text-muted-foreground text-center text-sm mb-7">
+                Acesso restrito · Posion Growth System
+              </p>
+
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-primary/80 mb-1.5 block">E-mail</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60" />
+                    <Input type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} className="pl-10 bg-background/40 border-primary/20 focus-visible:ring-primary/40 focus-visible:border-primary/40 h-11" required />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-primary/80 mb-1.5 block">Senha</label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60" />
+                    <Input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} className="pl-10 bg-background/40 border-primary/20 focus-visible:ring-primary/40 focus-visible:border-primary/40 h-11" required />
+                  </div>
+                </div>
+                {error && (
+                  <div className="flex items-center gap-2 text-destructive text-sm bg-destructive/10 border border-destructive/30 p-3 rounded-lg">
+                    <AlertCircle className="w-4 h-4" />
+                    {error}
+                  </div>
+                )}
+                <Button
+                  type="submit"
+                  disabled={isLoggingIn}
+                  className="w-full h-11 bg-gradient-to-r from-[hsl(var(--gold-deep))] via-[hsl(var(--gold))] to-[hsl(var(--gold-bright))] text-primary-foreground font-semibold tracking-wide hover:opacity-95 hover:shadow-[0_0_30px_hsl(var(--primary)/0.5)] transition-all"
+                >
+                  {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+                  {isLoggingIn ? "Autenticando..." : "Acessar painel"}
+                </Button>
+              </form>
+
+              <p className="mt-6 text-center text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground/60">
+                Sessão criptografada · TLS 1.3
+              </p>
             </div>
-            <div>
-              <label className="form-label">Senha</label>
-              <div className="relative">
-                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input type="password" placeholder="Sua senha" value={password} onChange={e => setPassword(e.target.value)} className="pl-10" required />
-              </div>
-            </div>
-            {error && (
-              <div className="flex items-center gap-2 text-destructive text-sm bg-destructive/10 p-3 rounded-lg">
-                <AlertCircle className="w-4 h-4" />
-                {error}
-              </div>
-            )}
-            <Button type="submit" className="w-full gradient-accent hover:opacity-90" disabled={isLoggingIn}>
-              {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              {isLoggingIn ? "Entrando..." : "Acessar"}
-            </Button>
-          </form>
+          </div>
         </div>
       </div>
     );
@@ -113,14 +148,15 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="bg-card rounded-2xl shadow-2xl p-8 max-w-md w-full text-center border border-border/50">
-          <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-6">
+      <div className="min-h-screen bg-background flex items-center justify-center px-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(var(--destructive)/0.08),transparent_60%)] pointer-events-none" />
+        <div className="relative bg-card/60 backdrop-blur-xl rounded-2xl shadow-2xl p-8 max-w-md w-full text-center border border-destructive/30">
+          <div className="w-16 h-16 bg-destructive/10 border border-destructive/30 rounded-full flex items-center justify-center mx-auto mb-6">
             <AlertCircle className="w-8 h-8 text-destructive" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground mb-2">Acesso Restrito</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Acesso Restrito</h1>
           <p className="text-muted-foreground mb-6">Você não tem permissão para acessar esta área.</p>
-          <Button onClick={handleLogout} variant="outline" className="gap-2">
+          <Button onClick={handleLogout} variant="outline" className="gap-2 border-primary/30 hover:bg-primary/10">
             <LogOut className="w-4 h-4" /> Sair
           </Button>
         </div>
