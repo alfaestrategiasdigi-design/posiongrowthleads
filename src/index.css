@@ -600,10 +600,10 @@ html { scroll-behavior: smooth; }
   border-radius: inherit;
   padding: 1px;
   background: linear-gradient(135deg,
-    hsl(45 75% 75% / 0.55),
-    hsl(42 55% 55% / 0.15) 35%,
-    hsl(220 60% 30% / 0.2) 65%,
-    hsl(45 75% 75% / 0.45));
+    hsl(245 85% 70% / 0.55),
+    hsl(255 78% 60% / 0.15) 35%,
+    hsl(265 70% 50% / 0.2) 65%,
+    hsl(245 85% 70% / 0.45));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
           mask-composite: exclude;
@@ -617,7 +617,7 @@ html { scroll-behavior: smooth; }
   position: absolute;
   inset: -30px;
   border-radius: inherit;
-  background: radial-gradient(50% 50% at 50% 50%, hsl(42 65% 55% / 0.20), transparent 70%);
+  background: radial-gradient(50% 50% at 50% 50%, hsl(245 78% 60% / 0.25), transparent 70%);
   filter: blur(40px);
   z-index: -1;
   opacity: 0.7;
@@ -629,10 +629,10 @@ html { scroll-behavior: smooth; }
 
 .premium-form-shell input:focus-visible,
 .premium-form-shell textarea:focus-visible {
-  border-color: hsl(42 70% 60% / 0.65) !important;
+  border-color: hsl(245 85% 70% / 0.65) !important;
   box-shadow:
-    0 0 0 3px hsl(42 70% 60% / 0.18),
-    0 0 24px -4px hsl(42 70% 60% / 0.35);
+    0 0 0 3px hsl(245 85% 70% / 0.18),
+    0 0 24px -4px hsl(245 85% 70% / 0.35);
   outline: none;
 }
 
