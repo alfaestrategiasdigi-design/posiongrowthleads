@@ -71,6 +71,22 @@ const Dashboard = () => {
     setLoading(false);
   };
 
+  const loadContracts = async () => {
+    const { data } = await supabase.from("saas_contracts").select("*").order("created_at", { ascending: false });
+    setContracts((data ?? []) as SaasContract[]);
+  };
+
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
+      const { data: admin } = await supabase.rpc("has_role", { _user_id: u.user.id, _role: "admin" as any });
+      const ok = !!admin;
+      setIsAdmin(ok);
+      if (ok) loadContracts();
+    })();
+  }, []);
+
   useEffect(() => {
     load();
     const ch = supabase.channel("dashboard-leads")
