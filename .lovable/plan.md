@@ -1,64 +1,80 @@
-## Painel de Vendas (Admin Master) dentro do Dashboard
+## Objetivo
 
-Duas seções colapsáveis novas no `/admin` (Painel Comercial), visíveis apenas no modo "Todos locatários" e somente para `role=admin`. Sem rotas novas.
+Padronizar todo o painel admin master (Alfa) na paleta Midnight Indigo, eliminar resíduos amarelos/dourados, refinar o hero da landing e transformar a página de Qualificação em um construtor modular de formulário.
 
-### Seção A — "Vendas (operação comercial dos clientes)"
-Consolida `public.sales` de todos os tenants no período selecionado. Mostra a operação comercial interna que cada cliente está fazendo (procedimentos vendidos a pacientes).
+---
 
-KPIs no topo da seção:
-- Receita total (R$), Vendas (n°), Ticket médio, % Pagas / Parciais / Pendentes, Internacionais.
+## 1) Padronização do branding (remover amarelo)
 
-Visualizações:
-- **Ranking de clientes** (mesma estrutura do card "Por cliente" que já existe): receita, n° vendas, ticket médio, barra de %.
-- **Top 5 vendedores** (`seller_name`): receita + n° vendas.
-- **Mix por categoria** (donut `procedure_category`).
-- **Tendência diária** de receita (área).
-- **Pagamentos**: barra empilhada Pago / Parcial / Pendente por cliente.
+Pontos identificados com amber/gold legado:
 
-Fonte: `sales` já carregada no Dashboard — só agregamos.
+- `src/pages/admin/Dashboard.tsx`
+  - Linha 34 `COLORS` — paleta dos charts ainda começa em `hsl(45 75% 70%)` (amarelo). Trocar para paleta indigo/violet/sky/emerald.
+  - Linha 268 — badge "X de Y ativos" usa `bg-amber-500/10 border-amber-500/40 text-amber-300`. Trocar por tokens neutros/indigo (`bg-primary/10 border-primary/30 text-primary`) quando incompleto; manter emerald quando 100%.
+  - `KpiTile accent="gold"` (Facebook Ads, CPL) — substituir por `accent="indigo"` / `violet`.
+  - Linha 279 — `gradient-accent text-[hsl(232_65%_5%)]` no toggle de período: ajustar o texto ativo para `text-primary-foreground`.
+- `src/components/admin/dashboard/SalesPanel.tsx`
+  - Linha 34 `COLORS` — mesma troca de paleta.
+  - Qualquer `accent="gold"` / classes amber.
+- `src/components/forms/QualificationForm.tsx`
+  - Várias cores hardcoded `hsl(38 60% 55%...)` (dourado). Refazer usando tokens semânticos (`primary`, `accent`, `border`, `secondary`).
+- Varredura final via `rg "amber|gold|hsl\(38|hsl\(45 7"` em `src/pages/admin` e `src/components/admin` para pegar resíduos.
 
-### Seção B — "SaaS & Contratos"
-Faturamento da plataforma (o que o admin master cobra de cada cliente). Hoje não há tabela; crio `saas_contracts` mínima.
+Resultado: dashboard, sales panel e formulário 100% em indigo/violeta, sem amarelo.
 
-Nova tabela `public.saas_contracts`:
+## 2) Refinar visual do Hero
+
+`src/components/ui/HeroSection.tsx`:
+
+- Reforçar grid técnico de fundo (sobrepor `tech-bg` ao aurora indigo) e adicionar um sutil "noise" overlay para textura premium.
+- Substituir os 3 KPIs inline por cápsulas com micro-divisores verticais luminosos e label uppercase mais arejado.
+- Headline: encurtar a quebra, adicionar segundo eyebrow "B2B · Clínicas Premium" e um sublinhado em gradiente indigo→violeta sob a palavra-chave.
+- Card direito (`premium-form-shell`): adicionar borda gradiente animada + glow indigo pulsante leve.
+- Limpar parallax: reduzir amplitude de 8/5/6 para 4/2/3 (mais discreto).
+- Garantir que o `QualificationForm` herdou os tokens (após item 1) — assim o card vira indigo.
+
+## 3) Qualificação modular (construtor de formulário)
+
+Hoje `QualificacaoPage.tsx` só edita "respostas que desqualificam" para 4 campos fixos hardcoded; `QualificationForm.tsx` tem `steps[]` hardcoded. Vamos torná-lo um construtor real.
+
+### Nova tabela `qualification_fields`
+
 ```
-id uuid PK
-tenant_id uuid FK tenants
-plan text                         -- 'starter' | 'growth' | 'scale' | 'enterprise' | custom
-status text                       -- 'active' | 'trial' | 'past_due' | 'canceled'
-mrr numeric(12,2) not null        -- valor mensal
-billing_cycle text                -- 'monthly' | 'yearly'
-started_at date not null
-renews_at date
-canceled_at date
-notes text
-created_at, updated_at timestamptz
+id, position (int), key (text, slug), label (text),
+question (text), type ('text'|'tel'|'choice'|'email'),
+placeholder (text), options (jsonb array of strings),
+required (bool), active (bool),
+disqualify_values (jsonb array),
+created_at, updated_at
 ```
-+ GRANTs + RLS: SELECT/INSERT/UPDATE/DELETE só para `has_role(auth.uid(),'admin')`. service_role full.
 
-KPIs da seção:
-- **MRR total** (somatório `mrr` onde status='active').
-- **ARR** (MRR × 12).
-- **Clientes ativos / em trial / inadimplentes / cancelados**.
-- **Ticket médio (ARPA)** = MRR / clientes ativos.
-- **Churn no período** (cancelados no período / ativos início).
+Seed inicial: migrar os 10 steps atuais do `QualificationForm` para esta tabela (admin pode editar/desativar/reordenar depois). RLS: leitura pública (form anônimo); escrita só admin.
 
-Visualizações:
-- **Tabela de contratos**: cliente, plano, status (badge), MRR, ciclo, renovação, ações (editar/cancelar) via dialog inline.
-- **Botão "Novo contrato"** abre dialog (tenant select + plano + MRR + ciclo + data início).
-- **MRR por plano** (barra horizontal).
-- **Receita SaaS últimos 12 meses** (área, derivada de `mrr × meses ativos`).
+### Nova UI em `src/pages/admin/QualificacaoPage.tsx`
 
-### Layout
-Logo após o card "Por cliente" já existente, adiciono duas abas (`Tabs` shadcn): "Operação dos clientes" | "SaaS & contratos". Persistência via URL hash (`#vendas-operacao` / `#vendas-saas`).
+- Lista em cards com drag-to-reorder (dnd-kit já no projeto via shadcn? se não, usar setas ↑↓ simples para evitar dependência nova).
+- Cada card permite editar inline: label, pergunta, tipo, placeholder, obrigatório, ativo, opções (chips editáveis), respostas que desqualificam (chips toggle).
+- Botão "Novo campo" abre dialog para escolher tipo e key.
+- Botão "Pré-visualizar formulário" abre dialog com o `QualificationForm` renderizado a partir do schema dinâmico.
+- Indicador de quais campos do banco (`leads`) cada `key` mapeia.
 
-### Arquivos
-- **Migration**: cria `saas_contracts` + RLS + GRANTs.
-- **Novo**: `src/components/admin/dashboard/SalesPanel.tsx` — encapsula as 2 abas para não inflar `Dashboard.tsx`.
-- **Novo**: `src/components/admin/dashboard/SaasContractDialog.tsx` — criar/editar contrato.
-- **Edit**: `src/pages/admin/Dashboard.tsx` — carregar `saas_contracts` (só se admin) e renderizar `<SalesPanel>` após o breakdown por cliente.
+### `QualificationForm.tsx` dirigido por dados
 
-### Fora do escopo
-- Cobrança automática / integração com gateway de pagamento (Stripe/Paddle). Os contratos são registro manual de MRR por enquanto.
-- Faturas/invoices individuais (pode vir depois se quiser).
-- Página dedicada `/admin/vendas` (mantemos tudo no Dashboard como pedido).
+- Buscar `qualification_fields` ativos ordenados por `position`.
+- Construir `steps[]` e o objeto Zod dinamicamente a partir dessa lista.
+- Manter mapping `key → coluna em leads` (objeto explícito no código para não inserir colunas inexistentes; chaves desconhecidas vão para um `extras jsonb` em `leads` — se ainda não existir, adicionar nesta migration).
+- Fallback: se a tabela vier vazia, usar o array atual hardcoded (resiliência).
+
+## Detalhes técnicos
+
+- Migrations Supabase: criar `qualification_fields` (com GRANTs anon SELECT, authenticated all, service_role all), policies (`SELECT` público, `INSERT/UPDATE/DELETE` só admin via `has_role`), trigger `updated_at`, e seed dos 10 campos atuais. Se necessário, `ALTER TABLE leads ADD COLUMN extras jsonb DEFAULT '{}'::jsonb` para receber campos extras.
+- A tabela legada `qualification_criteria` permanece (sem uso) para não quebrar nada — pode ser removida em migration futura após confirmação.
+- Tokens: nenhuma cor hex/HSL hardcoded nos componentes — só `text-primary`, `bg-accent/10`, etc.
+
+## Entregáveis
+
+1. Migration `qualification_fields` + seed + (opcional) `leads.extras`.
+2. `QualificacaoPage.tsx` reescrito como construtor modular com preview.
+3. `QualificationForm.tsx` data-driven.
+4. `Dashboard.tsx` + `SalesPanel.tsx` sem amarelo (paleta de charts e badges em indigo/violet/emerald).
+5. `HeroSection.tsx` refinado (grid + KPIs em cápsulas + borda gradiente no card + parallax mais sutil).

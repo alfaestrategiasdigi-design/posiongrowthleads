@@ -31,7 +31,7 @@ type Spend = { id: string; channel: string; campaign_name: string | null; campai
 type Sale = { id: string; amount: number; amount_paid: number; amount_pending: number; payment_status: string; sale_date: string; clinic_lead_id: string | null; tenant_id: string; facebook_campaign_id: string | null; seller_name: string | null; procedure_category: string | null; international: boolean };
 type Tenant = { id: string; name: string };
 
-const COLORS = ["hsl(45 75% 70%)", "hsl(199 89% 60%)", "hsl(280 65% 65%)", "hsl(142 71% 55%)", "hsl(0 70% 65%)", "hsl(215 25% 55%)"];
+const COLORS = ["hsl(245 78% 62%)", "hsl(265 85% 68%)", "hsl(199 89% 60%)", "hsl(142 71% 55%)", "hsl(280 65% 65%)", "hsl(215 25% 55%)"];
 
 // Funil 7 etapas (exclui ganho/perdido, mostrados separadamente)
 const FUNNEL_7 = PIPELINE_STAGES.filter(s => s.id !== "ganho" && s.id !== "perdido");
@@ -265,11 +265,11 @@ const Dashboard = () => {
               title={inactiveTenants.length ? `Sem dados: ${inactiveTenants.map(t => t.name).join(", ")}` : "Todos os clientes com dados no período"}
               className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-full border transition hover:scale-[1.02] ${
                 activeTenants.length < tenants.length
-                  ? "bg-amber-500/10 border-amber-500/40 text-amber-300"
+                  ? "bg-primary/10 border-primary/40 text-primary"
                   : "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
               }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${activeTenants.length < tenants.length ? "bg-amber-400" : "bg-emerald-400"} animate-pulse`} />
+              <span className={`w-1.5 h-1.5 rounded-full ${activeTenants.length < tenants.length ? "bg-primary" : "bg-emerald-400"} animate-pulse`} />
               {activeTenants.length} de {tenants.length} ativos
             </button>
           )}
@@ -287,7 +287,7 @@ const Dashboard = () => {
       {/* KPIs Linha 1 — Volume */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <KpiTile icon={Users} label="Leads" value={stats.total} accent="sky" sub="no período" />
-        <KpiTile icon={Megaphone} label="Facebook Ads" value={stats.fbLeads} accent="gold" sub={`${stats.total ? Math.round(stats.fbLeads/stats.total*100) : 0}% do total`} />
+        <KpiTile icon={Megaphone} label="Facebook Ads" value={stats.fbLeads} accent="violet" sub={`${stats.total ? Math.round(stats.fbLeads/stats.total*100) : 0}% do total`} />
         <KpiTile icon={CheckCircle2} label="Qualificados" value={stats.qual} accent="emerald" sub={`${stats.qualRate.toFixed(1)}% taxa`} />
         <KpiTile icon={Trophy} label="Fechados" value={stats.fech} accent="emerald" sub={`${stats.convRate.toFixed(1)}% conversão`} />
         <KpiTile icon={Wallet} label="Investido" value={stats.invested} prefix="R$ " accent="rose" sub="Meta Ads" />
@@ -296,7 +296,7 @@ const Dashboard = () => {
 
       {/* KPIs Linha 2 — Performance */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiTile icon={Target} label="CPL" value={stats.cpl} prefix="R$ " accent="gold" decimals={2} sub="custo por lead" />
+        <KpiTile icon={Target} label="CPL" value={stats.cpl} prefix="R$ " accent="indigo" decimals={2} sub="custo por lead" />
         <KpiTile icon={Target} label="CAC" value={stats.cac} prefix="R$ " accent="rose" decimals={2} sub="custo de aquisição" />
         <KpiTile icon={TrendingUp} label="ROAS" value={stats.roas} suffix="x" accent="emerald" decimals={2} sub="retorno sobre investimento" />
         <KpiTile icon={Clock} label="Ciclo médio" value={stats.cycleDays} suffix=" d" accent="sky" decimals={1} sub="dias até fechar" />
@@ -426,11 +426,11 @@ const Dashboard = () => {
                 <CartesianGrid stroke="hsl(224 30% 18%)" strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="date" stroke="hsl(215 20% 65%)" fontSize={11} tickLine={false} />
                 <YAxis yAxisId="left" stroke="hsl(199 89% 60%)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-                <YAxis yAxisId="right" orientation="right" stroke="hsl(45 75% 70%)" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis yAxisId="right" orientation="right" stroke="hsl(265 85% 68%)" fontSize={11} tickLine={false} axisLine={false} />
                 <Tooltip contentStyle={{ background: "hsl(226 53% 9%)", border: "1px solid hsl(224 30% 22%)", borderRadius: 12, color: "#fff", fontSize: 12 }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Area yAxisId="left" type="monotone" dataKey="leads" name="Leads" stroke="hsl(199 89% 60%)" strokeWidth={2.5} fill="url(#leadsFill)" />
-                <Line yAxisId="right" type="monotone" dataKey="spent" name="Investido (R$)" stroke="hsl(45 75% 70%)" strokeWidth={2} dot={false} />
+                <Line yAxisId="right" type="monotone" dataKey="spent" name="Investido (R$)" stroke="hsl(265 85% 68%)" strokeWidth={2} dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -542,7 +542,7 @@ const Heatmap = ({ data, max }: { data: number[][]; max: number }) => (
             const intensity = v / max;
             const bg = v === 0
               ? "hsl(224 30% 14%)"
-              : `hsl(45 75% ${70 - intensity * 30}% / ${0.25 + intensity * 0.75})`;
+              : `hsl(245 78% ${65 - intensity * 25}% / ${0.25 + intensity * 0.75})`;
             return (
               <div key={h} title={`${DOW[d]} ${h}h: ${v} lead(s)`}
                 className="flex-1 h-5 rounded-sm transition hover:ring-1 hover:ring-accent"
@@ -556,16 +556,17 @@ const Heatmap = ({ data, max }: { data: number[][]; max: number }) => (
 );
 
 const ACCENTS: Record<string, { ring: string; text: string; bg: string; glow: string }> = {
-  gold:   { ring: "ring-accent/25",        text: "text-accent",         bg: "bg-accent/10",         glow: "hover:shadow-[0_20px_45px_-20px_hsl(42_65%_58%/0.6)]" },
-  emerald:{ ring: "ring-emerald-500/25",   text: "text-emerald-400",    bg: "bg-emerald-500/10",    glow: "hover:shadow-[0_20px_45px_-20px_hsl(142_71%_45%/0.5)]" },
-  sky:    { ring: "ring-sky-500/25",       text: "text-sky-400",        bg: "bg-sky-500/10",        glow: "hover:shadow-[0_20px_45px_-20px_hsl(199_89%_48%/0.5)]" },
-  rose:   { ring: "ring-rose-500/25",      text: "text-rose-400",       bg: "bg-rose-500/10",       glow: "hover:shadow-[0_20px_45px_-20px_hsl(347_77%_55%/0.5)]" },
+  indigo: { ring: "ring-primary/25",        text: "text-primary",        bg: "bg-primary/10",        glow: "hover:shadow-[0_20px_45px_-20px_hsl(245_78%_60%/0.55)]" },
+  violet: { ring: "ring-violet-500/25",     text: "text-violet-300",     bg: "bg-violet-500/10",     glow: "hover:shadow-[0_20px_45px_-20px_hsl(265_85%_65%/0.55)]" },
+  emerald:{ ring: "ring-emerald-500/25",    text: "text-emerald-400",    bg: "bg-emerald-500/10",    glow: "hover:shadow-[0_20px_45px_-20px_hsl(142_71%_45%/0.5)]" },
+  sky:    { ring: "ring-sky-500/25",        text: "text-sky-400",        bg: "bg-sky-500/10",        glow: "hover:shadow-[0_20px_45px_-20px_hsl(199_89%_48%/0.5)]" },
+  rose:   { ring: "ring-rose-500/25",       text: "text-rose-400",       bg: "bg-rose-500/10",       glow: "hover:shadow-[0_20px_45px_-20px_hsl(347_77%_55%/0.5)]" },
 };
 
-const KpiTile = ({ icon: Icon, label, value, prefix = "", suffix = "", decimals = 0, sub, accent = "gold" }: any) => {
+const KpiTile = ({ icon: Icon, label, value, prefix = "", suffix = "", decimals = 0, sub, accent = "indigo" }: any) => {
   const { ref, inView } = useInView<HTMLDivElement>();
   const animated = useCountUp(value, inView, 1200);
-  const a = ACCENTS[accent] ?? ACCENTS.gold;
+  const a = ACCENTS[accent] ?? ACCENTS.indigo;
   const shown = decimals > 0 ? animated.toFixed(decimals) : Math.round(animated).toLocaleString("pt-BR");
 
   return (

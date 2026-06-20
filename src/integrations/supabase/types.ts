@@ -793,6 +793,7 @@ export type Database = {
           email: string | null
           especialidade: string | null
           expectativa_investimento: string | null
+          extras: Json
           facebook_ad_name: string | null
           facebook_adset_name: string | null
           facebook_campaign: string | null
@@ -835,6 +836,7 @@ export type Database = {
           email?: string | null
           especialidade?: string | null
           expectativa_investimento?: string | null
+          extras?: Json
           facebook_ad_name?: string | null
           facebook_adset_name?: string | null
           facebook_campaign?: string | null
@@ -877,6 +879,7 @@ export type Database = {
           email?: string | null
           especialidade?: string | null
           expectativa_investimento?: string | null
+          extras?: Json
           facebook_ad_name?: string | null
           facebook_adset_name?: string | null
           facebook_campaign?: string | null
@@ -1362,6 +1365,57 @@ export type Database = {
           field?: string
           id?: string
           label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      qualification_fields: {
+        Row: {
+          active: boolean
+          created_at: string
+          db_column: string | null
+          disqualify_values: Json
+          id: string
+          key: string
+          label: string
+          options: Json
+          placeholder: string | null
+          position: number
+          question: string
+          required: boolean
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          db_column?: string | null
+          disqualify_values?: Json
+          id?: string
+          key: string
+          label: string
+          options?: Json
+          placeholder?: string | null
+          position?: number
+          question: string
+          required?: boolean
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          db_column?: string | null
+          disqualify_values?: Json
+          id?: string
+          key?: string
+          label?: string
+          options?: Json
+          placeholder?: string | null
+          position?: number
+          question?: string
+          required?: boolean
+          type?: string
           updated_at?: string
         }
         Relationships: []
