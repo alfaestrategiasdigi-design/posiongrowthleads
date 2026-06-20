@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Trash2, TrendingUp, DollarSign, Target, Users, MousePointerClick, Activity, Wallet, Percent, RefreshCw, ShieldCheck, ShieldAlert, Loader2, Crown, Star, Play, Pause, ExternalLink } from "lucide-react";
+import { Plus, Trash2, TrendingUp, DollarSign, Target, Users, MousePointerClick, Activity, Wallet, Percent, RefreshCw, ShieldCheck, ShieldAlert, Loader2, Crown, Star, Play, Pause, ExternalLink, ChevronDown, ChevronRight, Archive, Megaphone } from "lucide-react";
 import { Link } from "react-router-dom";
 import { requestFacebookReconnect, detectNeedReconnect } from "@/components/facebook/ReconnectFacebookDialog";
 import {
