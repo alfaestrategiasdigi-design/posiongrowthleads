@@ -635,6 +635,7 @@ export type Database = {
           app_secret: string | null
           connected_page_name: string | null
           created_at: string
+          cron_token: string | null
           default_tenant_id: string | null
           id: string
           last_campaigns_sync_at: string | null
@@ -655,6 +656,7 @@ export type Database = {
           app_secret?: string | null
           connected_page_name?: string | null
           created_at?: string
+          cron_token?: string | null
           default_tenant_id?: string | null
           id?: string
           last_campaigns_sync_at?: string | null
@@ -675,6 +677,7 @@ export type Database = {
           app_secret?: string | null
           connected_page_name?: string | null
           created_at?: string
+          cron_token?: string | null
           default_tenant_id?: string | null
           id?: string
           last_campaigns_sync_at?: string | null
