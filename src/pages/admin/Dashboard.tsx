@@ -26,7 +26,7 @@ type Lead = {
   facebook_campaign: string | null;
 };
 type Spend = { id: string; channel: string; campaign_name: string | null; campaign_id: string | null; amount_spent: number; leads_generated: number; impressions: number; clicks: number; period_start: string; period_end: string; tenant_id: string | null };
-type Sale = { id: string; amount: number; sale_date: string; clinic_lead_id: string | null; tenant_id: string | null; facebook_campaign_id: string | null };
+type Sale = { id: string; amount: number; amount_paid: number; amount_pending: number; payment_status: string; sale_date: string; clinic_lead_id: string | null; tenant_id: string; facebook_campaign_id: string | null; seller_name: string | null; procedure_category: string | null; international: boolean };
 type Tenant = { id: string; name: string };
 
 const COLORS = ["hsl(45 75% 70%)", "hsl(199 89% 60%)", "hsl(280 65% 65%)", "hsl(142 71% 55%)", "hsl(0 70% 65%)", "hsl(215 25% 55%)"];
