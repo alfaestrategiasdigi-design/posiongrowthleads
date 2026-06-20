@@ -45,6 +45,8 @@ const Dashboard = () => {
   const [period, setPeriod] = useState<"7" | "30" | "90" | "all">("30");
   const [tenantFilter, setTenantFilter] = useState<string>("all");
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [contracts, setContracts] = useState<SaasContract[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const periodDays = period === "all" ? 9999 : Number(period);
   const cutoff = new Date(Date.now() - periodDays * 86400000);
