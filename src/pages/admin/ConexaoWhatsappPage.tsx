@@ -171,6 +171,28 @@ export default function ConexaoWhatsappPage() {
     toast.success(`${label} copiado`);
   }
 
+  async function sendTest() {
+    if (!conn) { toast.error("Salve as credenciais primeiro"); return; }
+    const to = testTo.replace(/\D/g, "");
+    if (to.length < 10) { toast.error("Informe um número E.164 válido (ex: 5511999998888)"); return; }
+    setSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("whatsapp-cloud-send", {
+        body: { connection_id: conn.id, to, type: "text", text: { body: testMsg } },
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error ?? "Falha ao enviar");
+      toast.success("Mensagem enviada — confira no WhatsApp do destinatário");
+      setTestOpen(false);
+      loadTraffic();
+    } catch (e: any) {
+      toast.error(e.message ?? "Erro ao enviar");
+    } finally {
+      setSending(false);
+    }
+  }
+
+
   const StatusBadge = () => {
     if (!conn) return <Badge variant="outline" className="gap-1"><AlertCircle className="w-3 h-3" />Não configurado</Badge>;
     if (conn.status === "connected") return <Badge className="gap-1 bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"><CheckCircle2 className="w-3 h-3" />Conectado</Badge>;
