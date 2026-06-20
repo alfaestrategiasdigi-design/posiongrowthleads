@@ -27,9 +27,9 @@ const HeroSection = () => {
       const y = (e.clientY - r.top) / r.height - 0.5;
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        if (bgRef.current) bgRef.current.style.transform = `translate3d(${x * 8}px, ${y * 8}px, 0)`;
-        if (titleRef.current) titleRef.current.style.transform = `translate3d(${x * 5}px, ${y * 5}px, 0)`;
-        if (formRef.current) formRef.current.style.transform = `translate3d(${x * -6}px, ${y * -6}px, 0)`;
+        if (bgRef.current) bgRef.current.style.transform = `translate3d(${x * 4}px, ${y * 4}px, 0)`;
+        if (titleRef.current) titleRef.current.style.transform = `translate3d(${x * 2}px, ${y * 2}px, 0)`;
+        if (formRef.current) formRef.current.style.transform = `translate3d(${x * -3}px, ${y * -3}px, 0)`;
       });
     };
     el.addEventListener("mousemove", onMove);
