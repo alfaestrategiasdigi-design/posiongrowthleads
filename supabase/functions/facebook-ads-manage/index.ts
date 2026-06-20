@@ -55,6 +55,27 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (it: T, i: number) 
   return out;
 }
 
+// ===== Insights cache (short TTL, in-memory per worker) =====
+// Avoids repeated Graph API calls when the UI refreshes within the TTL window.
+// On rate-limit, serves stale value if available (stale-while-error).
+const INSIGHTS_TTL_MS = Number(Deno.env.get("INSIGHTS_TTL_MS") ?? 180000); // 3 min
+const insightsCache = new Map<string, { value: any; expiresAt: number; storedAt: number }>();
+
+function cacheGet(key: string): { value: any; fresh: boolean } | null {
+  const hit = insightsCache.get(key);
+  if (!hit) return null;
+  return { value: hit.value, fresh: Date.now() < hit.expiresAt };
+}
+function cacheSet(key: string, value: any) {
+  if (insightsCache.size > 500) {
+    const keys = [...insightsCache.entries()]
+      .sort((a, b) => a[1].storedAt - b[1].storedAt)
+      .slice(0, 50).map((e) => e[0]);
+    for (const k of keys) insightsCache.delete(k);
+  }
+  insightsCache.set(key, { value, storedAt: Date.now(), expiresAt: Date.now() + INSIGHTS_TTL_MS });
+}
+
 async function fbGet(path: string, token: string, params: Record<string, string> = {}) {
   const url = new URL(`${GRAPH}/${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
