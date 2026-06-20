@@ -287,7 +287,7 @@ const Dashboard = () => {
       {/* KPIs Linha 1 — Volume */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <KpiTile icon={Users} label="Leads" value={stats.total} accent="sky" sub="no período" />
-        <KpiTile icon={Megaphone} label="Facebook Ads" value={stats.fbLeads} accent="gold" sub={`${stats.total ? Math.round(stats.fbLeads/stats.total*100) : 0}% do total`} />
+        <KpiTile icon={Megaphone} label="Facebook Ads" value={stats.fbLeads} accent="violet" sub={`${stats.total ? Math.round(stats.fbLeads/stats.total*100) : 0}% do total`} />
         <KpiTile icon={CheckCircle2} label="Qualificados" value={stats.qual} accent="emerald" sub={`${stats.qualRate.toFixed(1)}% taxa`} />
         <KpiTile icon={Trophy} label="Fechados" value={stats.fech} accent="emerald" sub={`${stats.convRate.toFixed(1)}% conversão`} />
         <KpiTile icon={Wallet} label="Investido" value={stats.invested} prefix="R$ " accent="rose" sub="Meta Ads" />
