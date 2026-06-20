@@ -23,9 +23,8 @@ const navGroups = [
   {
     label: "Crescimento",
     items: [
-      { title: "Campanhas", url: "/admin/campanhas", icon: TrendingUp },
-      { title: "Facebook Ads", url: "/admin/facebook", icon: Facebook },
-      { title: "Gerenciar Anúncios", url: "/admin/meta-ads", icon: Megaphone },
+      { title: "Campanhas & Anúncios", url: "/admin/campanhas", icon: Megaphone },
+      { title: "Conexão Facebook", url: "/admin/facebook", icon: Facebook },
     ],
   },
   {

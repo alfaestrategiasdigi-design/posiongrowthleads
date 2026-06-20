@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import Obrigado from "./pages/Obrigado";
 import NotFound from "./pages/NotFound";
@@ -17,7 +17,7 @@ import CreateUserPage from "./pages/admin/CreateUserPage";
 import QualificacaoPage from "./pages/admin/QualificacaoPage";
 import FacebookConfigPage from "./pages/admin/FacebookConfigPage";
 import CampanhasPage from "./pages/admin/CampanhasPage";
-import MetaAdsManagerPage from "./pages/admin/MetaAdsManagerPage";
+
 import AppointmentsPage from "./pages/admin/AppointmentsPage";
 import TenantsPage from "./pages/admin/TenantsPage";
 import ContractsPage from "./pages/admin/ContractsPage";
@@ -72,7 +72,7 @@ const App = () => (
           <Route path="/admin/qualificacao" element={<AdminLayout><QualificacaoPage /></AdminLayout>} />
           <Route path="/admin/facebook" element={<AdminLayout><FacebookConfigPage /></AdminLayout>} />
           <Route path="/admin/campanhas" element={<AdminLayout><CampanhasPage /></AdminLayout>} />
-          <Route path="/admin/meta-ads" element={<AdminLayout><MetaAdsManagerPage /></AdminLayout>} />
+          <Route path="/admin/meta-ads" element={<Navigate to="/admin/campanhas" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Trash2, TrendingUp, DollarSign, Target, Users, MousePointerClick, Activity, Wallet, Percent, RefreshCw, ShieldCheck, ShieldAlert, Loader2, Crown, Star, Play, Pause, ExternalLink } from "lucide-react";
+import { Plus, Trash2, TrendingUp, DollarSign, Target, Users, MousePointerClick, Activity, Wallet, Percent, RefreshCw, ShieldCheck, ShieldAlert, Loader2, Crown, Star, Play, Pause, ExternalLink, ChevronDown, ChevronRight, Archive, Megaphone } from "lucide-react";
 import { Link } from "react-router-dom";
 import { requestFacebookReconnect, detectNeedReconnect } from "@/components/facebook/ReconnectFacebookDialog";
 import {
@@ -118,6 +118,21 @@ export default function CampanhasPage() {
   const [loadingCampaigns, setLoadingCampaigns] = useState(false);
   const [campaignsAccountId, setCampaignsAccountId] = useState<string | null>(null);
   const [togglingCampaign, setTogglingCampaign] = useState<string | null>(null);
+
+  // Drill-down / management state
+  type AdSet = { id: string; name: string; status: string; effective_status: string; daily_budget?: string; lifetime_budget?: string; optimization_goal?: string };
+  type Ad = { id: string; name: string; status: string; effective_status: string };
+  const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
+  const [adsetsByCampaign, setAdsetsByCampaign] = useState<Record<string, AdSet[]>>({});
+  const [loadingAdsetsFor, setLoadingAdsetsFor] = useState<string | null>(null);
+  const [expandedAdset, setExpandedAdset] = useState<string | null>(null);
+  const [adsByAdset, setAdsByAdset] = useState<Record<string, Ad[]>>({});
+  const [loadingAdsFor, setLoadingAdsFor] = useState<string | null>(null);
+  const [busyObject, setBusyObject] = useState<string | null>(null);
+  const [createCampOpen, setCreateCampOpen] = useState(false);
+  const [newCamp, setNewCamp] = useState({ name: "", objective: "OUTCOME_LEADS" });
+  const [budgetDialog, setBudgetDialog] = useState<{ open: boolean; id?: string; name?: string; current?: string }>({ open: false });
+  const [budgetValue, setBudgetValue] = useState("");
 
   const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
   const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
@@ -542,6 +557,129 @@ export default function CampanhasPage() {
     }
   };
 
+  // ===== Generic Marketing API call with reconnect handling =====
+  const callFb = async (action: string, params: Record<string, any> = {}, didReconnect = false): Promise<any> => {
+    const { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
+      body: { action, ...params },
+    });
+    const det = await detectNeedReconnect(data, error);
+    if (det.need && !didReconnect) {
+      const ok = await requestFacebookReconnect({ reason: det.reason, missing: det.payload?.missing });
+      if (ok) return callFb(action, params, true);
+      throw new Error("Reconexão cancelada");
+    }
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data;
+  };
+
+  const toggleExpandCampaign = async (c: MetaCampaign) => {
+    if (expandedCampaign === c.id) { setExpandedCampaign(null); return; }
+    setExpandedCampaign(c.id);
+    setExpandedAdset(null);
+    if (!adsetsByCampaign[c.id]) {
+      setLoadingAdsetsFor(c.id);
+      try {
+        const r = await callFb("list_adsets", { campaign_id: c.id });
+        setAdsetsByCampaign((s) => ({ ...s, [c.id]: r.data ?? [] }));
+      } catch (e: any) {
+        toast({ title: "Falha ao listar conjuntos", description: e.message, variant: "destructive" });
+      } finally { setLoadingAdsetsFor(null); }
+    }
+  };
+
+  const toggleExpandAdset = async (a: AdSet) => {
+    if (expandedAdset === a.id) { setExpandedAdset(null); return; }
+    setExpandedAdset(a.id);
+    if (!adsByAdset[a.id]) {
+      setLoadingAdsFor(a.id);
+      try {
+        const r = await callFb("list_ads", { adset_id: a.id });
+        setAdsByAdset((s) => ({ ...s, [a.id]: r.data ?? [] }));
+      } catch (e: any) {
+        toast({ title: "Falha ao listar anúncios", description: e.message, variant: "destructive" });
+      } finally { setLoadingAdsFor(null); }
+    }
+  };
+
+  const toggleObjectStatus = async (id: string, currentStatus: string, kind: "adset" | "ad", parentId: string) => {
+    const next = currentStatus === "ACTIVE" ? "PAUSED" : "ACTIVE";
+    setBusyObject(id);
+    try {
+      await callFb("set_status", { object_id: id, status: next });
+      toast({ title: next === "ACTIVE" ? "Ativado" : "Pausado" });
+      if (kind === "adset") {
+        const r = await callFb("list_adsets", { campaign_id: parentId });
+        setAdsetsByCampaign((s) => ({ ...s, [parentId]: r.data ?? [] }));
+      } else {
+        const r = await callFb("list_ads", { adset_id: parentId });
+        setAdsByAdset((s) => ({ ...s, [parentId]: r.data ?? [] }));
+      }
+    } catch (e: any) {
+      toast({ title: "Falha", description: e.message, variant: "destructive" });
+    } finally { setBusyObject(null); }
+  };
+
+  const archiveObject = async (id: string, kind: "campaign" | "adset" | "ad", parentId?: string) => {
+    if (!confirm("Arquivar este item? Ele sai da lista ativa.")) return;
+    setBusyObject(id);
+    try {
+      await callFb("set_status", { object_id: id, status: "ARCHIVED" });
+      toast({ title: "Arquivado" });
+      if (kind === "campaign") loadMetaCampaigns(campaignsAccountId);
+      else if (kind === "adset" && parentId) {
+        const r = await callFb("list_adsets", { campaign_id: parentId });
+        setAdsetsByCampaign((s) => ({ ...s, [parentId]: r.data ?? [] }));
+      } else if (kind === "ad" && parentId) {
+        const r = await callFb("list_ads", { adset_id: parentId });
+        setAdsByAdset((s) => ({ ...s, [parentId]: r.data ?? [] }));
+      }
+    } catch (e: any) {
+      toast({ title: "Falha", description: e.message, variant: "destructive" });
+    } finally { setBusyObject(null); }
+  };
+
+  const submitCreateCampaign = async () => {
+    if (!newCamp.name) { toast({ title: "Nome obrigatório", variant: "destructive" }); return; }
+    setBusyObject("create");
+    try {
+      const acc = adAccountFilter !== "all" ? adAccountFilter : adAccountId;
+      await callFb("create_campaign", { name: newCamp.name, objective: newCamp.objective, status: "PAUSED", ad_account_id: acc });
+      toast({ title: "Campanha criada (pausada)", description: "Configure conjunto e criativos antes de ativar." });
+      setCreateCampOpen(false);
+      setNewCamp({ name: "", objective: "OUTCOME_LEADS" });
+      loadMetaCampaigns(campaignsAccountId);
+    } catch (e: any) {
+      toast({ title: "Falha ao criar", description: e.message, variant: "destructive" });
+    } finally { setBusyObject(null); }
+  };
+
+  const openBudgetDialog = (id: string, name: string, current?: string) => {
+    setBudgetDialog({ open: true, id, name, current });
+    setBudgetValue(current ? (Number(current) / 100).toFixed(2) : "");
+  };
+
+  const submitBudget = async () => {
+    if (!budgetDialog.id) return;
+    const v = Number(budgetValue.replace(",", "."));
+    if (!isFinite(v) || v <= 0) { toast({ title: "Valor inválido", variant: "destructive" }); return; }
+    setBusyObject(budgetDialog.id);
+    try {
+      await callFb("update_budget", { object_id: budgetDialog.id, daily_budget: v });
+      toast({ title: "Orçamento atualizado", description: `R$ ${v.toFixed(2)} / dia` });
+      setBudgetDialog({ open: false });
+      setBudgetValue("");
+      loadMetaCampaigns(campaignsAccountId);
+      // Refresh any open adsets
+      if (expandedCampaign) {
+        const r = await callFb("list_adsets", { campaign_id: expandedCampaign });
+        setAdsetsByCampaign((s) => ({ ...s, [expandedCampaign]: r.data ?? [] }));
+      }
+    } catch (e: any) {
+      toast({ title: "Falha", description: e.message, variant: "destructive" });
+    } finally { setBusyObject(null); }
+  };
+
   // Auto-load Meta campaigns when filter / active account changes
   useEffect(() => {
     if (!permState.ok) return;
@@ -810,15 +948,25 @@ export default function CampanhasPage() {
               Lista direta da Marketing API com performance, ROAS, CPL e ações no período selecionado.
             </p>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => loadMetaCampaigns(campaignsAccountId ?? (adAccountFilter !== "all" ? adAccountFilter : adAccountId))}
-            disabled={loadingCampaigns || !permState.ok}
-          >
-            {loadingCampaigns ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
-            Atualizar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => loadMetaCampaigns(campaignsAccountId ?? (adAccountFilter !== "all" ? adAccountFilter : adAccountId))}
+              disabled={loadingCampaigns || !permState.ok}
+            >
+              {loadingCampaigns ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+              Atualizar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setCreateCampOpen(true)}
+              disabled={!permState.ok || !(adAccountFilter !== "all" ? adAccountFilter : adAccountId)}
+              className="gap-1.5"
+            >
+              <Plus className="w-4 h-4" /> Nova campanha
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {!permState.ok ? (
@@ -869,9 +1017,21 @@ export default function CampanhasPage() {
                       c.effective_status === "ACTIVE" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" :
                       c.effective_status === "PAUSED" ? "bg-amber-500/15 text-amber-400 border-amber-500/30" :
                       "bg-muted text-muted-foreground border-border";
+                    const isExpanded = expandedCampaign === c.id;
+                    const adsets = adsetsByCampaign[c.id] ?? [];
                     return (
+                      <>
                       <TableRow key={c.id} className={i % 2 === 0 ? "bg-muted/20" : ""}>
-                        <TableCell className="font-medium max-w-[260px] truncate" title={c.name}>{c.name}</TableCell>
+                        <TableCell className="font-medium max-w-[260px]">
+                          <button
+                            className="hover:underline text-left flex items-center gap-1 truncate"
+                            onClick={() => toggleExpandCampaign(c)}
+                            title={c.name}
+                          >
+                            {isExpanded ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
+                            <span className="truncate">{c.name}</span>
+                          </button>
+                        </TableCell>
                         <TableCell><Badge variant="outline" className={statusColor}>{c.effective_status}</Badge></TableCell>
                         <TableCell className="text-xs text-muted-foreground">{c.objective?.replace("OUTCOME_", "") ?? "—"}</TableCell>
                         <TableCell className="text-right text-xs">{budget}</TableCell>
@@ -902,6 +1062,15 @@ export default function CampanhasPage() {
                                 : c.effective_status === "ACTIVE" ? <Pause className="w-4 h-4" />
                                 : <Play className="w-4 h-4 text-emerald-400" />}
                             </Button>
+                            <Button size="icon" variant="ghost" title="Orçamento diário"
+                              onClick={() => openBudgetDialog(c.id, c.name, c.daily_budget)}>
+                              <DollarSign className="w-4 h-4" />
+                            </Button>
+                            <Button size="icon" variant="ghost" title="Arquivar"
+                              disabled={busyObject === c.id}
+                              onClick={() => archiveObject(c.id, "campaign")}>
+                              {busyObject === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
+                            </Button>
                             <Button asChild size="icon" variant="ghost" title="Abrir no Gerenciador">
                               <a href={`https://business.facebook.com/adsmanager/manage/campaigns?selected_campaign_ids=${c.id}`} target="_blank" rel="noreferrer">
                                 <ExternalLink className="w-4 h-4" />
@@ -910,6 +1079,116 @@ export default function CampanhasPage() {
                           </div>
                         </TableCell>
                       </TableRow>
+                      {isExpanded && (
+                        <TableRow key={c.id + "-exp"}>
+                          <TableCell colSpan={13} className="bg-muted/30 p-3">
+                            {loadingAdsetsFor === c.id ? (
+                              <div className="text-xs text-muted-foreground flex items-center gap-2 py-2">
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando conjuntos…
+                              </div>
+                            ) : adsets.length === 0 ? (
+                              <div className="text-xs text-muted-foreground py-2">Nenhum conjunto neste anúncio.</div>
+                            ) : (
+                              <div className="space-y-1.5">
+                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Conjuntos de anúncio</div>
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Conjunto</TableHead>
+                                      <TableHead>Status</TableHead>
+                                      <TableHead>Otimização</TableHead>
+                                      <TableHead className="text-right">Orçamento</TableHead>
+                                      <TableHead className="text-right">Ações</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {adsets.map((a) => {
+                                      const adsetBudget = a.daily_budget ? `${BRL(Number(a.daily_budget)/100)}/dia` : a.lifetime_budget ? `${BRL(Number(a.lifetime_budget)/100)} total` : "—";
+                                      const isAdsetExp = expandedAdset === a.id;
+                                      const ads = adsByAdset[a.id] ?? [];
+                                      return (
+                                        <>
+                                          <TableRow key={a.id}>
+                                            <TableCell className="font-medium">
+                                              <button className="hover:underline text-left flex items-center gap-1" onClick={() => toggleExpandAdset(a)}>
+                                                {isAdsetExp ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                                {a.name}
+                                              </button>
+                                            </TableCell>
+                                            <TableCell><Badge variant="outline" className={
+                                              a.effective_status === "ACTIVE" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" :
+                                              a.effective_status === "PAUSED" ? "bg-amber-500/15 text-amber-400 border-amber-500/30" :
+                                              "bg-muted text-muted-foreground border-border"
+                                            }>{a.effective_status}</Badge></TableCell>
+                                            <TableCell className="text-xs">{a.optimization_goal ?? "—"}</TableCell>
+                                            <TableCell className="text-right text-xs">{adsetBudget}</TableCell>
+                                            <TableCell className="text-right">
+                                              <div className="flex items-center gap-1 justify-end">
+                                                <Button size="icon" variant="ghost" disabled={busyObject === a.id} onClick={() => toggleObjectStatus(a.id, a.status, "adset", c.id)} title={a.effective_status === "ACTIVE" ? "Pausar" : "Ativar"}>
+                                                  {busyObject === a.id ? <Loader2 className="w-4 h-4 animate-spin" /> : a.effective_status === "ACTIVE" ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 text-emerald-400" />}
+                                                </Button>
+                                                <Button size="icon" variant="ghost" title="Orçamento diário" onClick={() => openBudgetDialog(a.id, a.name, a.daily_budget)}>
+                                                  <DollarSign className="w-4 h-4" />
+                                                </Button>
+                                                <Button size="icon" variant="ghost" title="Arquivar" onClick={() => archiveObject(a.id, "adset", c.id)}>
+                                                  <Archive className="w-4 h-4" />
+                                                </Button>
+                                              </div>
+                                            </TableCell>
+                                          </TableRow>
+                                          {isAdsetExp && (
+                                            <TableRow key={a.id + "-exp"}>
+                                              <TableCell colSpan={5} className="bg-muted/20 p-3">
+                                                {loadingAdsFor === a.id ? (
+                                                  <div className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando anúncios…</div>
+                                                ) : ads.length === 0 ? (
+                                                  <div className="text-xs text-muted-foreground">Nenhum anúncio.</div>
+                                                ) : (
+                                                  <div className="space-y-1.5">
+                                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1"><Megaphone className="w-3 h-3" /> Anúncios</div>
+                                                    <Table>
+                                                      <TableHeader>
+                                                        <TableRow>
+                                                          <TableHead>Anúncio</TableHead>
+                                                          <TableHead>Status</TableHead>
+                                                          <TableHead className="text-right">Ações</TableHead>
+                                                        </TableRow>
+                                                      </TableHeader>
+                                                      <TableBody>
+                                                        {ads.map((ad) => (
+                                                          <TableRow key={ad.id}>
+                                                            <TableCell>{ad.name}</TableCell>
+                                                            <TableCell><Badge variant="outline">{ad.effective_status}</Badge></TableCell>
+                                                            <TableCell className="text-right">
+                                                              <div className="flex items-center gap-1 justify-end">
+                                                                <Button size="icon" variant="ghost" disabled={busyObject === ad.id} onClick={() => toggleObjectStatus(ad.id, ad.status, "ad", a.id)} title={ad.effective_status === "ACTIVE" ? "Pausar" : "Ativar"}>
+                                                                  {busyObject === ad.id ? <Loader2 className="w-4 h-4 animate-spin" /> : ad.effective_status === "ACTIVE" ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 text-emerald-400" />}
+                                                                </Button>
+                                                                <Button size="icon" variant="ghost" onClick={() => archiveObject(ad.id, "ad", a.id)} title="Arquivar">
+                                                                  <Archive className="w-4 h-4" />
+                                                                </Button>
+                                                              </div>
+                                                            </TableCell>
+                                                          </TableRow>
+                                                        ))}
+                                                      </TableBody>
+                                                    </Table>
+                                                  </div>
+                                                )}
+                                              </TableCell>
+                                            </TableRow>
+                                          )}
+                                        </>
+                                      );
+                                    })}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      </>
                     );
                   })}
                 </TableBody>
@@ -1126,6 +1405,57 @@ export default function CampanhasPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Dialog: criar campanha */}
+      <Dialog open={createCampOpen} onOpenChange={setCreateCampOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Nova campanha</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nome</Label>
+              <Input value={newCamp.name} onChange={(e) => setNewCamp({ ...newCamp, name: e.target.value })} placeholder="Ex.: Captação Clínicas — SP" />
+            </div>
+            <div>
+              <Label>Objetivo</Label>
+              <Select value={newCamp.objective} onValueChange={(v) => setNewCamp({ ...newCamp, objective: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["OUTCOME_LEADS","OUTCOME_SALES","OUTCOME_TRAFFIC","OUTCOME_ENGAGEMENT","OUTCOME_AWARENESS","OUTCOME_APP_PROMOTION"].map((o) =>
+                    <SelectItem key={o} value={o}>{o.replace("OUTCOME_", "")}</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              A campanha é criada <b>pausada</b>. Configure conjunto e criativos no Ads Manager antes de ativar.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCreateCampOpen(false)}>Cancelar</Button>
+            <Button onClick={submitCreateCampaign} disabled={busyObject === "create"}>
+              {busyObject === "create" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Criar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: editar orçamento */}
+      <Dialog open={budgetDialog.open} onOpenChange={(o) => !o && setBudgetDialog({ open: false })}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Orçamento diário · {budgetDialog.name}</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <Label>Novo valor (R$ por dia)</Label>
+            <Input type="number" step="0.01" value={budgetValue} onChange={(e) => setBudgetValue(e.target.value)} placeholder="50.00" />
+            <p className="text-xs text-muted-foreground">Atual: {budgetDialog.current ? BRL(Number(budgetDialog.current)/100) : "—"}</p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setBudgetDialog({ open: false })}>Cancelar</Button>
+            <Button onClick={submitBudget} disabled={busyObject === budgetDialog.id}>
+              {busyObject === budgetDialog.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Atualizar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
