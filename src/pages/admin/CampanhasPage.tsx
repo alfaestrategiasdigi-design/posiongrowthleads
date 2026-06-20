@@ -133,6 +133,7 @@ export default function CampanhasPage() {
   const [newCamp, setNewCamp] = useState({ name: "", objective: "OUTCOME_LEADS" });
   const [budgetDialog, setBudgetDialog] = useState<{ open: boolean; id?: string; name?: string; current?: string }>({ open: false });
   const [budgetValue, setBudgetValue] = useState("");
+  const [accountsOpen, setAccountsOpen] = useState(false);
 
   const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
   const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
