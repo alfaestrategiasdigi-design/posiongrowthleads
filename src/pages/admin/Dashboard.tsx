@@ -265,11 +265,11 @@ const Dashboard = () => {
               title={inactiveTenants.length ? `Sem dados: ${inactiveTenants.map(t => t.name).join(", ")}` : "Todos os clientes com dados no período"}
               className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-full border transition hover:scale-[1.02] ${
                 activeTenants.length < tenants.length
-                  ? "bg-amber-500/10 border-amber-500/40 text-amber-300"
+                  ? "bg-primary/10 border-primary/40 text-primary"
                   : "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
               }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${activeTenants.length < tenants.length ? "bg-amber-400" : "bg-emerald-400"} animate-pulse`} />
+              <span className={`w-1.5 h-1.5 rounded-full ${activeTenants.length < tenants.length ? "bg-primary" : "bg-emerald-400"} animate-pulse`} />
               {activeTenants.length} de {tenants.length} ativos
             </button>
           )}
