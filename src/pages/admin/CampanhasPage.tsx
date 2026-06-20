@@ -135,6 +135,8 @@ export default function CampanhasPage() {
   const [budgetDialog, setBudgetDialog] = useState<{ open: boolean; id?: string; name?: string; current?: string }>({ open: false });
   const [budgetValue, setBudgetValue] = useState("");
   const [accountsOpen, setAccountsOpen] = useState(false);
+  const [showOnlyActive, setShowOnlyActive] = useState(true);
+  const [detailCampaign, setDetailCampaign] = useState<MetaCampaign | null>(null);
 
   const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
   const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
