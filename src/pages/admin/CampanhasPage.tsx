@@ -294,7 +294,7 @@ export default function CampanhasPage() {
         : new Date(Date.now() - Number(period) * 86400000).toISOString();
 
     let sq = supabase.from("campaign_spend").select("*").order("period_start", { ascending: false });
-    let lq = supabase.from("clinic_leads").select("id, tenant_id, stage, created_at, channel, utm_campaign, facebook_campaign_id");
+    let lq = supabase.from("leads").select("id, tenant_id, status, created_at, origem, utm_campaign, facebook_campaign, facebook_form_name, reuniao_agendada_em, reuniao_realizada_em, fechado_em");
     let saq = supabase.from("sales").select("id, tenant_id, amount, amount_paid, created_at, utm_campaign, facebook_campaign_id");
     if (selectedTenantId) {
       sq = sq.eq("tenant_id", selectedTenantId);
@@ -324,18 +324,19 @@ export default function CampanhasPage() {
     const totalImpressions = spends.reduce((s, x) => s + Number(x.impressions || 0), 0);
     const totalClicks = spends.reduce((s, x) => s + Number(x.clicks || 0), 0);
     const totalLeadsReported = spends.reduce((s, x) => s + Number(x.leads_generated || 0), 0);
+    // Prefer real CRM leads; fall back to reported leads only if CRM is empty.
     const totalLeads = leads.length || totalLeadsReported;
 
-    const qualified = leads.filter((l) =>
-      ["qualificado", "avaliacao_agendada", "compareceu", "em_negociacao", "fechado_ganho"].includes(l.stage),
-    ).length;
-    const scheduled = leads.filter((l) =>
-      ["avaliacao_agendada", "compareceu", "em_negociacao", "fechado_ganho"].includes(l.stage),
-    ).length;
-    const attended = leads.filter((l) =>
-      ["compareceu", "em_negociacao", "fechado_ganho"].includes(l.stage),
-    ).length;
-    const won = leads.filter((l) => l.stage === "fechado_ganho").length;
+    // Status → funnel stage (aligned with PIPELINE_STAGES in src/types/admin.ts)
+    const QUAL = new Set(["mql","sql","reuniao_agendada","reuniao_realizada","proposta","negociacao","ganho","convertido","fechado_ganho"]);
+    const SCHED = new Set(["reuniao_agendada","reuniao_realizada","proposta","negociacao","ganho","convertido","fechado_ganho"]);
+    const ATTEND = new Set(["reuniao_realizada","proposta","negociacao","ganho","convertido","fechado_ganho"]);
+    const WON = new Set(["ganho","convertido","fechado_ganho"]);
+
+    const qualified = leads.filter((l) => QUAL.has(l.status)).length;
+    const scheduled = leads.filter((l) => SCHED.has(l.status) || !!l.reuniao_agendada_em).length;
+    const attended = leads.filter((l) => ATTEND.has(l.status) || !!l.reuniao_realizada_em).length;
+    const won = leads.filter((l) => WON.has(l.status) || !!l.fechado_em).length;
 
     const revenue = sales.reduce((s, x) => s + Number(x.amount || 0), 0);
     const collected = sales.reduce((s, x) => s + Number(x.amount_paid || 0), 0);
@@ -361,9 +362,10 @@ export default function CampanhasPage() {
       attendRate: scheduled > 0 ? attended / scheduled : 0,
       conversionRate: totalLeads > 0 ? won / totalLeads : 0,
       roi: totalSpent > 0 ? (revenue - totalSpent) / totalSpent : 0,
-      ltv: ticket, // proxy: ticket médio (sem recall ainda)
+      ltv: ticket,
     };
   }, [spends, leads, sales]);
+
 
   const perCampaign = useMemo(() => {
     const map = new Map<string, { name: string; spent: number; leads: number; sales: number; revenue: number }>();
@@ -375,10 +377,10 @@ export default function CampanhasPage() {
       map.set(key, cur);
     }
     for (const l of leads) {
-      const key = l.utm_campaign || l.facebook_campaign_id;
+      const key = l.facebook_campaign || l.utm_campaign || l.facebook_form_name;
       if (!key) continue;
-      const cur = map.get(key);
-      if (cur) cur.leads += 0; // já vem do spend reportado
+      const cur = map.get(key) || { name: key, spent: 0, leads: 0, sales: 0, revenue: 0 };
+      cur.leads += 1; map.set(key, cur);
     }
     for (const sa of sales) {
       const key = sa.utm_campaign || sa.facebook_campaign_id;

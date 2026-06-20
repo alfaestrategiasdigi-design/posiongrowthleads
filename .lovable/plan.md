@@ -1,106 +1,78 @@
-## Visão geral
+## 1) Cache de insights do Facebook (TTL curto)
 
-Transformar a plataforma em um **hub master de aquisição B2B** onde você (admin) controla 1 app Meta com todas as permissões, distribui leads para clínicas-cliente via roteamento por `form_id`/campanha, e cada clínica acessa WhatsApp Cloud API oficial, Kanban comercial e métricas de campanha — tudo dentro do sistema, com estética dark premium alinhada à proposta de valor: **"Do clique no anúncio ao fechamento, sem perder lead no caminho."**
+**Arquivo:** `supabase/functions/facebook-ads-manage/index.ts`
 
----
+- Adicionar um `Map` em memória do worker (`insightsCache`) com chave `campaign_id|since|until` e TTL de **180 s** (configurável por env `INSIGHTS_TTL_MS`, default 180000).
+- Encapsular o trecho do `case "list_campaigns"` que faz `mapLimit(... fbGet(${c.id}/insights))` em `getCachedInsights(campaign_id, since, until, token)`:
+  1. Se houver entrada válida no cache → devolve sem chamar a Graph API.
+  2. Em rate-limit (`code 17/4/32/613/80004`), serve o último valor cacheado mesmo expirado (stale-while-error) e marca `stale: true` no payload.
+  3. Em sucesso, grava `{ value, expiresAt }`.
+- Aplicar o mesmo cache no `case "insights"` (chave `object_id|since|until`).
+- Limpeza: ao gravar, se `cache.size > 500`, remover as 50 entradas mais antigas (LRU simples).
+- Resposta passa a incluir `cache: "hit" | "miss" | "stale"` por campanha para debug no client.
 
-## 1. Roteamento Meta → Tenant (Admin Master)
+Resultado esperado: ao apertar "Atualizar" em sequência, só a 1ª janela de 3 min chama a Graph API — elimina o `User request limit reached`.
 
-Nova tela `/admin/roteamento-leads`:
+## 2) Dados errados em Campanhas & Tráfego (print 1)
 
-- Tabela `lead_routing_rules` (tenant_id, match_type [form_id|campaign_id|page_id|adset_id], match_value, ad_account_id, priority, active)
-- UI: lista formulários/campanhas detectados via Graph API + dropdown de tenant para cada um
-- Edge function `facebook-leads-webhook` atualizada: ao receber leadgen, consulta rules → grava `lead.tenant_id` correto (fallback: `default_tenant_id`)
-- Backfill respeita as mesmas regras
-- Validação automática a cada 6h: token Page, assinaturas webhook, permissões — auto-correção quando possível, alerta visual quando não
+**Causa raiz confirmada por inspeção do banco:**
+- `CampanhasPage.tsx` (linha 297) consulta `clinic_leads` (tabela vazia em produção, 0 registros) usando `l.stage`.
+- Os leads reais ficam em `public.leads` com coluna `status`. Por isso o card mostra `Leads 59` (vem do fallback `spends.leads_generated`) mas Qualificados/Agendados/Compareceram/Fechados aparecem **0**, e o `ROI 19816%` / `Ticket R$ 6.406` ficam isolados das vendas.
 
-## 2. WhatsApp Cloud API oficial (renomeação + setup in-app)
+**Correção** (apenas o frontend de Campanhas, sem mexer em regra de negócio):
 
-Sidebar: "Conexão WhatsApp" (substitui "Conexão"). Página `/admin/conexao-whatsapp`:
+- Trocar a consulta de leads para `public.leads` selecionando `id, tenant_id, status, created_at, origem, facebook_campaign, facebook_campaign_id`.
+- Recalcular `kpis` mapeando `status` → estágio do funil (alinhando com `PIPELINE_STAGES`):
+  - `qualified` ⇢ `mql, sql, reuniao_agendada, reuniao_realizada, proposta, negociacao, ganho, convertido, fechado_ganho`
+  - `scheduled` ⇢ `reuniao_agendada, reuniao_realizada, proposta, negociacao, ganho, convertido, fechado_ganho`
+  - `attended` ⇢ `reuniao_realizada, proposta, negociacao, ganho, convertido, fechado_ganho`
+  - `won` ⇢ `ganho, convertido, fechado_ganho`
+- `totalLeads` passa a ser `leads.length` (sem fallback para `leads_generated`, que duplica métricas Meta).
+- `perCampaign` agrupa por `facebook_campaign_id || facebook_campaign` (no lugar de `clinic_leads.facebook_campaign_id`).
 
-- **Aba "Cloud API" (padrão)**: campos para WABA ID, Phone Number ID, Access Token, App Secret, Verify Token; botão "Validar conexão" testa via Graph; exibe URL do webhook para colar no Meta
-- **Aba "Templates"**: lista templates aprovados via API, permite enviar template para iniciar conversa (janela 24h)
-- **Aba "Z-API (legado)"**: mantém a integração atual como fallback
-- Tabela `whatsapp_connections` (tenant_id, provider [cloud|zapi], waba_id, phone_number_id, display_number, status, verified_at)
-- Edge functions novas:
-  - `whatsapp-cloud-webhook` — recebe mensagens, mídia, status; cria/atualiza `conversations` + `messages` + `leads` (cria lead novo se número desconhecido)
-  - `whatsapp-cloud-send` — envia texto, template, mídia
-  - `whatsapp-cloud-validate` — testa token + webhook + número
-- Inbox `/admin/whatsapp` passa a unificar Cloud + Z-API (filtro por origem)
+## 3) WhatsApp — Send/Received e diagnóstico da API oficial
 
-> Cloud API não usa QR. Para QR, fica a opção Z-API legado (já existente).
+**Estado atual (inspeção do banco):** existe 1 conexão Cloud em status `pending`, **sem `last_validated_at`**, `webhook_subscribed = false`, sem `display_phone_number`. O token está salvo (241 chars) mas a Validação nunca rodou com sucesso. `messages` está vazio.
 
-## 3. Marketing Insights completo (todas as métricas)
+**Mudanças apenas em `src/pages/admin/ConexaoWhatsappPage.tsx`** (sem alterar a Cloud Function nem schema):
 
-Expandir `facebook-campaigns-sync`:
+- Novo card "Diagnóstico da API Oficial" exibindo, em badges OK/Falha:
+  1. **Credenciais salvas** (waba_id, phone_number_id, access_token presentes).
+  2. **Token válido** — chama `whatsapp-cloud-validate` e mostra `display_phone_number` / `business_account_name`.
+  3. **Webhook assinado** (`webhook_subscribed`).
+  4. **Último erro** (`last_error`).
+- Novo card "Tráfego de mensagens (últimas 24h / 7d / 30d)" com 4 métricas vindas de `messages`:
+  - **Enviadas** = `direction='out'`
+  - **Recebidas** = `direction='in'`
+  - **Falhas** = `status='failed'`
+  - **Última mensagem** (timestamp + direção)
+  - Atualização em tempo real via canal Realtime de `messages`.
+- Aviso contextual quando `enviadas=0 e recebidas=0`:
+  - se `webhook_subscribed=false` → "Webhook ainda não foi assinado na aba Webhook do app Meta".
+  - se `status='pending'` → "Clique em Validar conexão para concluir o handshake".
+  - se `last_error` → mostra hint de reconexão.
+- Botão "Enviar mensagem de teste" abre input para número E.164 + texto e chama `whatsapp-cloud-send` — útil para confirmar end-to-end sem sair da página.
 
-- Tabela `campaign_insights` (campaign_id, date, level [campaign|adset|ad], spend, impressions, reach, clicks, ctr, cpc, cpm, frequency, leads, cost_per_lead, purchases, purchase_value, roas, video_views, link_clicks)
-- Tabela `campaign_insights_breakdown` (insight_id, breakdown_type [age|gender|region|placement|device|publisher_platform], breakdown_value, métricas…)
-- Cron diário 03:00: puxa últimos 30 dias por `ad_account_id` (todas as contas do admin), nível ad + breakdowns
-- Tela `/admin/meta-ads` ganha aba "Insights" com filtros (período, conta, campanha, breakdown) e gráficos
+## Detalhes técnicos
 
-## 4. Kanban comercial reformulado
+```text
+facebook-ads-manage
+ ├─ insightsCache: Map<string,{value, expiresAt}>
+ ├─ getCachedInsights(campaign_id, since, until, token)
+ └─ list_campaigns / insights → usa cache + stale-on-error
 
-Estágios novos (substituem MQL atual): **Qualificado → Oportunidade → Reunião Agendada → Negociação → Proposta Aceita → Perdido**
+CampanhasPage.tsx
+ ├─ supabase.from("leads") em vez de clinic_leads
+ ├─ kpis mapeados via status (PIPELINE_STAGES)
+ └─ perCampaign por facebook_campaign_id
 
-- Migration: rename de status no enum + atualização de `KanbanBoard.tsx`, `LeadCard.tsx`, `pipeline stages` config
-- Cada coluna mostra contagem + valor potencial somado
-- Drag-and-drop dispara automações (ex.: "Reunião Agendada" cria evento na agenda; "Proposta Aceita" gera contrato)
-- Motivo de perda obrigatório ao mover para "Perdido"
+ConexaoWhatsappPage.tsx
+ ├─ DiagnosticCard (4 checks)
+ ├─ TrafficCard (in/out/failed + realtime)
+ └─ SendTestDialog → whatsapp-cloud-send
+```
 
-## 5. Dashboard principal premium
-
-`/admin/dashboard` redesenhado:
-
-- **Funil de aquisição**: gasto → impressões → cliques → leads → MQL → reunião → fechamento (com CPL, CAC, taxa de conversão por etapa)
-- **Cards de topo**: leads hoje/semana/mês, CPL médio, ROAS, ticket médio, ciclo de venda
-- **Gráficos**: leads por dia × gasto, performance por campanha (top 5), origem dos leads (Facebook/Instagram/orgânico), heatmap de horários
-- **Saúde do sistema**: status do token Meta, último webhook recebido, conexão WhatsApp, sincronização (badges verde/amarelo/vermelho)
-- **Por tenant**: filtro global no topo permite ver consolidado ou por clínica
-
-## 6. Identidade visual — dark premium "B2B tech"
-
-Sobrescrever `index.css` + `tailwind.config.ts`:
-
-- **Fundo**: preto profundo `#05050A` com camadas `#0B0B14` / `#11111F`
-- **Acento primário**: roxo elétrico `#7C3AED` → azul `#3B82F6` (gradiente)
-- **Sucesso/alerta**: verde neon `#10F2A0` / âmbar `#F59E0B` / vermelho `#EF4444`
-- **Tipografia**: Space Grotesk (headings) + Inter (body) via `@fontsource`
-- **Glassmorphism sutil** em cards (`bg-white/[0.03]` + `backdrop-blur` + borda `white/10`)
-- **Microanimações**: fade-up nos cards, contagem progressiva nos KPIs, pulse no status verde
-- 100% responsivo (sidebar colapsa em mobile, tabelas viram cards)
-- Substituir todos os `text-white`/`bg-black` hardcoded por tokens semânticos
-
----
-
-## Seção técnica
-
-### Migrations
-1. `lead_routing_rules` + grants + RLS (admin only)
-2. `whatsapp_connections` + grants + RLS
-3. `campaign_insights` + `campaign_insights_breakdown` + índices por data
-4. Rename enum status do lead (qualificado, oportunidade, reuniao_agendada, negociacao, proposta_aceita, perdido) + migração de dados existentes
-
-### Secrets (vou pedir)
-`META_APP_SECRET`, `WHATSAPP_CLOUD_ACCESS_TOKEN`, `WHATSAPP_CLOUD_PHONE_NUMBER_ID`, `WHATSAPP_CLOUD_WABA_ID`, `WHATSAPP_CLOUD_VERIFY_TOKEN` (você já tem `FACEBOOK_PAGE_ACCESS_TOKEN`)
-
-### Edge functions novas
-- `whatsapp-cloud-webhook`, `whatsapp-cloud-send`, `whatsapp-cloud-validate`
-- `meta-insights-sync` (cron diário)
-- `meta-health-check` (cron 6h — valida token, webhook, permissões; auto-renova quando possível)
-
-### Ordem de execução
-1. Identidade visual (base para todo o resto)
-2. Migrations (rotas + WA + insights + kanban enum)
-3. Roteamento Meta → Tenant + auto-validações
-4. WhatsApp Cloud API (conexão + webhook + inbox)
-5. Insights API completa + breakdowns
-6. Kanban reformulado
-7. Dashboard premium
-
----
-
-## Fora do escopo desta entrega
-- Conversions API (Pixel server-side) — pode entrar em fase 2
-- WhatsApp Business On-Premise (descontinuado pela Meta)
-- Integração com CRMs externos (HubSpot/RD/Pipedrive)
+## O que NÃO está no escopo
+- Não alterar Cloud Function de WhatsApp (`whatsapp-cloud-validate/send/webhook`); se a validação falhar a página passa a explicar o motivo.
+- Não tocar em `clinic_leads`, RLS, schema ou migrations.
+- Não alterar o Dashboard principal (`/admin`), só a página Campanhas.
