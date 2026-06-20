@@ -296,7 +296,7 @@ const Dashboard = () => {
 
       {/* KPIs Linha 2 — Performance */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiTile icon={Target} label="CPL" value={stats.cpl} prefix="R$ " accent="gold" decimals={2} sub="custo por lead" />
+        <KpiTile icon={Target} label="CPL" value={stats.cpl} prefix="R$ " accent="indigo" decimals={2} sub="custo por lead" />
         <KpiTile icon={Target} label="CAC" value={stats.cac} prefix="R$ " accent="rose" decimals={2} sub="custo de aquisição" />
         <KpiTile icon={TrendingUp} label="ROAS" value={stats.roas} suffix="x" accent="emerald" decimals={2} sub="retorno sobre investimento" />
         <KpiTile icon={Clock} label="Ciclo médio" value={stats.cycleDays} suffix=" d" accent="sky" decimals={1} sub="dias até fechar" />
