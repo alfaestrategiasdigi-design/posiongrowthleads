@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
           fields: "account_id,id,name,account_status,currency,business_name,timezone_name",
           limit: "200",
         });
-        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        if (!r.ok) return fbErr(r.body);
         return json({ ok: true, data: r.body.data ?? [] });
       }
       case "list_campaigns": {
@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
           fields: "id,name,status,effective_status,objective,daily_budget,lifetime_budget,start_time,stop_time,created_time",
           limit: "200",
         });
-        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        if (!r.ok) return fbErr(r.body);
         const campaigns: any[] = r.body.data ?? [];
 
         // Optional: enrich each campaign with aggregated insights for the window.
@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
           fields: "id,name,status,effective_status,daily_budget,lifetime_budget,optimization_goal,billing_event,bid_amount",
           limit: "200",
         });
-        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        if (!r.ok) return fbErr(r.body);
         return json({ ok: true, data: r.body.data ?? [] });
       }
       case "list_ads": {
@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
           fields: "id,name,status,effective_status,adset_id,campaign_id,creative",
           limit: "200",
         });
-        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        if (!r.ok) return fbErr(r.body);
         return json({ ok: true, data: r.body.data ?? [] });
       }
       case "set_status": {
@@ -205,7 +205,7 @@ Deno.serve(async (req) => {
         const allowed = ["ACTIVE", "PAUSED", "ARCHIVED", "DELETED"];
         if (!id || !allowed.includes(status)) return json({ error: "object_id e status válidos obrigatórios" }, 400);
         const r = await fbPost(id, token, { status });
-        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        if (!r.ok) return fbErr(r.body);
         return json({ ok: true, result: r.body });
       }
       case "update_budget": {
@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
         if (payload.lifetime_budget != null) body.lifetime_budget = String(Math.round(Number(payload.lifetime_budget) * 100));
         if (!Object.keys(body).length) return json({ error: "Informe daily_budget ou lifetime_budget (em reais)" }, 400);
         const r = await fbPost(id, token, body);
-        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        if (!r.ok) return fbErr(r.body);
         return json({ ok: true, result: r.body });
       }
       case "create_campaign": {
@@ -230,7 +230,7 @@ Deno.serve(async (req) => {
           name, objective, status,
           special_ad_categories: payload.special_ad_categories ?? [],
         });
-        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        if (!r.ok) return fbErr(r.body);
         return json({ ok: true, result: r.body });
       }
       case "insights": {
@@ -243,7 +243,7 @@ Deno.serve(async (req) => {
           fields: "spend,impressions,clicks,ctr,cpc,cpm,actions",
           time_range: JSON.stringify({ since, until }),
         });
-        if (!r.ok) return json({ error: r.body?.error?.message ?? "Erro", raw: r.body }, 502);
+        if (!r.ok) return fbErr(r.body);
         return json({ ok: true, data: r.body.data ?? [] });
       }
       default:
