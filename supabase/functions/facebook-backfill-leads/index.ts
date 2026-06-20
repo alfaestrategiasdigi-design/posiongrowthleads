@@ -41,24 +41,31 @@ Deno.serve(async (req) => {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-  const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const { data: claims } = await userClient.auth.getClaims(authHeader.replace("Bearer ", ""));
-  if (!claims?.claims) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+  const bearer = authHeader.replace("Bearer ", "").trim();
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
-  const { data: roleOk } = await admin.rpc("has_role", {
-    _user_id: claims.claims.sub, _role: "admin",
-  });
-  if (!roleOk) {
-    return new Response(JSON.stringify({ error: "Forbidden" }), {
-      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+
+  // Cron / service-role bypass: allow invocations using the service role key
+  const isService = bearer === SERVICE_KEY;
+  if (!isService) {
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
     });
+    const { data: claims } = await userClient.auth.getClaims(bearer);
+    if (!claims?.claims) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: roleOk } = await admin.rpc("has_role", {
+      _user_id: claims.claims.sub, _role: "admin",
+    });
+    if (!roleOk) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
   }
+
 
   let payload: any = {};
   try { payload = await req.json(); } catch { /* no body */ }
