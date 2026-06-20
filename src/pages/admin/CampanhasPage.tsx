@@ -943,6 +943,7 @@ export default function CampanhasPage() {
             </div>
           )}
         </CardContent>
+        )}
       </Card>
 
       {/* Campanhas ao vivo (Meta Marketing API) */}
