@@ -698,13 +698,16 @@ export default function CampanhasPage() {
     } finally { setBusyObject(null); }
   };
 
-  // Auto-load Meta campaigns when filter / active account changes
+  // Auto-load Meta campaigns when filter / active account / period changes
   useEffect(() => {
     if (!permState.ok) return;
     const acc = adAccountFilter !== "all" ? adAccountFilter : adAccountId;
     if (acc) loadMetaCampaigns(acc);
+    // Re-sync campaign_spend silently with the actual period window
+    syncFacebookAds(true).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adAccountFilter, adAccountId, permState.ok, period]);
+
 
 
   return (
