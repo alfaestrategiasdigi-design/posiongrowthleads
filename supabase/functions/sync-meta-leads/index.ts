@@ -40,19 +40,28 @@ Deno.serve(async (req) => {
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-  // Allow: admin user JWT OR service-role bearer (cron)
-  const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
-  const bearer = authHeader.replace("Bearer ", "").trim();
-  const isService = bearer === SERVICE_KEY;
-  if (!isService) {
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: claims } = await userClient.auth.getClaims(bearer);
-    if (!claims?.claims) return json({ error: "Unauthorized" }, 401);
-    const { data: roleOk } = await admin.rpc("has_role", { _user_id: claims.claims.sub, _role: "admin" });
-    if (!roleOk) return json({ error: "Forbidden" }, 403);
+  // Allow: admin user JWT, service-role bearer, OR a valid X-Cron-Token (set by pg_cron)
+  const cronToken = req.headers.get("x-cron-token") ?? req.headers.get("X-Cron-Token");
+  let cronOk = false;
+  if (cronToken) {
+    const { data: cfgTok } = await admin.from("facebook_webhook_config").select("cron_token").limit(1).maybeSingle();
+    cronOk = !!cfgTok?.cron_token && cfgTok.cron_token === cronToken;
+  }
+
+  if (!cronOk) {
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
+    const bearer = authHeader.replace("Bearer ", "").trim();
+    const isService = bearer === SERVICE_KEY;
+    if (!isService) {
+      const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: claims } = await userClient.auth.getClaims(bearer);
+      if (!claims?.claims) return json({ error: "Unauthorized" }, 401);
+      const { data: roleOk } = await admin.rpc("has_role", { _user_id: claims.claims.sub, _role: "admin" });
+      if (!roleOk) return json({ error: "Forbidden" }, 403);
+    }
   }
 
   let body: any = {};
