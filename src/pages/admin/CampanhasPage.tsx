@@ -377,10 +377,10 @@ export default function CampanhasPage() {
       map.set(key, cur);
     }
     for (const l of leads) {
-      const key = l.utm_campaign || l.facebook_campaign_id;
+      const key = l.facebook_campaign || l.utm_campaign || l.facebook_form_name;
       if (!key) continue;
-      const cur = map.get(key);
-      if (cur) cur.leads += 0; // já vem do spend reportado
+      const cur = map.get(key) || { name: key, spent: 0, leads: 0, sales: 0, revenue: 0 };
+      cur.leads += 1; map.set(key, cur);
     }
     for (const sa of sales) {
       const key = sa.utm_campaign || sa.facebook_campaign_id;
