@@ -362,6 +362,17 @@ const Dashboard = () => {
         </div>
       )}
 
+      {/* Painel de vendas (admin master) */}
+      {tenantFilter === "all" && (
+        <SalesPanel
+          tenants={tenants}
+          sales={sales as any}
+          contracts={contracts}
+          isAdmin={isAdmin}
+          onContractsChanged={loadContracts}
+        />
+      )}
+
       {/* Funil 7 etapas */}
       <div className="card-elevated p-6">
         <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Funil</p>
