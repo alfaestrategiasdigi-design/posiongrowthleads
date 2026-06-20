@@ -161,12 +161,30 @@ Deno.serve(async (req) => {
         if (payload.with_insights && campaigns.length) {
           const since = String(payload.since ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
           const until = String(payload.until ?? new Date().toISOString().slice(0, 10));
-          const fields = "spend,impressions,clicks,ctr,cpc,cpm,reach,frequency,actions,cost_per_action_type";
+          const fields = "spend,impressions,clicks,ctr,cpc,cpm,reach,frequency,actions,action_values,cost_per_action_type";
+          let cacheStats = { hit: 0, miss: 0, stale: 0, error: 0 };
           const results = await mapLimit(campaigns, 3, async (c) => {
-            const ir = await fbGet(`${c.id}/insights`, token, {
-              fields, time_range: JSON.stringify({ since, until }), level: "campaign",
-            });
-            const row = ir.ok ? (ir.body.data?.[0] ?? null) : null;
+            const cacheKey = `c|${c.id}|${since}|${until}`;
+            const cached = cacheGet(cacheKey);
+            let row: any = null;
+            let cacheStatus: "hit" | "miss" | "stale" | "error" = "miss";
+            if (cached?.fresh) {
+              row = cached.value; cacheStatus = "hit";
+            } else {
+              const ir = await fbGet(`${c.id}/insights`, token, {
+                fields, time_range: JSON.stringify({ since, until }), level: "campaign",
+              });
+              if (ir.ok) {
+                row = ir.body.data?.[0] ?? null;
+                cacheSet(cacheKey, row);
+                cacheStatus = "miss";
+              } else if (cached) {
+                row = cached.value; cacheStatus = "stale";
+              } else {
+                cacheStatus = "error";
+              }
+            }
+            cacheStats[cacheStatus]++;
             let leads = 0, purchases = 0, purchase_value = 0;
             for (const a of row?.actions ?? []) {
               if (a.action_type === "lead" || a.action_type === "leadgen.other" || a.action_type === "onsite_conversion.lead_grouped") {
@@ -184,6 +202,7 @@ Deno.serve(async (req) => {
             const spend = Number(row?.spend || 0);
             return {
               ...c,
+              cache: cacheStatus,
               insights: row ? {
                 spend, impressions: Number(row.impressions || 0), clicks: Number(row.clicks || 0),
                 ctr: Number(row.ctr || 0), cpc: Number(row.cpc || 0), cpm: Number(row.cpm || 0),
@@ -193,10 +212,11 @@ Deno.serve(async (req) => {
               } : null,
             };
           });
-          return json({ ok: true, data: results, ad_account_id: adAccount, since, until });
+          return json({ ok: true, data: results, ad_account_id: adAccount, since, until, cache_stats: cacheStats });
         }
         return json({ ok: true, data: campaigns, ad_account_id: adAccount });
       }
+
 
       case "list_adsets": {
         const campaignId = String(payload.campaign_id ?? "");
