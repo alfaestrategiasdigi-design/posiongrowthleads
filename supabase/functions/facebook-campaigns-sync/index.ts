@@ -95,8 +95,8 @@ Deno.serve(async (req) => {
   if (!adAccountId.startsWith("act_")) adAccountId = `act_${adAccountId}`;
   const tenantId: string | null = cfg?.default_tenant_id ?? null;
 
-  const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
-  const until = new Date().toISOString().slice(0, 10);
+  const since = sinceArg ?? new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  const until = untilArg ?? new Date().toISOString().slice(0, 10);
 
   // 1) lista campanhas
   const campUrl = new URL(`https://graph.facebook.com/v21.0/${adAccountId}/campaigns`);
