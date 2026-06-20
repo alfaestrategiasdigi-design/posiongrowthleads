@@ -133,13 +133,12 @@ Deno.serve(async (req) => {
     let leads = 0;
     if (Array.isArray(row?.actions)) {
       for (const a of row.actions) {
-        if (a.action_type === "lead" || a.action_type === "onsite_conversion.lead_grouped") {
+        if (a.action_type === "lead" || a.action_type === "onsite_conversion.lead_grouped" || a.action_type === "offsite_conversion.fb_pixel_lead") {
           leads += Number(a.value || 0);
         }
       }
     }
 
-    // upsert por (tenant_id, channel, campaign_id, period_start)
     const payload = {
       tenant_id: tenantId,
       period_start: since,
@@ -147,11 +146,12 @@ Deno.serve(async (req) => {
       channel: "meta_ads",
       campaign_id: c.id,
       campaign_name: c.name,
+      campaign_status: c.effective_status ?? c.status ?? null,
       amount_spent: spend,
       impressions,
       clicks,
       leads_generated: leads,
-      notes: `auto · ${c.status ?? ""} · ${c.objective ?? ""}`.trim(),
+      notes: `auto · ${c.effective_status ?? c.status ?? ""} · ${c.objective ?? ""}`.trim(),
     };
 
     // Tenta update primeiro (chave: tenant_id+channel+campaign_id+period_start)
