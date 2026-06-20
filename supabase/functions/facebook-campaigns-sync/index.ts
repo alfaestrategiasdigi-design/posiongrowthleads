@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
 
   // 1) lista campanhas
   const campUrl = new URL(`https://graph.facebook.com/v21.0/${adAccountId}/campaigns`);
-  campUrl.searchParams.set("fields", "id,name,status,objective");
+  campUrl.searchParams.set("fields", "id,name,status,effective_status,objective");
   campUrl.searchParams.set("limit", "200");
   campUrl.searchParams.set("access_token", token);
   const campRes = await fetch(campUrl);
