@@ -72,7 +72,7 @@ const App = () => (
           <Route path="/admin/qualificacao" element={<AdminLayout><QualificacaoPage /></AdminLayout>} />
           <Route path="/admin/facebook" element={<AdminLayout><FacebookConfigPage /></AdminLayout>} />
           <Route path="/admin/campanhas" element={<AdminLayout><CampanhasPage /></AdminLayout>} />
-          <Route path="/admin/meta-ads" element={<AdminLayout><MetaAdsManagerPage /></AdminLayout>} />
+          <Route path="/admin/meta-ads" element={<Navigate to="/admin/campanhas" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
