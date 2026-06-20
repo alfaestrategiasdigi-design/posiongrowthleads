@@ -133,6 +133,7 @@ export default function CampanhasPage() {
   const [newCamp, setNewCamp] = useState({ name: "", objective: "OUTCOME_LEADS" });
   const [budgetDialog, setBudgetDialog] = useState<{ open: boolean; id?: string; name?: string; current?: string }>({ open: false });
   const [budgetValue, setBudgetValue] = useState("");
+  const [accountsOpen, setAccountsOpen] = useState(false);
 
   const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
   const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
@@ -835,20 +836,31 @@ export default function CampanhasPage() {
         </CardContent>
       </Card>
 
-      {/* Contas de anúncio — vínculo com clientes */}
+      {/* Contas de anúncio — vínculo com clientes (recolhível) */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Contas de anúncio</CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              Vincule cada conta do Facebook Ads a um cliente do sistema para rotear automaticamente leads e métricas.
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => loadAdAccounts()} disabled={loadingAccounts}>
-            {loadingAccounts ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
-            Atualizar
-          </Button>
+          <button
+            type="button"
+            onClick={() => setAccountsOpen((v) => !v)}
+            className="flex items-start gap-2 text-left hover:opacity-90"
+            aria-expanded={accountsOpen}
+          >
+            {accountsOpen ? <ChevronDown className="w-4 h-4 mt-1" /> : <ChevronRight className="w-4 h-4 mt-1" />}
+            <div>
+              <CardTitle>Contas de anúncio <span className="text-xs font-normal text-muted-foreground ml-2">({adAccounts.length})</span></CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Vincule cada conta do Facebook Ads a um cliente do sistema para rotear automaticamente leads e métricas.
+              </p>
+            </div>
+          </button>
+          {accountsOpen && (
+            <Button variant="outline" size="sm" onClick={() => loadAdAccounts()} disabled={loadingAccounts}>
+              {loadingAccounts ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+              Atualizar
+            </Button>
+          )}
         </CardHeader>
+        {accountsOpen && (
         <CardContent>
           {adAccounts.length === 0 ? (
             <div className="text-sm text-muted-foreground py-4 text-center">
@@ -932,6 +944,7 @@ export default function CampanhasPage() {
             </div>
           )}
         </CardContent>
+        )}
       </Card>
 
       {/* Campanhas ao vivo (Meta Marketing API) */}
