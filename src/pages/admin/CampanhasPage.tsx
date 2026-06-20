@@ -533,6 +533,14 @@ export default function CampanhasPage() {
         return;
       }
       if (error) throw error;
+      if (data?.rate_limited) {
+        toast({
+          title: "Limite da API do Facebook atingido",
+          description: "Aguarde alguns minutos e clique em Atualizar novamente. As campanhas anteriores foram mantidas.",
+          variant: "destructive",
+        });
+        return; // keep previous metaCampaigns on screen
+      }
       if (data?.error) throw new Error(data.error);
       setMetaCampaigns((data?.data ?? []) as MetaCampaign[]);
     } catch (e: any) {
