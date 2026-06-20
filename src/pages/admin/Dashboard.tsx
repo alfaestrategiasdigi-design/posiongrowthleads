@@ -239,6 +239,20 @@ const Dashboard = () => {
               </select>
             </div>
           )}
+          {tenantFilter === "all" && tenants.length > 0 && (
+            <button
+              onClick={() => document.getElementById("tenant-breakdown")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+              title={inactiveTenants.length ? `Sem dados: ${inactiveTenants.map(t => t.name).join(", ")}` : "Todos os clientes com dados no período"}
+              className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-full border transition hover:scale-[1.02] ${
+                activeTenants.length < tenants.length
+                  ? "bg-amber-500/10 border-amber-500/40 text-amber-300"
+                  : "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${activeTenants.length < tenants.length ? "bg-amber-400" : "bg-emerald-400"} animate-pulse`} />
+              {activeTenants.length} de {tenants.length} ativos
+            </button>
+          )}
           <div className="flex gap-1 bg-card/70 backdrop-blur border border-border rounded-full p-1">
             {[{v:"7",l:"7d"},{v:"30",l:"30d"},{v:"90",l:"90d"},{v:"all",l:"Tudo"}].map(o => (
               <button key={o.v} onClick={() => setPeriod(o.v as any)}
