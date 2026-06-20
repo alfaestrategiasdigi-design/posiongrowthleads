@@ -119,6 +119,21 @@ export default function CampanhasPage() {
   const [campaignsAccountId, setCampaignsAccountId] = useState<string | null>(null);
   const [togglingCampaign, setTogglingCampaign] = useState<string | null>(null);
 
+  // Drill-down / management state
+  type AdSet = { id: string; name: string; status: string; effective_status: string; daily_budget?: string; lifetime_budget?: string; optimization_goal?: string };
+  type Ad = { id: string; name: string; status: string; effective_status: string };
+  const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
+  const [adsetsByCampaign, setAdsetsByCampaign] = useState<Record<string, AdSet[]>>({});
+  const [loadingAdsetsFor, setLoadingAdsetsFor] = useState<string | null>(null);
+  const [expandedAdset, setExpandedAdset] = useState<string | null>(null);
+  const [adsByAdset, setAdsByAdset] = useState<Record<string, Ad[]>>({});
+  const [loadingAdsFor, setLoadingAdsFor] = useState<string | null>(null);
+  const [busyObject, setBusyObject] = useState<string | null>(null);
+  const [createCampOpen, setCreateCampOpen] = useState(false);
+  const [newCamp, setNewCamp] = useState({ name: "", objective: "OUTCOME_LEADS" });
+  const [budgetDialog, setBudgetDialog] = useState<{ open: boolean; id?: string; name?: string; current?: string }>({ open: false });
+  const [budgetValue, setBudgetValue] = useState("");
+
   const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
   const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
 
