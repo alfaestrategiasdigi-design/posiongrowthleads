@@ -58,7 +58,7 @@ const Dashboard = () => {
       supabase.from("leads").select("id,status,origem,created_at,fechado_em,valor_proposta,tenant_id,facebook_form_id,facebook_form_name,facebook_campaign")
         .gte("created_at", cutISO).order("created_at", { ascending: false }).limit(8000),
       supabase.from("campaign_spend").select("*").gte("period_start", cutISO.slice(0, 10)).limit(3000),
-      supabase.from("sales").select("id,amount,sale_date,clinic_lead_id,tenant_id,facebook_campaign_id").gte("sale_date", cutISO.slice(0, 10)).limit(3000),
+      supabase.from("sales").select("id,amount,amount_paid,amount_pending,payment_status,sale_date,clinic_lead_id,tenant_id,facebook_campaign_id,seller_name,procedure_category,international").gte("sale_date", cutISO.slice(0, 10)).limit(5000),
       supabase.from("tenants").select("id,name").order("name"),
       supabase.rpc("get_facebook_config_meta" as any),
     ]);
