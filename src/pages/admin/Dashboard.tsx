@@ -284,14 +284,12 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* KPIs Linha 1 — Volume */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+      {/* KPIs Linha 1 — Funil de leads */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiTile icon={Users} label="Leads" value={stats.total} accent="sky" sub="no período" />
         <KpiTile icon={Megaphone} label="Facebook Ads" value={stats.fbLeads} accent="violet" sub={`${stats.total ? Math.round(stats.fbLeads/stats.total*100) : 0}% do total`} />
         <KpiTile icon={CheckCircle2} label="Qualificados" value={stats.qual} accent="emerald" sub={`${stats.qualRate.toFixed(1)}% taxa`} />
         <KpiTile icon={Trophy} label="Fechados" value={stats.fech} accent="emerald" sub={`${stats.convRate.toFixed(1)}% conversão`} />
-        <KpiTile icon={Wallet} label="Investido" value={stats.invested} prefix="R$ " accent="rose" sub="Meta Ads" />
-        <KpiTile icon={DollarSign} label="Receita" value={stats.revenue} prefix="R$ " accent="emerald" sub="vendas no período" />
       </div>
 
       {/* KPIs Linha 2 — Performance */}
@@ -477,10 +475,30 @@ const Dashboard = () => {
       <div className="card-elevated p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Campanhas</p>
-            <h3 className="font-display text-lg text-foreground normal-case tracking-normal">Top 5 — Facebook Ads</h3>
+            <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Gerenciador de Anúncios</p>
+            <h3 className="font-display text-lg text-foreground normal-case tracking-normal">Performance Meta Ads — Top 5 Campanhas</h3>
           </div>
           <Megaphone className="w-5 h-5 text-accent" />
+        </div>
+
+        {/* Totais consolidados das campanhas */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+          <div className="rounded-xl border border-primary/15 bg-primary/[0.04] px-4 py-3">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Investido</p>
+            <p className="font-display text-xl text-foreground tabular-nums mt-1">R$ {stats.invested.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</p>
+          </div>
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] px-4 py-3">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Receita atribuída</p>
+            <p className="font-display text-xl text-emerald-300 tabular-nums mt-1">R$ {stats.revenue.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</p>
+          </div>
+          <div className="rounded-xl border border-primary/15 bg-primary/[0.04] px-4 py-3">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">CPL médio</p>
+            <p className="font-display text-xl text-foreground tabular-nums mt-1">R$ {stats.cpl.toFixed(2)}</p>
+          </div>
+          <div className="rounded-xl border border-primary/15 bg-primary/[0.04] px-4 py-3">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">ROAS</p>
+            <p className={`font-display text-xl tabular-nums mt-1 ${stats.roas >= 2 ? "text-emerald-300" : stats.roas >= 1 ? "text-amber-300" : "text-rose-300"}`}>{stats.roas.toFixed(2)}x</p>
+          </div>
         </div>
         {topCampaigns.length === 0 ? (
           <EmptyHint text="Nenhuma campanha. Sincronize em /admin/campanhas." />
