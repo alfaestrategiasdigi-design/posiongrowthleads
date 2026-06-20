@@ -171,7 +171,7 @@ export default function SalesPanel({ tenants, sales, contracts, isAdmin, onContr
                     </div>
                     <div className="h-1.5 bg-card/60 rounded-full overflow-hidden flex">
                       <div className="h-full bg-emerald-500/80" style={{ width: `${t.revenue > 0 ? (t.paid / t.revenue) * 100 : 0}%` }} />
-                      <div className="h-full bg-amber-500/70" style={{ width: `${t.revenue > 0 ? (t.pending / t.revenue) * 100 : 0}%` }} />
+                      <div className="h-full bg-violet-500/70" style={{ width: `${t.revenue > 0 ? (t.pending / t.revenue) * 100 : 0}%` }} />
                     </div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">{pct.toFixed(1)}% da receita · {fmt(t.paid)} pago · {fmt(t.pending)} pendente</div>
                   </div>
