@@ -21,6 +21,40 @@ function json(body: any, status = 200) {
   });
 }
 
+// Facebook rate-limit / transient codes that should NOT crash the client.
+// 17 = User request limit, 4 = App request limit, 32 = Page-level rate limit,
+// 613 = Custom-level rate limit, 80004 = Ads insights throttling.
+function fbErr(body: any) {
+  const code = Number(body?.error?.code ?? 0);
+  const sub = Number(body?.error?.error_subcode ?? 0);
+  const rateLimited = [17, 4, 32, 613, 80004].includes(code);
+  return json({
+    ok: false,
+    error: body?.error?.message ?? body?.error?.error_user_msg ?? "Erro do Facebook",
+    error_user_title: body?.error?.error_user_title,
+    error_user_msg: body?.error?.error_user_msg,
+    rate_limited: rateLimited,
+    fallback: rateLimited,
+    code, error_subcode: sub,
+    raw: body,
+  }, 200);
+}
+
+// Run async tasks with a small concurrency cap so we never hammer the Graph API.
+async function mapLimit<T, R>(items: T[], limit: number, fn: (it: T, i: number) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const idx = i++;
+      if (idx >= items.length) return;
+      out[idx] = await fn(items[idx], idx);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
 async function fbGet(path: string, token: string, params: Record<string, string> = {}) {
   const url = new URL(`${GRAPH}/${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
