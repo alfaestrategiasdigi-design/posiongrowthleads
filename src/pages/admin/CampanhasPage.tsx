@@ -237,7 +237,11 @@ export default function CampanhasPage() {
   const syncFacebookAds = async (silent = false, didReconnect = false) => {
     setSyncing(true);
     try {
-      let { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", { body: { days: 30 } });
+      const days = period === "all" ? 90 : Number(period);
+      const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+      const until = new Date().toISOString().slice(0, 10);
+      let { data, error } = await supabase.functions.invoke("facebook-campaigns-sync", { body: { since, until } });
+
 
       // Edge function returned non-2xx — try to read the JSON body from the error context.
       if (error && !data) {
@@ -694,13 +698,16 @@ export default function CampanhasPage() {
     } finally { setBusyObject(null); }
   };
 
-  // Auto-load Meta campaigns when filter / active account changes
+  // Auto-load Meta campaigns when filter / active account / period changes
   useEffect(() => {
     if (!permState.ok) return;
     const acc = adAccountFilter !== "all" ? adAccountFilter : adAccountId;
     if (acc) loadMetaCampaigns(acc);
+    // Re-sync campaign_spend silently with the actual period window
+    syncFacebookAds(true).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adAccountFilter, adAccountId, permState.ok, period]);
+
 
 
   return (

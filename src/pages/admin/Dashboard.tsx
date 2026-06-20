@@ -97,14 +97,18 @@ const Dashboard = () => {
   }, [period]);
 
   useEffect(() => {
-    if (!lastSync) return;
-    const ageMin = (Date.now() - new Date(lastSync).getTime()) / 60000;
+    // Re-sincroniza Meta Ads sempre que o período muda (com datas reais), respeitando 15min de cache
+    const ageMin = lastSync ? (Date.now() - new Date(lastSync).getTime()) / 60000 : 999;
+    const days = period === "all" ? 90 : Number(period);
+    const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+    const until = new Date().toISOString().slice(0, 10);
     if (ageMin > 15) {
-      supabase.functions.invoke("facebook-campaigns-sync", { body: { days: 30 } })
+      supabase.functions.invoke("facebook-campaigns-sync", { body: { since, until } })
         .then(() => load()).catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastSync]);
+  }, [lastSync, period]);
+
 
   // aplica filtro de tenant
   const fLeads = useMemo(() => tenantFilter === "all" ? leads : leads.filter(l => l.tenant_id === tenantFilter), [leads, tenantFilter]);

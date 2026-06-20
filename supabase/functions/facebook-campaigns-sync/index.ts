@@ -42,8 +42,10 @@ Deno.serve(async (req) => {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* no body */ }
-  const days = Math.max(1, Math.min(90, Number(body.days ?? 30)));
   const checkOnly = body.check_permissions === true;
+  const days = Math.max(1, Math.min(180, Number(body.days ?? 30)));
+  const sinceArg = typeof body.since === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.since) ? body.since : null;
+  const untilArg = typeof body.until === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.until) ? body.until : null;
 
   const { data: cfg } = await admin
     .from("facebook_webhook_config")
@@ -93,12 +95,12 @@ Deno.serve(async (req) => {
   if (!adAccountId.startsWith("act_")) adAccountId = `act_${adAccountId}`;
   const tenantId: string | null = cfg?.default_tenant_id ?? null;
 
-  const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
-  const until = new Date().toISOString().slice(0, 10);
+  const since = sinceArg ?? new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  const until = untilArg ?? new Date().toISOString().slice(0, 10);
 
   // 1) lista campanhas
   const campUrl = new URL(`https://graph.facebook.com/v21.0/${adAccountId}/campaigns`);
-  campUrl.searchParams.set("fields", "id,name,status,objective");
+  campUrl.searchParams.set("fields", "id,name,status,effective_status,objective");
   campUrl.searchParams.set("limit", "200");
   campUrl.searchParams.set("access_token", token);
   const campRes = await fetch(campUrl);
@@ -115,7 +117,7 @@ Deno.serve(async (req) => {
   for (const c of campaigns) {
     // 2) insights por campanha (agregado no período)
     const insUrl = new URL(`https://graph.facebook.com/v21.0/${c.id}/insights`);
-    insUrl.searchParams.set("fields", "spend,impressions,clicks,actions");
+    insUrl.searchParams.set("fields", "spend,impressions,clicks,ctr,cpc,actions,cost_per_action_type,account_currency");
     insUrl.searchParams.set("time_range", JSON.stringify({ since, until }));
     insUrl.searchParams.set("access_token", token);
     const insRes = await fetch(insUrl);
@@ -131,13 +133,12 @@ Deno.serve(async (req) => {
     let leads = 0;
     if (Array.isArray(row?.actions)) {
       for (const a of row.actions) {
-        if (a.action_type === "lead" || a.action_type === "onsite_conversion.lead_grouped") {
+        if (a.action_type === "lead" || a.action_type === "onsite_conversion.lead_grouped" || a.action_type === "offsite_conversion.fb_pixel_lead") {
           leads += Number(a.value || 0);
         }
       }
     }
 
-    // upsert por (tenant_id, channel, campaign_id, period_start)
     const payload = {
       tenant_id: tenantId,
       period_start: since,
@@ -145,11 +146,12 @@ Deno.serve(async (req) => {
       channel: "meta_ads",
       campaign_id: c.id,
       campaign_name: c.name,
+      campaign_status: c.effective_status ?? c.status ?? null,
       amount_spent: spend,
       impressions,
       clicks,
       leads_generated: leads,
-      notes: `auto · ${c.status ?? ""} · ${c.objective ?? ""}`.trim(),
+      notes: `auto · ${c.effective_status ?? c.status ?? ""} · ${c.objective ?? ""}`.trim(),
     };
 
     // Tenta update primeiro (chave: tenant_id+channel+campaign_id+period_start)
