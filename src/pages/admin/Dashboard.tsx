@@ -542,7 +542,7 @@ const Heatmap = ({ data, max }: { data: number[][]; max: number }) => (
             const intensity = v / max;
             const bg = v === 0
               ? "hsl(224 30% 14%)"
-              : `hsl(45 75% ${70 - intensity * 30}% / ${0.25 + intensity * 0.75})`;
+              : `hsl(245 78% ${65 - intensity * 25}% / ${0.25 + intensity * 0.75})`;
             return (
               <div key={h} title={`${DOW[d]} ${h}h: ${v} lead(s)`}
                 className="flex-1 h-5 rounded-sm transition hover:ring-1 hover:ring-accent"
