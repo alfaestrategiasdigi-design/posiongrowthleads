@@ -426,11 +426,11 @@ const Dashboard = () => {
                 <CartesianGrid stroke="hsl(224 30% 18%)" strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="date" stroke="hsl(215 20% 65%)" fontSize={11} tickLine={false} />
                 <YAxis yAxisId="left" stroke="hsl(199 89% 60%)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-                <YAxis yAxisId="right" orientation="right" stroke="hsl(45 75% 70%)" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis yAxisId="right" orientation="right" stroke="hsl(265 85% 68%)" fontSize={11} tickLine={false} axisLine={false} />
                 <Tooltip contentStyle={{ background: "hsl(226 53% 9%)", border: "1px solid hsl(224 30% 22%)", borderRadius: 12, color: "#fff", fontSize: 12 }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Area yAxisId="left" type="monotone" dataKey="leads" name="Leads" stroke="hsl(199 89% 60%)" strokeWidth={2.5} fill="url(#leadsFill)" />
-                <Line yAxisId="right" type="monotone" dataKey="spent" name="Investido (R$)" stroke="hsl(45 75% 70%)" strokeWidth={2} dot={false} />
+                <Line yAxisId="right" type="monotone" dataKey="spent" name="Investido (R$)" stroke="hsl(265 85% 68%)" strokeWidth={2} dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
