@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
   for (const c of campaigns) {
     // 2) insights por campanha (agregado no período)
     const insUrl = new URL(`https://graph.facebook.com/v21.0/${c.id}/insights`);
-    insUrl.searchParams.set("fields", "spend,impressions,clicks,actions");
+    insUrl.searchParams.set("fields", "spend,impressions,clicks,ctr,cpc,actions,cost_per_action_type,account_currency");
     insUrl.searchParams.set("time_range", JSON.stringify({ since, until }));
     insUrl.searchParams.set("access_token", token);
     const insRes = await fetch(insUrl);
