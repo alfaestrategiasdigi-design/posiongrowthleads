@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Download, Loader2, Phone, Mail, Building2, MapPin, Facebook, Bug } from "lucide-react";
+import {
+  Search, Download, Loader2, Phone, Mail, Building2, MapPin, Facebook, Bug,
+  Sparkles, Users, CheckCircle2, Trophy, Flame, Filter,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
@@ -9,20 +12,31 @@ import { ptBR } from "date-fns/locale";
 import LeadDetailModal from "@/components/admin/LeadDetailModal";
 import type { Lead } from "@/types/admin";
 
-const statusLabels: Record<string, { label: string; color: string }> = {
-  novo: { label: "Novo", color: "bg-blue-500/10 text-blue-400" },
-  em_contato: { label: "Em Contato", color: "bg-amber-500/10 text-amber-400" },
-  negociando: { label: "Negociando", color: "bg-purple-500/10 text-purple-400" },
-  convertido: { label: "Convertido", color: "bg-green-500/10 text-green-400" },
-  perdido: { label: "Perdido", color: "bg-red-500/10 text-red-400" },
+const statusLabels: Record<string, { label: string; color: string; dot: string }> = {
+  novo:               { label: "Novo",         color: "bg-sky-500/10 text-sky-300 border-sky-500/30",       dot: "bg-sky-400" },
+  mql:                { label: "MQL",          color: "bg-violet-500/10 text-violet-300 border-violet-500/30", dot: "bg-violet-400" },
+  sql:                { label: "SQL",          color: "bg-indigo-500/10 text-indigo-300 border-indigo-500/30", dot: "bg-indigo-400" },
+  em_contato:         { label: "Em Contato",   color: "bg-amber-500/10 text-amber-300 border-amber-500/30", dot: "bg-amber-400" },
+  reuniao_agendada:   { label: "Reunião",      color: "bg-cyan-500/10 text-cyan-300 border-cyan-500/30",   dot: "bg-cyan-400" },
+  reuniao_realizada:  { label: "Reunião OK",   color: "bg-teal-500/10 text-teal-300 border-teal-500/30",   dot: "bg-teal-400" },
+  proposta:           { label: "Proposta",     color: "bg-purple-500/10 text-purple-300 border-purple-500/30", dot: "bg-purple-400" },
+  negociacao:         { label: "Negociação",   color: "bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30", dot: "bg-fuchsia-400" },
+  negociando:         { label: "Negociando",   color: "bg-purple-500/10 text-purple-300 border-purple-500/30", dot: "bg-purple-400" },
+  ganho:              { label: "Ganho",        color: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30", dot: "bg-emerald-400" },
+  convertido:         { label: "Convertido",   color: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30", dot: "bg-emerald-400" },
+  perdido:            { label: "Perdido",      color: "bg-rose-500/10 text-rose-300 border-rose-500/30",   dot: "bg-rose-400" },
 };
+
+const QUALIFIED = ["mql","sql","reuniao_agendada","reuniao_realizada","proposta","negociacao"];
+const WON = ["ganho","convertido","fechado_ganho"];
 
 const LeadsPage = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [originFilter, setOriginFilter] = useState<string>("all");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-
   const [lastLeadsSync, setLastLeadsSync] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,13 +72,34 @@ const LeadsPage = () => {
     };
   }, [leads]);
 
-  const filtered = leads.filter(l =>
-    !searchQuery ||
-    l.nome_completo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    l.whatsapp.includes(searchQuery) ||
-    (l.nome_empresa || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (l.cidade_estado || "").toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const kpis = useMemo(() => {
+    const total = leads.length;
+    const fb = leads.filter(l => l.origem === "facebook_ads").length;
+    const qual = leads.filter(l => QUALIFIED.includes(l.status)).length;
+    const won = leads.filter(l => WON.includes(l.status)).length;
+    const novos24h = leads.filter(l => Date.now() - new Date(l.created_at).getTime() < 86400000).length;
+    return { total, fb, qual, won, novos24h, convRate: total ? (won / total) * 100 : 0 };
+  }, [leads]);
+
+  const origins = useMemo(() => {
+    const set = new Set<string>();
+    leads.forEach(l => set.add(l.origem || "outro"));
+    return Array.from(set);
+  }, [leads]);
+
+  const filtered = leads.filter(l => {
+    if (statusFilter !== "all" && l.status !== statusFilter) return false;
+    if (originFilter !== "all" && (l.origem || "outro") !== originFilter) return false;
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      l.nome_completo.toLowerCase().includes(q) ||
+      l.whatsapp.includes(searchQuery) ||
+      (l.nome_empresa || "").toLowerCase().includes(q) ||
+      (l.cidade_estado || "").toLowerCase().includes(q) ||
+      (l.email || "").toLowerCase().includes(q)
+    );
+  });
 
   const handleExportCSV = () => {
     if (filtered.length === 0) return;
@@ -78,29 +113,55 @@ const LeadsPage = () => {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-accent" /></div>;
+    return (
+      <div className="flex items-center justify-center h-full p-12">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 md:p-8 space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Leads</h1>
-          <p className="text-muted-foreground text-sm">{leads.length} leads cadastrados</p>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.22em] text-accent/90 border border-accent/30 bg-accent/5 px-2.5 py-1 rounded-full">
+              <Sparkles className="w-3 h-3" /> Base de Leads
+            </span>
+          </div>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Leads</h1>
+          <p className="text-muted-foreground text-sm">
+            {leads.length} leads cadastrados · {filtered.length} visíveis após filtros
+          </p>
         </div>
-        <Button variant="outline" onClick={handleExportCSV} disabled={filtered.length === 0} className="gap-2 text-sm">
-          <Download className="w-4 h-4" /> Exportar
-        </Button>
+        <div className="flex flex-wrap gap-2 items-center">
+          <Button variant="outline" onClick={handleExportCSV} disabled={filtered.length === 0} className="gap-2 text-sm rounded-full">
+            <Download className="w-4 h-4" /> Exportar CSV
+          </Button>
+        </div>
+      </div>
+
+      {/* KPI Tiles */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+        <KpiTile icon={Users} label="Total" value={kpis.total} accent="sky" sub="na base" />
+        <KpiTile icon={Flame} label="Últ. 24h" value={kpis.novos24h} accent="rose" sub="novos leads" />
+        <KpiTile icon={Facebook} label="Facebook Ads" value={kpis.fb} accent="gold" sub={`${kpis.total ? Math.round(kpis.fb/kpis.total*100):0}% do total`} />
+        <KpiTile icon={CheckCircle2} label="Qualificados" value={kpis.qual} accent="emerald" sub="MQL → Negociação" />
+        <KpiTile icon={Trophy} label="Ganhos" value={kpis.won} accent="emerald" sub={`${kpis.convRate.toFixed(1)}% conversão`} />
       </div>
 
       {/* Resumo Facebook Ads */}
       {fbSummary.total > 0 && (
-        <div className="bg-card rounded-xl border border-border/50 p-5 space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <Facebook className="w-5 h-5 text-blue-400" />
-              <h2 className="font-semibold text-foreground">Origem Facebook Ads</h2>
-              <span className="text-xs text-muted-foreground">({fbSummary.total} leads)</span>
+        <div className="card-elevated p-6">
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80 flex items-center gap-1.5">
+                <Facebook className="w-3 h-3" /> Origem Facebook Ads
+              </p>
+              <h3 className="font-display text-lg text-foreground normal-case tracking-normal">
+                {fbSummary.total} leads importados
+              </h3>
             </div>
             <div className="flex items-center gap-2">
               {lastLeadsSync && (
@@ -109,33 +170,47 @@ const LeadsPage = () => {
                 </span>
               )}
               <Link to="/admin/facebook">
-                <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs rounded-full">
                   <Bug className="w-3.5 h-3.5" /> Diagnóstico
                 </Button>
               </Link>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Por formulário</p>
-              <div className="space-y-1.5">
-                {fbSummary.forms.slice(0, 6).map(f => (
-                  <div key={f.id} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate text-foreground" title={f.id}>{f.name}</span>
-                    <span className="font-bold text-accent tabular-nums">{f.count}</span>
-                  </div>
-                ))}
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-3">Por formulário</p>
+              <div className="space-y-2">
+                {fbSummary.forms.slice(0, 6).map(f => {
+                  const pct = (f.count / fbSummary.total) * 100;
+                  return (
+                    <div key={f.id} className="space-y-1">
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="truncate text-foreground" title={f.id}>{f.name}</span>
+                        <span className="font-bold text-accent tabular-nums">{f.count}</span>
+                      </div>
+                      <div className="h-1.5 bg-card/60 rounded-full overflow-hidden">
+                        <div className="h-full gradient-accent rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Por status</p>
-              <div className="space-y-1.5">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-3">Por status</p>
+              <div className="space-y-2">
                 {fbSummary.statuses.map(([st, ct]) => {
-                  const meta = statusLabels[st] ?? { label: st, color: "bg-muted text-muted-foreground" };
+                  const meta = statusLabels[st] ?? { label: st, color: "bg-muted text-muted-foreground border-border", dot: "bg-muted-foreground" };
+                  const pct = (ct / fbSummary.total) * 100;
                   return (
-                    <div key={st} className="flex items-center justify-between gap-2 text-xs">
-                      <span className={`px-2 py-0.5 rounded-full font-medium ${meta.color}`}>{meta.label}</span>
-                      <span className="font-bold tabular-nums text-foreground">{ct}</span>
+                    <div key={st} className="space-y-1">
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className={`px-2 py-0.5 rounded-full font-medium border ${meta.color}`}>{meta.label}</span>
+                        <span className="font-bold tabular-nums text-foreground">{ct}</span>
+                      </div>
+                      <div className="h-1.5 bg-card/60 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${meta.dot}`} style={{ width: `${pct}%` }} />
+                      </div>
                     </div>
                   );
                 })}
@@ -145,72 +220,115 @@ const LeadsPage = () => {
         </div>
       )}
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input placeholder="Buscar por nome, telefone, empresa..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9 bg-muted/50 border-border" />
+      {/* Filtros */}
+      <div className="card-elevated p-4 flex flex-wrap gap-3 items-center">
+        <div className="relative flex-1 min-w-[240px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome, telefone, e-mail, empresa..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="pl-9 bg-card/40 border-border/60 rounded-full"
+          />
+        </div>
+        <div className="flex items-center gap-2 bg-card/40 border border-border/60 rounded-full px-3 py-1.5">
+          <Filter className="w-3.5 h-3.5 text-accent" />
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer"
+          >
+            <option value="all">Todos status</option>
+            {Object.entries(statusLabels).map(([k, v]) => (
+              <option key={k} value={k}>{v.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2 bg-card/40 border border-border/60 rounded-full px-3 py-1.5">
+          <Filter className="w-3.5 h-3.5 text-accent" />
+          <select
+            value={originFilter}
+            onChange={e => setOriginFilter(e.target.value)}
+            className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer"
+          >
+            <option value="all">Todas origens</option>
+            {origins.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
       </div>
 
-      <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
+      {/* Tabela */}
+      <div className="card-elevated overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="text-left text-xs font-medium text-muted-foreground p-4">Nome</th>
-                <th className="text-left text-xs font-medium text-muted-foreground p-4">Contato</th>
-                <th className="text-left text-xs font-medium text-muted-foreground p-4">Clínica</th>
-                <th className="text-left text-xs font-medium text-muted-foreground p-4">Cidade</th>
-                <th className="text-left text-xs font-medium text-muted-foreground p-4">Especialidade</th>
-                <th className="text-left text-xs font-medium text-muted-foreground p-4">Faturamento</th>
-                <th className="text-left text-xs font-medium text-muted-foreground p-4">Tráfego</th>
-                <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>
-                <th className="text-left text-xs font-medium text-muted-foreground p-4">Data</th>
+              <tr className="border-b border-border/60 bg-card/40">
+                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Nome</th>
+                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Contato</th>
+                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Clínica</th>
+                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Cidade</th>
+                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Especialidade</th>
+                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Faturamento</th>
+                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Tráfego</th>
+                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Status</th>
+                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Data</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(lead => {
                 const st = statusLabels[lead.status] || statusLabels.novo;
                 return (
-                  <tr key={lead.id} onClick={() => setSelectedLead(lead)} className="border-b border-border/30 hover:bg-muted/20 cursor-pointer transition-colors">
+                  <tr key={lead.id} onClick={() => setSelectedLead(lead)} className="border-b border-border/30 hover:bg-accent/5 cursor-pointer transition-colors group">
                     <td className="p-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
-                          <span className="text-xs font-bold text-accent">{lead.nome_completo.charAt(0)}</span>
+                        <div className="w-9 h-9 rounded-full gradient-accent flex items-center justify-center shadow-md ring-1 ring-accent/30">
+                          <span className="text-sm font-bold text-[hsl(232_65%_5%)]">{lead.nome_completo.charAt(0).toUpperCase()}</span>
                         </div>
-                        <span className="text-sm font-medium text-foreground">{lead.nome_completo}</span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{lead.nome_completo}</p>
+                          {lead.origem === "facebook_ads" && (
+                            <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <Facebook className="w-2.5 h-2.5 text-sky-400" /> Facebook Ads
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="p-4">
                       <div className="space-y-1">
-                        <p className="text-sm text-foreground flex items-center gap-1"><Phone className="w-3 h-3" /> {lead.whatsapp}</p>
-                        {lead.email && <p className="text-xs text-muted-foreground flex items-center gap-1"><Mail className="w-3 h-3" /> {lead.email}</p>}
+                        <p className="text-sm text-foreground flex items-center gap-1.5"><Phone className="w-3 h-3 text-accent/70" /> {lead.whatsapp}</p>
+                        {lead.email && <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Mail className="w-3 h-3" /> {lead.email}</p>}
                       </div>
                     </td>
                     <td className="p-4">
-                      {lead.nome_empresa && <p className="text-sm text-foreground flex items-center gap-1"><Building2 className="w-3 h-3" /> {lead.nome_empresa}</p>}
+                      {lead.nome_empresa && <p className="text-sm text-foreground flex items-center gap-1.5"><Building2 className="w-3 h-3 text-accent/70" /> {lead.nome_empresa}</p>}
                     </td>
                     <td className="p-4">
-                      {lead.cidade_estado && <p className="text-sm text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" /> {lead.cidade_estado}</p>}
+                      {lead.cidade_estado && <p className="text-sm text-muted-foreground flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {lead.cidade_estado}</p>}
                     </td>
                     <td className="p-4">
-                      {lead.especialidade && <span className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium">{lead.especialidade}</span>}
+                      {lead.especialidade && <span className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium border border-accent/20">{lead.especialidade}</span>}
                     </td>
                     <td className="p-4">
-                      <span className="text-xs text-muted-foreground">{lead.faturamento_mensal || "—"}</span>
+                      <span className="text-xs text-muted-foreground tabular-nums">{lead.faturamento_mensal || "—"}</span>
                     </td>
                     <td className="p-4">
                       <span className="text-xs text-muted-foreground">{lead.investiu_trafego || "—"}</span>
                     </td>
                     <td className="p-4">
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${st.color}`}>{st.label}</span>
+                      <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium border ${st.color}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
+                        {st.label}
+                      </span>
                     </td>
                     <td className="p-4">
-                      <span className="text-xs text-muted-foreground">{format(new Date(lead.created_at), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
+                      <span className="text-xs text-muted-foreground tabular-nums">{format(new Date(lead.created_at), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
                     </td>
                   </tr>
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={9} className="p-8 text-center text-muted-foreground text-sm">Nenhum lead encontrado</td></tr>
+                <tr><td colSpan={9} className="p-12 text-center text-muted-foreground text-sm">Nenhum lead encontrado com os filtros atuais</td></tr>
               )}
             </tbody>
           </table>
@@ -218,6 +336,37 @@ const LeadsPage = () => {
       </div>
 
       <LeadDetailModal lead={selectedLead} open={!!selectedLead} onClose={() => setSelectedLead(null)} />
+    </div>
+  );
+};
+
+/* ---------- KPI Tile (mesmo padrão do Dashboard) ---------- */
+type Accent = "sky" | "gold" | "emerald" | "rose" | "violet";
+const ACCENT_MAP: Record<Accent, { ring: string; text: string; glow: string }> = {
+  sky:     { ring: "ring-sky-500/20",     text: "text-sky-300",     glow: "from-sky-500/20 to-transparent" },
+  gold:    { ring: "ring-amber-500/20",   text: "text-amber-300",   glow: "from-amber-500/20 to-transparent" },
+  emerald: { ring: "ring-emerald-500/20", text: "text-emerald-300", glow: "from-emerald-500/20 to-transparent" },
+  rose:    { ring: "ring-rose-500/20",    text: "text-rose-300",    glow: "from-rose-500/20 to-transparent" },
+  violet:  { ring: "ring-violet-500/20",  text: "text-violet-300",  glow: "from-violet-500/20 to-transparent" },
+};
+
+const KpiTile = ({
+  icon: Icon, label, value, sub, accent = "sky",
+}: { icon: any; label: string; value: number; sub?: string; accent?: Accent }) => {
+  const a = ACCENT_MAP[accent];
+  return (
+    <div className={`card-elevated relative overflow-hidden p-4 ring-1 ${a.ring}`}>
+      <div className={`absolute -top-12 -right-12 w-32 h-32 rounded-full bg-gradient-to-br ${a.glow} blur-2xl pointer-events-none`} />
+      <div className="relative flex items-start justify-between">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+          <p className={`text-2xl font-bold tabular-nums mt-1 ${a.text}`}>{value.toLocaleString("pt-BR")}</p>
+          {sub && <p className="text-[10px] text-muted-foreground/70 mt-0.5">{sub}</p>}
+        </div>
+        <div className={`w-9 h-9 rounded-lg bg-card/60 border border-border/60 flex items-center justify-center ${a.text}`}>
+          <Icon className="w-4 h-4" />
+        </div>
+      </div>
     </div>
   );
 };
