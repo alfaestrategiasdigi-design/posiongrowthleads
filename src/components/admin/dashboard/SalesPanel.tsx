@@ -346,12 +346,13 @@ export default function SalesPanel({ tenants, sales, contracts, isAdmin, onContr
   );
 }
 
-function MiniKpi({ icon: Icon, label, value, accent }: { icon: any; label: string; value: string; accent: "emerald" | "sky" | "gold" | "amber" }) {
+function MiniKpi({ icon: Icon, label, value, accent }: { icon: any; label: string; value: string; accent: "emerald" | "sky" | "indigo" | "violet" | "rose" }) {
   const palette: Record<string, string> = {
     emerald: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
     sky: "text-sky-400 bg-sky-500/10 border-sky-500/20",
-    gold: "text-amber-300 bg-amber-500/10 border-amber-500/20",
-    amber: "text-amber-400 bg-amber-500/10 border-amber-500/20",
+    indigo: "text-primary bg-primary/10 border-primary/20",
+    violet: "text-violet-300 bg-violet-500/10 border-violet-500/20",
+    rose: "text-rose-400 bg-rose-500/10 border-rose-500/20",
   };
   return (
     <div className="rounded-xl border border-border bg-card/40 px-3 py-2.5">
