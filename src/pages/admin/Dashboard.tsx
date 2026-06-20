@@ -556,16 +556,17 @@ const Heatmap = ({ data, max }: { data: number[][]; max: number }) => (
 );
 
 const ACCENTS: Record<string, { ring: string; text: string; bg: string; glow: string }> = {
-  gold:   { ring: "ring-accent/25",        text: "text-accent",         bg: "bg-accent/10",         glow: "hover:shadow-[0_20px_45px_-20px_hsl(42_65%_58%/0.6)]" },
-  emerald:{ ring: "ring-emerald-500/25",   text: "text-emerald-400",    bg: "bg-emerald-500/10",    glow: "hover:shadow-[0_20px_45px_-20px_hsl(142_71%_45%/0.5)]" },
-  sky:    { ring: "ring-sky-500/25",       text: "text-sky-400",        bg: "bg-sky-500/10",        glow: "hover:shadow-[0_20px_45px_-20px_hsl(199_89%_48%/0.5)]" },
-  rose:   { ring: "ring-rose-500/25",      text: "text-rose-400",       bg: "bg-rose-500/10",       glow: "hover:shadow-[0_20px_45px_-20px_hsl(347_77%_55%/0.5)]" },
+  indigo: { ring: "ring-primary/25",        text: "text-primary",        bg: "bg-primary/10",        glow: "hover:shadow-[0_20px_45px_-20px_hsl(245_78%_60%/0.55)]" },
+  violet: { ring: "ring-violet-500/25",     text: "text-violet-300",     bg: "bg-violet-500/10",     glow: "hover:shadow-[0_20px_45px_-20px_hsl(265_85%_65%/0.55)]" },
+  emerald:{ ring: "ring-emerald-500/25",    text: "text-emerald-400",    bg: "bg-emerald-500/10",    glow: "hover:shadow-[0_20px_45px_-20px_hsl(142_71%_45%/0.5)]" },
+  sky:    { ring: "ring-sky-500/25",        text: "text-sky-400",        bg: "bg-sky-500/10",        glow: "hover:shadow-[0_20px_45px_-20px_hsl(199_89%_48%/0.5)]" },
+  rose:   { ring: "ring-rose-500/25",       text: "text-rose-400",       bg: "bg-rose-500/10",       glow: "hover:shadow-[0_20px_45px_-20px_hsl(347_77%_55%/0.5)]" },
 };
 
-const KpiTile = ({ icon: Icon, label, value, prefix = "", suffix = "", decimals = 0, sub, accent = "gold" }: any) => {
+const KpiTile = ({ icon: Icon, label, value, prefix = "", suffix = "", decimals = 0, sub, accent = "indigo" }: any) => {
   const { ref, inView } = useInView<HTMLDivElement>();
   const animated = useCountUp(value, inView, 1200);
-  const a = ACCENTS[accent] ?? ACCENTS.gold;
+  const a = ACCENTS[accent] ?? ACCENTS.indigo;
   const shown = decimals > 0 ? animated.toFixed(decimals) : Math.round(animated).toLocaleString("pt-BR");
 
   return (
