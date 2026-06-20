@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
 
   let body: any = {};
   try { body = await req.json(); } catch {}
-  const instance_url = String(body.instance_url ?? "").trim().replace(/\/+$/, "");
+  const instance_url = normalizeBase(String(body.instance_url ?? ""));
   const api_key = String(body.api_key ?? "").trim();
   const instance_name = String(body.instance_name ?? "").trim();
   const tenant_id: string | null = body.tenant_id ?? null;
@@ -84,4 +84,16 @@ Deno.serve(async (req) => {
 
 function json(b: unknown, status = 200) {
   return new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+function normalizeBase(raw: string): string {
+  let s = raw.trim();
+  if (!s) return s;
+  if (!/^https?:\/\//i.test(s)) s = "http://" + s;
+  try {
+    const u = new URL(s);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return s.replace(/\/+$/, "");
+  }
 }

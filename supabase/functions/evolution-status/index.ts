@@ -38,11 +38,16 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (!conn) return json({ error: "Instância não encontrada" }, 404);
 
+  const base = normalizeBase(conn.instance_url);
   try {
-    const r = await fetch(`${conn.instance_url}/instance/connectionState/${encodeURIComponent(instance_name)}`, {
-      headers: { apikey: conn.api_key },
-    });
-    const j = await r.json();
+    const url = `${base}/instance/connectionState/${encodeURIComponent(instance_name)}`;
+    const r = await fetch(url, { headers: { apikey: conn.api_key } });
+    const text = await r.text();
+    let j: any = {};
+    try { j = JSON.parse(text); } catch { j = { raw: text }; }
+    if (!r.ok) {
+      return json({ error: "Evolution respondeu erro", status: r.status, url, detail: j }, 502);
+    }
     const state = j?.instance?.state ?? j?.state ?? "unknown";
     const status = state === "open" ? "connected" : (state === "connecting" ? "connecting" : "disconnected");
     await admin.from("zapi_connections")
@@ -51,9 +56,17 @@ Deno.serve(async (req) => {
       .eq("instance_name", instance_name);
     return json({ ok: true, state, status });
   } catch (e) {
-    return json({ error: "Erro de rede", detail: String(e) }, 502);
+    return json({ error: "Erro de rede", detail: String(e), base }, 502);
   }
 });
+
+function normalizeBase(raw: string): string {
+  let s = (raw ?? "").trim();
+  if (!s) return s;
+  if (!/^https?:\/\//i.test(s)) s = "http://" + s;
+  try { const u = new URL(s); return `${u.protocol}//${u.host}`; }
+  catch { return s.replace(/\/+$/, ""); }
+}
 
 function json(b: unknown, status = 200) {
   return new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
