@@ -34,7 +34,7 @@ type Props = {
 };
 
 const fmt = (n: number) => `R$ ${n.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-const COLORS = ["hsl(45 75% 70%)", "hsl(199 89% 60%)", "hsl(280 65% 65%)", "hsl(142 71% 55%)", "hsl(0 70% 65%)", "hsl(215 25% 55%)"];
+const COLORS = ["hsl(245 78% 62%)", "hsl(265 85% 68%)", "hsl(199 89% 60%)", "hsl(142 71% 55%)", "hsl(280 65% 65%)", "hsl(215 25% 55%)"];
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   active:   { label: "Ativo",       cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40" },
