@@ -948,15 +948,25 @@ export default function CampanhasPage() {
               Lista direta da Marketing API com performance, ROAS, CPL e ações no período selecionado.
             </p>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => loadMetaCampaigns(campaignsAccountId ?? (adAccountFilter !== "all" ? adAccountFilter : adAccountId))}
-            disabled={loadingCampaigns || !permState.ok}
-          >
-            {loadingCampaigns ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
-            Atualizar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => loadMetaCampaigns(campaignsAccountId ?? (adAccountFilter !== "all" ? adAccountFilter : adAccountId))}
+              disabled={loadingCampaigns || !permState.ok}
+            >
+              {loadingCampaigns ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+              Atualizar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setCreateCampOpen(true)}
+              disabled={!permState.ok || !(adAccountFilter !== "all" ? adAccountFilter : adAccountId)}
+              className="gap-1.5"
+            >
+              <Plus className="w-4 h-4" /> Nova campanha
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {!permState.ok ? (
