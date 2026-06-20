@@ -261,8 +261,8 @@ export default function SalesPanel({ tenants, sales, contracts, isAdmin, onContr
                 <MiniKpi icon={TrendingUp} label="ARR" value={fmt(saas.arr)} accent="emerald" />
                 <MiniKpi icon={Users2} label="Ativos" value={String(saas.active.length)} accent="sky" />
                 <MiniKpi icon={Clock} label="Trial" value={String(saas.trial.length)} accent="sky" />
-                <MiniKpi icon={AlertTriangle} label="Inadimplentes" value={String(saas.pastDue.length)} accent="amber" />
-                <MiniKpi icon={DollarSign} label="ARPA" value={fmt(saas.arpa)} accent="gold" />
+                <MiniKpi icon={AlertTriangle} label="Inadimplentes" value={String(saas.pastDue.length)} accent="rose" />
+                <MiniKpi icon={DollarSign} label="ARPA" value={fmt(saas.arpa)} accent="indigo" />
               </div>
 
               <div className="flex justify-end">
