@@ -85,3 +85,15 @@ Deno.serve(async (req) => {
 function json(b: unknown, status = 200) {
   return new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
+
+function normalizeBase(raw: string): string {
+  let s = raw.trim();
+  if (!s) return s;
+  if (!/^https?:\/\//i.test(s)) s = "http://" + s;
+  try {
+    const u = new URL(s);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return s.replace(/\/+$/, "");
+  }
+}
