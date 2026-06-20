@@ -1506,6 +1506,59 @@ export type Database = {
           },
         ]
       }
+      saas_contracts: {
+        Row: {
+          billing_cycle: string
+          canceled_at: string | null
+          created_at: string
+          id: string
+          mrr: number
+          notes: string | null
+          plan: string
+          renews_at: string | null
+          started_at: string
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          billing_cycle?: string
+          canceled_at?: string | null
+          created_at?: string
+          id?: string
+          mrr?: number
+          notes?: string | null
+          plan?: string
+          renews_at?: string | null
+          started_at?: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          billing_cycle?: string
+          canceled_at?: string | null
+          created_at?: string
+          id?: string
+          mrr?: number
+          notes?: string | null
+          plan?: string
+          renews_at?: string | null
+          started_at?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saas_contracts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales: {
         Row: {
           amount: number

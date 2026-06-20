@@ -1,40 +1,64 @@
-## Dashboard Master: deixar óbvio que só 1 de 4 tenants tem dados
+## Painel de Vendas (Admin Master) dentro do Dashboard
 
-Hoje o Dashboard master (`/admin`) soma silenciosamente todos os tenants, e como só o **Instituto Roar** tem dados, parece que os números são "do admin" — mas são na verdade só de 1 cliente.
+Duas seções colapsáveis novas no `/admin` (Painel Comercial), visíveis apenas no modo "Todos locatários" e somente para `role=admin`. Sem rotas novas.
 
-Vou adicionar **as duas coisas** ao topo do Dashboard (só quando `tenantFilter === "all"`):
+### Seção A — "Vendas (operação comercial dos clientes)"
+Consolida `public.sales` de todos os tenants no período selecionado. Mostra a operação comercial interna que cada cliente está fazendo (procedimentos vendidos a pacientes).
 
-### 1) Badge "X de Y ativos" ao lado do seletor
-- Conta tenants com `leads > 0 || receita > 0 || investido > 0` no período.
-- Exibe `1 de 4 ativos` em badge âmbar quando `X < Y`, verde quando `X === Y`.
-- Tooltip ao passar o mouse: lista os inativos ("Sem dados: Dr Gabriel Lourenço, Donna Face, Dr. Brenda Lima").
-- Clique no badge → abre breakdown completo (item 2).
+KPIs no topo da seção:
+- Receita total (R$), Vendas (n°), Ticket médio, % Pagas / Parciais / Pendentes, Internacionais.
 
-### 2) Card "Distribuição por cliente" (mini-lista)
-Card colapsável logo abaixo dos KPIs, com 1 linha por tenant ordenada por receita desc:
+Visualizações:
+- **Ranking de clientes** (mesma estrutura do card "Por cliente" que já existe): receita, n° vendas, ticket médio, barra de %.
+- **Top 5 vendedores** (`seller_name`): receita + n° vendas.
+- **Mix por categoria** (donut `procedure_category`).
+- **Tendência diária** de receita (área).
+- **Pagamentos**: barra empilhada Pago / Parcial / Pendente por cliente.
 
+Fonte: `sales` já carregada no Dashboard — só agregamos.
+
+### Seção B — "SaaS & Contratos"
+Faturamento da plataforma (o que o admin master cobra de cada cliente). Hoje não há tabela; crio `saas_contracts` mínima.
+
+Nova tabela `public.saas_contracts`:
 ```
-┌─────────────────────────────────────────────────────┐
-│ Distribuição por cliente · 4 clientes               │
-├─────────────────────────────────────────────────────┤
-│ ● Dr Instituto Roar      R$ 99.810  ·  20 vendas    │
-│   ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ 100%             │
-│ ○ Clínica Dr Gabriel L.  R$ 0       ·  sem dados    │
-│ ○ Clínica Donna Face     R$ 0       ·  sem dados    │
-│ ○ Dr. Brenda Lima        R$ 0       ·  sem dados    │
-└─────────────────────────────────────────────────────┘
+id uuid PK
+tenant_id uuid FK tenants
+plan text                         -- 'starter' | 'growth' | 'scale' | 'enterprise' | custom
+status text                       -- 'active' | 'trial' | 'past_due' | 'canceled'
+mrr numeric(12,2) not null        -- valor mensal
+billing_cycle text                -- 'monthly' | 'yearly'
+started_at date not null
+renews_at date
+canceled_at date
+notes text
+created_at, updated_at timestamptz
 ```
++ GRANTs + RLS: SELECT/INSERT/UPDATE/DELETE só para `has_role(auth.uid(),'admin')`. service_role full.
 
-- Cada linha mostra: nome, receita (R$), nº vendas, barra de % da receita total, e badge "sem dados" para tenants vazios.
-- Clique numa linha → seta `tenantFilter` para aquele tenant (drill-in).
-- Só aparece no modo "Todos locatários" (some quando um cliente está filtrado).
+KPIs da seção:
+- **MRR total** (somatório `mrr` onde status='active').
+- **ARR** (MRR × 12).
+- **Clientes ativos / em trial / inadimplentes / cancelados**.
+- **Ticket médio (ARPA)** = MRR / clientes ativos.
+- **Churn no período** (cancelados no período / ativos início).
 
-### Arquivo único alterado
-`src/pages/admin/Dashboard.tsx`
-- Calcular `byTenant = [{ id, name, leads, revenue, invested, sales }]` agregando `fLeads/fSales/fSpends` (já existem no escopo).
-- `activeCount = byTenant.filter(t => t.leads || t.revenue || t.invested).length`.
-- Renderizar Badge no header (ao lado do select de tenant) e Card de breakdown após a grid de KPIs.
+Visualizações:
+- **Tabela de contratos**: cliente, plano, status (badge), MRR, ciclo, renovação, ações (editar/cancelar) via dialog inline.
+- **Botão "Novo contrato"** abre dialog (tenant select + plano + MRR + ciclo + data início).
+- **MRR por plano** (barra horizontal).
+- **Receita SaaS últimos 12 meses** (área, derivada de `mrr × meses ativos`).
+
+### Layout
+Logo após o card "Por cliente" já existente, adiciono duas abas (`Tabs` shadcn): "Operação dos clientes" | "SaaS & contratos". Persistência via URL hash (`#vendas-operacao` / `#vendas-saas`).
+
+### Arquivos
+- **Migration**: cria `saas_contracts` + RLS + GRANTs.
+- **Novo**: `src/components/admin/dashboard/SalesPanel.tsx` — encapsula as 2 abas para não inflar `Dashboard.tsx`.
+- **Novo**: `src/components/admin/dashboard/SaasContractDialog.tsx` — criar/editar contrato.
+- **Edit**: `src/pages/admin/Dashboard.tsx` — carregar `saas_contracts` (só se admin) e renderizar `<SalesPanel>` após o breakdown por cliente.
 
 ### Fora do escopo
-- Não muda lógica de agregação dos KPIs (continuam somando tudo).
-- Não toca em RLS, schema ou outras páginas.
+- Cobrança automática / integração com gateway de pagamento (Stripe/Paddle). Os contratos são registro manual de MRR por enquanto.
+- Faturas/invoices individuais (pode vir depois se quiser).
+- Página dedicada `/admin/vendas` (mantemos tudo no Dashboard como pedido).

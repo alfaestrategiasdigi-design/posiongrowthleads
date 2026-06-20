@@ -12,6 +12,8 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { useInView } from "@/hooks/useInView";
 import { PIPELINE_STAGES } from "@/types/admin";
 import SystemHealthCard from "@/components/admin/dashboard/SystemHealthCard";
+import SalesPanel from "@/components/admin/dashboard/SalesPanel";
+import type { SaasContract } from "@/components/admin/dashboard/SaasContractDialog";
 
 type Lead = {
   id: string;
@@ -26,7 +28,7 @@ type Lead = {
   facebook_campaign: string | null;
 };
 type Spend = { id: string; channel: string; campaign_name: string | null; campaign_id: string | null; amount_spent: number; leads_generated: number; impressions: number; clicks: number; period_start: string; period_end: string; tenant_id: string | null };
-type Sale = { id: string; amount: number; sale_date: string; clinic_lead_id: string | null; tenant_id: string | null; facebook_campaign_id: string | null };
+type Sale = { id: string; amount: number; amount_paid: number; amount_pending: number; payment_status: string; sale_date: string; clinic_lead_id: string | null; tenant_id: string; facebook_campaign_id: string | null; seller_name: string | null; procedure_category: string | null; international: boolean };
 type Tenant = { id: string; name: string };
 
 const COLORS = ["hsl(45 75% 70%)", "hsl(199 89% 60%)", "hsl(280 65% 65%)", "hsl(142 71% 55%)", "hsl(0 70% 65%)", "hsl(215 25% 55%)"];
@@ -43,6 +45,8 @@ const Dashboard = () => {
   const [period, setPeriod] = useState<"7" | "30" | "90" | "all">("30");
   const [tenantFilter, setTenantFilter] = useState<string>("all");
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [contracts, setContracts] = useState<SaasContract[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const periodDays = period === "all" ? 9999 : Number(period);
   const cutoff = new Date(Date.now() - periodDays * 86400000);
@@ -54,7 +58,7 @@ const Dashboard = () => {
       supabase.from("leads").select("id,status,origem,created_at,fechado_em,valor_proposta,tenant_id,facebook_form_id,facebook_form_name,facebook_campaign")
         .gte("created_at", cutISO).order("created_at", { ascending: false }).limit(8000),
       supabase.from("campaign_spend").select("*").gte("period_start", cutISO.slice(0, 10)).limit(3000),
-      supabase.from("sales").select("id,amount,sale_date,clinic_lead_id,tenant_id,facebook_campaign_id").gte("sale_date", cutISO.slice(0, 10)).limit(3000),
+      supabase.from("sales").select("id,amount,amount_paid,amount_pending,payment_status,sale_date,clinic_lead_id,tenant_id,facebook_campaign_id,seller_name,procedure_category,international").gte("sale_date", cutISO.slice(0, 10)).limit(5000),
       supabase.from("tenants").select("id,name").order("name"),
       supabase.rpc("get_facebook_config_meta" as any),
     ]);
@@ -66,6 +70,22 @@ const Dashboard = () => {
     setLastSync(row?.last_campaigns_sync_at ?? null);
     setLoading(false);
   };
+
+  const loadContracts = async () => {
+    const { data } = await supabase.from("saas_contracts").select("*").order("created_at", { ascending: false });
+    setContracts((data ?? []) as SaasContract[]);
+  };
+
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
+      const { data: admin } = await supabase.rpc("has_role", { _user_id: u.user.id, _role: "admin" as any });
+      const ok = !!admin;
+      setIsAdmin(ok);
+      if (ok) loadContracts();
+    })();
+  }, []);
 
   useEffect(() => {
     load();
@@ -340,6 +360,17 @@ const Dashboard = () => {
             })}
           </div>
         </div>
+      )}
+
+      {/* Painel de vendas (admin master) */}
+      {tenantFilter === "all" && (
+        <SalesPanel
+          tenants={tenants}
+          sales={sales as any}
+          contracts={contracts}
+          isAdmin={isAdmin}
+          onContractsChanged={loadContracts}
+        />
       )}
 
       {/* Funil 7 etapas */}
