@@ -1001,239 +1001,76 @@ export default function CampanhasPage() {
             <div className="text-sm text-muted-foreground py-6 text-center">
               Nenhuma campanha encontrada nesta conta.
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Campanha</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Objetivo</TableHead>
-                    <TableHead className="text-right">Orçamento</TableHead>
-                    <TableHead className="text-right">Gasto</TableHead>
-                    <TableHead className="text-right">Impr.</TableHead>
-                    <TableHead className="text-right">Cliques</TableHead>
-                    <TableHead className="text-right">CTR</TableHead>
-                    <TableHead className="text-right">CPC</TableHead>
-                    <TableHead className="text-right">Leads</TableHead>
-                    <TableHead className="text-right">CPL</TableHead>
-                    <TableHead className="text-right">ROAS</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {metaCampaigns.map((c, i) => {
-                    const ins = c.insights;
-                    const budget = c.daily_budget
-                      ? `${BRL(Number(c.daily_budget) / 100)}/dia`
-                      : c.lifetime_budget
-                        ? `${BRL(Number(c.lifetime_budget) / 100)} total`
-                        : "—";
-                    const statusColor =
-                      c.effective_status === "ACTIVE" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" :
-                      c.effective_status === "PAUSED" ? "bg-amber-500/15 text-amber-400 border-amber-500/30" :
-                      "bg-muted text-muted-foreground border-border";
-                    const isExpanded = expandedCampaign === c.id;
-                    const adsets = adsetsByCampaign[c.id] ?? [];
-                    return (
-                      <>
-                      <TableRow key={c.id} className={i % 2 === 0 ? "bg-muted/20" : ""}>
-                        <TableCell className="font-medium max-w-[260px]">
-                          <button
-                            className="hover:underline text-left flex items-center gap-1 truncate"
-                            onClick={() => toggleExpandCampaign(c)}
-                            title={c.name}
-                          >
-                            {isExpanded ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
-                            <span className="truncate">{c.name}</span>
-                          </button>
-                        </TableCell>
-                        <TableCell><Badge variant="outline" className={statusColor}>{c.effective_status}</Badge></TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{c.objective?.replace("OUTCOME_", "") ?? "—"}</TableCell>
-                        <TableCell className="text-right text-xs">{budget}</TableCell>
-                        <TableCell className="text-right tabular-nums">{ins ? BRL(ins.spend) : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{ins ? ins.impressions.toLocaleString("pt-BR") : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{ins ? ins.clicks.toLocaleString("pt-BR") : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{ins ? `${ins.ctr.toFixed(2)}%` : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{ins ? BRL(ins.cpc) : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{ins ? ins.leads.toLocaleString("pt-BR") : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{ins && ins.leads > 0 ? BRL(ins.cpl) : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {ins && ins.spend > 0 ? (
-                            <span className={ins.roas >= 1 ? "text-emerald-400" : "text-rose-400"}>
-                              {ins.roas.toFixed(2)}x
-                            </span>
-                          ) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center gap-1 justify-end">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              title={c.effective_status === "ACTIVE" ? "Pausar" : "Ativar"}
-                              disabled={togglingCampaign === c.id}
-                              onClick={() => toggleCampaignStatus(c)}
-                            >
-                              {togglingCampaign === c.id ? <Loader2 className="w-4 h-4 animate-spin" />
-                                : c.effective_status === "ACTIVE" ? <Pause className="w-4 h-4" />
-                                : <Play className="w-4 h-4 text-emerald-400" />}
-                            </Button>
-                            <Button size="icon" variant="ghost" title="Orçamento diário"
-                              onClick={() => openBudgetDialog(c.id, c.name, c.daily_budget)}>
-                              <DollarSign className="w-4 h-4" />
-                            </Button>
-                            <Button size="icon" variant="ghost" title="Arquivar"
-                              disabled={busyObject === c.id}
-                              onClick={() => archiveObject(c.id, "campaign")}>
-                              {busyObject === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
-                            </Button>
-                            <Button asChild size="icon" variant="ghost" title="Abrir no Gerenciador">
-                              <a href={`https://business.facebook.com/adsmanager/manage/campaigns?selected_campaign_ids=${c.id}`} target="_blank" rel="noreferrer">
-                                <ExternalLink className="w-4 h-4" />
-                              </a>
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                      {isExpanded && (
-                        <TableRow key={c.id + "-exp"}>
-                          <TableCell colSpan={13} className="bg-muted/30 p-3">
-                            {loadingAdsetsFor === c.id ? (
-                              <div className="text-xs text-muted-foreground flex items-center gap-2 py-2">
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando conjuntos…
-                              </div>
-                            ) : adsets.length === 0 ? (
-                              <div className="text-xs text-muted-foreground py-2">Nenhum conjunto neste anúncio.</div>
-                            ) : (
-                              <div className="space-y-1.5">
-                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Conjuntos de anúncio</div>
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow>
-                                      <TableHead>Conjunto</TableHead>
-                                      <TableHead>Status</TableHead>
-                                      <TableHead>Otimização</TableHead>
-                                      <TableHead className="text-right">Orçamento</TableHead>
-                                      <TableHead className="text-right">Ações</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {adsets.map((a) => {
-                                      const adsetBudget = a.daily_budget ? `${BRL(Number(a.daily_budget)/100)}/dia` : a.lifetime_budget ? `${BRL(Number(a.lifetime_budget)/100)} total` : "—";
-                                      const isAdsetExp = expandedAdset === a.id;
-                                      const ads = adsByAdset[a.id] ?? [];
-                                      return (
-                                        <>
-                                          <TableRow key={a.id}>
-                                            <TableCell className="font-medium">
-                                              <button className="hover:underline text-left flex items-center gap-1" onClick={() => toggleExpandAdset(a)}>
-                                                {isAdsetExp ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                                                {a.name}
-                                              </button>
-                                            </TableCell>
-                                            <TableCell><Badge variant="outline" className={
-                                              a.effective_status === "ACTIVE" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" :
-                                              a.effective_status === "PAUSED" ? "bg-amber-500/15 text-amber-400 border-amber-500/30" :
-                                              "bg-muted text-muted-foreground border-border"
-                                            }>{a.effective_status}</Badge></TableCell>
-                                            <TableCell className="text-xs">{a.optimization_goal ?? "—"}</TableCell>
-                                            <TableCell className="text-right text-xs">{adsetBudget}</TableCell>
-                                            <TableCell className="text-right">
-                                              <div className="flex items-center gap-1 justify-end">
-                                                <Button size="icon" variant="ghost" disabled={busyObject === a.id} onClick={() => toggleObjectStatus(a.id, a.status, "adset", c.id)} title={a.effective_status === "ACTIVE" ? "Pausar" : "Ativar"}>
-                                                  {busyObject === a.id ? <Loader2 className="w-4 h-4 animate-spin" /> : a.effective_status === "ACTIVE" ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 text-emerald-400" />}
-                                                </Button>
-                                                <Button size="icon" variant="ghost" title="Orçamento diário" onClick={() => openBudgetDialog(a.id, a.name, a.daily_budget)}>
-                                                  <DollarSign className="w-4 h-4" />
-                                                </Button>
-                                                <Button size="icon" variant="ghost" title="Arquivar" onClick={() => archiveObject(a.id, "adset", c.id)}>
-                                                  <Archive className="w-4 h-4" />
-                                                </Button>
-                                              </div>
-                                            </TableCell>
-                                          </TableRow>
-                                          {isAdsetExp && (
-                                            <TableRow key={a.id + "-exp"}>
-                                              <TableCell colSpan={5} className="bg-muted/20 p-3">
-                                                {loadingAdsFor === a.id ? (
-                                                  <div className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando anúncios…</div>
-                                                ) : ads.length === 0 ? (
-                                                  <div className="text-xs text-muted-foreground">Nenhum anúncio.</div>
-                                                ) : (
-                                                  <div className="space-y-1.5">
-                                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1"><Megaphone className="w-3 h-3" /> Anúncios</div>
-                                                    <Table>
-                                                      <TableHeader>
-                                                        <TableRow>
-                                                          <TableHead>Anúncio</TableHead>
-                                                          <TableHead>Status</TableHead>
-                                                          <TableHead className="text-right">Ações</TableHead>
-                                                        </TableRow>
-                                                      </TableHeader>
-                                                      <TableBody>
-                                                        {ads.map((ad) => (
-                                                          <TableRow key={ad.id}>
-                                                            <TableCell>{ad.name}</TableCell>
-                                                            <TableCell><Badge variant="outline">{ad.effective_status}</Badge></TableCell>
-                                                            <TableCell className="text-right">
-                                                              <div className="flex items-center gap-1 justify-end">
-                                                                <Button size="icon" variant="ghost" disabled={busyObject === ad.id} onClick={() => toggleObjectStatus(ad.id, ad.status, "ad", a.id)} title={ad.effective_status === "ACTIVE" ? "Pausar" : "Ativar"}>
-                                                                  {busyObject === ad.id ? <Loader2 className="w-4 h-4 animate-spin" /> : ad.effective_status === "ACTIVE" ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 text-emerald-400" />}
-                                                                </Button>
-                                                                <Button size="icon" variant="ghost" onClick={() => archiveObject(ad.id, "ad", a.id)} title="Arquivar">
-                                                                  <Archive className="w-4 h-4" />
-                                                                </Button>
-                                                              </div>
-                                                            </TableCell>
-                                                          </TableRow>
-                                                        ))}
-                                                      </TableBody>
-                                                    </Table>
-                                                  </div>
-                                                )}
-                                              </TableCell>
-                                            </TableRow>
-                                          )}
-                                        </>
-                                      );
-                                    })}
-                                  </TableBody>
-                                </Table>
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                      </>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-
-              {/* Resumo da conta */}
-              {(() => {
-                const total = metaCampaigns.reduce((acc, c) => {
-                  const i = c.insights;
-                  if (!i) return acc;
-                  acc.spend += i.spend; acc.leads += i.leads; acc.clicks += i.clicks;
-                  acc.impr += i.impressions; acc.rev += i.purchase_value;
-                  return acc;
-                }, { spend: 0, leads: 0, clicks: 0, impr: 0, rev: 0 });
-                const cpl = total.leads > 0 ? total.spend / total.leads : 0;
-                const ctr = total.impr > 0 ? (total.clicks / total.impr) * 100 : 0;
-                return (
-                  <div className="mt-4 grid grid-cols-2 md:grid-cols-6 gap-2 text-xs">
-                    <SumTile label="Gasto" value={BRL(total.spend)} />
-                    <SumTile label="Impressões" value={total.impr.toLocaleString("pt-BR")} />
-                    <SumTile label="Cliques" value={total.clicks.toLocaleString("pt-BR")} />
-                    <SumTile label="CTR" value={`${ctr.toFixed(2)}%`} />
-                    <SumTile label="Leads" value={total.leads.toLocaleString("pt-BR")} />
-                    <SumTile label="CPL médio" value={total.leads ? BRL(cpl) : "—"} />
+          ) : (() => {
+            const visible = showOnlyActive
+              ? metaCampaigns.filter((c) => c.effective_status === "ACTIVE")
+              : metaCampaigns;
+            const maxSpend = Math.max(1, ...visible.map((c) => c.insights?.spend ?? 0));
+            const activeCount = metaCampaigns.filter((c) => c.effective_status === "ACTIVE").length;
+            const total = visible.reduce((acc, c) => {
+              const i = c.insights;
+              if (!i) return acc;
+              acc.spend += i.spend; acc.leads += i.leads; acc.clicks += i.clicks;
+              acc.impr += i.impressions; acc.rev += i.purchase_value;
+              return acc;
+            }, { spend: 0, leads: 0, clicks: 0, impr: 0, rev: 0 });
+            const cpl = total.leads > 0 ? total.spend / total.leads : 0;
+            const ctr = total.impr > 0 ? (total.clicks / total.impr) * 100 : 0;
+            return (
+              <div className="space-y-4">
+                {/* Filter bar */}
+                <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 rounded-full border border-border/60 bg-card/60 backdrop-blur px-3 py-1.5">
+                      <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Apenas ativas</span>
+                      <Switch checked={showOnlyActive} onCheckedChange={setShowOnlyActive} />
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      <span className="text-emerald-400 font-semibold tabular-nums">{activeCount}</span> ativas
+                      <span className="mx-1.5 text-border">·</span>
+                      <span className="tabular-nums">{metaCampaigns.length}</span> totais
+                    </div>
                   </div>
-                );
-              })()}
-            </div>
-          )}
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Sparkles className="w-3 h-3 text-primary" /> Marketing API ao vivo
+                  </div>
+                </div>
+
+                {visible.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border/50 bg-card/40 py-12 text-center text-sm text-muted-foreground">
+                    Nenhuma campanha {showOnlyActive ? "ativa" : ""} nesta conta.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {visible.map((c) => (
+                      <CampaignCard
+                        key={c.id}
+                        c={c}
+                        maxSpend={maxSpend}
+                        toggling={togglingCampaign === c.id}
+                        busy={busyObject === c.id}
+                        onToggle={() => toggleCampaignStatus(c)}
+                        onBudget={() => openBudgetDialog(c.id, c.name, c.daily_budget)}
+                        onArchive={() => archiveObject(c.id, "campaign")}
+                        onOpen={() => { setDetailCampaign(c); if (expandedCampaign !== c.id) toggleExpandCampaign(c); }}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Resumo */}
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-xs">
+                  <SumTile label="Gasto" value={BRL(total.spend)} />
+                  <SumTile label="Impressões" value={total.impr.toLocaleString("pt-BR")} />
+                  <SumTile label="Cliques" value={total.clicks.toLocaleString("pt-BR")} />
+                  <SumTile label="CTR" value={`${ctr.toFixed(2)}%`} />
+                  <SumTile label="Leads" value={total.leads.toLocaleString("pt-BR")} />
+                  <SumTile label="CPL médio" value={total.leads ? BRL(cpl) : "—"} />
+                </div>
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
 
