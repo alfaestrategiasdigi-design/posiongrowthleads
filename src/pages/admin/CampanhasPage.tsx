@@ -1017,9 +1017,21 @@ export default function CampanhasPage() {
                       c.effective_status === "ACTIVE" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" :
                       c.effective_status === "PAUSED" ? "bg-amber-500/15 text-amber-400 border-amber-500/30" :
                       "bg-muted text-muted-foreground border-border";
+                    const isExpanded = expandedCampaign === c.id;
+                    const adsets = adsetsByCampaign[c.id] ?? [];
                     return (
+                      <>
                       <TableRow key={c.id} className={i % 2 === 0 ? "bg-muted/20" : ""}>
-                        <TableCell className="font-medium max-w-[260px] truncate" title={c.name}>{c.name}</TableCell>
+                        <TableCell className="font-medium max-w-[260px]">
+                          <button
+                            className="hover:underline text-left flex items-center gap-1 truncate"
+                            onClick={() => toggleExpandCampaign(c)}
+                            title={c.name}
+                          >
+                            {isExpanded ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
+                            <span className="truncate">{c.name}</span>
+                          </button>
+                        </TableCell>
                         <TableCell><Badge variant="outline" className={statusColor}>{c.effective_status}</Badge></TableCell>
                         <TableCell className="text-xs text-muted-foreground">{c.objective?.replace("OUTCOME_", "") ?? "—"}</TableCell>
                         <TableCell className="text-right text-xs">{budget}</TableCell>
@@ -1050,6 +1062,15 @@ export default function CampanhasPage() {
                                 : c.effective_status === "ACTIVE" ? <Pause className="w-4 h-4" />
                                 : <Play className="w-4 h-4 text-emerald-400" />}
                             </Button>
+                            <Button size="icon" variant="ghost" title="Orçamento diário"
+                              onClick={() => openBudgetDialog(c.id, c.name, c.daily_budget)}>
+                              <DollarSign className="w-4 h-4" />
+                            </Button>
+                            <Button size="icon" variant="ghost" title="Arquivar"
+                              disabled={busyObject === c.id}
+                              onClick={() => archiveObject(c.id, "campaign")}>
+                              {busyObject === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
+                            </Button>
                             <Button asChild size="icon" variant="ghost" title="Abrir no Gerenciador">
                               <a href={`https://business.facebook.com/adsmanager/manage/campaigns?selected_campaign_ids=${c.id}`} target="_blank" rel="noreferrer">
                                 <ExternalLink className="w-4 h-4" />
@@ -1058,6 +1079,116 @@ export default function CampanhasPage() {
                           </div>
                         </TableCell>
                       </TableRow>
+                      {isExpanded && (
+                        <TableRow key={c.id + "-exp"}>
+                          <TableCell colSpan={13} className="bg-muted/30 p-3">
+                            {loadingAdsetsFor === c.id ? (
+                              <div className="text-xs text-muted-foreground flex items-center gap-2 py-2">
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando conjuntos…
+                              </div>
+                            ) : adsets.length === 0 ? (
+                              <div className="text-xs text-muted-foreground py-2">Nenhum conjunto neste anúncio.</div>
+                            ) : (
+                              <div className="space-y-1.5">
+                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Conjuntos de anúncio</div>
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Conjunto</TableHead>
+                                      <TableHead>Status</TableHead>
+                                      <TableHead>Otimização</TableHead>
+                                      <TableHead className="text-right">Orçamento</TableHead>
+                                      <TableHead className="text-right">Ações</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {adsets.map((a) => {
+                                      const adsetBudget = a.daily_budget ? `${BRL(Number(a.daily_budget)/100)}/dia` : a.lifetime_budget ? `${BRL(Number(a.lifetime_budget)/100)} total` : "—";
+                                      const isAdsetExp = expandedAdset === a.id;
+                                      const ads = adsByAdset[a.id] ?? [];
+                                      return (
+                                        <>
+                                          <TableRow key={a.id}>
+                                            <TableCell className="font-medium">
+                                              <button className="hover:underline text-left flex items-center gap-1" onClick={() => toggleExpandAdset(a)}>
+                                                {isAdsetExp ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                                {a.name}
+                                              </button>
+                                            </TableCell>
+                                            <TableCell><Badge variant="outline" className={
+                                              a.effective_status === "ACTIVE" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" :
+                                              a.effective_status === "PAUSED" ? "bg-amber-500/15 text-amber-400 border-amber-500/30" :
+                                              "bg-muted text-muted-foreground border-border"
+                                            }>{a.effective_status}</Badge></TableCell>
+                                            <TableCell className="text-xs">{a.optimization_goal ?? "—"}</TableCell>
+                                            <TableCell className="text-right text-xs">{adsetBudget}</TableCell>
+                                            <TableCell className="text-right">
+                                              <div className="flex items-center gap-1 justify-end">
+                                                <Button size="icon" variant="ghost" disabled={busyObject === a.id} onClick={() => toggleObjectStatus(a.id, a.status, "adset", c.id)} title={a.effective_status === "ACTIVE" ? "Pausar" : "Ativar"}>
+                                                  {busyObject === a.id ? <Loader2 className="w-4 h-4 animate-spin" /> : a.effective_status === "ACTIVE" ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 text-emerald-400" />}
+                                                </Button>
+                                                <Button size="icon" variant="ghost" title="Orçamento diário" onClick={() => openBudgetDialog(a.id, a.name, a.daily_budget)}>
+                                                  <DollarSign className="w-4 h-4" />
+                                                </Button>
+                                                <Button size="icon" variant="ghost" title="Arquivar" onClick={() => archiveObject(a.id, "adset", c.id)}>
+                                                  <Archive className="w-4 h-4" />
+                                                </Button>
+                                              </div>
+                                            </TableCell>
+                                          </TableRow>
+                                          {isAdsetExp && (
+                                            <TableRow key={a.id + "-exp"}>
+                                              <TableCell colSpan={5} className="bg-muted/20 p-3">
+                                                {loadingAdsFor === a.id ? (
+                                                  <div className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando anúncios…</div>
+                                                ) : ads.length === 0 ? (
+                                                  <div className="text-xs text-muted-foreground">Nenhum anúncio.</div>
+                                                ) : (
+                                                  <div className="space-y-1.5">
+                                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1"><Megaphone className="w-3 h-3" /> Anúncios</div>
+                                                    <Table>
+                                                      <TableHeader>
+                                                        <TableRow>
+                                                          <TableHead>Anúncio</TableHead>
+                                                          <TableHead>Status</TableHead>
+                                                          <TableHead className="text-right">Ações</TableHead>
+                                                        </TableRow>
+                                                      </TableHeader>
+                                                      <TableBody>
+                                                        {ads.map((ad) => (
+                                                          <TableRow key={ad.id}>
+                                                            <TableCell>{ad.name}</TableCell>
+                                                            <TableCell><Badge variant="outline">{ad.effective_status}</Badge></TableCell>
+                                                            <TableCell className="text-right">
+                                                              <div className="flex items-center gap-1 justify-end">
+                                                                <Button size="icon" variant="ghost" disabled={busyObject === ad.id} onClick={() => toggleObjectStatus(ad.id, ad.status, "ad", a.id)} title={ad.effective_status === "ACTIVE" ? "Pausar" : "Ativar"}>
+                                                                  {busyObject === ad.id ? <Loader2 className="w-4 h-4 animate-spin" /> : ad.effective_status === "ACTIVE" ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 text-emerald-400" />}
+                                                                </Button>
+                                                                <Button size="icon" variant="ghost" onClick={() => archiveObject(ad.id, "ad", a.id)} title="Arquivar">
+                                                                  <Archive className="w-4 h-4" />
+                                                                </Button>
+                                                              </div>
+                                                            </TableCell>
+                                                          </TableRow>
+                                                        ))}
+                                                      </TableBody>
+                                                    </Table>
+                                                  </div>
+                                                )}
+                                              </TableCell>
+                                            </TableRow>
+                                          )}
+                                        </>
+                                      );
+                                    })}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      </>
                     );
                   })}
                 </TableBody>
