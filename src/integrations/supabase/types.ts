@@ -524,6 +524,74 @@ export type Database = {
           },
         ]
       }
+      conversation_tag_assignments: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          tag_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          tag_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_tag_assignments_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_tag_assignments_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_tags: {
+        Row: {
+          cor: string
+          created_at: string
+          id: string
+          nome: string
+          tenant_id: string | null
+        }
+        Insert: {
+          cor?: string
+          created_at?: string
+          id?: string
+          nome: string
+          tenant_id?: string | null
+        }
+        Update: {
+          cor?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_tags_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           created_at: string
@@ -1045,11 +1113,14 @@ export type Database = {
           direction: string | null
           id: string
           lida: boolean
+          media_mime: string | null
+          media_type: string | null
           media_url: string | null
           sender: string
           status: string | null
           tenant_id: string | null
           tipo: string
+          tipo_disparo: string | null
           wamid: string | null
         }
         Insert: {
@@ -1059,11 +1130,14 @@ export type Database = {
           direction?: string | null
           id?: string
           lida?: boolean
+          media_mime?: string | null
+          media_type?: string | null
           media_url?: string | null
           sender: string
           status?: string | null
           tenant_id?: string | null
           tipo?: string
+          tipo_disparo?: string | null
           wamid?: string | null
         }
         Update: {
@@ -1073,11 +1147,14 @@ export type Database = {
           direction?: string | null
           id?: string
           lida?: boolean
+          media_mime?: string | null
+          media_type?: string | null
           media_url?: string | null
           sender?: string
           status?: string | null
           tenant_id?: string | null
           tipo?: string
+          tipo_disparo?: string | null
           wamid?: string | null
         }
         Relationships: [
@@ -1963,6 +2040,53 @@ export type Database = {
             foreignKeyName: "whatsapp_connections_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_welcome_config: {
+        Row: {
+          created_at: string
+          delay_seconds: number
+          enabled: boolean
+          id: string
+          message_template: string
+          tenant_id: string | null
+          trigger_facebook: boolean
+          trigger_form: boolean
+          trigger_kanban_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          delay_seconds?: number
+          enabled?: boolean
+          id?: string
+          message_template?: string
+          tenant_id?: string | null
+          trigger_facebook?: boolean
+          trigger_form?: boolean
+          trigger_kanban_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          delay_seconds?: number
+          enabled?: boolean
+          id?: string
+          message_template?: string
+          tenant_id?: string | null
+          trigger_facebook?: boolean
+          trigger_form?: boolean
+          trigger_kanban_status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_welcome_config_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },

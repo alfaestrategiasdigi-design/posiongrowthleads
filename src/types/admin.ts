@@ -52,6 +52,10 @@ export interface Message {
   conteudo: string;
   tipo: "text" | "image" | "audio" | "video" | "document";
   media_url: string | null;
+  media_type?: string | null;
+  media_mime?: string | null;
+  status?: string | null;
+  tipo_disparo?: string | null;
   lida: boolean;
   created_at: string;
 }
