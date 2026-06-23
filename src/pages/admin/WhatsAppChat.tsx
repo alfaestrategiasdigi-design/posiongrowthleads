@@ -140,11 +140,44 @@ const WhatsAppChat = () => {
     }
   };
 
+  const sanitizeBaseUrl = (raw: string): { url: string; error?: string } => {
+    const trimmed = (raw || "").trim();
+    if (!trimmed) return { url: "" };
+    let withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+    let u: URL;
+    try { u = new URL(withProto); } catch { return { url: trimmed, error: "URL inválida" }; }
+    const path = u.pathname.replace(/\/+$/, "");
+    if (/\/manager(\/|$)/i.test(path) || /\/manager\b/i.test(trimmed)) {
+      return { url: `${u.protocol}//${u.host}`, error: "Use apenas a URL base (http://host:porta). URLs do Manager não são aceitas." };
+    }
+    if (path && path !== "") {
+      return { url: `${u.protocol}//${u.host}`, error: "Use apenas a URL base sem caminho (ex: http://host:porta)." };
+    }
+    return { url: `${u.protocol}//${u.host}` };
+  };
+
+  const handleUrlBlur = () => {
+    const { url, error } = sanitizeBaseUrl(conn.instance_url);
+    if (url !== conn.instance_url) setConn(c => ({ ...c, instance_url: url }));
+    setUrlError(error);
+    if (error) toast.warning(error);
+  };
+
   const handleConnect = async () => {
     if (!conn.instance_url || !conn.api_key || !conn.instance_name) {
       toast.error("Preencha URL, API Key e nome da instância");
       return;
     }
+    const { url, error } = sanitizeBaseUrl(conn.instance_url);
+    if (error) {
+      setConn(c => ({ ...c, instance_url: url }));
+      setUrlError(error);
+      toast.error(error);
+      return;
+    }
+    setUrlError(undefined);
+    setConn(c => ({ ...c, instance_url: url }));
+
     setConnecting(true);
     setQr(null);
     try {
