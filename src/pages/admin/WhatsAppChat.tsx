@@ -37,6 +37,7 @@ const WhatsAppChat = () => {
   // Config dialog
   const [cfgOpen, setCfgOpen] = useState(false);
   const [conn, setConn] = useState<EvoConn>({ instance_url: "", api_key: "", instance_name: "", status: "disconnected" });
+  const [urlError, setUrlError] = useState<string | undefined>(undefined);
   const [qr, setQr] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
