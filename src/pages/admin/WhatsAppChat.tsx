@@ -443,11 +443,17 @@ const WhatsAppChat = () => {
               <div>
                 <Label className="text-xs">URL base da Evolution API</Label>
                 <Input
-                  placeholder="https://evolution.seudominio.com"
+                  placeholder="http://129.121.36.166:8080"
                   value={conn.instance_url}
-                  onChange={(e) => setConn(c => ({ ...c, instance_url: e.target.value }))}
+                  onChange={(e) => { setConn(c => ({ ...c, instance_url: e.target.value })); if (urlError) setUrlError(undefined); }}
+                  onBlur={handleUrlBlur}
+                  className={urlError ? "border-destructive" : ""}
                 />
+                <p className={`text-[11px] mt-1 ${urlError ? "text-destructive" : "text-muted-foreground"}`}>
+                  {urlError || "Apenas a URL base (http://host:porta). Não cole URLs do /manager."}
+                </p>
               </div>
+
               <div>
                 <Label className="text-xs">API Key global</Label>
                 <Input
