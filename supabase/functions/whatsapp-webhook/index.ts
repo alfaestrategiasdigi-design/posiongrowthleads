@@ -195,6 +195,32 @@ Deno.serve(async (req) => {
             nao_lidas: fromMe ? 0 : 1,
           }).select("id, nao_lidas").maybeSingle();
           conv = ins.data;
+
+          // Auto-create lead in Kanban for inbound conversations (tenant scope)
+          if (!fromMe && tenantId) {
+            try {
+              const { data: existingLead } = await admin
+                .from("leads")
+                .select("id")
+                .eq("tenant_id", tenantId)
+                .eq("whatsapp", phone)
+                .limit(1)
+                .maybeSingle();
+              if (!existingLead) {
+                await admin.from("leads").insert({
+                  tenant_id: tenantId,
+                  nome_completo: pushName || phone,
+                  whatsapp: phone,
+                  origem: "whatsapp",
+                  status: "novo",
+                  is_organic: true,
+                  observacoes: "Lead criado automaticamente via WhatsApp",
+                });
+              }
+            } catch (e) {
+              console.error("[wa auto-lead]", e);
+            }
+          }
         } else {
           await admin.from("conversations").update({
             ultima_mensagem: preview,
