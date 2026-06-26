@@ -453,6 +453,8 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }:
   const renderStatus = (msg: Message) => {
     if (msg.sender !== "usuario") return null;
     const s = msg.status || "sent";
+    if (s === "sending") return <Loader2 className="w-3 h-3 inline animate-spin opacity-70" />;
+    if (s === "failed") return <AlertTriangle className="w-3 h-3 inline text-rose-400" />;
     if (s === "read") return <CheckCheck className="w-3 h-3 text-sky-400 inline" />;
     if (s === "delivered") return <CheckCheck className="w-3 h-3 inline" />;
     return <Check className="w-3 h-3 inline" />;
