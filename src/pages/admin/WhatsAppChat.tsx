@@ -470,14 +470,18 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }:
                   <ContactAvatar name={conv.nome_contato || conv.telefone} photoUrl={conv.foto_url} size={44} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-medium text-foreground truncate">{conv.nome_contato || conv.telefone}</h4>
-                      <span className="text-[10px] text-muted-foreground shrink-0 ml-2">{formatTime(conv.ultima_interacao)}</span>
+                      <h4 className="text-sm font-medium text-foreground truncate">
+                        {highlight(conv.nome_contato || conv.telefone)}
+                      </h4>
+                      <span className="text-[10px] text-muted-foreground shrink-0 ml-2">{formatListTime(conv.ultima_interacao)}</span>
                     </div>
-                    <div className="flex items-center justify-between mt-0.5">
-                      <p className="text-xs text-muted-foreground truncate">{conv.ultima_mensagem || "Sem mensagens"}</p>
+                    <div className="flex items-center justify-between mt-0.5 gap-2">
+                      <p className="text-xs text-muted-foreground truncate flex-1">
+                        {highlight(typedPreview(conv.ultima_mensagem))}
+                      </p>
                       {conv.nao_lidas > 0 && (
-                        <span className="w-5 h-5 rounded-full bg-accent text-accent-foreground text-[10px] flex items-center justify-center font-bold shrink-0 ml-2">
-                          {conv.nao_lidas}
+                        <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-emerald-500 text-white text-[10px] flex items-center justify-center font-bold shrink-0">
+                          {conv.nao_lidas > 99 ? "99+" : conv.nao_lidas}
                         </span>
                       )}
                     </div>
