@@ -17,6 +17,7 @@ import WhatsAppStatusPage from "./pages/admin/WhatsAppStatusPage";
 import CreateUserPage from "./pages/admin/CreateUserPage";
 import QualificacaoPage from "./pages/admin/QualificacaoPage";
 import FacebookConfigPage from "./pages/admin/FacebookConfigPage";
+import CapiConfigPage from "./pages/admin/CapiConfigPage";
 import CampanhasPage from "./pages/admin/CampanhasPage";
 
 import AppointmentsPage from "./pages/admin/AppointmentsPage";
@@ -73,6 +74,7 @@ const App = () => (
           <Route path="/admin/usuarios" element={<AdminLayout><CreateUserPage /></AdminLayout>} />
           <Route path="/admin/qualificacao" element={<AdminLayout><QualificacaoPage /></AdminLayout>} />
           <Route path="/admin/facebook" element={<AdminLayout><FacebookConfigPage /></AdminLayout>} />
+          <Route path="/admin/capi" element={<AdminLayout><CapiConfigPage /></AdminLayout>} />
           <Route path="/admin/campanhas" element={<AdminLayout><CampanhasPage /></AdminLayout>} />
           <Route path="/admin/meta-ads" element={<Navigate to="/admin/campanhas" replace />} />
           <Route path="*" element={<NotFound />} />

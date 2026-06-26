@@ -47,15 +47,7 @@ export default function TenantConfig() {
   const [qr, setQr] = useState<string | null>(null);
   const [urlError, setUrlError] = useState<string | null>(null);
 
-  // Facebook CAPI config
-  const [capiPixel, setCapiPixel] = useState("");
-  const [capiToken, setCapiToken] = useState("");
-  const [capiEvent, setCapiEvent] = useState("Purchase");
-  const [capiTestCode, setCapiTestCode] = useState("");
-  const [capiEnabled, setCapiEnabled] = useState(true);
-  const [capiRevealToken, setCapiRevealToken] = useState(false);
-  const [capiSaving, setCapiSaving] = useState(false);
-  const [capiTesting, setCapiTesting] = useState(false);
+  // Facebook CAPI: movido para Admin Master (/admin/capi)
 
   const webhookUrl = tenant
     ? `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook?tenant=${tenant.slug}`
@@ -67,8 +59,7 @@ export default function TenantConfig() {
     Promise.all([
       supabase.from("zapi_connections").select("*").eq("tenant_id", tenant.id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("api_tokens").select("*").eq("tenant_id", tenant.id).eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      supabase.from("tenant_capi_config").select("*").eq("tenant_id", tenant.id).maybeSingle(),
-    ]).then(([conn, tok, capi]) => {
+    ]).then(([conn, tok]) => {
       if (conn.data) {
         setConnectionId(conn.data.id);
         setInstanceId(conn.data.instance_id || "");
@@ -81,45 +72,10 @@ export default function TenantConfig() {
         setStatus(conn.data.status || "disconnected");
       }
       if (tok.data) setApiToken(tok.data as ApiToken);
-      if (capi.data) {
-        setCapiPixel((capi.data as any).pixel_id || "");
-        setCapiToken((capi.data as any).access_token || "");
-        setCapiEvent((capi.data as any).default_event || "Purchase");
-        setCapiTestCode((capi.data as any).test_event_code || "");
-        setCapiEnabled((capi.data as any).enabled !== false);
-      }
       setLoading(false);
     });
   }, [tenant]);
 
-  const saveCapi = async () => {
-    if (!tenant) return;
-    setCapiSaving(true);
-    const { error } = await supabase.from("tenant_capi_config").upsert({
-      tenant_id: tenant.id,
-      pixel_id: capiPixel.trim() || null,
-      access_token: capiToken.trim() || null,
-      default_event: capiEvent || "Purchase",
-      test_event_code: capiTestCode.trim() || null,
-      enabled: capiEnabled,
-    }, { onConflict: "tenant_id" });
-    setCapiSaving(false);
-    if (error) return toast.error("Erro ao salvar CAPI: " + error.message);
-    toast.success("Configuração do Facebook CAPI salva");
-  };
-
-  const testCapi = async () => {
-    if (!tenant) return;
-    if (!capiPixel || !capiToken) return toast.error("Preencha Pixel ID e Access Token antes de testar");
-    setCapiTesting(true);
-    const { data, error } = await supabase.functions.invoke("facebook-capi-event", {
-      body: { tenant_id: tenant.id, event_name: capiEvent || "Purchase", test: true, lead_name: "Teste CAPI" },
-    });
-    setCapiTesting(false);
-    if (error) return toast.error("Falha no teste: " + error.message);
-    if ((data as any)?.ok) toast.success("Evento de teste enviado! Confira o Gerenciador de Eventos.");
-    else toast.error("Facebook respondeu erro: " + JSON.stringify((data as any)?.response ?? data));
-  };
 
   const generateToken = async () => {
     if (!tenant) return;
@@ -412,79 +368,7 @@ export default function TenantConfig() {
         </CardContent>
       </Card>
 
-      {/* Facebook CAPI */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Target className="w-5 h-5 text-indigo-500" /> Facebook Conversions API
-          </CardTitle>
-          <CardDescription>
-            Disparo server-side automático quando um lead é movido para <strong>Ganho</strong> no Kanban. Telefone e e-mail são hasheados (SHA-256) antes do envio.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-            <div>
-              <p className="text-sm font-medium">Envio automático ao marcar como Ganho</p>
-              <p className="text-xs text-muted-foreground">Desligue para pausar sem perder a configuração.</p>
-            </div>
-            <Switch checked={capiEnabled} onCheckedChange={setCapiEnabled} />
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label>Pixel ID</Label>
-              <Input value={capiPixel} onChange={(e) => setCapiPixel(e.target.value)} placeholder="1234567890" />
-            </div>
-            <div className="space-y-2">
-              <Label>Evento padrão</Label>
-              <Select value={capiEvent} onValueChange={setCapiEvent}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Purchase">Purchase</SelectItem>
-                  <SelectItem value="Lead">Lead</SelectItem>
-                  <SelectItem value="CompleteRegistration">CompleteRegistration</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Access Token (API de Conversões)</Label>
-            <div className="flex gap-2">
-              <Input
-                value={capiToken}
-                onChange={(e) => setCapiToken(e.target.value)}
-                placeholder="EAAB... (token gerado no Gerenciador de Eventos)"
-                type={capiRevealToken ? "text" : "password"}
-              />
-              <Button type="button" variant="outline" size="icon" onClick={() => setCapiRevealToken((v) => !v)}>
-                {capiRevealToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </Button>
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              Gere em: Gerenciador de Eventos → Configurações → API de Conversões → Gerar token de acesso.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Test Event Code (opcional)</Label>
-            <Input value={capiTestCode} onChange={(e) => setCapiTestCode(e.target.value)} placeholder="TEST12345" />
-            <p className="text-[11px] text-muted-foreground">
-              Usado apenas pelo botão "Testar evento". Em disparos reais, não é enviado.
-            </p>
-          </div>
-
-          <div className="flex gap-2 pt-2">
-            <Button onClick={saveCapi} disabled={capiSaving} className="gap-2">
-              {capiSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar
-            </Button>
-            <Button onClick={testCapi} disabled={capiTesting} variant="outline" className="gap-2">
-              {capiTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />} Testar evento
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Facebook CAPI: gerenciado pelo Admin Master em /admin/capi */}
     </div>
   );
 }
