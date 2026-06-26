@@ -47,15 +47,7 @@ export default function TenantConfig() {
   const [qr, setQr] = useState<string | null>(null);
   const [urlError, setUrlError] = useState<string | null>(null);
 
-  // Facebook CAPI config
-  const [capiPixel, setCapiPixel] = useState("");
-  const [capiToken, setCapiToken] = useState("");
-  const [capiEvent, setCapiEvent] = useState("Purchase");
-  const [capiTestCode, setCapiTestCode] = useState("");
-  const [capiEnabled, setCapiEnabled] = useState(true);
-  const [capiRevealToken, setCapiRevealToken] = useState(false);
-  const [capiSaving, setCapiSaving] = useState(false);
-  const [capiTesting, setCapiTesting] = useState(false);
+  // Facebook CAPI: movido para Admin Master (/admin/capi)
 
   const webhookUrl = tenant
     ? `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook?tenant=${tenant.slug}`
