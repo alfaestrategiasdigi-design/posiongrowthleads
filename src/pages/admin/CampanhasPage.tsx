@@ -1093,6 +1093,7 @@ export default function CampanhasPage() {
                         toggling={togglingCampaign === c.id}
                         busy={busyObject === c.id}
                         crmWins={crmWinsByCampaign[(c.name || "").trim().toLowerCase()] || 0}
+                        crmRevenue={crmRevenueByCampaign[(c.name || "").trim().toLowerCase()] || 0}
                         onToggle={() => toggleCampaignStatus(c)}
                         onBudget={() => openBudgetDialog(c.id, c.name, c.daily_budget)}
                         onArchive={() => archiveObject(c.id, "campaign")}
