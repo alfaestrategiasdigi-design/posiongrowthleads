@@ -1499,8 +1499,8 @@ export default function CampanhasPage() {
   );
 }
 
-function CampaignCard({ c, maxSpend, toggling, busy, crmWins = 0, onToggle, onBudget, onArchive, onOpen }: {
-  c: any; maxSpend: number; toggling: boolean; busy: boolean; crmWins?: number;
+function CampaignCard({ c, maxSpend, toggling, busy, crmWins = 0, crmRevenue = 0, onToggle, onBudget, onArchive, onOpen }: {
+  c: any; maxSpend: number; toggling: boolean; busy: boolean; crmWins?: number; crmRevenue?: number;
   onToggle: () => void; onBudget: () => void; onArchive: () => void; onOpen: () => void;
 }) {
   const ins = c.insights;
@@ -1513,7 +1513,11 @@ function CampaignCard({ c, maxSpend, toggling, busy, crmWins = 0, onToggle, onBu
   const budget = c.daily_budget
     ? `${BRL(Number(c.daily_budget) / 100)}/dia`
     : c.lifetime_budget ? `${BRL(Number(c.lifetime_budget) / 100)} total` : "—";
-  const roasGood = ins && ins.spend > 0 && ins.roas >= 1;
+  // ROAS: prioriza valor do pixel (Meta); se não houver, usa receita do CRM (leads ganhos)
+  const effectiveRoas = ins && ins.spend > 0
+    ? (ins.roas && ins.roas > 0 ? ins.roas : (crmRevenue > 0 ? crmRevenue / ins.spend : 0))
+    : 0;
+  const roasGood = ins && ins.spend > 0 && effectiveRoas >= 1;
   return (
     <div className="group relative overflow-hidden rounded-xl border border-border/50 bg-gradient-to-br from-card to-card/40 backdrop-blur p-4 transition-all hover:border-primary/40 hover:shadow-[0_0_24px_-8px_hsl(var(--primary)/0.4)]">
       {isActive && (
