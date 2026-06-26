@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Target, Save, Loader2, Zap, Eye, EyeOff, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
+const MASTER_ID = "00000000-0000-0000-0000-000000000000";
+
 interface Tenant {
   id: string;
   name: string;
@@ -48,10 +50,11 @@ export default function CapiConfigPage() {
         supabase.from("tenant_capi_config").select("*"),
       ]);
       const map: Record<string, CapiRow> = {};
-      (cs || []).forEach((c: any) => { map[c.tenant_id] = c; });
-      setTenants((ts || []) as Tenant[]);
+      (cs || []).forEach((c: any) => { map[c.tenant_id || MASTER_ID] = c; });
+      const master: Tenant = { id: MASTER_ID, name: "👑 Admin Master (PosionLeads)", slug: "master" };
+      setTenants([master, ...((ts || []) as Tenant[])]);
       setConfigs(map);
-      if (ts && ts.length && !selectedId) setSelectedId(ts[0].id);
+      if (!selectedId) setSelectedId(MASTER_ID);
       setLoading(false);
     })();
   }, []);
