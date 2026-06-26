@@ -59,8 +59,7 @@ export default function TenantConfig() {
     Promise.all([
       supabase.from("zapi_connections").select("*").eq("tenant_id", tenant.id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("api_tokens").select("*").eq("tenant_id", tenant.id).eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      supabase.from("tenant_capi_config").select("*").eq("tenant_id", tenant.id).maybeSingle(),
-    ]).then(([conn, tok, capi]) => {
+    ]).then(([conn, tok]) => {
       if (conn.data) {
         setConnectionId(conn.data.id);
         setInstanceId(conn.data.instance_id || "");
@@ -73,45 +72,10 @@ export default function TenantConfig() {
         setStatus(conn.data.status || "disconnected");
       }
       if (tok.data) setApiToken(tok.data as ApiToken);
-      if (capi.data) {
-        setCapiPixel((capi.data as any).pixel_id || "");
-        setCapiToken((capi.data as any).access_token || "");
-        setCapiEvent((capi.data as any).default_event || "Purchase");
-        setCapiTestCode((capi.data as any).test_event_code || "");
-        setCapiEnabled((capi.data as any).enabled !== false);
-      }
       setLoading(false);
     });
   }, [tenant]);
 
-  const saveCapi = async () => {
-    if (!tenant) return;
-    setCapiSaving(true);
-    const { error } = await supabase.from("tenant_capi_config").upsert({
-      tenant_id: tenant.id,
-      pixel_id: capiPixel.trim() || null,
-      access_token: capiToken.trim() || null,
-      default_event: capiEvent || "Purchase",
-      test_event_code: capiTestCode.trim() || null,
-      enabled: capiEnabled,
-    }, { onConflict: "tenant_id" });
-    setCapiSaving(false);
-    if (error) return toast.error("Erro ao salvar CAPI: " + error.message);
-    toast.success("Configuração do Facebook CAPI salva");
-  };
-
-  const testCapi = async () => {
-    if (!tenant) return;
-    if (!capiPixel || !capiToken) return toast.error("Preencha Pixel ID e Access Token antes de testar");
-    setCapiTesting(true);
-    const { data, error } = await supabase.functions.invoke("facebook-capi-event", {
-      body: { tenant_id: tenant.id, event_name: capiEvent || "Purchase", test: true, lead_name: "Teste CAPI" },
-    });
-    setCapiTesting(false);
-    if (error) return toast.error("Falha no teste: " + error.message);
-    if ((data as any)?.ok) toast.success("Evento de teste enviado! Confira o Gerenciador de Eventos.");
-    else toast.error("Facebook respondeu erro: " + JSON.stringify((data as any)?.response ?? data));
-  };
 
   const generateToken = async () => {
     if (!tenant) return;
