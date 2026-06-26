@@ -327,12 +327,22 @@ const Dashboard = () => {
                 const conn = connByTenant.get(t.id);
                 const connected = (conn?.status || "").toLowerCase().includes("connect");
                 const days = c?.renews_at ? daysBetween(now, new Date(c.renews_at)) : null;
+                const gmv = gmvByTenant.get(t.id);
                 return (
                   <tr key={t.id} className="border-t border-white/5 hover:bg-white/[0.02]">
                     <td className="px-4 py-3 text-white">{t.name}</td>
                     <td className="px-4 py-3 capitalize text-zinc-300">{c?.plan || "—"}</td>
                     <td className="px-4 py-3">{statusBadge(c?.status)}</td>
                     <td className="px-4 py-3 text-right text-zinc-200">{c ? fmt(Number(c.mrr)) : "—"}</td>
+                    <td className="px-4 py-3 text-right">
+                      {gmv && gmv.total > 0 ? (
+                        <div className="flex flex-col items-end leading-tight">
+                          <span className="text-emerald-400 font-semibold">{fmt(gmv.total)}</span>
+                          <span className="text-[10px] text-zinc-500">{gmv.count} venda{gmv.count === 1 ? "" : "s"}</span>
+                        </div>
+                      ) : <span className="text-zinc-600">—</span>}
+                    </td>
+
                     <td className="px-4 py-3 text-zinc-300">
                       {days === null ? "—" : days < 0 ? <span className="text-rose-400">Vencido</span> : `${days} dias`}
                     </td>
