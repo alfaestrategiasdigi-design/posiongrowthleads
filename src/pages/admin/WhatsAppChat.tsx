@@ -584,11 +584,6 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                       )}
                     </div>
                     <div className="flex flex-wrap gap-1 mt-1.5 items-center">
-                      {masterMode && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent/15 text-accent border border-accent/30">
-                          {tenantInfo?.nome || (conv.tenant_id ? "Tenant" : "Histórico")}
-                        </span>
-                      )}
                       {tags.slice(0, 3).map(t => (
                         <span key={t.id} className="text-[9px] px-1.5 py-0.5 rounded text-white"
                           style={{ background: t.cor }}>{t.nome}</span>
