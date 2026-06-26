@@ -50,14 +50,20 @@ Deno.serve(async (req) => {
   if (!conn) return json({ error: "Instância não encontrada" }, 404);
 
   const base = normalizeBase(conn.instance_url);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10000);
   try {
     const name = conn.instance_name || instance_name;
     const url = `${base}/instance/connectionState/${encodeURIComponent(name)}`;
-    const r = await fetch(url, { headers: { apikey: conn.api_key } });
+    const r = await fetch(url, { headers: { apikey: conn.api_key }, signal: ctrl.signal });
+    clearTimeout(timer);
     const text = await r.text();
     let j: any = {};
     try { j = JSON.parse(text); } catch { j = { raw: text }; }
     if (!r.ok) {
+      await admin.from("zapi_connections")
+        .update({ status: "error", updated_at: new Date().toISOString() })
+        .eq("id", conn.id);
       return json({ error: "Evolution respondeu erro", status: r.status, url, detail: j }, 502);
     }
     const state = j?.instance?.state ?? j?.state ?? "unknown";
@@ -67,7 +73,12 @@ Deno.serve(async (req) => {
       .eq("id", conn.id);
     return json({ ok: true, state, status });
   } catch (e) {
-    return json({ error: "Erro de rede", detail: String(e), base }, 502);
+    clearTimeout(timer);
+    const isAbort = (e as any)?.name === "AbortError";
+    await admin.from("zapi_connections")
+      .update({ status: isAbort ? "timeout" : "error", updated_at: new Date().toISOString() })
+      .eq("id", conn.id);
+    return json({ error: isAbort ? "Timeout ao contatar Evolution (10s)" : "Erro de rede", detail: String(e), base }, 504);
   }
 });
 
