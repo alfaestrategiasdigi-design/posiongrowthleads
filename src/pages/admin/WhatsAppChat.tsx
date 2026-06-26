@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  Search, Send, Paperclip, Phone, MoreVertical, User, MessageCircle, Smile,
+  Search, Send, Paperclip, Phone, MoreVertical, MessageCircle, Smile,
   Settings, QrCode, Copy, CheckCircle2, Loader2, Wifi, WifiOff, RefreshCw,
-  Tag as TagIcon, Plus, X, Sparkles, Filter, FileText, Check, CheckCheck,
+  Tag as TagIcon, Sparkles, Filter, FileText, Check, CheckCheck, AlertTriangle,
+  Plus, X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,8 +16,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, isToday, isThisWeek, differenceInCalendarDays } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import type { Conversation, Message } from "@/types/admin";
+import ContactAvatar from "@/components/admin/whatsapp/ContactAvatar";
 
 const PROJECT_REF = "mbhbflbuawkmtmpjazcj";
 const BASE_WEBHOOK_URL = `https://${PROJECT_REF}.supabase.co/functions/v1/whatsapp-webhook`;
@@ -167,20 +170,68 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }:
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
+  // 15s polling fallback (refresh list + selected thread)
+  useEffect(() => {
+    const t = setInterval(() => {
+      loadConversations();
+      if (selectedConversation) loadMessages(selectedConversation.id);
+    }, 15000);
+    return () => clearInterval(t);
+  }, [selectedConversation, loadConversations, loadMessages]);
+
+  const [syncing, setSyncing] = useState(false);
+  const handleSyncChats = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("evolution-sync-chats", {
+        body: { tenant_id: tenantId, with_pictures: true },
+      });
+      if (error || (data as any)?.error) {
+        toast.error("Falha ao sincronizar", { description: (data as any)?.error || error?.message });
+      } else {
+        toast.success(`Sincronizado: ${(data as any)?.upserted ?? 0} conversa(s)`);
+        loadConversations();
+      }
+    } finally { setSyncing(false); }
+  };
+
+
   // ============ Send ============
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation || sending) return;
     const body = newMessage.trim();
-    setSending(true); setNewMessage("");
+    const tempId = `tmp-${Date.now()}`;
+    const optimistic: Message = {
+      id: tempId,
+      conversation_id: selectedConversation.id,
+      sender: "usuario",
+      conteudo: body,
+      tipo: "text",
+      media_type: null,
+      media_url: null,
+      media_mime: null,
+      direction: "outbound",
+      status: "sending",
+      wamid: null,
+      lida: true,
+      tipo_disparo: null,
+      tenant_id: tenantId ?? null,
+      created_at: new Date().toISOString(),
+    } as Message;
+    setMessages(prev => [...prev, optimistic]);
+    setNewMessage(""); setSending(true);
     try {
       const { data, error } = await supabase.functions.invoke("evolution-send", {
         body: { conversation_id: selectedConversation.id, body },
       });
       if (error || (data as any)?.error) {
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: "failed" } : m));
         toast.error("Falha ao enviar", { description: (data as any)?.error || error?.message });
         setNewMessage(body);
       } else {
-        loadMessages(selectedConversation.id); loadConversations();
+        // Real row will arrive via realtime; remove optimistic
+        loadMessages(selectedConversation.id);
+        loadConversations();
       }
     } finally { setSending(false); }
   };
@@ -335,18 +386,47 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }:
   };
 
   // ============ Render helpers ============
-  const filteredConversations = conversations.filter(c => {
-    if (searchQuery && !(c.nome_contato || c.telefone).toLowerCase().includes(searchQuery.toLowerCase())) return false;
+  const q = searchQuery.trim().toLowerCase();
+  const filteredConversations = useMemo(() => conversations.filter(c => {
+    if (q) {
+      const hay = `${c.nome_contato || ""} ${c.telefone} ${c.ultima_mensagem || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
     if (tagFilter && !(convTags[c.id] || []).some(t => t.id === tagFilter)) return false;
     return true;
-  });
+  }), [conversations, q, tagFilter, convTags]);
 
-  const formatTime = (dateStr: string | null) => {
+  const formatListTime = (dateStr: string | null) => {
     if (!dateStr) return "";
-    try { return format(new Date(dateStr), "HH:mm"); } catch { return ""; }
+    try {
+      const d = new Date(dateStr);
+      if (isToday(d)) return format(d, "HH:mm");
+      const days = differenceInCalendarDays(new Date(), d);
+      if (days === 1) return "Ontem";
+      if (isThisWeek(d, { weekStartsOn: 1 })) return format(d, "EEE", { locale: ptBR }).replace(".", "");
+      return format(d, "dd/MM");
+    } catch { return ""; }
   };
   const formatMessageTime = (dateStr: string) => {
     try { return format(new Date(dateStr), "HH:mm"); } catch { return ""; }
+  };
+
+  const typedPreview = (text: string | null) => {
+    if (!text) return "Sem mensagens";
+    const t = text.toLowerCase();
+    if (t.startsWith("🎤") || t.includes("[audio") || t === "audio") return "🎤 Áudio";
+    if (t.startsWith("📷") || t.includes("[image") || t === "image") return "📷 Imagem";
+    if (t.startsWith("🎬") || t.includes("[video") || t === "video") return "🎬 Vídeo";
+    if (t.startsWith("📎") || t.startsWith("📄") || t.includes("[document") || t === "document") return "📎 Documento";
+    if (t.includes("[sticker") || t === "sticker") return "😊 Figurinha";
+    return text.length > 40 ? text.slice(0, 40) + "…" : text;
+  };
+
+  const highlight = (text: string) => {
+    if (!q || !text) return text;
+    const idx = text.toLowerCase().indexOf(q);
+    if (idx < 0) return text;
+    return <>{text.slice(0, idx)}<mark className="bg-accent/30 text-foreground rounded px-0.5">{text.slice(idx, idx + q.length)}</mark>{text.slice(idx + q.length)}</>;
   };
 
   const statusBadge = () => {
@@ -373,6 +453,8 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }:
   const renderStatus = (msg: Message) => {
     if (msg.sender !== "usuario") return null;
     const s = msg.status || "sent";
+    if (s === "sending") return <Loader2 className="w-3 h-3 inline animate-spin opacity-70" />;
+    if (s === "failed") return <AlertTriangle className="w-3 h-3 inline text-rose-400" />;
     if (s === "read") return <CheckCheck className="w-3 h-3 text-sky-400 inline" />;
     if (s === "delivered") return <CheckCheck className="w-3 h-3 inline" />;
     return <Check className="w-3 h-3 inline" />;
@@ -386,6 +468,9 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }:
         <div className="px-3 py-2 border-b border-border flex items-center justify-between gap-2">
           {statusBadge()}
           <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8" title="Sincronizar conversas" onClick={handleSyncChats} disabled={syncing}>
+              <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
+            </Button>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8" title="Filtrar por tag">
@@ -435,21 +520,21 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }:
               return (
                 <div key={conv.id} onClick={() => setSelectedConversation(conv)}
                   className={`flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors border-b border-border/30 ${selectedConversation?.id === conv.id ? "bg-muted/50" : ""}`}>
-                  <div className="w-11 h-11 rounded-full bg-accent/10 flex items-center justify-center shrink-0 overflow-hidden">
-                    {conv.foto_url
-                      ? <img src={conv.foto_url} alt="" className="w-full h-full object-cover" />
-                      : <User className="w-5 h-5 text-accent" />}
-                  </div>
+                  <ContactAvatar name={conv.nome_contato || conv.telefone} photoUrl={conv.foto_url} size={44} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-medium text-foreground truncate">{conv.nome_contato || conv.telefone}</h4>
-                      <span className="text-[10px] text-muted-foreground shrink-0 ml-2">{formatTime(conv.ultima_interacao)}</span>
+                      <h4 className="text-sm font-medium text-foreground truncate">
+                        {highlight(conv.nome_contato || conv.telefone)}
+                      </h4>
+                      <span className="text-[10px] text-muted-foreground shrink-0 ml-2">{formatListTime(conv.ultima_interacao)}</span>
                     </div>
-                    <div className="flex items-center justify-between mt-0.5">
-                      <p className="text-xs text-muted-foreground truncate">{conv.ultima_mensagem || "Sem mensagens"}</p>
+                    <div className="flex items-center justify-between mt-0.5 gap-2">
+                      <p className="text-xs text-muted-foreground truncate flex-1">
+                        {highlight(typedPreview(conv.ultima_mensagem))}
+                      </p>
                       {conv.nao_lidas > 0 && (
-                        <span className="w-5 h-5 rounded-full bg-accent text-accent-foreground text-[10px] flex items-center justify-center font-bold shrink-0 ml-2">
-                          {conv.nao_lidas}
+                        <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-emerald-500 text-white text-[10px] flex items-center justify-center font-bold shrink-0">
+                          {conv.nao_lidas > 99 ? "99+" : conv.nao_lidas}
                         </span>
                       )}
                     </div>
@@ -474,11 +559,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }:
         <div className="flex-1 flex flex-col">
           <div className="h-16 border-b border-border flex items-center justify-between px-4 bg-card/50 shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center overflow-hidden">
-                {selectedConversation.foto_url
-                  ? <img src={selectedConversation.foto_url} alt="" className="w-full h-full object-cover" />
-                  : <User className="w-5 h-5 text-accent" />}
-              </div>
+              <ContactAvatar name={selectedConversation.nome_contato || selectedConversation.telefone} photoUrl={selectedConversation.foto_url} size={40} />
               <div>
                 <h3 className="text-sm font-semibold text-foreground">{selectedConversation.nome_contato || selectedConversation.telefone}</h3>
                 <div className="flex items-center gap-2">
