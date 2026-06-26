@@ -43,6 +43,7 @@ export interface Conversation {
   ultima_interacao: string | null;
   nao_lidas: number;
   created_at: string;
+  tenant_id?: string | null;
 }
 
 export interface Message {
