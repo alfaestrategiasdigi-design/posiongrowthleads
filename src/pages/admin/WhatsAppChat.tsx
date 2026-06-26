@@ -561,7 +561,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
           ) : (
             filteredConversations.map(conv => {
               const tags = convTags[conv.id] || [];
-              const tenantInfo = conv.tenant_id ? tenantsMap[conv.tenant_id] : null;
+              // tenant badge removed: strict isolation per inbox
               return (
                 <div key={conv.id} onClick={() => setSelectedConversation(conv)}
                   className={`group relative flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors border-b border-border/30 ${selectedConversation?.id === conv.id ? "bg-muted/50" : ""}`}>
