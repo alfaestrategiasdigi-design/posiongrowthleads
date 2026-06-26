@@ -61,6 +61,20 @@ const KanbanBoard = ({ leads, onLeadsChange }: KanbanBoardProps) => {
       const { error } = await supabase.from("leads").update(patch as any).eq("id", draggedLeadId);
       if (error) throw error;
       toast.success(`Lead movido para "${PIPELINE_STAGES.find(c => c.id === newStatus)?.title}"`);
+
+      // Fire Facebook CAPI when a lead is marked as won (fire-and-forget)
+      if (newStatus === "ganho" && lead.tenant_id) {
+        supabase.functions.invoke("facebook-capi-event", {
+          body: {
+            tenant_id: lead.tenant_id,
+            lead_id: lead.id,
+            event_name: "Purchase",
+          },
+        }).then(({ error: capiErr }) => {
+          if (capiErr) console.warn("[CAPI] erro ao enviar evento:", capiErr.message);
+        });
+      }
+
       onLeadsChange();
     } catch (error) {
       console.error("Erro ao atualizar status:", error);
