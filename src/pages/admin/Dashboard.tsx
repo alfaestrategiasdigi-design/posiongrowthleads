@@ -214,7 +214,39 @@ const Dashboard = () => {
         <KPICard icon={AlertCircle} label="Inadimplência" value={fmt(overdueAmount)} hint={`${overdue.length} em atraso`} accent="rose" />
       </div>
 
+      {/* POSION (assessoria) vs Clínicas (volume fechado) */}
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="rounded-xl border border-indigo-500/30 bg-gradient-to-br from-indigo-500/10 to-transparent p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-xs uppercase tracking-wider text-indigo-300/80">Receita POSION · Assessoria/Plano</div>
+            <Crown className="h-4 w-4 text-indigo-300" />
+          </div>
+          <div className="mt-2 text-3xl font-bold text-white">{fmt(mrr)} <span className="text-sm font-normal text-zinc-400">/mês</span></div>
+          <div className="mt-1 text-xs text-zinc-400">o que as clínicas pagam pelo POSION — entra no MRR/ARR</div>
+          <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+            <span className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-indigo-200">MRR {fmt(mrr)}</span>
+            <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-violet-200">ARR {fmt(arr)}</span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-zinc-300">Ticket {fmt(ticket)}</span>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-transparent p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-xs uppercase tracking-wider text-emerald-300/80">Volume fechado pelas clínicas · GMV</div>
+            <DollarSign className="h-4 w-4 text-emerald-300" />
+          </div>
+          <div className="mt-2 text-3xl font-bold text-white">{fmt(gmvTotal)}</div>
+          <div className="mt-1 text-xs text-zinc-400">soma de "valor da proposta" dos leads <b className="text-emerald-300">ganho</b> — é o que vai para Pixel/CAPI (ex.: R$ 28.000 do Alessandro)</div>
+          <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-200">Mês {fmt(gmvMonth)}</span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-zinc-300">{gmvCount} vendas</span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-zinc-300">Ticket médio {fmt(gmvCount ? gmvTotal / gmvCount : 0)}</span>
+          </div>
+        </div>
+      </div>
+
       {/* Charts */}
+
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2 rounded-xl border border-white/10 bg-[#111118] p-4">
           <div className="mb-2 flex items-center justify-between">
