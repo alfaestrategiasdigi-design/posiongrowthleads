@@ -866,6 +866,31 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
           </Tabs>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir conversa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação remove permanentemente a conversa com{" "}
+              <span className="font-semibold text-foreground">
+                {confirmDelete?.nome_contato || confirmDelete?.telefone}
+              </span>{" "}
+              e todas as mensagens vinculadas. Não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeleteConversation(); }}
+              disabled={deleting}
+              className="bg-rose-600 hover:bg-rose-700 text-white">
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
