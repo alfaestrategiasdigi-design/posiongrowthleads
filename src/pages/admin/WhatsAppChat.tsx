@@ -663,7 +663,15 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
               messages.map(msg => {
                 const isOut = msg.sender === "usuario";
                 return (
-                  <div key={msg.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
+                  <div key={msg.id} className={`flex ${isOut ? "justify-end" : "justify-start"} gap-2`}>
+                    {!isOut && (
+                      <ContactAvatar
+                        name={selectedConversation.nome_contato || selectedConversation.telefone}
+                        photoUrl={selectedConversation.foto_url}
+                        size={28}
+                        className="mt-1 self-end"
+                      />
+                    )}
                     <div className={`max-w-[70%] rounded-2xl px-3 py-2 ${isOut ? "rounded-br-md text-[#1a1208]" : "rounded-bl-md text-foreground border border-border/50"}`}
                       style={isOut ? { background: "#c9a84c" } : { background: "#0d1426" }}>
                       {msg.tipo_disparo === "boas_vindas" && (
@@ -672,7 +680,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                         </div>
                       )}
                       {renderMessageBody(msg)}
-                      <p className={`text-[10px] mt-1 text-right flex items-center justify-end gap-1 ${isOut ? "text-[#1a1208]/60" : "text-muted-foreground"}`}>
+                      <p className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isOut ? "text-[#1a1208]/60" : "text-muted-foreground"}`}>
                         {formatMessageTime(msg.created_at)} {renderStatus(msg)}
                       </p>
                     </div>
