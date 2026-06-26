@@ -25,6 +25,7 @@ const navGroups = [
     items: [
       { title: "Campanhas & Anúncios", url: "/admin/campanhas", icon: Megaphone },
       { title: "Conexão Facebook", url: "/admin/facebook", icon: Facebook },
+      { title: "Conversions API", url: "/admin/capi", icon: Target },
     ],
   },
   {
