@@ -155,7 +155,9 @@ Deno.serve(async (req) => {
         const key = m?.key ?? m?.message?.key ?? {};
         const wamid: string | null = key?.id ?? m?.id ?? null;
         const remoteJid: string = key?.remoteJid ?? m?.remoteJid ?? "";
-        if (!remoteJid || remoteJid.endsWith("@g.us")) continue;
+        if (!remoteJid) continue;
+        // Skip groups, broadcast lists and @lid (linked-device alias IDs that duplicate contacts)
+        if (remoteJid.endsWith("@g.us") || remoteJid.endsWith("@broadcast") || remoteJid.includes("@lid")) continue;
         const fromMe: boolean = Boolean(key?.fromMe ?? m?.fromMe);
         const pushName: string = m?.pushName ?? m?.notifyName ?? "";
         const msgObj = m?.message ?? m;

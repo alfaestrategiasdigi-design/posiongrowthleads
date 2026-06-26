@@ -78,9 +78,11 @@ Deno.serve(async (req) => {
   let upserted = 0, pictures = 0;
   for (const c of chats) {
     const jid: string = c.remoteJid || c.id || c.chatId || "";
-    if (!jid || jid.endsWith("@g.us")) continue; // skip groups
+    if (!jid) continue;
+    // Skip groups, broadcast lists and @lid (multi-device alias IDs that duplicate the same contact)
+    if (jid.endsWith("@g.us") || jid.endsWith("@broadcast") || jid.includes("@lid")) continue;
     const phone = jid.split("@")[0];
-    if (!phone) continue;
+    if (!phone || !/^\d+$/.test(phone)) continue;
     const name = c.pushName || c.name || c.contact?.name || c.subject || null;
     const lastTs = c.lastMessageTimestamp || c.updatedAt || c.lastMessage?.messageTimestamp;
     const lastInteraction = lastTs
