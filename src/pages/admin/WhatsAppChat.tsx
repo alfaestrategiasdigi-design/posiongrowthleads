@@ -174,16 +174,38 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }:
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation || sending) return;
     const body = newMessage.trim();
-    setSending(true); setNewMessage("");
+    const tempId = `tmp-${Date.now()}`;
+    const optimistic: Message = {
+      id: tempId,
+      conversation_id: selectedConversation.id,
+      sender: "usuario",
+      conteudo: body,
+      tipo: "text",
+      media_type: null,
+      media_url: null,
+      media_mime: null,
+      direction: "outbound",
+      status: "sending",
+      wamid: null,
+      lida: true,
+      tipo_disparo: null,
+      tenant_id: selectedConversation.tenant_id ?? null,
+      created_at: new Date().toISOString(),
+    } as Message;
+    setMessages(prev => [...prev, optimistic]);
+    setNewMessage(""); setSending(true);
     try {
       const { data, error } = await supabase.functions.invoke("evolution-send", {
         body: { conversation_id: selectedConversation.id, body },
       });
       if (error || (data as any)?.error) {
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: "failed" } : m));
         toast.error("Falha ao enviar", { description: (data as any)?.error || error?.message });
         setNewMessage(body);
       } else {
-        loadMessages(selectedConversation.id); loadConversations();
+        // Real row will arrive via realtime; remove optimistic
+        loadMessages(selectedConversation.id);
+        loadConversations();
       }
     } finally { setSending(false); }
   };
