@@ -71,13 +71,36 @@ Deno.serve(async (req) => {
   try {
     const event = (body?.event ?? body?.type ?? "").toString().toLowerCase();
     const instanceName: string = body?.instance ?? body?.instanceName ?? body?.sender ?? "";
+    const url = new URL(req.url);
+    const tenantSlug = url.searchParams.get("tenant");
+    const tenantIdParam = url.searchParams.get("tenant_id");
 
-    const { data: conn } = await admin.from("zapi_connections")
+    let resolvedTenantId: string | null = tenantIdParam;
+    if (!resolvedTenantId && tenantSlug) {
+      const { data: tenant } = await admin.from("tenants").select("id").eq("slug", tenantSlug).maybeSingle();
+      resolvedTenantId = tenant?.id ?? null;
+    }
+
+    let conn: any = null;
+    if (instanceName) {
+      const { data } = await admin.from("zapi_connections")
       .select("tenant_id, instance_url, api_key, instance_name")
       .eq("provider", "evolution")
       .eq("instance_name", instanceName)
       .maybeSingle();
-    const tenantId = conn?.tenant_id ?? null;
+      conn = data;
+    }
+    if (!conn && resolvedTenantId) {
+      const { data } = await admin.from("zapi_connections")
+        .select("tenant_id, instance_url, api_key, instance_name")
+        .eq("provider", "evolution")
+        .eq("tenant_id", resolvedTenantId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      conn = data;
+    }
+    const tenantId = conn?.tenant_id ?? resolvedTenantId ?? null;
 
     // Connection state
     if (event.includes("connection.update") || body?.data?.state) {
