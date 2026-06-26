@@ -661,11 +661,10 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
               </div>
             ) : (
               messages.map(msg => {
-                const isOut = msg.direction === "outbound" || msg.sender === "usuario";
-                const isSystem = msg.sender === "system";
+                const isOut = msg.sender === "usuario";
                 return (
-                  <div key={msg.id} className={`flex ${isSystem ? "justify-center" : isOut ? "justify-end" : "justify-start"} gap-2`}>
-                    {!isOut && !isSystem && (
+                  <div key={msg.id} className={`flex ${isOut ? "justify-end" : "justify-start"} gap-2`}>
+                    {!isOut && (
                       <ContactAvatar
                         name={selectedConversation.nome_contato || selectedConversation.telefone}
                         photoUrl={selectedConversation.foto_url}
@@ -673,22 +672,16 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                         className="mt-1 self-end"
                       />
                     )}
-                    <div className={`max-w-[70%] rounded-2xl px-3 py-2 ${
-                      isSystem
-                        ? "rounded-full bg-muted/40 text-muted-foreground text-xs"
-                        : isOut
-                        ? "rounded-br-md text-[#1a1208]"
-                        : "rounded-bl-md text-foreground border border-border/50"
-                    }`}
-                      style={isSystem ? {} : isOut ? { background: "#c9a84c" } : { background: "#0d1426" }}>
+                    <div className={`max-w-[70%] rounded-2xl px-3 py-2 ${isOut ? "rounded-br-md text-[#1a1208]" : "rounded-bl-md text-foreground border border-border/50"}`}
+                      style={isOut ? { background: "#c9a84c" } : { background: "#0d1426" }}>
                       {msg.tipo_disparo === "boas_vindas" && (
                         <div className="flex items-center gap-1 text-[10px] opacity-70 mb-1">
                           <Sparkles className="w-3 h-3" /> Boas-vindas automática
                         </div>
                       )}
                       {renderMessageBody(msg)}
-                      <p className={`text-[10px] mt-1 flex items-center gap-1 ${isSystem ? "justify-center" : "justify-end"} ${isOut ? "text-[#1a1208]/60" : "text-muted-foreground"}`}>
-                        {formatMessageTime(msg.created_at)} {!isSystem && renderStatus(msg)}
+                      <p className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isOut ? "text-[#1a1208]/60" : "text-muted-foreground"}`}>
+                        {formatMessageTime(msg.created_at)} {renderStatus(msg)}
                       </p>
                     </div>
                   </div>
