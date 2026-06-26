@@ -41,6 +41,7 @@ const navGroups = [
       { title: "Clínicas Clientes", url: "/admin/tenants", icon: Building2 },
       { title: "Contratos", url: "/admin/contratos", icon: FileText },
       { title: "Conexão WhatsApp", url: "/admin/conexao-whatsapp", icon: Plug },
+      { title: "Status WhatsApp", url: "/admin/whatsapp-status", icon: Activity },
       { title: "Usuários", url: "/admin/usuarios", icon: UserPlus },
     ],
   },

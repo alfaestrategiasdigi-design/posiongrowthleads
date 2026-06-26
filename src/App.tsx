@@ -13,6 +13,7 @@ import KanbanPage from "./pages/admin/KanbanPage";
 import LeadsPage from "./pages/admin/LeadsPage";
 
 import ConexaoWhatsappPage from "./pages/admin/ConexaoWhatsappPage";
+import WhatsAppStatusPage from "./pages/admin/WhatsAppStatusPage";
 import CreateUserPage from "./pages/admin/CreateUserPage";
 import QualificacaoPage from "./pages/admin/QualificacaoPage";
 import FacebookConfigPage from "./pages/admin/FacebookConfigPage";
@@ -68,6 +69,7 @@ const App = () => (
           <Route path="/admin/leads" element={<AdminLayout><LeadsPage /></AdminLayout>} />
           
           <Route path="/admin/conexao-whatsapp" element={<AdminLayout><ConexaoWhatsappPage /></AdminLayout>} />
+          <Route path="/admin/whatsapp-status" element={<AdminLayout><WhatsAppStatusPage /></AdminLayout>} />
           <Route path="/admin/usuarios" element={<AdminLayout><CreateUserPage /></AdminLayout>} />
           <Route path="/admin/qualificacao" element={<AdminLayout><QualificacaoPage /></AdminLayout>} />
           <Route path="/admin/facebook" element={<AdminLayout><FacebookConfigPage /></AdminLayout>} />
