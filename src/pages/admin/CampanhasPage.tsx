@@ -1556,11 +1556,14 @@ function CampaignCard({ c, maxSpend, toggling, busy, crmWins = 0, onToggle, onBu
             </div>
           </div>
 
-          {/* CTR / CPC */}
-          <div className="mt-2 grid grid-cols-3 gap-1.5 text-[10px] text-muted-foreground">
+          {/* CTR / CPC / Vendas CRM */}
+          <div className="mt-2 grid grid-cols-4 gap-1.5 text-[10px] text-muted-foreground">
             <div>CTR <span className="text-foreground font-semibold tabular-nums">{ins.ctr.toFixed(2)}%</span></div>
             <div>CPC <span className="text-foreground font-semibold tabular-nums">{BRL(ins.cpc)}</span></div>
             <div>Impr. <span className="text-foreground font-semibold tabular-nums">{ins.impressions.toLocaleString("pt-BR")}</span></div>
+            <div title="Leads marcados como Ganho no Kanban e atribuídos a esta campanha via utm_campaign">
+              Vendas <span className={`font-semibold tabular-nums ${crmWins > 0 ? "text-emerald-400" : "text-foreground"}`}>{crmWins}</span>
+            </div>
           </div>
         </>
       ) : (
