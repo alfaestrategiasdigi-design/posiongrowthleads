@@ -336,7 +336,7 @@ const Dashboard = () => {
       </div>
 
       {/* Sales / Contracts management */}
-      <SalesPanel contracts={contracts} tenants={tenants as any} onChange={load} />
+      <SalesPanel contracts={contracts} tenants={tenants as any} sales={[] as any} isAdmin={true} onContractsChanged={load} />
     </div>
   );
 };
