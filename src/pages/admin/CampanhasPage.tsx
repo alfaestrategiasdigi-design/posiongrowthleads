@@ -139,6 +139,7 @@ export default function CampanhasPage() {
   const [detailCampaign, setDetailCampaign] = useState<MetaCampaign | null>(null);
   // CRM wins keyed by normalized campaign name (utm_campaign === campaign.name)
   const [crmWinsByCampaign, setCrmWinsByCampaign] = useState<Record<string, number>>({});
+  const [crmRevenueByCampaign, setCrmRevenueByCampaign] = useState<Record<string, number>>({});
 
   const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
   const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
@@ -555,18 +556,22 @@ export default function CampanhasPage() {
       try {
         const names = (data?.data ?? []).map((c: any) => c.name).filter(Boolean);
         if (names.length) {
-          let q = supabase.from("leads").select("utm_campaign,status,tenant_id").eq("status", "ganho").in("utm_campaign", names);
+          let q = supabase.from("leads").select("utm_campaign,status,tenant_id,valor_proposta").eq("status", "ganho").in("utm_campaign", names);
           if (selectedTenantId) q = q.eq("tenant_id", selectedTenantId);
           const { data: wins } = await q;
           const map: Record<string, number> = {};
+          const rev: Record<string, number> = {};
           (wins ?? []).forEach((l: any) => {
             const k = (l.utm_campaign || "").trim().toLowerCase();
             if (!k) return;
             map[k] = (map[k] || 0) + 1;
+            rev[k] = (rev[k] || 0) + (Number(l.valor_proposta) || 0);
           });
           setCrmWinsByCampaign(map);
+          setCrmRevenueByCampaign(rev);
         } else {
           setCrmWinsByCampaign({});
+          setCrmRevenueByCampaign({});
         }
       } catch { /* non-fatal */ }
     } catch (e: any) {
@@ -1088,6 +1093,7 @@ export default function CampanhasPage() {
                         toggling={togglingCampaign === c.id}
                         busy={busyObject === c.id}
                         crmWins={crmWinsByCampaign[(c.name || "").trim().toLowerCase()] || 0}
+                        crmRevenue={crmRevenueByCampaign[(c.name || "").trim().toLowerCase()] || 0}
                         onToggle={() => toggleCampaignStatus(c)}
                         onBudget={() => openBudgetDialog(c.id, c.name, c.daily_budget)}
                         onArchive={() => archiveObject(c.id, "campaign")}
@@ -1493,8 +1499,8 @@ export default function CampanhasPage() {
   );
 }
 
-function CampaignCard({ c, maxSpend, toggling, busy, crmWins = 0, onToggle, onBudget, onArchive, onOpen }: {
-  c: any; maxSpend: number; toggling: boolean; busy: boolean; crmWins?: number;
+function CampaignCard({ c, maxSpend, toggling, busy, crmWins = 0, crmRevenue = 0, onToggle, onBudget, onArchive, onOpen }: {
+  c: any; maxSpend: number; toggling: boolean; busy: boolean; crmWins?: number; crmRevenue?: number;
   onToggle: () => void; onBudget: () => void; onArchive: () => void; onOpen: () => void;
 }) {
   const ins = c.insights;
@@ -1507,7 +1513,11 @@ function CampaignCard({ c, maxSpend, toggling, busy, crmWins = 0, onToggle, onBu
   const budget = c.daily_budget
     ? `${BRL(Number(c.daily_budget) / 100)}/dia`
     : c.lifetime_budget ? `${BRL(Number(c.lifetime_budget) / 100)} total` : "—";
-  const roasGood = ins && ins.spend > 0 && ins.roas >= 1;
+  // ROAS: prioriza valor do pixel (Meta); se não houver, usa receita do CRM (leads ganhos)
+  const effectiveRoas = ins && ins.spend > 0
+    ? (ins.roas && ins.roas > 0 ? ins.roas : (crmRevenue > 0 ? crmRevenue / ins.spend : 0))
+    : 0;
+  const roasGood = ins && ins.spend > 0 && effectiveRoas >= 1;
   return (
     <div className="group relative overflow-hidden rounded-xl border border-border/50 bg-gradient-to-br from-card to-card/40 backdrop-blur p-4 transition-all hover:border-primary/40 hover:shadow-[0_0_24px_-8px_hsl(var(--primary)/0.4)]">
       {isActive && (
@@ -1543,7 +1553,7 @@ function CampaignCard({ c, maxSpend, toggling, busy, crmWins = 0, onToggle, onBu
             <Metric label="Gasto" value={BRL(ins.spend)} />
             <Metric label="Leads" value={ins.leads.toLocaleString("pt-BR")} accent="text-cyan-300" />
             <Metric label="CPL" value={ins.leads ? BRL(ins.cpl) : "—"} />
-            <Metric label="ROAS" value={ins.spend ? `${ins.roas.toFixed(2)}x` : "—"} accent={roasGood ? "text-emerald-400" : ins.spend ? "text-rose-400" : ""} />
+            <Metric label="ROAS" value={ins.spend ? `${effectiveRoas.toFixed(2)}x` : "—"} accent={roasGood ? "text-emerald-400" : ins.spend ? "text-rose-400" : ""} />
           </div>
 
           {/* Spend bar */}
