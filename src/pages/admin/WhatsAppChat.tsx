@@ -4,8 +4,12 @@ import {
   Search, Send, Paperclip, Phone, MoreVertical, MessageCircle, Smile,
   Settings, QrCode, Copy, CheckCircle2, Loader2, Wifi, WifiOff, RefreshCw,
   Tag as TagIcon, Sparkles, Filter, FileText, Check, CheckCheck, AlertTriangle,
-  Plus, X,
+  Plus, X, Trash2,
 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
