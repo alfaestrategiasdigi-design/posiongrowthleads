@@ -338,18 +338,47 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }:
   };
 
   // ============ Render helpers ============
-  const filteredConversations = conversations.filter(c => {
-    if (searchQuery && !(c.nome_contato || c.telefone).toLowerCase().includes(searchQuery.toLowerCase())) return false;
+  const q = searchQuery.trim().toLowerCase();
+  const filteredConversations = useMemo(() => conversations.filter(c => {
+    if (q) {
+      const hay = `${c.nome_contato || ""} ${c.telefone} ${c.ultima_mensagem || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
     if (tagFilter && !(convTags[c.id] || []).some(t => t.id === tagFilter)) return false;
     return true;
-  });
+  }), [conversations, q, tagFilter, convTags]);
 
-  const formatTime = (dateStr: string | null) => {
+  const formatListTime = (dateStr: string | null) => {
     if (!dateStr) return "";
-    try { return format(new Date(dateStr), "HH:mm"); } catch { return ""; }
+    try {
+      const d = new Date(dateStr);
+      if (isToday(d)) return format(d, "HH:mm");
+      const days = differenceInCalendarDays(new Date(), d);
+      if (days === 1) return "Ontem";
+      if (isThisWeek(d, { weekStartsOn: 1 })) return format(d, "EEE", { locale: ptBR }).replace(".", "");
+      return format(d, "dd/MM");
+    } catch { return ""; }
   };
   const formatMessageTime = (dateStr: string) => {
     try { return format(new Date(dateStr), "HH:mm"); } catch { return ""; }
+  };
+
+  const typedPreview = (text: string | null) => {
+    if (!text) return "Sem mensagens";
+    const t = text.toLowerCase();
+    if (t.startsWith("🎤") || t.includes("[audio") || t === "audio") return "🎤 Áudio";
+    if (t.startsWith("📷") || t.includes("[image") || t === "image") return "📷 Imagem";
+    if (t.startsWith("🎬") || t.includes("[video") || t === "video") return "🎬 Vídeo";
+    if (t.startsWith("📎") || t.startsWith("📄") || t.includes("[document") || t === "document") return "📎 Documento";
+    if (t.includes("[sticker") || t === "sticker") return "😊 Figurinha";
+    return text.length > 40 ? text.slice(0, 40) + "…" : text;
+  };
+
+  const highlight = (text: string) => {
+    if (!q || !text) return text;
+    const idx = text.toLowerCase().indexOf(q);
+    if (idx < 0) return text;
+    return <>{text.slice(0, idx)}<mark className="bg-accent/30 text-foreground rounded px-0.5">{text.slice(idx, idx + q.length)}</mark>{text.slice(idx + q.length)}</>;
   };
 
   const statusBadge = () => {
