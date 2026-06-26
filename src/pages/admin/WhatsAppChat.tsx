@@ -126,7 +126,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       (map[row.conversation_id] ||= []).push(t);
     });
     setConvTags(map);
-  }, [tenantId]);
+  }, [tenantId, masterMode]);
 
   const loadMessages = useCallback(async (conversationId: string) => {
     const { data } = await supabase
@@ -139,7 +139,11 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
     let query = supabase.from("zapi_connections")
       .select("id, instance_url, instance_name, api_key, status")
       .eq("provider", "evolution");
-    query = tenantId ? query.eq("tenant_id", tenantId) : query.is("tenant_id", null);
+    if (masterMode) {
+      // master view: show first available connection (read-only context for inbox)
+    } else {
+      query = tenantId ? query.eq("tenant_id", tenantId) : query.is("tenant_id", null);
+    }
     const { data, error } = await query.order("updated_at", { ascending: false }).limit(1).maybeSingle();
     if (error) toast.error("Falha ao carregar conexão", { description: error.message });
     if (data) setConn({
@@ -147,9 +151,10 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       instance_name: data.instance_name || "", status: data.status || "disconnected",
     });
     else setConn({ instance_url: "", api_key: "", instance_name: "", status: "disconnected" });
-  }, [tenantId]);
+  }, [tenantId, masterMode]);
 
   const loadWelcome = useCallback(async () => {
+    if (masterMode) { setWelcome(DEFAULT_WELCOME); return; }
     let query = supabase.from("whatsapp_welcome_config").select("*");
     query = tenantId ? query.eq("tenant_id", tenantId) : query.is("tenant_id", null);
     const { data, error } = await query.maybeSingle();
@@ -160,11 +165,11 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       trigger_facebook: data.trigger_facebook, trigger_kanban_status: data.trigger_kanban_status,
     });
     else setWelcome(DEFAULT_WELCOME);
-  }, [tenantId]);
+  }, [tenantId, masterMode]);
 
   useEffect(() => {
-    loadConversations(); loadConn(); loadTags(); loadWelcome();
-  }, [loadConversations, loadConn, loadTags, loadWelcome]);
+    loadConversations(); loadConn(); loadTags(); loadWelcome(); loadTenantsMap();
+  }, [loadConversations, loadConn, loadTags, loadWelcome, loadTenantsMap]);
 
   useEffect(() => {
     const channel = supabase.channel("wa-realtime")
