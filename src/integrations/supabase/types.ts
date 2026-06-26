@@ -696,6 +696,53 @@ export type Database = {
           },
         ]
       }
+      facebook_capi_logs: {
+        Row: {
+          created_at: string
+          error: string | null
+          event_name: string | null
+          http_status: number | null
+          id: string
+          lead_id: string | null
+          request: Json | null
+          response: Json | null
+          status: string
+          tenant_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          event_name?: string | null
+          http_status?: number | null
+          id?: string
+          lead_id?: string | null
+          request?: Json | null
+          response?: Json | null
+          status: string
+          tenant_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          event_name?: string | null
+          http_status?: number | null
+          id?: string
+          lead_id?: string | null
+          request?: Json | null
+          response?: Json | null
+          status?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "facebook_capi_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       facebook_webhook_config: {
         Row: {
           ad_account_id: string | null
@@ -1874,6 +1921,47 @@ export type Database = {
             foreignKeyName: "sellers_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_capi_config: {
+        Row: {
+          access_token: string | null
+          created_at: string
+          default_event: string
+          enabled: boolean
+          pixel_id: string | null
+          tenant_id: string
+          test_event_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          created_at?: string
+          default_event?: string
+          enabled?: boolean
+          pixel_id?: string | null
+          tenant_id: string
+          test_event_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          created_at?: string
+          default_event?: string
+          enabled?: boolean
+          pixel_id?: string | null
+          tenant_id?: string
+          test_event_code?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_capi_config_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
