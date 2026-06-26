@@ -137,6 +137,8 @@ export default function CampanhasPage() {
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [showOnlyActive, setShowOnlyActive] = useState(true);
   const [detailCampaign, setDetailCampaign] = useState<MetaCampaign | null>(null);
+  // CRM wins keyed by normalized campaign name (utm_campaign === campaign.name)
+  const [crmWinsByCampaign, setCrmWinsByCampaign] = useState<Record<string, number>>({});
 
   const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
   const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
@@ -549,6 +551,24 @@ export default function CampanhasPage() {
       }
       if (data?.error) throw new Error(data.error);
       setMetaCampaigns((data?.data ?? []) as MetaCampaign[]);
+      // Load CRM wins for these campaigns
+      try {
+        const names = (data?.data ?? []).map((c: any) => c.name).filter(Boolean);
+        if (names.length) {
+          let q = supabase.from("leads").select("utm_campaign,status,tenant_id").eq("status", "ganho").in("utm_campaign", names);
+          if (selectedTenantId) q = q.eq("tenant_id", selectedTenantId);
+          const { data: wins } = await q;
+          const map: Record<string, number> = {};
+          (wins ?? []).forEach((l: any) => {
+            const k = (l.utm_campaign || "").trim().toLowerCase();
+            if (!k) return;
+            map[k] = (map[k] || 0) + 1;
+          });
+          setCrmWinsByCampaign(map);
+        } else {
+          setCrmWinsByCampaign({});
+        }
+      } catch { /* non-fatal */ }
     } catch (e: any) {
       toast({ title: "Falha ao carregar campanhas", description: e.message ?? "", variant: "destructive" });
       setMetaCampaigns([]);
@@ -1067,6 +1087,7 @@ export default function CampanhasPage() {
                         maxSpend={maxSpend}
                         toggling={togglingCampaign === c.id}
                         busy={busyObject === c.id}
+                        crmWins={crmWinsByCampaign[(c.name || "").trim().toLowerCase()] || 0}
                         onToggle={() => toggleCampaignStatus(c)}
                         onBudget={() => openBudgetDialog(c.id, c.name, c.daily_budget)}
                         onArchive={() => archiveObject(c.id, "campaign")}
@@ -1385,7 +1406,8 @@ export default function CampanhasPage() {
                     <SumTile label="CPM" value={BRL(ins.cpm)} />
                     <SumTile label="Leads" value={ins.leads.toLocaleString("pt-BR")} />
                     <SumTile label="CPL" value={ins.leads ? BRL(ins.cpl) : "—"} />
-                    <SumTile label="Compras" value={ins.purchases.toLocaleString("pt-BR")} />
+                    <SumTile label="Compras (Pixel)" value={ins.purchases.toLocaleString("pt-BR")} />
+                    <SumTile label="Vendas (CRM)" value={(crmWinsByCampaign[(c.name || "").trim().toLowerCase()] || 0).toLocaleString("pt-BR")} />
                     <SumTile label="ROAS" value={ins.spend ? `${ins.roas.toFixed(2)}x` : "—"} />
                   </div>
                 ) : (
@@ -1471,8 +1493,8 @@ export default function CampanhasPage() {
   );
 }
 
-function CampaignCard({ c, maxSpend, toggling, busy, onToggle, onBudget, onArchive, onOpen }: {
-  c: any; maxSpend: number; toggling: boolean; busy: boolean;
+function CampaignCard({ c, maxSpend, toggling, busy, crmWins = 0, onToggle, onBudget, onArchive, onOpen }: {
+  c: any; maxSpend: number; toggling: boolean; busy: boolean; crmWins?: number;
   onToggle: () => void; onBudget: () => void; onArchive: () => void; onOpen: () => void;
 }) {
   const ins = c.insights;
@@ -1535,11 +1557,14 @@ function CampaignCard({ c, maxSpend, toggling, busy, onToggle, onBudget, onArchi
             </div>
           </div>
 
-          {/* CTR / CPC */}
-          <div className="mt-2 grid grid-cols-3 gap-1.5 text-[10px] text-muted-foreground">
+          {/* CTR / CPC / Vendas CRM */}
+          <div className="mt-2 grid grid-cols-4 gap-1.5 text-[10px] text-muted-foreground">
             <div>CTR <span className="text-foreground font-semibold tabular-nums">{ins.ctr.toFixed(2)}%</span></div>
             <div>CPC <span className="text-foreground font-semibold tabular-nums">{BRL(ins.cpc)}</span></div>
             <div>Impr. <span className="text-foreground font-semibold tabular-nums">{ins.impressions.toLocaleString("pt-BR")}</span></div>
+            <div title="Leads marcados como Ganho no Kanban e atribuídos a esta campanha via utm_campaign">
+              Vendas <span className={`font-semibold tabular-nums ${crmWins > 0 ? "text-emerald-400" : "text-foreground"}`}>{crmWins}</span>
+            </div>
           </div>
         </>
       ) : (
