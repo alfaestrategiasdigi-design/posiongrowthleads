@@ -54,7 +54,7 @@ export default function TenantConfig() {
     if (!tenant) return;
     setLoading(true);
     Promise.all([
-      supabase.from("zapi_connections").select("*").eq("tenant_id", tenant.id).maybeSingle(),
+      supabase.from("zapi_connections").select("*").eq("tenant_id", tenant.id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("api_tokens").select("*").eq("tenant_id", tenant.id).eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]).then(([conn, tok]) => {
       if (conn.data) {
@@ -189,7 +189,7 @@ export default function TenantConfig() {
       setStatus(data?.status || "connecting");
       setInstanceUrl(url);
       await Promise.all([
-        supabase.from("zapi_connections").select("*").eq("tenant_id", tenant.id).maybeSingle().then((conn) => {
+        supabase.from("zapi_connections").select("*").eq("tenant_id", tenant.id).order("updated_at", { ascending: false }).limit(1).maybeSingle().then((conn) => {
           if (conn.data) {
             setConnectionId(conn.data.id);
             setStatus(conn.data.status || data?.status || "connecting");
