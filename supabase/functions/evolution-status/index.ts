@@ -1,5 +1,5 @@
 // Consulta status da instância Evolution e sincroniza com zapi_connections.
-// POST body: { instance_name }
+// POST body: { connection_id?, instance_name?, tenant_id? }
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -20,27 +20,39 @@ Deno.serve(async (req) => {
   const userClient = createClient(SUPABASE_URL, ANON_KEY, {
     global: { headers: { Authorization: authHeader } },
   });
-  const { data: claims } = await userClient.auth.getClaims(authHeader.replace("Bearer ", ""));
-  if (!claims?.claims) return json({ error: "Unauthorized" }, 401);
+  const token = authHeader.replace("Bearer ", "");
+  const { data: userRes } = await userClient.auth.getUser(token);
+  const userId = userRes?.user?.id;
+  if (!userId) return json({ error: "Unauthorized" }, 401);
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
-  const { data: roleOk } = await admin.rpc("has_role", { _user_id: claims.claims.sub, _role: "admin" });
-  if (!roleOk) return json({ error: "Forbidden" }, 403);
 
   let body: any = {};
   try { body = await req.json(); } catch {}
+  const connection_id = String(body.connection_id ?? "").trim();
   const instance_name = String(body.instance_name ?? "").trim();
-  if (!instance_name) return json({ error: "instance_name obrigatório" }, 400);
+  const tenant_id: string | null = body.tenant_id ?? null;
+  if (!instance_name && !connection_id) return json({ error: "instance_name ou connection_id obrigatório" }, 400);
 
-  const { data: conn } = await admin.from("zapi_connections")
-    .select("instance_url, api_key, status")
-    .eq("provider", "evolution")
-    .eq("instance_name", instance_name)
-    .maybeSingle();
+  const { data: isAdmin } = await admin.rpc("has_role", { _user_id: userId, _role: "admin" });
+  if (tenant_id) {
+    const { data: hasTenantAccess } = await admin.rpc("has_tenant_access", { _user_id: userId, _tenant_id: tenant_id });
+    if (!isAdmin && !hasTenantAccess) return json({ error: "Sem permissão para consultar este cliente" }, 403);
+  } else if (!isAdmin) {
+    return json({ error: "Somente o admin master pode consultar a instância global" }, 403);
+  }
+
+  let connQuery = admin.from("zapi_connections")
+    .select("id, instance_url, api_key, instance_name, status")
+    .eq("provider", "evolution");
+  connQuery = connection_id ? connQuery.eq("id", connection_id) : connQuery.eq("instance_name", instance_name);
+  connQuery = tenant_id ? connQuery.eq("tenant_id", tenant_id) : connQuery.is("tenant_id", null);
+  const { data: conn } = await connQuery.maybeSingle();
   if (!conn) return json({ error: "Instância não encontrada" }, 404);
 
   const base = normalizeBase(conn.instance_url);
   try {
-    const url = `${base}/instance/connectionState/${encodeURIComponent(instance_name)}`;
+    const name = conn.instance_name || instance_name;
+    const url = `${base}/instance/connectionState/${encodeURIComponent(name)}`;
     const r = await fetch(url, { headers: { apikey: conn.api_key } });
     const text = await r.text();
     let j: any = {};
@@ -52,8 +64,7 @@ Deno.serve(async (req) => {
     const status = state === "open" ? "connected" : (state === "connecting" ? "connecting" : "disconnected");
     await admin.from("zapi_connections")
       .update({ status, updated_at: new Date().toISOString() })
-      .eq("provider", "evolution")
-      .eq("instance_name", instance_name);
+      .eq("id", conn.id);
     return json({ ok: true, state, status });
   } catch (e) {
     return json({ error: "Erro de rede", detail: String(e), base }, 502);
