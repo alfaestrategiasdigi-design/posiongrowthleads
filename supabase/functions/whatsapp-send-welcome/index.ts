@@ -56,11 +56,11 @@ Deno.serve(async (req) => {
     .eq("provider", "evolution");
   if (lead.tenant_id) connQ = connQ.eq("tenant_id", lead.tenant_id);
   else connQ = connQ.is("tenant_id", null);
-  let { data: conn } = await connQ.maybeSingle();
+  let { data: conn } = await connQ.order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (!conn) {
     const r = await admin.from("zapi_connections")
       .select("instance_url, api_key, instance_name, tenant_id")
-      .eq("provider", "evolution").limit(1).maybeSingle();
+      .eq("provider", "evolution").order("updated_at", { ascending: false }).limit(1).maybeSingle();
     conn = r.data;
   }
   if (!conn) return json({ skipped: "sem instância" });

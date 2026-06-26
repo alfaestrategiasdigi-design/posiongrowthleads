@@ -64,11 +64,11 @@ Deno.serve(async (req) => {
     .eq("provider", "evolution");
   if (conv.tenant_id) connQ = connQ.eq("tenant_id", conv.tenant_id);
   else connQ = connQ.is("tenant_id", null);
-  let { data: conn } = await connQ.maybeSingle();
+  let { data: conn } = await connQ.order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (!conn && !conv.tenant_id) {
     const r = await admin.from("zapi_connections")
       .select("instance_url, api_key, instance_name")
-      .eq("provider", "evolution").limit(1).maybeSingle();
+      .eq("provider", "evolution").order("updated_at", { ascending: false }).limit(1).maybeSingle();
     conn = r.data;
   }
   if (!conn) return json({ error: conv.tenant_id ? "Este cliente ainda não tem uma instância Evolution configurada" : "Nenhuma instância Evolution configurada" }, 400);

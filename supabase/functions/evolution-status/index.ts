@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
     .eq("provider", "evolution");
   connQuery = connection_id ? connQuery.eq("id", connection_id) : connQuery.eq("instance_name", instance_name);
   connQuery = tenant_id ? connQuery.eq("tenant_id", tenant_id) : connQuery.is("tenant_id", null);
-  const { data: conn } = await connQuery.maybeSingle();
+  const { data: conn } = await connQuery.order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (!conn) return json({ error: "Instância não encontrada" }, 404);
 
   const base = normalizeBase(conn.instance_url);
