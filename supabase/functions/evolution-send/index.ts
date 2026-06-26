@@ -28,8 +28,10 @@ Deno.serve(async (req) => {
   const userClient = createClient(SUPABASE_URL, ANON_KEY, {
     global: { headers: { Authorization: authHeader } },
   });
-  const { data: claims } = await userClient.auth.getClaims(authHeader.replace("Bearer ", ""));
-  if (!claims?.claims) return json({ error: "Unauthorized" }, 401);
+  const token = authHeader.replace("Bearer ", "");
+  const { data: userRes } = await userClient.auth.getUser(token);
+  const userId = userRes?.user?.id;
+  if (!userId) return json({ error: "Unauthorized" }, 401);
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
   let payload: any = {};
@@ -49,19 +51,27 @@ Deno.serve(async (req) => {
     .eq("id", conversation_id).maybeSingle();
   if (!conv) return json({ error: "Conversa não encontrada" }, 404);
 
+  const { data: isAdmin } = await admin.rpc("has_role", { _user_id: userId, _role: "admin" });
+  if (conv.tenant_id) {
+    const { data: hasTenantAccess } = await admin.rpc("has_tenant_access", { _user_id: userId, _tenant_id: conv.tenant_id });
+    if (!isAdmin && !hasTenantAccess) return json({ error: "Sem permissão para esta conversa" }, 403);
+  } else if (!isAdmin) {
+    return json({ error: "Sem permissão para conversas globais" }, 403);
+  }
+
   let connQ = admin.from("zapi_connections")
     .select("instance_url, api_key, instance_name")
     .eq("provider", "evolution");
   if (conv.tenant_id) connQ = connQ.eq("tenant_id", conv.tenant_id);
   else connQ = connQ.is("tenant_id", null);
   let { data: conn } = await connQ.maybeSingle();
-  if (!conn) {
+  if (!conn && !conv.tenant_id) {
     const r = await admin.from("zapi_connections")
       .select("instance_url, api_key, instance_name")
       .eq("provider", "evolution").limit(1).maybeSingle();
     conn = r.data;
   }
-  if (!conn) return json({ error: "Nenhuma instância Evolution configurada" }, 400);
+  if (!conn) return json({ error: conv.tenant_id ? "Este cliente ainda não tem uma instância Evolution configurada" : "Nenhuma instância Evolution configurada" }, 400);
   const base = normalizeBase(conn.instance_url);
 
   const number = (conv.remote_jid?.split("@")[0]) || conv.telefone.replace(/\D/g, "");
