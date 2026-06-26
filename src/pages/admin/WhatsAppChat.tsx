@@ -647,7 +647,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }:
                   Cole na Evolution em <strong>Settings → Webhooks</strong>, ative <code className="text-accent">MESSAGES_UPSERT</code>, <code className="text-accent">MESSAGES_UPDATE</code>, <code className="text-accent">CONTACTS_UPDATE</code>, <code className="text-accent">CONNECTION_UPDATE</code>.
                 </p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs bg-background/60 border border-border rounded px-2 py-2 font-mono break-all">{WEBHOOK_URL}</code>
+                  <code className="flex-1 text-xs bg-background/60 border border-border rounded px-2 py-2 font-mono break-all">{webhookUrl}</code>
                   <Button size="icon" variant="outline" onClick={copyWebhook} className="h-9 w-9 shrink-0"><Copy className="w-4 h-4" /></Button>
                 </div>
               </div>
