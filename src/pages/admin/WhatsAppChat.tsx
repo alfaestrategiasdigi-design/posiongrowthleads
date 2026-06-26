@@ -473,11 +473,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }:
         <div className="flex-1 flex flex-col">
           <div className="h-16 border-b border-border flex items-center justify-between px-4 bg-card/50 shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center overflow-hidden">
-                {selectedConversation.foto_url
-                  ? <img src={selectedConversation.foto_url} alt="" className="w-full h-full object-cover" />
-                  : <User className="w-5 h-5 text-accent" />}
-              </div>
+              <ContactAvatar name={selectedConversation.nome_contato || selectedConversation.telefone} photoUrl={selectedConversation.foto_url} size={40} />
               <div>
                 <h3 className="text-sm font-semibold text-foreground">{selectedConversation.nome_contato || selectedConversation.telefone}</h3>
                 <div className="flex items-center gap-2">
