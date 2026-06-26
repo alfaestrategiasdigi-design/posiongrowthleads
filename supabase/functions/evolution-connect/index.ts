@@ -63,10 +63,12 @@ Deno.serve(async (req) => {
     status: "connecting",
     updated_at: new Date().toISOString(),
   };
-  if (existing.data?.id) {
-    await admin.from("zapi_connections").update(payload).eq("id", existing.data.id);
+  let connectionId = existing.data?.id as string | undefined;
+  if (connectionId) {
+    await admin.from("zapi_connections").update(payload).eq("id", connectionId);
   } else {
-    await admin.from("zapi_connections").insert(payload);
+    const inserted = await admin.from("zapi_connections").insert(payload).select("id").maybeSingle();
+    connectionId = inserted.data?.id;
   }
 
   const webhookUrl = await buildWebhookUrl(admin, tenant_id);
@@ -92,7 +94,9 @@ Deno.serve(async (req) => {
     const qr = extractQr(j);
     const state = j?.instance?.state ?? j?.state ?? j?.instance?.status ?? null;
     const status = state === "open" || (!qr && (j?.instance || j?.instanceName)) ? "connected" : "connecting";
-    await admin.from("zapi_connections").update({ status, webhook_url: webhookUrl, updated_at: new Date().toISOString() }).eq("provider", "evolution").eq("instance_name", instance_name).eq(existing.data?.id ? "id" : "instance_name", existing.data?.id ?? instance_name);
+    if (connectionId) {
+      await admin.from("zapi_connections").update({ status, webhook_url: webhookUrl, updated_at: new Date().toISOString() }).eq("id", connectionId);
+    }
     return json({
       ok: true,
       qr,
