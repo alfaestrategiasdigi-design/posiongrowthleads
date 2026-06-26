@@ -49,26 +49,32 @@ const KPICard = ({ icon: Icon, label, value, hint, accent = "indigo" }: { icon: 
   );
 };
 
+type WonLead = { tenant_id: string | null; valor_proposta: number | null; fechado_em: string | null };
+
 const Dashboard = () => {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [contracts, setContracts] = useState<SaasContract[]>([]);
   const [conns, setConns] = useState<Conn[]>([]);
+  const [wonLeads, setWonLeads] = useState<WonLead[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
-    const [t, c, w] = await Promise.all([
+    const [t, c, w, l] = await Promise.all([
       supabase.from("tenants").select("id,name,slug").order("name"),
       supabase.from("saas_contracts").select("*").order("created_at", { ascending: false }),
       supabase.from("zapi_connections").select("tenant_id,instance_name,status,updated_at"),
+      supabase.from("leads").select("tenant_id,valor_proposta,fechado_em").eq("status", "ganho").limit(5000),
     ]);
     setTenants((t.data || []) as Tenant[]);
     setContracts((c.data || []) as SaasContract[]);
     setConns((w.data || []) as Conn[]);
+    setWonLeads((l.data || []) as WonLead[]);
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
+
 
   // ---- KPIs ----
   const active = useMemo(() => contracts.filter(c => c.status === "active" || c.status === "trial"), [contracts]);
