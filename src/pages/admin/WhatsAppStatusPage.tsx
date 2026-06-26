@@ -38,6 +38,8 @@ const statusBadge = (s: string | null) => {
     return <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"><CheckCircle2 className="w-3 h-3 mr-1" />Conectado</Badge>;
   if (v === "connecting" || v === "pending")
     return <Badge className="bg-amber-500/15 text-amber-400 border border-amber-500/30"><Loader2 className="w-3 h-3 mr-1 animate-spin" />Conectando</Badge>;
+  if (v === "error" || v === "timeout")
+    return <Badge className="bg-amber-500/15 text-amber-400 border border-amber-500/30"><AlertTriangle className="w-3 h-3 mr-1" />Erro</Badge>;
   if (!s || v === "disconnected" || v === "closed")
     return <Badge className="bg-rose-500/10 text-rose-400 border border-rose-500/30"><XCircle className="w-3 h-3 mr-1" />Desconectado</Badge>;
   return <Badge variant="outline">{s}</Badge>;
@@ -96,18 +98,22 @@ export default function WhatsAppStatusPage() {
           tenant_id: row.tenant.id,
         },
       });
-      if (error || data?.error) throw new Error(data?.error || data?.detail?.message || error?.message || "Falha na consulta");
+      const nextStatus = data?.status || "disconnected";
       setRows(prev => prev.map((r, i) => i === idx ? {
         ...r,
         testing: false,
         lastTestedAt: new Date().toISOString(),
-        lastState: data?.state || data?.status || null,
-        lastError: null,
-        conn: r.conn ? { ...r.conn, status: data?.status || r.conn.status, updated_at: new Date().toISOString() } : r.conn,
+        lastState: data?.state || nextStatus,
+        lastError: error?.message || data?.error || null,
+        conn: r.conn ? { ...r.conn, status: nextStatus, updated_at: new Date().toISOString() } : r.conn,
       } : r));
     } catch (e: any) {
       setRows(prev => prev.map((r, i) => i === idx ? {
-        ...r, testing: false, lastError: e.message || "Erro", lastTestedAt: new Date().toISOString(),
+        ...r,
+        testing: false,
+        lastError: e.message || "Erro",
+        lastTestedAt: new Date().toISOString(),
+        conn: r.conn ? { ...r.conn, status: "disconnected", updated_at: new Date().toISOString() } : r.conn,
       } : r));
     }
   };
