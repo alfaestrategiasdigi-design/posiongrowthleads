@@ -315,8 +315,10 @@ const Dashboard = () => {
                 <th className="px-4 py-2 text-left">Plano</th>
                 <th className="px-4 py-2 text-left">Status</th>
                 <th className="px-4 py-2 text-right">Mensalidade</th>
+                <th className="px-4 py-2 text-right">Volume fechado</th>
                 <th className="px-4 py-2 text-left">Próx. venc.</th>
                 <th className="px-4 py-2 text-left">WhatsApp</th>
+
               </tr>
             </thead>
             <tbody>
