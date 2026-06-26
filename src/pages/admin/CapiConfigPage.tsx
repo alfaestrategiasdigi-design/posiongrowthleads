@@ -48,10 +48,11 @@ export default function CapiConfigPage() {
         supabase.from("tenant_capi_config").select("*"),
       ]);
       const map: Record<string, CapiRow> = {};
-      (cs || []).forEach((c: any) => { map[c.tenant_id] = c; });
-      setTenants((ts || []) as Tenant[]);
+      (cs || []).forEach((c: any) => { map[c.tenant_id || MASTER_ID] = c; });
+      const master: Tenant = { id: MASTER_ID, name: "👑 Admin Master (PosionLeads)", slug: "master" };
+      setTenants([master, ...((ts || []) as Tenant[])]);
       setConfigs(map);
-      if (ts && ts.length && !selectedId) setSelectedId(ts[0].id);
+      if (!selectedId) setSelectedId(MASTER_ID);
       setLoading(false);
     })();
   }, []);
