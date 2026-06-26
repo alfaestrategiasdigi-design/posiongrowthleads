@@ -12,7 +12,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-Deno.serve(async (req) => {
+Deno.serve((req) => withRequestTimeout(handleStatus(req), 12000));
+
+async function handleStatus(req: Request) {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const authHeader = req.headers.get("Authorization") ?? "";
@@ -50,37 +52,41 @@ Deno.serve(async (req) => {
   if (!conn) return json({ error: "Instância não encontrada" }, 404);
 
   const base = normalizeBase(conn.instance_url);
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 10000);
+  const baseValidation = validateBaseUrl(base);
+  if (baseValidation) {
+    await updateConnectionStatus(admin, conn.id, "error");
+    return json({ ok: false, error: baseValidation, status: "error", base }, 200);
+  }
+
+  const timeoutMs = 8000;
   try {
     const name = conn.instance_name || instance_name;
     const url = `${base}/instance/connectionState/${encodeURIComponent(name)}`;
-    const r = await fetch(url, { headers: { apikey: conn.api_key }, signal: ctrl.signal });
-    clearTimeout(timer);
+    const r = await fetch(url, { headers: { apikey: conn.api_key }, signal: AbortSignal.timeout(timeoutMs) });
     const text = await r.text();
     let j: any = {};
     try { j = JSON.parse(text); } catch { j = { raw: text }; }
     if (!r.ok) {
-      await admin.from("zapi_connections")
-        .update({ status: "error", updated_at: new Date().toISOString() })
-        .eq("id", conn.id);
-      return json({ error: "Evolution respondeu erro", status: r.status, url, detail: j }, 502);
+      await updateConnectionStatus(admin, conn.id, "error");
+      return json({ ok: false, error: "Evolution respondeu erro", status: "error", http_status: r.status, url, detail: j }, 200);
     }
     const state = j?.instance?.state ?? j?.state ?? "unknown";
     const status = state === "open" ? "connected" : (state === "connecting" ? "connecting" : "disconnected");
-    await admin.from("zapi_connections")
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq("id", conn.id);
+    await updateConnectionStatus(admin, conn.id, status);
     return json({ ok: true, state, status });
   } catch (e) {
-    clearTimeout(timer);
-    const isAbort = (e as any)?.name === "AbortError";
-    await admin.from("zapi_connections")
-      .update({ status: isAbort ? "timeout" : "error", updated_at: new Date().toISOString() })
-      .eq("id", conn.id);
-    return json({ error: isAbort ? "Timeout ao contatar Evolution (10s)" : "Erro de rede", detail: String(e), base }, 504);
+    const errName = (e as any)?.name;
+    const isTimeout = errName === "TimeoutError" || errName === "AbortError";
+    await updateConnectionStatus(admin, conn.id, isTimeout ? "disconnected" : "error");
+    return json({
+      ok: false,
+      error: isTimeout ? "Evolution não respondeu em 8s" : "Erro de rede ao contatar Evolution",
+      status: isTimeout ? "disconnected" : "error",
+      detail: String(e),
+      base,
+    }, 200);
   }
-});
+}
 
 function normalizeBase(raw: string): string {
   let s = (raw ?? "").trim();
@@ -88,6 +94,40 @@ function normalizeBase(raw: string): string {
   if (!/^https?:\/\//i.test(s)) s = "http://" + s;
   try { const u = new URL(s); return `${u.protocol}//${u.host}`; }
   catch { return s.replace(/\/+$/, ""); }
+}
+
+function validateBaseUrl(base: string): string | null {
+  if (!base) return "URL da Evolution não configurada";
+  try {
+    const u = new URL(base);
+    if (!/^https?:$/.test(u.protocol)) return "URL da Evolution precisa começar com http:// ou https://";
+    if (!u.hostname) return "URL da Evolution inválida";
+    if (u.pathname && u.pathname !== "/") return "Use apenas a URL base da Evolution, sem caminho do Manager";
+    return null;
+  } catch {
+    return "URL da Evolution inválida";
+  }
+}
+
+async function updateConnectionStatus(admin: any, id: string, status: string) {
+  await admin.from("zapi_connections")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id);
+}
+
+function withRequestTimeout(work: Promise<Response>, ms: number): Promise<Response> {
+  return Promise.race([
+    work,
+    new Promise<Response>((resolve) => {
+      setTimeout(() => {
+        resolve(json({
+          ok: false,
+          error: "Tempo limite interno ao consultar Evolution",
+          status: "disconnected",
+        }, 200));
+      }, ms);
+    }),
+  ]);
 }
 
 function json(b: unknown, status = 200) {
