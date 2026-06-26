@@ -54,11 +54,15 @@ type WhatsAppChatProps = {
   tenantId?: string | null;
   tenantSlug?: string | null;
   tenantName?: string | null;
+  masterMode?: boolean;
 };
 
-const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }: WhatsAppChatProps) => {
+const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, masterMode = false }: WhatsAppChatProps) => {
   const webhookUrl = tenantSlug ? `${BASE_WEBHOOK_URL}?tenant=${encodeURIComponent(tenantSlug)}` : BASE_WEBHOOK_URL;
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [tenantsMap, setTenantsMap] = useState<Record<string, { nome: string; slug: string }>>({});
+  const [confirmDelete, setConfirmDelete] = useState<Conversation | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [convTags, setConvTags] = useState<Record<string, TagRow[]>>({});
   const [allTags, setAllTags] = useState<TagRow[]>([]);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
