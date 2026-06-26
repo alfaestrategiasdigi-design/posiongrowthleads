@@ -7,14 +7,14 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
   Activity, CheckCircle2, XCircle, Loader2, RefreshCw, AlertTriangle,
-  Smartphone, Search, ExternalLink,
+  Smartphone, Search, ExternalLink, Crown, Users,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 type Tenant = { id: string; name: string; slug: string; status: string };
 type Conn = {
   id: string;
-  tenant_id: string;
+  tenant_id: string | null;
   provider: string | null;
   instance_url: string | null;
   instance_name: string | null;
@@ -24,7 +24,8 @@ type Conn = {
 };
 
 type Row = {
-  tenant: Tenant;
+  isMaster: boolean;
+  tenant: { id: string | null; name: string; slug: string };
   conn: Conn | null;
   testing: boolean;
   lastTestedAt: string | null;
@@ -63,19 +64,29 @@ export default function WhatsAppStatusPage() {
         .order("updated_at", { ascending: false }),
     ]);
 
+    // Master = most recent connection with tenant_id IS NULL
+    const masterConn = (conns || []).find((c: any) => !c.tenant_id) || null;
+
     const byTenant = new Map<string, Conn>();
     (conns || []).forEach((c: any) => {
       if (c.tenant_id && !byTenant.has(c.tenant_id)) byTenant.set(c.tenant_id, c);
     });
 
-    setRows((tenants || []).map((t: any) => ({
-      tenant: t,
+    const masterRow: Row = {
+      isMaster: true,
+      tenant: { id: null, name: "POSION Master", slug: "admin" },
+      conn: masterConn,
+      testing: false, lastTestedAt: null, lastError: null, lastState: null,
+    };
+
+    const tenantRows: Row[] = (tenants || []).map((t: any) => ({
+      isMaster: false,
+      tenant: { id: t.id, name: t.name, slug: t.slug },
       conn: byTenant.get(t.id) || null,
-      testing: false,
-      lastTestedAt: null,
-      lastError: null,
-      lastState: null,
-    })));
+      testing: false, lastTestedAt: null, lastError: null, lastState: null,
+    }));
+
+    setRows([masterRow, ...tenantRows]);
     setLoading(false);
   };
 
@@ -130,15 +141,18 @@ export default function WhatsAppStatusPage() {
     toast.success("Teste em lote concluído");
   };
 
-  const filtered = useMemo(() => {
+  const masterRow = rows[0];
+  const tenantRows = rows.slice(1);
+
+  const filteredTenants = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter(r =>
+    if (!q) return tenantRows;
+    return tenantRows.filter(r =>
       r.tenant.name.toLowerCase().includes(q) ||
       r.tenant.slug.toLowerCase().includes(q) ||
       (r.conn?.instance_name || "").toLowerCase().includes(q)
     );
-  }, [rows, filter]);
+  }, [tenantRows, filter]);
 
   const totals = useMemo(() => {
     const t = { total: rows.length, connected: 0, disconnected: 0, missing: 0, errors: 0 };
@@ -154,15 +168,83 @@ export default function WhatsAppStatusPage() {
     return t;
   }, [rows]);
 
+  // Duplicate instance detection: same instance_name used by 2+ rows.
+  const duplicates = useMemo(() => {
+    const map = new Map<string, Row[]>();
+    rows.forEach(r => {
+      const name = (r.conn?.instance_name || "").trim().toLowerCase();
+      if (!name) return;
+      if (!map.has(name)) map.set(name, []);
+      map.get(name)!.push(r);
+    });
+    return Array.from(map.entries())
+      .filter(([, list]) => list.length > 1)
+      .map(([name, list]) => ({ name, owners: list }));
+  }, [rows]);
+
+  const renderRow = (r: Row, realIdx: number) => (
+    <div key={`${r.isMaster ? "master" : r.tenant.id}`} className={`grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr_1.4fr_auto] gap-3 items-center px-4 md:px-6 py-4 transition ${r.isMaster ? "bg-gradient-to-r from-amber-500/5 via-transparent to-violet-500/5" : "hover:bg-muted/30"}`}>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          {r.isMaster && <Crown className="w-4 h-4 text-amber-400 shrink-0" />}
+          <p className="font-medium truncate">{r.tenant.name}</p>
+          {r.isMaster && <Badge className="bg-gradient-to-r from-amber-500/20 to-violet-500/20 text-amber-300 border-amber-500/40 text-[10px]">MASTER</Badge>}
+        </div>
+        <p className="text-xs text-muted-foreground truncate">/{r.tenant.slug}</p>
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-muted-foreground uppercase tracking-wider">Instância</p>
+        {r.conn ? (
+          <>
+            <p className="text-sm font-mono truncate">{r.conn.instance_name || "—"}</p>
+            <p className="text-[11px] text-muted-foreground truncate">{r.conn.provider || "evolution"} · {r.conn.instance_url || "sem URL"}</p>
+          </>
+        ) : (
+          <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/30">Não configurado</Badge>
+        )}
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground uppercase tracking-wider">Status</p>
+        {statusBadge(r.conn?.status || null)}
+        <p className="text-[11px] text-muted-foreground mt-1">Atualizado: {fmtDate(r.conn?.updated_at || null)}</p>
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-muted-foreground uppercase tracking-wider">Último teste</p>
+        <p className="text-sm">
+          {r.lastTestedAt ? fmtDate(r.lastTestedAt) : "—"}
+          {r.lastState && <span className="ml-2 text-xs text-muted-foreground">({r.lastState})</span>}
+        </p>
+        {r.lastError && (
+          <p className="text-xs text-rose-400 flex items-center gap-1 mt-1 truncate" title={r.lastError}>
+            <AlertTriangle className="w-3 h-3 shrink-0" />{r.lastError}
+          </p>
+        )}
+      </div>
+      <div className="flex items-center gap-2 justify-end">
+        {!r.isMaster && (
+          <Button asChild size="sm" variant="ghost" className="gap-1" title="Abrir configuração do tenant">
+            <Link to={`/app/${r.tenant.slug}/config`}>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+          </Button>
+        )}
+        <Button size="sm" onClick={() => test(realIdx)} disabled={r.testing || !r.conn?.instance_name} className="gap-1">
+          {r.testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
+          Testar
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80 mb-1">Operação</p>
           <h1 className="text-3xl font-bold tracking-tight font-display flex items-center gap-2">
-            <Activity className="w-7 h-7 text-primary" /> Status do WhatsApp por cliente
+            <Activity className="w-7 h-7 text-primary" /> Status do WhatsApp por conta
           </h1>
-          <p className="text-muted-foreground">Teste a conexão Evolution de cada tenant e veja a última atualização e erros detectados.</p>
+          <p className="text-muted-foreground">Conta Master + todos os clientes. Teste a conexão Evolution e veja erros detectados por instância.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={load} disabled={loading} className="gap-2">
@@ -175,10 +257,10 @@ export default function WhatsAppStatusPage() {
         </div>
       </div>
 
-      {/* KPIs */}
+      {/* KPIs (incluem master) */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
-          { label: "Tenants", value: totals.total, cls: "text-foreground" },
+          { label: `Contas (1+${tenantRows.length})`, value: totals.total, cls: "text-foreground" },
           { label: "Conectados", value: totals.connected, cls: "text-emerald-400" },
           { label: "Desconectados", value: totals.disconnected, cls: "text-rose-400" },
           { label: "Sem instância", value: totals.missing, cls: "text-amber-400" },
@@ -193,12 +275,56 @@ export default function WhatsAppStatusPage() {
         ))}
       </div>
 
+      {/* Alertas de duplicidade */}
+      {duplicates.length > 0 && (
+        <Card className="border-rose-500/40 bg-rose-500/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-rose-400 text-base">
+              <AlertTriangle className="w-4 h-4" /> Instância duplicada detectada
+            </CardTitle>
+            <CardDescription className="text-rose-300/80">
+              Duas ou mais contas usam a mesma instância — isso mistura conversas e logs. Crie uma instância exclusiva para cada uma.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {duplicates.map(d => (
+              <div key={d.name} className="rounded-md border border-rose-500/30 bg-rose-500/5 p-3">
+                <p className="text-sm font-mono text-rose-300">"{d.owners[0].conn?.instance_name}"</p>
+                <ul className="mt-1 text-xs text-rose-200/80 list-disc list-inside">
+                  {d.owners.map((o, i) => (
+                    <li key={i}>{o.isMaster ? "Admin Master (/admin)" : `${o.tenant.name} (/${o.tenant.slug})`}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Conta Master */}
+      <Card className="card-elevated border-amber-500/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Crown className="w-4 h-4 text-amber-400" /> Conta Master
+          </CardTitle>
+          <CardDescription>Instância exclusiva do Admin Master — não compartilhe com tenants.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+          ) : (
+            <div className="divide-y divide-border">{renderRow(masterRow, 0)}</div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Clientes */}
       <Card className="card-elevated">
         <CardHeader>
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <CardTitle className="flex items-center gap-2"><Smartphone className="w-4 h-4 text-primary" /> Conexões</CardTitle>
-              <CardDescription>Resultado individual do teste de status na Evolution API.</CardDescription>
+              <CardTitle className="flex items-center gap-2"><Users className="w-4 h-4 text-primary" /> Clientes ({tenantRows.length})</CardTitle>
+              <CardDescription>Resultado individual do teste de status na Evolution API por cliente.</CardDescription>
             </div>
             <div className="relative w-full sm:w-64">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -209,60 +335,11 @@ export default function WhatsAppStatusPage() {
         <CardContent className="p-0">
           {loading ? (
             <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-          ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground p-6 text-center">Nenhum tenant encontrado.</p>
+          ) : filteredTenants.length === 0 ? (
+            <p className="text-sm text-muted-foreground p-6 text-center">Nenhum cliente encontrado.</p>
           ) : (
             <div className="divide-y divide-border">
-              {filtered.map((r, idx) => {
-                const realIdx = rows.indexOf(r);
-                return (
-                  <div key={r.tenant.id} className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr_1.4fr_auto] gap-3 items-center px-4 md:px-6 py-4 hover:bg-muted/30 transition">
-                    <div className="min-w-0">
-                      <p className="font-medium truncate">{r.tenant.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">/{r.tenant.slug}</p>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Instância</p>
-                      {r.conn ? (
-                        <>
-                          <p className="text-sm font-mono truncate">{r.conn.instance_name || "—"}</p>
-                          <p className="text-[11px] text-muted-foreground truncate">{r.conn.provider || "evolution"} · {r.conn.instance_url || "sem URL"}</p>
-                        </>
-                      ) : (
-                        <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/30">Não configurado</Badge>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Status</p>
-                      {statusBadge(r.conn?.status || null)}
-                      <p className="text-[11px] text-muted-foreground mt-1">Atualizado: {fmtDate(r.conn?.updated_at || null)}</p>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Último teste</p>
-                      <p className="text-sm">
-                        {r.lastTestedAt ? fmtDate(r.lastTestedAt) : "—"}
-                        {r.lastState && <span className="ml-2 text-xs text-muted-foreground">({r.lastState})</span>}
-                      </p>
-                      {r.lastError && (
-                        <p className="text-xs text-rose-400 flex items-center gap-1 mt-1 truncate" title={r.lastError}>
-                          <AlertTriangle className="w-3 h-3 shrink-0" />{r.lastError}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 justify-end">
-                      <Button asChild size="sm" variant="ghost" className="gap-1" title="Abrir configuração do tenant">
-                        <Link to={`/app/${r.tenant.slug}/config`}>
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </Link>
-                      </Button>
-                      <Button size="sm" onClick={() => test(realIdx)} disabled={r.testing || !r.conn?.instance_name} className="gap-1">
-                        {r.testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
-                        Testar
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
+              {filteredTenants.map((r) => renderRow(r, rows.indexOf(r)))}
             </div>
           )}
         </CardContent>
