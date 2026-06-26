@@ -91,16 +91,28 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   // ============ Loads ============
   const loadConversations = useCallback(async () => {
     let query = supabase.from("conversations").select("*");
-    query = tenantId ? query.eq("tenant_id", tenantId) : query.is("tenant_id", null);
+    if (!masterMode) {
+      query = tenantId ? query.eq("tenant_id", tenantId) : query.is("tenant_id", null);
+    }
     const { data, error } = await query.order("ultima_interacao", { ascending: false });
     if (error) toast.error("Falha ao carregar conversas", { description: error.message });
     setConversations((data as Conversation[]) || []);
     setLoading(false);
-  }, [tenantId]);
+  }, [tenantId, masterMode]);
+
+  const loadTenantsMap = useCallback(async () => {
+    if (!masterMode) return;
+    const { data } = await supabase.from("tenants").select("id, nome, slug");
+    const map: Record<string, { nome: string; slug: string }> = {};
+    (data || []).forEach((t: any) => { map[t.id] = { nome: t.nome, slug: t.slug }; });
+    setTenantsMap(map);
+  }, [masterMode]);
 
   const loadTags = useCallback(async () => {
     let tagsQuery = supabase.from("conversation_tags").select("*");
-    tagsQuery = tenantId ? tagsQuery.eq("tenant_id", tenantId) : tagsQuery.is("tenant_id", null);
+    if (!masterMode) {
+      tagsQuery = tenantId ? tagsQuery.eq("tenant_id", tenantId) : tagsQuery.is("tenant_id", null);
+    }
     const { data: tags, error: tagsErr } = await tagsQuery.order("nome");
     if (tagsErr) toast.error("Falha ao carregar tags", { description: tagsErr.message });
     setAllTags((tags as TagRow[]) || []);
