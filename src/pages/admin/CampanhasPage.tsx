@@ -556,18 +556,22 @@ export default function CampanhasPage() {
       try {
         const names = (data?.data ?? []).map((c: any) => c.name).filter(Boolean);
         if (names.length) {
-          let q = supabase.from("leads").select("utm_campaign,status,tenant_id").eq("status", "ganho").in("utm_campaign", names);
+          let q = supabase.from("leads").select("utm_campaign,status,tenant_id,valor_proposta").eq("status", "ganho").in("utm_campaign", names);
           if (selectedTenantId) q = q.eq("tenant_id", selectedTenantId);
           const { data: wins } = await q;
           const map: Record<string, number> = {};
+          const rev: Record<string, number> = {};
           (wins ?? []).forEach((l: any) => {
             const k = (l.utm_campaign || "").trim().toLowerCase();
             if (!k) return;
             map[k] = (map[k] || 0) + 1;
+            rev[k] = (rev[k] || 0) + (Number(l.valor_proposta) || 0);
           });
           setCrmWinsByCampaign(map);
+          setCrmRevenueByCampaign(rev);
         } else {
           setCrmWinsByCampaign({});
+          setCrmRevenueByCampaign({});
         }
       } catch { /* non-fatal */ }
     } catch (e: any) {
