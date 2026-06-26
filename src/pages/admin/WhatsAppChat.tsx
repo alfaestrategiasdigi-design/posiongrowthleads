@@ -170,6 +170,32 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }:
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
+  // 15s polling fallback (refresh list + selected thread)
+  useEffect(() => {
+    const t = setInterval(() => {
+      loadConversations();
+      if (selectedConversation) loadMessages(selectedConversation.id);
+    }, 15000);
+    return () => clearInterval(t);
+  }, [selectedConversation, loadConversations, loadMessages]);
+
+  const [syncing, setSyncing] = useState(false);
+  const handleSyncChats = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("evolution-sync-chats", {
+        body: { tenant_id: tenantId, with_pictures: true },
+      });
+      if (error || (data as any)?.error) {
+        toast.error("Falha ao sincronizar", { description: (data as any)?.error || error?.message });
+      } else {
+        toast.success(`Sincronizado: ${(data as any)?.upserted ?? 0} conversa(s)`);
+        loadConversations();
+      }
+    } finally { setSyncing(false); }
+  };
+
+
   // ============ Send ============
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation || sending) return;
