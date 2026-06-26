@@ -170,6 +170,24 @@ export default function TenantConfig() {
     if (!tenant) return;
     const { url, error: invalidUrl } = sanitizeBaseUrl(instanceUrl);
     if (invalidUrl) { setInstanceUrl(url); setUrlError(invalidUrl); return toast.error(invalidUrl); }
+
+    if (instanceName?.trim()) {
+      const { data: dup } = await supabase
+        .from("zapi_connections")
+        .select("tenant_id, instance_name")
+        .ilike("instance_name", instanceName.trim())
+        .neq("tenant_id", tenant.id)
+        .limit(1)
+        .maybeSingle();
+      if (dup) {
+        const owner = dup.tenant_id ? `outro tenant (${dup.tenant_id.slice(0, 8)}…)` : "Admin Master";
+        return toast.error(
+          `Instância "${instanceName}" já está em uso por ${owner}. Crie uma instância exclusiva.`,
+          { duration: 8000 },
+        );
+      }
+    }
+
     setSaving(true);
     const payload: any = {
       tenant_id: tenant.id,
