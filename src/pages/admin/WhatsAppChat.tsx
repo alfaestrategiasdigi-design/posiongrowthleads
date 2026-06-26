@@ -559,9 +559,10 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
           ) : (
             filteredConversations.map(conv => {
               const tags = convTags[conv.id] || [];
+              const tenantInfo = conv.tenant_id ? tenantsMap[conv.tenant_id] : null;
               return (
                 <div key={conv.id} onClick={() => setSelectedConversation(conv)}
-                  className={`flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors border-b border-border/30 ${selectedConversation?.id === conv.id ? "bg-muted/50" : ""}`}>
+                  className={`group relative flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors border-b border-border/30 ${selectedConversation?.id === conv.id ? "bg-muted/50" : ""}`}>
                   <ContactAvatar name={conv.nome_contato || conv.telefone} photoUrl={conv.foto_url} size={44} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
@@ -580,15 +581,24 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                         </span>
                       )}
                     </div>
-                    {tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1.5">
-                        {tags.slice(0, 3).map(t => (
-                          <span key={t.id} className="text-[9px] px-1.5 py-0.5 rounded text-white"
-                            style={{ background: t.cor }}>{t.nome}</span>
-                        ))}
-                      </div>
-                    )}
+                    <div className="flex flex-wrap gap-1 mt-1.5 items-center">
+                      {masterMode && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent/15 text-accent border border-accent/30">
+                          {tenantInfo?.nome || (conv.tenant_id ? "Tenant" : "Histórico")}
+                        </span>
+                      )}
+                      {tags.slice(0, 3).map(t => (
+                        <span key={t.id} className="text-[9px] px-1.5 py-0.5 rounded text-white"
+                          style={{ background: t.cor }}>{t.nome}</span>
+                      ))}
+                    </div>
                   </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setConfirmDelete(conv); }}
+                    title="Excluir conversa"
+                    className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md bg-background/80 border border-border hover:bg-rose-500/15 hover:text-rose-300 hover:border-rose-500/40">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               );
             })
