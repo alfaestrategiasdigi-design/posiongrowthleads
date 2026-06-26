@@ -90,10 +90,12 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
 
   // ============ Loads ============
   const loadConversations = useCallback(async () => {
+    // Strict isolation: master mode = somente conversas sem tenant (instância master);
+    // tenant mode = somente conversas do próprio tenant.
     let query = supabase.from("conversations").select("*");
-    if (!masterMode) {
-      query = tenantId ? query.eq("tenant_id", tenantId) : query.is("tenant_id", null);
-    }
+    query = masterMode
+      ? query.is("tenant_id", null)
+      : (tenantId ? query.eq("tenant_id", tenantId) : query.is("tenant_id", null));
     const { data, error } = await query.order("ultima_interacao", { ascending: false });
     if (error) toast.error("Falha ao carregar conversas", { description: error.message });
     setConversations((data as Conversation[]) || []);
@@ -559,7 +561,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
           ) : (
             filteredConversations.map(conv => {
               const tags = convTags[conv.id] || [];
-              const tenantInfo = conv.tenant_id ? tenantsMap[conv.tenant_id] : null;
+              // tenant badge removed: strict isolation per inbox
               return (
                 <div key={conv.id} onClick={() => setSelectedConversation(conv)}
                   className={`group relative flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors border-b border-border/30 ${selectedConversation?.id === conv.id ? "bg-muted/50" : ""}`}>
@@ -582,11 +584,6 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                       )}
                     </div>
                     <div className="flex flex-wrap gap-1 mt-1.5 items-center">
-                      {masterMode && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent/15 text-accent border border-accent/30">
-                          {tenantInfo?.nome || (conv.tenant_id ? "Tenant" : "Histórico")}
-                        </span>
-                      )}
                       {tags.slice(0, 3).map(t => (
                         <span key={t.id} className="text-[9px] px-1.5 py-0.5 rounded text-white"
                           style={{ background: t.cor }}>{t.nome}</span>

@@ -83,12 +83,16 @@ Deno.serve(async (req) => {
 
     let conn: any = null;
     if (instanceName) {
-      let q = admin.from("zapi_connections")
+      // Strict: resolve tenant from the connection's instance_name only.
+      // ?tenant query param is ignored to prevent cross-tenant leakage when
+      // a misconfigured webhook URL points to the wrong tenant.
+      const { data } = await admin.from("zapi_connections")
         .select("tenant_id, instance_url, api_key, instance_name")
         .eq("provider", "evolution")
-        .eq("instance_name", instanceName);
-      q = resolvedTenantId ? q.eq("tenant_id", resolvedTenantId) : q;
-      const { data } = await q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
+        .eq("instance_name", instanceName)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
       conn = data;
     }
     if (!conn && resolvedTenantId) {
@@ -101,7 +105,15 @@ Deno.serve(async (req) => {
         .maybeSingle();
       conn = data;
     }
-    const tenantId = conn?.tenant_id ?? resolvedTenantId ?? null;
+    // If the instance is not registered, refuse to ingest — prevents
+    // unregistered/foreign instances from polluting any inbox.
+    if (instanceName && !conn) {
+      console.warn("[whatsapp-webhook] unknown instance, dropping:", instanceName);
+      return new Response(JSON.stringify({ ok: true, dropped: "unknown_instance" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const tenantId = conn?.tenant_id ?? null;
 
     // Connection state
     if (event.includes("connection.update") || body?.data?.state) {
