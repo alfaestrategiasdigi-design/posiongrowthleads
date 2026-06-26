@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, MessageCircle, Kanban, Users, LogOut, UserPlus, ListChecks,
-  Facebook, Calendar, Building2, TrendingUp, FileText, Megaphone, Plug, Activity,
+  Facebook, Calendar, Building2, TrendingUp, FileText, Megaphone, Plug, Activity, Target,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
