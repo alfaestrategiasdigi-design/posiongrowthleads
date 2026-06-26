@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Target, Save, Loader2, Zap, Eye, EyeOff, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
+const MASTER_ID = "00000000-0000-0000-0000-000000000000";
+
 interface Tenant {
   id: string;
   name: string;
