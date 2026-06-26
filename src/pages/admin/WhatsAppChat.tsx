@@ -438,11 +438,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }:
               return (
                 <div key={conv.id} onClick={() => setSelectedConversation(conv)}
                   className={`flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors border-b border-border/30 ${selectedConversation?.id === conv.id ? "bg-muted/50" : ""}`}>
-                  <div className="w-11 h-11 rounded-full bg-accent/10 flex items-center justify-center shrink-0 overflow-hidden">
-                    {conv.foto_url
-                      ? <img src={conv.foto_url} alt="" className="w-full h-full object-cover" />
-                      : <User className="w-5 h-5 text-accent" />}
-                  </div>
+                  <ContactAvatar name={conv.nome_contato || conv.telefone} photoUrl={conv.foto_url} size={44} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-medium text-foreground truncate">{conv.nome_contato || conv.telefone}</h4>
