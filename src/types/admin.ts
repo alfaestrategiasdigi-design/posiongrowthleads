@@ -31,6 +31,7 @@ export interface Lead {
   utm_medium?: string | null;
   utm_campaign?: string | null;
   observacoes?: string | null;
+  tenant_id?: string | null;
 }
 
 export interface Conversation {
