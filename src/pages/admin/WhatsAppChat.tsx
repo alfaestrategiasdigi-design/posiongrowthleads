@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  Search, Send, Paperclip, Phone, MoreVertical, User, MessageCircle, Smile,
+  Search, Send, Paperclip, Phone, MoreVertical, MessageCircle, Smile,
   Settings, QrCode, Copy, CheckCircle2, Loader2, Wifi, WifiOff, RefreshCw,
-  Tag as TagIcon, Plus, X, Sparkles, Filter, FileText, Check, CheckCheck,
+  Tag as TagIcon, Sparkles, Filter, FileText, Check, CheckCheck, AlertTriangle,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, isToday, isThisWeek, differenceInCalendarDays } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import type { Conversation, Message } from "@/types/admin";
+import ContactAvatar from "@/components/admin/whatsapp/ContactAvatar";
 
 const PROJECT_REF = "mbhbflbuawkmtmpjazcj";
 const BASE_WEBHOOK_URL = `https://${PROJECT_REF}.supabase.co/functions/v1/whatsapp-webhook`;
