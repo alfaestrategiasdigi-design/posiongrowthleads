@@ -12,7 +12,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-Deno.serve(async (req) => {
+Deno.serve((req) => withRequestTimeout(handleStatus(req), 12000));
+
+async function handleStatus(req: Request) {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const authHeader = req.headers.get("Authorization") ?? "";
@@ -84,7 +86,7 @@ Deno.serve(async (req) => {
       base,
     }, 200);
   }
-});
+}
 
 function normalizeBase(raw: string): string {
   let s = (raw ?? "").trim();
@@ -111,6 +113,21 @@ async function updateConnectionStatus(admin: any, id: string, status: string) {
   await admin.from("zapi_connections")
     .update({ status, updated_at: new Date().toISOString() })
     .eq("id", id);
+}
+
+function withRequestTimeout(work: Promise<Response>, ms: number): Promise<Response> {
+  return Promise.race([
+    work,
+    new Promise<Response>((resolve) => {
+      setTimeout(() => {
+        resolve(json({
+          ok: false,
+          error: "Tempo limite interno ao consultar Evolution",
+          status: "disconnected",
+        }, 200));
+      }, ms);
+    }),
+  ]);
 }
 
 function json(b: unknown, status = 200) {
