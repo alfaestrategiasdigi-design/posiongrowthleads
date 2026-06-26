@@ -385,6 +385,20 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
     } finally { setSavingWelcome(false); }
   };
 
+  // ============ Delete conversation ============
+  const handleDeleteConversation = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      const { error } = await supabase.from("conversations").delete().eq("id", confirmDelete.id);
+      if (error) { toast.error("Falha ao excluir", { description: error.message }); return; }
+      toast.success("Conversa excluída");
+      if (selectedConversation?.id === confirmDelete.id) setSelectedConversation(null);
+      setConfirmDelete(null);
+      loadConversations();
+    } finally { setDeleting(false); }
+  };
+
   // ============ Tags ============
   const createTag = async () => {
     if (!newTagName.trim()) return;
