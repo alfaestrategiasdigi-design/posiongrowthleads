@@ -49,26 +49,32 @@ const KPICard = ({ icon: Icon, label, value, hint, accent = "indigo" }: { icon: 
   );
 };
 
+type WonLead = { tenant_id: string | null; valor_proposta: number | null; fechado_em: string | null };
+
 const Dashboard = () => {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [contracts, setContracts] = useState<SaasContract[]>([]);
   const [conns, setConns] = useState<Conn[]>([]);
+  const [wonLeads, setWonLeads] = useState<WonLead[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
-    const [t, c, w] = await Promise.all([
+    const [t, c, w, l] = await Promise.all([
       supabase.from("tenants").select("id,name,slug").order("name"),
       supabase.from("saas_contracts").select("*").order("created_at", { ascending: false }),
       supabase.from("zapi_connections").select("tenant_id,instance_name,status,updated_at"),
+      supabase.from("leads").select("tenant_id,valor_proposta,fechado_em").eq("status", "ganho").limit(5000),
     ]);
     setTenants((t.data || []) as Tenant[]);
     setContracts((c.data || []) as SaasContract[]);
     setConns((w.data || []) as Conn[]);
+    setWonLeads((l.data || []) as WonLead[]);
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
+
 
   // ---- KPIs ----
   const active = useMemo(() => contracts.filter(c => c.status === "active" || c.status === "trial"), [contracts]);
@@ -81,6 +87,25 @@ const Dashboard = () => {
   const overdueAmount = overdue.reduce((s, c) => s + Number(c.mrr || 0), 0);
   const canceled30 = useMemo(() => contracts.filter(c => c.canceled_at && daysBetween(new Date(c.canceled_at), now) <= 30).length, [contracts]);
   const churn = active.length ? (canceled30 / (active.length + canceled30)) * 100 : 0;
+
+  // ---- GMV: volume fechado pelas clínicas (valor_proposta dos leads ganho) ----
+  const gmvByTenant = useMemo(() => {
+    const m = new Map<string, { total: number; count: number; month: number }>();
+    const mStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    for (const l of wonLeads) {
+      if (!l.tenant_id) continue;
+      const v = Number(l.valor_proposta || 0);
+      const cur = m.get(l.tenant_id) || { total: 0, count: 0, month: 0 };
+      cur.total += v; cur.count += 1;
+      if (l.fechado_em && new Date(l.fechado_em) >= mStart) cur.month += v;
+      m.set(l.tenant_id, cur);
+    }
+    return m;
+  }, [wonLeads]);
+  const gmvTotal = useMemo(() => Array.from(gmvByTenant.values()).reduce((s, v) => s + v.total, 0), [gmvByTenant]);
+  const gmvMonth = useMemo(() => Array.from(gmvByTenant.values()).reduce((s, v) => s + v.month, 0), [gmvByTenant]);
+  const gmvCount = useMemo(() => Array.from(gmvByTenant.values()).reduce((s, v) => s + v.count, 0), [gmvByTenant]);
+
 
   // ---- MRR histórico (12 meses, calculado por started_at/canceled_at) ----
   const mrrHistory = useMemo(() => {
@@ -189,7 +214,39 @@ const Dashboard = () => {
         <KPICard icon={AlertCircle} label="Inadimplência" value={fmt(overdueAmount)} hint={`${overdue.length} em atraso`} accent="rose" />
       </div>
 
+      {/* POSION (assessoria) vs Clínicas (volume fechado) */}
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="rounded-xl border border-indigo-500/30 bg-gradient-to-br from-indigo-500/10 to-transparent p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-xs uppercase tracking-wider text-indigo-300/80">Receita POSION · Assessoria/Plano</div>
+            <Crown className="h-4 w-4 text-indigo-300" />
+          </div>
+          <div className="mt-2 text-3xl font-bold text-white">{fmt(mrr)} <span className="text-sm font-normal text-zinc-400">/mês</span></div>
+          <div className="mt-1 text-xs text-zinc-400">o que as clínicas pagam pelo POSION — entra no MRR/ARR</div>
+          <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+            <span className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-indigo-200">MRR {fmt(mrr)}</span>
+            <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-violet-200">ARR {fmt(arr)}</span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-zinc-300">Ticket {fmt(ticket)}</span>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-transparent p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-xs uppercase tracking-wider text-emerald-300/80">Volume fechado pelas clínicas · GMV</div>
+            <DollarSign className="h-4 w-4 text-emerald-300" />
+          </div>
+          <div className="mt-2 text-3xl font-bold text-white">{fmt(gmvTotal)}</div>
+          <div className="mt-1 text-xs text-zinc-400">soma de "valor da proposta" dos leads <b className="text-emerald-300">ganho</b> — é o que vai para Pixel/CAPI (ex.: R$ 28.000 do Alessandro)</div>
+          <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-200">Mês {fmt(gmvMonth)}</span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-zinc-300">{gmvCount} vendas</span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-zinc-300">Ticket médio {fmt(gmvCount ? gmvTotal / gmvCount : 0)}</span>
+          </div>
+        </div>
+      </div>
+
       {/* Charts */}
+
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2 rounded-xl border border-white/10 bg-[#111118] p-4">
           <div className="mb-2 flex items-center justify-between">
@@ -258,8 +315,10 @@ const Dashboard = () => {
                 <th className="px-4 py-2 text-left">Plano</th>
                 <th className="px-4 py-2 text-left">Status</th>
                 <th className="px-4 py-2 text-right">Mensalidade</th>
+                <th className="px-4 py-2 text-right">Volume fechado</th>
                 <th className="px-4 py-2 text-left">Próx. venc.</th>
                 <th className="px-4 py-2 text-left">WhatsApp</th>
+
               </tr>
             </thead>
             <tbody>
@@ -268,12 +327,22 @@ const Dashboard = () => {
                 const conn = connByTenant.get(t.id);
                 const connected = (conn?.status || "").toLowerCase().includes("connect");
                 const days = c?.renews_at ? daysBetween(now, new Date(c.renews_at)) : null;
+                const gmv = gmvByTenant.get(t.id);
                 return (
                   <tr key={t.id} className="border-t border-white/5 hover:bg-white/[0.02]">
                     <td className="px-4 py-3 text-white">{t.name}</td>
                     <td className="px-4 py-3 capitalize text-zinc-300">{c?.plan || "—"}</td>
                     <td className="px-4 py-3">{statusBadge(c?.status)}</td>
                     <td className="px-4 py-3 text-right text-zinc-200">{c ? fmt(Number(c.mrr)) : "—"}</td>
+                    <td className="px-4 py-3 text-right">
+                      {gmv && gmv.total > 0 ? (
+                        <div className="flex flex-col items-end leading-tight">
+                          <span className="text-emerald-400 font-semibold">{fmt(gmv.total)}</span>
+                          <span className="text-[10px] text-zinc-500">{gmv.count} venda{gmv.count === 1 ? "" : "s"}</span>
+                        </div>
+                      ) : <span className="text-zinc-600">—</span>}
+                    </td>
+
                     <td className="px-4 py-3 text-zinc-300">
                       {days === null ? "—" : days < 0 ? <span className="text-rose-400">Vencido</span> : `${days} dias`}
                     </td>
