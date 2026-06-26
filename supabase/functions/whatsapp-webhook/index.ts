@@ -83,11 +83,12 @@ Deno.serve(async (req) => {
 
     let conn: any = null;
     if (instanceName) {
-      const { data } = await admin.from("zapi_connections")
-      .select("tenant_id, instance_url, api_key, instance_name")
-      .eq("provider", "evolution")
-      .eq("instance_name", instanceName)
-      .maybeSingle();
+      let q = admin.from("zapi_connections")
+        .select("tenant_id, instance_url, api_key, instance_name")
+        .eq("provider", "evolution")
+        .eq("instance_name", instanceName);
+      q = resolvedTenantId ? q.eq("tenant_id", resolvedTenantId) : q;
+      const { data } = await q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
       conn = data;
     }
     if (!conn && resolvedTenantId) {
@@ -107,9 +108,11 @@ Deno.serve(async (req) => {
       const state = body?.data?.state ?? body?.state;
       const status = state === "open" ? "connected" : state === "connecting" ? "connecting" : "disconnected";
       if (instanceName) {
-        await admin.from("zapi_connections")
+        let upd = admin.from("zapi_connections")
           .update({ status, updated_at: new Date().toISOString() })
           .eq("provider", "evolution").eq("instance_name", instanceName);
+        upd = tenantId ? upd.eq("tenant_id", tenantId) : upd.is("tenant_id", null);
+        await upd;
       }
     }
 
