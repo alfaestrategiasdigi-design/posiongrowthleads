@@ -1406,7 +1406,8 @@ export default function CampanhasPage() {
                     <SumTile label="CPM" value={BRL(ins.cpm)} />
                     <SumTile label="Leads" value={ins.leads.toLocaleString("pt-BR")} />
                     <SumTile label="CPL" value={ins.leads ? BRL(ins.cpl) : "—"} />
-                    <SumTile label="Compras" value={ins.purchases.toLocaleString("pt-BR")} />
+                    <SumTile label="Compras (Pixel)" value={ins.purchases.toLocaleString("pt-BR")} />
+                    <SumTile label="Vendas (CRM)" value={(crmWinsByCampaign[(c.name || "").trim().toLowerCase()] || 0).toLocaleString("pt-BR")} />
                     <SumTile label="ROAS" value={ins.spend ? `${ins.roas.toFixed(2)}x` : "—"} />
                   </div>
                 ) : (
