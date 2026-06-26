@@ -64,7 +64,7 @@ const App = () => (
           <Route path="/admin/tenants" element={<AdminLayout><TenantsPage /></AdminLayout>} />
           <Route path="/admin/contratos" element={<AdminLayout><ContractsPage /></AdminLayout>} />
           <Route path="/admin/agendamentos" element={<AdminLayout><AppointmentsPage /></AdminLayout>} />
-          <Route path="/admin/whatsapp" element={<AdminLayout><WhatsAppChat /></AdminLayout>} />
+          <Route path="/admin/whatsapp" element={<AdminLayout><WhatsAppChat masterMode /></AdminLayout>} />
           <Route path="/admin/kanban" element={<AdminLayout><KanbanPage /></AdminLayout>} />
           <Route path="/admin/leads" element={<AdminLayout><LeadsPage /></AdminLayout>} />
           
