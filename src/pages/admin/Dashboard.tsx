@@ -88,6 +88,25 @@ const Dashboard = () => {
   const canceled30 = useMemo(() => contracts.filter(c => c.canceled_at && daysBetween(new Date(c.canceled_at), now) <= 30).length, [contracts]);
   const churn = active.length ? (canceled30 / (active.length + canceled30)) * 100 : 0;
 
+  // ---- GMV: volume fechado pelas clínicas (valor_proposta dos leads ganho) ----
+  const gmvByTenant = useMemo(() => {
+    const m = new Map<string, { total: number; count: number; month: number }>();
+    const mStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    for (const l of wonLeads) {
+      if (!l.tenant_id) continue;
+      const v = Number(l.valor_proposta || 0);
+      const cur = m.get(l.tenant_id) || { total: 0, count: 0, month: 0 };
+      cur.total += v; cur.count += 1;
+      if (l.fechado_em && new Date(l.fechado_em) >= mStart) cur.month += v;
+      m.set(l.tenant_id, cur);
+    }
+    return m;
+  }, [wonLeads]);
+  const gmvTotal = useMemo(() => Array.from(gmvByTenant.values()).reduce((s, v) => s + v.total, 0), [gmvByTenant]);
+  const gmvMonth = useMemo(() => Array.from(gmvByTenant.values()).reduce((s, v) => s + v.month, 0), [gmvByTenant]);
+  const gmvCount = useMemo(() => Array.from(gmvByTenant.values()).reduce((s, v) => s + v.count, 0), [gmvByTenant]);
+
+
   // ---- MRR histórico (12 meses, calculado por started_at/canceled_at) ----
   const mrrHistory = useMemo(() => {
     const months: { label: string; mrr: number; starter: number; pro: number; scale: number }[] = [];
