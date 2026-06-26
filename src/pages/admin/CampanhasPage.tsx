@@ -1553,7 +1553,7 @@ function CampaignCard({ c, maxSpend, toggling, busy, crmWins = 0, crmRevenue = 0
             <Metric label="Gasto" value={BRL(ins.spend)} />
             <Metric label="Leads" value={ins.leads.toLocaleString("pt-BR")} accent="text-cyan-300" />
             <Metric label="CPL" value={ins.leads ? BRL(ins.cpl) : "—"} />
-            <Metric label="ROAS" value={ins.spend ? `${ins.roas.toFixed(2)}x` : "—"} accent={roasGood ? "text-emerald-400" : ins.spend ? "text-rose-400" : ""} />
+            <Metric label="ROAS" value={ins.spend ? `${effectiveRoas.toFixed(2)}x` : "—"} accent={roasGood ? "text-emerald-400" : ins.spend ? "text-rose-400" : ""} />
           </div>
 
           {/* Spend bar */}
