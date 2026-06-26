@@ -643,6 +643,10 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                   })}
                 </PopoverContent>
               </Popover>
+              <Button variant="ghost" size="icon" className="h-9 w-9" title="Excluir conversa"
+                onClick={() => setConfirmDelete(selectedConversation)}>
+                <Trash2 className="w-4 h-4 text-rose-300/80" />
+              </Button>
               <Button variant="ghost" size="icon" className="h-9 w-9"><Phone className="w-4 h-4 text-muted-foreground" /></Button>
               <Button variant="ghost" size="icon" className="h-9 w-9"><MoreVertical className="w-4 h-4 text-muted-foreground" /></Button>
             </div>
