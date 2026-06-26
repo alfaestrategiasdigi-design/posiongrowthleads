@@ -19,7 +19,7 @@ import { format } from "date-fns";
 import type { Conversation, Message } from "@/types/admin";
 
 const PROJECT_REF = "mbhbflbuawkmtmpjazcj";
-const WEBHOOK_URL = `https://${PROJECT_REF}.supabase.co/functions/v1/whatsapp-webhook`;
+const BASE_WEBHOOK_URL = `https://${PROJECT_REF}.supabase.co/functions/v1/whatsapp-webhook`;
 
 type EvoConn = { id?: string; instance_url: string; api_key: string; instance_name: string; status: string };
 type TagRow = { id: string; nome: string; cor: string; tenant_id: string | null };
@@ -43,7 +43,14 @@ const DEFAULT_WELCOME: Welcome = {
 };
 const TAG_COLORS = ["#c9a84c", "#22c55e", "#3b82f6", "#a855f7", "#ec4899", "#ef4444", "#f59e0b", "#06b6d4"];
 
-const WhatsAppChat = () => {
+type WhatsAppChatProps = {
+  tenantId?: string | null;
+  tenantSlug?: string | null;
+  tenantName?: string | null;
+};
+
+const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }: WhatsAppChatProps) => {
+  const webhookUrl = tenantSlug ? `${BASE_WEBHOOK_URL}?tenant=${encodeURIComponent(tenantSlug)}` : BASE_WEBHOOK_URL;
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [convTags, setConvTags] = useState<Record<string, TagRow[]>>({});
   const [allTags, setAllTags] = useState<TagRow[]>([]);
@@ -72,14 +79,19 @@ const WhatsAppChat = () => {
 
   // ============ Loads ============
   const loadConversations = useCallback(async () => {
-    const { data } = await supabase
-      .from("conversations").select("*").order("ultima_interacao", { ascending: false });
+    let query = supabase.from("conversations").select("*");
+    query = tenantId ? query.eq("tenant_id", tenantId) : query.is("tenant_id", null);
+    const { data, error } = await query.order("ultima_interacao", { ascending: false });
+    if (error) toast.error("Falha ao carregar conversas", { description: error.message });
     setConversations((data as Conversation[]) || []);
     setLoading(false);
-  }, []);
+  }, [tenantId]);
 
   const loadTags = useCallback(async () => {
-    const { data: tags } = await supabase.from("conversation_tags").select("*").order("nome");
+    let tagsQuery = supabase.from("conversation_tags").select("*");
+    tagsQuery = tenantId ? tagsQuery.eq("tenant_id", tenantId) : tagsQuery.is("tenant_id", null);
+    const { data: tags, error: tagsErr } = await tagsQuery.order("nome");
+    if (tagsErr) toast.error("Falha ao carregar tags", { description: tagsErr.message });
     setAllTags((tags as TagRow[]) || []);
     const { data: assigns } = await supabase
       .from("conversation_tag_assignments")
@@ -91,7 +103,7 @@ const WhatsAppChat = () => {
       (map[row.conversation_id] ||= []).push(t);
     });
     setConvTags(map);
-  }, []);
+  }, [tenantId]);
 
   const loadMessages = useCallback(async (conversationId: string) => {
     const { data } = await supabase
@@ -101,24 +113,31 @@ const WhatsAppChat = () => {
   }, []);
 
   const loadConn = useCallback(async () => {
-    const { data } = await supabase.from("zapi_connections")
+    let query = supabase.from("zapi_connections")
       .select("id, instance_url, instance_name, api_key, status")
-      .eq("provider", "evolution")
-      .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+      .eq("provider", "evolution");
+    query = tenantId ? query.eq("tenant_id", tenantId) : query.is("tenant_id", null);
+    const { data, error } = await query.order("updated_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) toast.error("Falha ao carregar conexão", { description: error.message });
     if (data) setConn({
       id: data.id, instance_url: data.instance_url || "", api_key: data.api_key || "",
       instance_name: data.instance_name || "", status: data.status || "disconnected",
     });
-  }, []);
+    else setConn({ instance_url: "", api_key: "", instance_name: "", status: "disconnected" });
+  }, [tenantId]);
 
   const loadWelcome = useCallback(async () => {
-    const { data } = await supabase.from("whatsapp_welcome_config").select("*").maybeSingle();
+    let query = supabase.from("whatsapp_welcome_config").select("*");
+    query = tenantId ? query.eq("tenant_id", tenantId) : query.is("tenant_id", null);
+    const { data, error } = await query.maybeSingle();
+    if (error) toast.error("Falha ao carregar automação", { description: error.message });
     if (data) setWelcome({
       id: data.id, enabled: data.enabled, message_template: data.message_template,
       delay_seconds: data.delay_seconds, trigger_form: data.trigger_form,
       trigger_facebook: data.trigger_facebook, trigger_kanban_status: data.trigger_kanban_status,
     });
-  }, []);
+    else setWelcome(DEFAULT_WELCOME);
+  }, [tenantId]);
 
   useEffect(() => {
     loadConversations(); loadConn(); loadTags(); loadWelcome();
@@ -175,7 +194,7 @@ const WhatsAppChat = () => {
     setUploading(true);
     try {
       const ext = file.name.split(".").pop() || "bin";
-      const path = `outgoing/${selectedConversation.id}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
+      const path = `${tenantId || "master"}/outgoing/${selectedConversation.id}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
       const { error: upErr } = await supabase.storage.from("whatsapp-media").upload(path, file, {
         contentType: file.type, upsert: false,
       });
@@ -232,7 +251,7 @@ const WhatsAppChat = () => {
     setConnecting(true); setQr(null);
     try {
       const { data, error: e } = await supabase.functions.invoke("evolution-connect", {
-        body: { instance_url: url, api_key: conn.api_key, instance_name: conn.instance_name },
+        body: { instance_url: url, api_key: conn.api_key, instance_name: conn.instance_name, tenant_id: tenantId },
       });
       if (e || (data as any)?.error) {
         toast.error("Falha ao conectar", { description: (data as any)?.error || e?.message });
@@ -250,7 +269,7 @@ const WhatsAppChat = () => {
     if (!conn.instance_name) return;
     setCheckingStatus(true);
     try {
-      const { data, error } = await supabase.functions.invoke("evolution-status", { body: { instance_name: conn.instance_name } });
+      const { data, error } = await supabase.functions.invoke("evolution-status", { body: { connection_id: conn.id, instance_name: conn.instance_name, tenant_id: tenantId } });
       if (error || (data as any)?.error) {
         toast.error("Falha ao consultar status", { description: (data as any)?.error || error?.message });
       } else {
@@ -261,13 +280,14 @@ const WhatsAppChat = () => {
       }
     } finally { setCheckingStatus(false); }
   };
-  const copyWebhook = () => { navigator.clipboard.writeText(WEBHOOK_URL); toast.success("Webhook copiado"); };
+  const copyWebhook = () => { navigator.clipboard.writeText(webhookUrl); toast.success("Webhook copiado"); };
 
   // ============ Welcome ============
   const saveWelcome = async () => {
     setSavingWelcome(true);
     try {
       const payload = {
+        tenant_id: tenantId,
         enabled: welcome.enabled, message_template: welcome.message_template,
         delay_seconds: welcome.delay_seconds, trigger_form: welcome.trigger_form,
         trigger_facebook: welcome.trigger_facebook, trigger_kanban_status: welcome.trigger_kanban_status,
@@ -289,7 +309,7 @@ const WhatsAppChat = () => {
   // ============ Tags ============
   const createTag = async () => {
     if (!newTagName.trim()) return;
-    const { error } = await supabase.from("conversation_tags").insert({ nome: newTagName.trim(), cor: newTagColor });
+    const { error } = await supabase.from("conversation_tags").insert({ tenant_id: tenantId, nome: newTagName.trim(), cor: newTagColor });
     if (error) toast.error("Falha", { description: error.message });
     else { setNewTagName(""); loadTags(); toast.success("Tag criada"); }
   };
@@ -627,7 +647,7 @@ const WhatsAppChat = () => {
                   Cole na Evolution em <strong>Settings → Webhooks</strong>, ative <code className="text-accent">MESSAGES_UPSERT</code>, <code className="text-accent">MESSAGES_UPDATE</code>, <code className="text-accent">CONTACTS_UPDATE</code>, <code className="text-accent">CONNECTION_UPDATE</code>.
                 </p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs bg-background/60 border border-border rounded px-2 py-2 font-mono break-all">{WEBHOOK_URL}</code>
+                  <code className="flex-1 text-xs bg-background/60 border border-border rounded px-2 py-2 font-mono break-all">{webhookUrl}</code>
                   <Button size="icon" variant="outline" onClick={copyWebhook} className="h-9 w-9 shrink-0"><Copy className="w-4 h-4" /></Button>
                 </div>
               </div>

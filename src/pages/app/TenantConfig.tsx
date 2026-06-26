@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Copy, Save, Loader2, MessageCircle, CheckCircle2, Key, RefreshCw, Eye, EyeOff, Zap, AlertCircle } from "lucide-react";
+import { Copy, Save, Loader2, MessageCircle, CheckCircle2, Key, RefreshCw, Eye, EyeOff, Zap, AlertCircle, QrCode } from "lucide-react";
 import { toast } from "sonner";
 
 const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
@@ -42,6 +42,9 @@ export default function TenantConfig() {
   const [status, setStatus] = useState<string>("disconnected");
   const [connectionId, setConnectionId] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [qr, setQr] = useState<string | null>(null);
+  const [urlError, setUrlError] = useState<string | null>(null);
 
   const webhookUrl = tenant
     ? `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook?tenant=${tenant.slug}`
@@ -51,7 +54,7 @@ export default function TenantConfig() {
     if (!tenant) return;
     setLoading(true);
     Promise.all([
-      supabase.from("zapi_connections").select("*").eq("tenant_id", tenant.id).maybeSingle(),
+      supabase.from("zapi_connections").select("*").eq("tenant_id", tenant.id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("api_tokens").select("*").eq("tenant_id", tenant.id).eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]).then(([conn, tok]) => {
       if (conn.data) {
@@ -91,8 +94,34 @@ export default function TenantConfig() {
 
   const maskToken = (t: string) => "•".repeat(Math.max(0, t.length - 8)) + t.slice(-8);
 
+  const sanitizeBaseUrl = (raw: string): { url: string; error?: string } => {
+    const trimmed = (raw || "").trim();
+    if (!trimmed) return { url: "" };
+    const withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+    try {
+      const u = new URL(withProto);
+      const path = u.pathname.replace(/\/+$/, "");
+      if (/\/manager(\/|$)/i.test(path) || /\/manager\b/i.test(trimmed)) {
+        return { url: `${u.protocol}//${u.host}`, error: "Use apenas a URL base da Evolution API. Não cole URL do Manager." };
+      }
+      if (path) return { url: `${u.protocol}//${u.host}`, error: "Use apenas a URL base, sem caminho." };
+      return { url: `${u.protocol}//${u.host}` };
+    } catch {
+      return { url: trimmed, error: "URL inválida" };
+    }
+  };
+
+  const handleUrlBlur = () => {
+    const { url, error } = sanitizeBaseUrl(instanceUrl);
+    if (url !== instanceUrl) setInstanceUrl(url);
+    setUrlError(error ?? null);
+    if (error) toast.warning(error);
+  };
+
   const save = async () => {
     if (!tenant) return;
+    const { url, error: invalidUrl } = sanitizeBaseUrl(instanceUrl);
+    if (invalidUrl) { setInstanceUrl(url); setUrlError(invalidUrl); return toast.error(invalidUrl); }
     setSaving(true);
     const payload: any = {
       tenant_id: tenant.id,
@@ -102,7 +131,7 @@ export default function TenantConfig() {
       webhook_url: webhookUrl,
       status,
       provider,
-      instance_url: instanceUrl,
+      instance_url: url,
       instance_name: instanceName,
       api_key: apiKey,
     };
@@ -116,23 +145,62 @@ export default function TenantConfig() {
   };
 
   const testConnection = async () => {
-    if (!instanceUrl || !apiKey) return toast.error("Preencha URL e API Key primeiro");
+    if (!tenant || !instanceName) return toast.error("Informe o nome da instância");
     setTesting(true);
     try {
-      const url = `${instanceUrl.replace(/\/$/, "")}/instance/connectionState/${encodeURIComponent(instanceName)}`;
-      const res = await fetch(url, { headers: { apikey: apiKey } });
-      if (res.ok) {
-        setStatus("connected");
-        toast.success("Conexão bem-sucedida!");
+      const { data, error } = await supabase.functions.invoke("evolution-status", {
+        body: { connection_id: connectionId, instance_name: instanceName, tenant_id: tenant.id },
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      const next = data?.status || "disconnected";
+      setStatus(next);
+      if (next === "connected") {
+        setQr(null);
+        toast.success("Conexão ativa!");
       } else {
-        setStatus("disconnected");
-        toast.error(`Falha (${res.status}): verifique URL, instância e API Key`);
+        toast.warning(`Status: ${next}`);
       }
     } catch (e: any) {
       setStatus("disconnected");
-      toast.error("Erro de rede: " + e.message);
+      toast.error(e.message || "Erro ao consultar status");
     }
     setTesting(false);
+  };
+
+  const connectEvolution = async () => {
+    if (!tenant) return;
+    if (!instanceUrl || !apiKey || !instanceName) return toast.error("Preencha URL, API Key e nome da instância");
+    const { url, error: invalidUrl } = sanitizeBaseUrl(instanceUrl);
+    if (invalidUrl) { setInstanceUrl(url); setUrlError(invalidUrl); return toast.error(invalidUrl); }
+    setConnecting(true);
+    setQr(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("evolution-connect", {
+        body: { instance_url: url, api_key: apiKey, instance_name: instanceName, tenant_id: tenant.id },
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      const qrCode = data?.qr;
+      if (qrCode) {
+        setQr(qrCode.startsWith("data:") ? qrCode : `data:image/png;base64,${qrCode.replace(/^data:[^,]+,/, "")}`);
+        toast.success("QR Code gerado — escaneie no WhatsApp");
+      } else {
+        toast.success("Instância conectada/configurada");
+      }
+      setStatus(data?.status || "connecting");
+      setInstanceUrl(url);
+      await Promise.all([
+        supabase.from("zapi_connections").select("*").eq("tenant_id", tenant.id).order("updated_at", { ascending: false }).limit(1).maybeSingle().then((conn) => {
+          if (conn.data) {
+            setConnectionId(conn.data.id);
+            setStatus(conn.data.status || data?.status || "connecting");
+          }
+        }),
+      ]);
+    } catch (e: any) {
+      toast.error(e.message || "Falha ao conectar");
+    } finally {
+      setConnecting(false);
+    }
   };
 
   const copy = (text: string, label: string) => {
@@ -225,7 +293,8 @@ export default function TenantConfig() {
 
           <div className="space-y-2">
             <Label>URL da instância</Label>
-            <Input value={instanceUrl} onChange={(e) => setInstanceUrl(e.target.value)} placeholder="https://evo.seuservidor.com" />
+            <Input value={instanceUrl} onChange={(e) => { setInstanceUrl(e.target.value); if (urlError) setUrlError(null); }} onBlur={handleUrlBlur} placeholder="http://129.121.36.166:8080" className={urlError ? "border-destructive" : ""} />
+            <p className={`text-xs ${urlError ? "text-destructive" : "text-muted-foreground"}`}>{urlError || "Use somente a URL base da Evolution API (http://host:porta), nunca /manager."}</p>
           </div>
 
           <div className="space-y-2">
@@ -259,13 +328,22 @@ export default function TenantConfig() {
           </div>
 
           <div className="flex gap-2 pt-2">
-            <Button onClick={testConnection} disabled={testing} variant="outline" className="gap-2">
+            <Button onClick={connectEvolution} disabled={connecting} className="gap-2">
+              {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />} Conectar / Gerar QR
+            </Button>
+            <Button onClick={testConnection} disabled={testing || !connectionId} variant="outline" className="gap-2">
               {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />} Testar conexão
             </Button>
             <Button onClick={save} disabled={saving} className="gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar
             </Button>
           </div>
+          {qr && (
+            <div className="border border-border rounded-lg p-4 flex flex-col items-center bg-card">
+              <p className="text-xs text-muted-foreground mb-3">Escaneie em <strong>Dispositivos conectados</strong></p>
+              <img src={qr} alt="QR Code" className="w-56 h-56 rounded-md bg-white p-2" />
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
