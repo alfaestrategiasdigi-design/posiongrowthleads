@@ -151,18 +151,17 @@ export default function TenantConfig() {
       const { data, error } = await supabase.functions.invoke("evolution-status", {
         body: { connection_id: connectionId, instance_name: instanceName, tenant_id: tenant.id },
       });
-      if (error || data?.error) throw new Error(data?.error || error?.message);
       const next = data?.status || "disconnected";
       setStatus(next);
       if (next === "connected") {
         setQr(null);
         toast.success("Conexão ativa!");
       } else {
-        toast.warning(`Status: ${next}`);
+        toast.warning("Evolution indisponível", { description: data?.error || error?.message || `Status: ${next}` });
       }
     } catch (e: any) {
       setStatus("disconnected");
-      toast.error(e.message || "Erro ao consultar status");
+      toast.warning("Evolution indisponível", { description: e.message || "Erro ao consultar status" });
     }
     setTesting(false);
   };

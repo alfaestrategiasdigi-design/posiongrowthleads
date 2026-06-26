@@ -321,14 +321,17 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }:
     setCheckingStatus(true);
     try {
       const { data, error } = await supabase.functions.invoke("evolution-status", { body: { connection_id: conn.id, instance_name: conn.instance_name, tenant_id: tenantId } });
-      if (error || (data as any)?.error) {
-        toast.error("Falha ao consultar status", { description: (data as any)?.error || error?.message });
+      const status = (data as any)?.status || "disconnected";
+      setConn(c => ({ ...c, status }));
+      if (status === "connected") {
+        setQr(null);
+        toast.success("Conexão ativa");
       } else {
-        const status = (data as any)?.status || "disconnected";
-        setConn(c => ({ ...c, status }));
-        toast.success(`Status: ${status}`);
-        if (status === "connected") setQr(null);
+        toast.warning("Evolution indisponível", { description: (data as any)?.error || error?.message || `Status: ${status}` });
       }
+    } catch (e: any) {
+      setConn(c => ({ ...c, status: "disconnected" }));
+      toast.warning("Evolution indisponível", { description: e?.message || "Falha ao consultar status" });
     } finally { setCheckingStatus(false); }
   };
   const copyWebhook = () => { navigator.clipboard.writeText(webhookUrl); toast.success("Webhook copiado"); };
