@@ -137,6 +137,8 @@ export default function CampanhasPage() {
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [showOnlyActive, setShowOnlyActive] = useState(true);
   const [detailCampaign, setDetailCampaign] = useState<MetaCampaign | null>(null);
+  // CRM wins keyed by normalized campaign name (utm_campaign === campaign.name)
+  const [crmWinsByCampaign, setCrmWinsByCampaign] = useState<Record<string, number>>({});
 
   const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
   const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
