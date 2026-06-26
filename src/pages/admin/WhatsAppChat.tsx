@@ -189,7 +189,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null }:
       wamid: null,
       lida: true,
       tipo_disparo: null,
-      tenant_id: selectedConversation.tenant_id ?? null,
+      tenant_id: tenantId ?? null,
       created_at: new Date().toISOString(),
     } as Message;
     setMessages(prev => [...prev, optimistic]);
