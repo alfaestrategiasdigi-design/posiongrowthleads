@@ -19,6 +19,7 @@ import QualificacaoPage from "./pages/admin/QualificacaoPage";
 import FacebookConfigPage from "./pages/admin/FacebookConfigPage";
 import CapiConfigPage from "./pages/admin/CapiConfigPage";
 import CampanhasPage from "./pages/admin/CampanhasPage";
+import SubscriptionsPage from "./pages/admin/SubscriptionsPage";
 
 import AppointmentsPage from "./pages/admin/AppointmentsPage";
 import TenantsPage from "./pages/admin/TenantsPage";
@@ -77,6 +78,7 @@ const App = () => (
           <Route path="/admin/capi" element={<AdminLayout><CapiConfigPage /></AdminLayout>} />
           <Route path="/admin/campanhas" element={<AdminLayout><CampanhasPage /></AdminLayout>} />
           <Route path="/admin/meta-ads" element={<Navigate to="/admin/campanhas" replace />} />
+          <Route path="/admin/planos" element={<AdminLayout><SubscriptionsPage /></AdminLayout>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
