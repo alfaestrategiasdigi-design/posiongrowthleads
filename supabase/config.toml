@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.whatsapp-send-welcome]
 verify_jwt = false
+
+[functions.payments-webhook]
+verify_jwt = false

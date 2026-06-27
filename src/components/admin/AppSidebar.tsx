@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, MessageCircle, Kanban, Users, LogOut, UserPlus, ListChecks,
-  Facebook, Calendar, Building2, TrendingUp, FileText, Megaphone, Plug, Activity, Target,
+  Facebook, Calendar, Building2, TrendingUp, FileText, Megaphone, Plug, Activity, Target, CreditCard,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -40,6 +40,7 @@ const navGroups = [
     label: "Plataforma",
     items: [
       { title: "Clínicas Clientes", url: "/admin/tenants", icon: Building2 },
+      { title: "Planos & Cobranças", url: "/admin/planos", icon: CreditCard },
       { title: "Contratos", url: "/admin/contratos", icon: FileText },
       { title: "Conexão WhatsApp", url: "/admin/conexao-whatsapp", icon: Plug },
       { title: "Status WhatsApp", url: "/admin/whatsapp-status", icon: Activity },
