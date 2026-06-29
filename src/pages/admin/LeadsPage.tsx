@@ -42,15 +42,16 @@ const LeadsPage = () => {
   useEffect(() => {
     const load = async () => {
       const [{ data }, { data: cfg }] = await Promise.all([
-        supabase
-          .from("leads")
-          .select("*")
-          // WhatsApp-initiated leads first, then by recency
-          .order("origem", { ascending: true, nullsFirst: false })
-          .order("created_at", { ascending: false }),
+        supabase.from("leads").select("*").order("created_at", { ascending: false }),
         supabase.rpc("get_facebook_config_meta" as any),
       ]);
-      setLeads(data || []);
+      // WhatsApp-initiated leads first (then by recency, preserved from query order)
+      const sorted = (data || []).slice().sort((a: any, b: any) => {
+        const aw = a.origem === "whatsapp" ? 0 : 1;
+        const bw = b.origem === "whatsapp" ? 0 : 1;
+        return aw - bw;
+      });
+      setLeads(sorted);
       const row: any = Array.isArray(cfg) ? cfg[0] : cfg;
       setLastLeadsSync(row?.last_leads_sync_at ?? null);
       setLoading(false);
