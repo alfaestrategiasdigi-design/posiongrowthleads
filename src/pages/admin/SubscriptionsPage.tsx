@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Pencil, CreditCard, Ban, RefreshCw, CheckCircle2, FileText, Sparkles, Layers, ExternalLink, Copy, Settings2, ShieldCheck, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { GenerateLinkCard } from "@/components/admin/GenerateLinkCard";
 
 interface Plan {
   id: string; code: string; interval: string; name: string; description: string | null;
