@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from "sonner";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
-import { getStripe, getStripeEnvironment, paymentsTokenAvailable } from "@/lib/stripe";
+import { getStripe, getStripeEnvironment, paymentsTokenAvailable, setStripeClientToken } from "@/lib/stripe";
 
 const PLAN_META: Record<string, { icon: any; tagline: string; features: string[] }> = {
   starter: {
