@@ -1,0 +1,1 @@
+ALTER TABLE public.payment_provider_config ADD COLUMN IF NOT EXISTS access_token text;

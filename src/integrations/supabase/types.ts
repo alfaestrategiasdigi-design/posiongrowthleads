@@ -1392,6 +1392,7 @@ export type Database = {
       }
       payment_provider_config: {
         Row: {
+          access_token: string | null
           account_email: string | null
           account_id: string | null
           account_site: string | null
@@ -1405,6 +1406,7 @@ export type Database = {
           webhook_url: string | null
         }
         Insert: {
+          access_token?: string | null
           account_email?: string | null
           account_id?: string | null
           account_site?: string | null
@@ -1418,6 +1420,7 @@ export type Database = {
           webhook_url?: string | null
         }
         Update: {
+          access_token?: string | null
           account_email?: string | null
           account_id?: string | null
           account_site?: string | null
