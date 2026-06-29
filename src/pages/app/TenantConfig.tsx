@@ -47,6 +47,11 @@ export default function TenantConfig() {
   const [qr, setQr] = useState<string | null>(null);
   const [urlError, setUrlError] = useState<string | null>(null);
 
+  // Stripe (Embedded Checkout)
+  const [stripePk, setStripePk] = useState("");
+  const [revealStripePk, setRevealStripePk] = useState(false);
+  const [savingStripe, setSavingStripe] = useState(false);
+
   // Facebook CAPI: movido para Admin Master (/admin/capi)
 
   const webhookUrl = tenant
