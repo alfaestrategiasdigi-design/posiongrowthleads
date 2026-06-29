@@ -64,6 +64,7 @@ export default function SubscriptionsPage() {
 
   const [actionTenant, setActionTenant] = useState<Tenant | null>(null);
   const [selectedLookupKey, setSelectedLookupKey] = useState<string>("");
+  const [selectedPayerEmail, setSelectedPayerEmail] = useState<string>("");
   const [busy, setBusy] = useState(false);
 
   const [validating, setValidating] = useState(false);
@@ -134,6 +135,7 @@ export default function SubscriptionsPage() {
     setActionTenant(t);
     setLastLink("");
     const current = subByTenant.get(t.id);
+    setSelectedPayerEmail(current?.mp_payer_email || "");
     setSelectedLookupKey(current?.lookup_key || "");
   };
 
@@ -141,19 +143,34 @@ export default function SubscriptionsPage() {
 
   const generateLink = async (mode: "open" | "copy") => {
     if (!actionTenant || !selectedLookupKey) return;
+    const email = selectedPayerEmail.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      toast.error("Informe o e-mail do pagador");
+      return;
+    }
     setBusy(true);
-    const { data, error } = await supabase.functions.invoke("mp-subscription-checkout", {
-      body: {
-        tenant_id: actionTenant.id,
-        lookup_key: selectedLookupKey,
-        back_url: `${window.location.origin}/admin/planos?mp=success`,
-      },
-    });
-    setBusy(false);
+    let data: any = null;
+    let error: any = null;
+    try {
+      const res = await supabase.functions.invoke("mp-subscription-checkout", {
+        body: {
+          tenant_id: actionTenant.id,
+          lookup_key: selectedLookupKey,
+          payer_email: email,
+          back_url: `${window.location.origin}/admin/planos?mp=success`,
+        },
+      });
+      data = res.data;
+      error = res.error;
+    } catch (e) {
+      error = e;
+    } finally {
+      setBusy(false);
+    }
     const link = (data as any)?.init_point as string | undefined;
     if (error || !link) {
-      const msg = (error as any)?.context?.error || (error as any)?.message || "Falha ao gerar checkout";
-      toast.error(msg);
+      const msg = (data as any)?.error || (error as any)?.context?.error || (error as any)?.message || "Falha ao gerar checkout";
+      toast.error(typeof msg === "string" ? msg : JSON.stringify(msg));
       return;
     }
     setLastLink(link);
@@ -515,6 +532,19 @@ export default function SubscriptionsPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div>
+                    <Label>E-mail do pagador</Label>
+                    <Input
+                      value={selectedPayerEmail}
+                      onChange={(e) => setSelectedPayerEmail(e.target.value)}
+                      type="email"
+                      inputMode="email"
+                      placeholder="cliente@email.com"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Necessário para o Mercado Pago criar o link de assinatura.
+                    </p>
+                  </div>
 
                   {sub && (
                     <div className="rounded-lg bg-white/5 border border-white/10 p-3 space-y-1 text-sm">
@@ -580,11 +610,11 @@ export default function SubscriptionsPage() {
                       <CheckCircle2 className="w-4 h-4" /> Reativar
                     </Button>
                   )}
-                  <Button variant="outline" onClick={() => generateLink("copy")} disabled={busy || !selectedLookupKey} className="gap-2">
+                  <Button variant="outline" onClick={() => generateLink("copy")} disabled={busy || !selectedLookupKey || !selectedPayerEmail.trim()} className="gap-2">
                     {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
                     Gerar e copiar link
                   </Button>
-                  <Button onClick={startCheckout} disabled={busy || !selectedLookupKey} className="gap-2">
+                  <Button onClick={startCheckout} disabled={busy || !selectedLookupKey || !selectedPayerEmail.trim()} className="gap-2">
                     {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
                     {hasActive ? "Novo checkout (troca de plano)" : "Iniciar assinatura"}
                   </Button>

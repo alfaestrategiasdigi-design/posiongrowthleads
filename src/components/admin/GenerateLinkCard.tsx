@@ -28,6 +28,7 @@ export function GenerateLinkCard({
 }) {
   const [tenantId, setTenantId] = useState<string>("");
   const [lookupKey, setLookupKey] = useState<string>("");
+  const [payerEmail, setPayerEmail] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [link, setLink] = useState<string>("");
 
@@ -42,16 +43,31 @@ export function GenerateLinkCard({
       toast.error("Selecione cliente e plano");
       return;
     }
+    const email = payerEmail.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      toast.error("Informe o e-mail do pagador");
+      return;
+    }
     setBusy(true);
     setLink("");
-    const { data, error } = await supabase.functions.invoke("mp-subscription-checkout", {
-      body: {
-        tenant_id: tenantId,
-        lookup_key: lookupKey,
-        back_url: `${window.location.origin}/admin/planos?mp=success`,
-      },
-    });
-    setBusy(false);
+    let data: any = null;
+    let error: any = null;
+    try {
+      const res = await supabase.functions.invoke("mp-subscription-checkout", {
+        body: {
+          tenant_id: tenantId,
+          lookup_key: lookupKey,
+          payer_email: email,
+          back_url: `${window.location.origin}/admin/planos?mp=success`,
+        },
+      });
+      data = res.data;
+      error = res.error;
+    } catch (e) {
+      error = e;
+    } finally {
+      setBusy(false);
+    }
     const url = (data as any)?.init_point as string | undefined;
     if (error || !url) {
       const msg = (data as any)?.error || (error as any)?.context?.error || (error as any)?.message || "Falha ao gerar link";
@@ -111,6 +127,21 @@ export function GenerateLinkCard({
           </div>
         </div>
 
+        <div className="space-y-1.5">
+          <Label className="text-xs">E-mail do pagador</Label>
+          <Input
+            value={payerEmail}
+            onChange={(e) => { setPayerEmail(e.target.value); setLink(""); }}
+            type="email"
+            inputMode="email"
+            placeholder="cliente@email.com"
+            className="bg-[#070A18] border-white/10"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            O Mercado Pago exige um e-mail para criar o link de assinatura.
+          </p>
+        </div>
+
         {selectedPlan && (
           <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
             <CreditCard className="inline w-3 h-3 mr-1 text-primary" />
@@ -120,11 +151,11 @@ export function GenerateLinkCard({
         )}
 
         <div className="flex gap-2">
-          <Button onClick={() => generate("copy")} disabled={busy || !tenantId || !lookupKey} className="flex-1 gap-2">
+          <Button onClick={() => generate("copy")} disabled={busy || !tenantId || !lookupKey || !payerEmail.trim()} className="flex-1 gap-2">
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
             Gerar e copiar link
           </Button>
-          <Button onClick={() => generate("open")} disabled={busy || !tenantId || !lookupKey} variant="outline" className="gap-2">
+          <Button onClick={() => generate("open")} disabled={busy || !tenantId || !lookupKey || !payerEmail.trim()} variant="outline" className="gap-2">
             <ExternalLink className="w-4 h-4" /> Abrir
           </Button>
         </div>

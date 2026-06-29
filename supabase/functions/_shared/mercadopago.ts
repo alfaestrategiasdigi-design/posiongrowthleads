@@ -25,7 +25,7 @@ export async function mpFetch(
   let body: any = null;
   try { body = text ? JSON.parse(text) : null; } catch { body = text; }
   if (!res.ok) {
-    const msg = (body && (body.message || body.error)) || `MP ${path} → ${res.status}`;
+    const msg = (body && (body.message || body.error || body.cause)) || `MP ${path} → ${res.status}`;
     throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
   }
   return body;

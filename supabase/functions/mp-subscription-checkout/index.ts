@@ -1,8 +1,8 @@
-// Creates a Mercado Pago Preapproval (subscription) for a tenant + plan
-// and returns the init_point URL for the customer to complete payment.
+// Creates a Mercado Pago pending Preapproval (subscription payment link)
+// for a tenant + internal plan and returns the init_point URL for the customer.
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { ensureMpPreapprovalPlan, mpFetch } from "../_shared/mercadopago.ts";
+import { mpFetch } from "../_shared/mercadopago.ts";
 import { getMpAccessToken } from "../_shared/mp-token.ts";
 
 Deno.serve(async (req) => {
@@ -82,32 +82,46 @@ Deno.serve(async (req) => {
     }
 
     const origin = req.headers.get("origin") || "";
-    const finalBackUrl = back_url || `${origin}/app/${tenant.slug}/planos?mp=success`;
-
-    // Ensure Preapproval Plan exists in MP
-    const ensured = await ensureMpPreapprovalPlan(
-      accessToken,
-      plan as any,
-      finalBackUrl,
-    );
-    if (ensured.created || (plan as any).mp_preapproval_plan_id !== ensured.id) {
-      await admin.from("plan_catalog").update({ mp_preapproval_plan_id: ensured.id }).eq("id", (plan as any).id);
+    const requestedBackUrl = back_url || `${origin}/app/${tenant.slug}/planos?mp=success`;
+    const finalBackUrl = requestedBackUrl?.startsWith("https://") ? requestedBackUrl : undefined;
+    const payerEmail = typeof payer_email === "string" && payer_email.includes("@") ? payer_email.trim() : undefined;
+    if (!payerEmail) {
+      return new Response(JSON.stringify({ error: "Informe o e-mail do pagador para gerar o link Mercado Pago" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+    const frequency = (plan as any).interval === "quarter" ? 3 : 1;
+    const reason = (plan as any).mp_reason || `POSION ${(plan as any).name}`;
+    const externalReference = `${tenant.id}:${(plan as any).code}:${(plan as any).interval}:${Date.now()}`;
 
-    const payerEmail = payer_email || user.email;
+    // Create a pending subscription WITHOUT preapproval_plan_id.
+    // Mercado Pago requires card_token_id for subscriptions tied to a preapproval_plan.
+    // Pending no-plan subscriptions generate an init_point so the customer can add the card in MP checkout.
+    const preapprovalBody: Record<string, unknown> = {
+      reason,
+      external_reference: externalReference,
+      auto_recurring: {
+        frequency,
+        frequency_type: "months",
+        transaction_amount: Math.round((plan as any).amount_cents) / 100,
+        currency_id: ((plan as any).currency || "brl").toUpperCase(),
+      },
+      status: "pending",
+    };
+    if (finalBackUrl) preapprovalBody.back_url = finalBackUrl;
+    preapprovalBody.payer_email = payerEmail;
 
-    // Create Preapproval (subscription)
     const preapproval = await mpFetch(`/preapproval`, {
       method: "POST",
       accessToken,
       idempotencyKey: `${tenant.id}:${plan.lookup_key}:${Date.now()}`,
-      body: JSON.stringify({
-        preapproval_plan_id: ensured.id,
-        payer_email: payerEmail,
-        back_url: finalBackUrl,
-        external_reference: `${tenant.id}:${plan.code}:${plan.interval}`,
-      }),
+      body: JSON.stringify(preapprovalBody),
     });
+
+    const initPoint = preapproval.init_point || preapproval.sandbox_init_point;
+    if (!initPoint) {
+      throw new Error("Mercado Pago não retornou link de checkout para esta assinatura");
+    }
 
     // Persist a pending subscription row so admin sees the intent immediately
     await admin.from("subscriptions").upsert({
@@ -117,8 +131,8 @@ Deno.serve(async (req) => {
       lookup_key: (plan as any).lookup_key,
       provider: "mercadopago",
       mp_preapproval_id: preapproval.id,
-      mp_payer_email: payerEmail,
-      mp_init_point: preapproval.init_point,
+      mp_payer_email: payerEmail || null,
+      mp_init_point: initPoint,
       status: preapproval.status || "pending",
       amount_cents: (plan as any).amount_cents,
       currency: (plan as any).currency,
@@ -129,7 +143,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({
       ok: true,
       preapproval_id: preapproval.id,
-      init_point: preapproval.init_point,
+      init_point: initPoint,
       status: preapproval.status,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
