@@ -81,9 +81,20 @@ Deno.serve(async (req) => {
       });
     }
 
+    const productionOrigin = Deno.env.get("PUBLIC_SITE_URL") || "https://posiongrowthleads.lovable.app";
     const origin = req.headers.get("origin") || "";
-    const requestedBackUrl = back_url || `${origin}/app/${tenant.slug}/planos?mp=success`;
-    const finalBackUrl = requestedBackUrl?.startsWith("https://") ? requestedBackUrl : undefined;
+    const requestedBackUrl = String(back_url || `${origin}/app/${tenant.slug}/planos?mp=success`);
+    let finalBackUrl: string | undefined;
+    try {
+      const parsed = new URL(requestedBackUrl);
+      const isLovablePreview = parsed.hostname.includes("id-preview--") || parsed.hostname.includes("lovableproject.com");
+      if (parsed.protocol === "https:" && !isLovablePreview) {
+        finalBackUrl = parsed.toString();
+      }
+    } catch (_) { /* fall through to production URL */ }
+    if (!finalBackUrl) {
+      finalBackUrl = `${productionOrigin.replace(/\/$/, "")}/admin/planos?mp=success`;
+    }
     const payerEmail = typeof payer_email === "string" && payer_email.includes("@") ? payer_email.trim() : undefined;
     if (!payerEmail) {
       return new Response(JSON.stringify({ error: "Informe o e-mail do pagador para gerar o link Mercado Pago" }), {
@@ -112,7 +123,7 @@ Deno.serve(async (req) => {
       },
       status: "pending",
     };
-    if (finalBackUrl) preapprovalBody.back_url = finalBackUrl;
+    preapprovalBody.back_url = finalBackUrl;
     preapprovalBody.payer_email = payerEmail;
 
     const preapproval = await mpFetch(`/preapproval`, {
