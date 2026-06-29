@@ -42,7 +42,12 @@ const LeadsPage = () => {
   useEffect(() => {
     const load = async () => {
       const [{ data }, { data: cfg }] = await Promise.all([
-        supabase.from("leads").select("*").order("created_at", { ascending: false }),
+        supabase
+          .from("leads")
+          .select("*")
+          // WhatsApp-initiated leads first, then by recency
+          .order("origem", { ascending: true, nullsFirst: false })
+          .order("created_at", { ascending: false }),
         supabase.rpc("get_facebook_config_meta" as any),
       ]);
       setLeads(data || []);
