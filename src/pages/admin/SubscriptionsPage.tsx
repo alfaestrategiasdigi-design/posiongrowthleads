@@ -131,11 +131,14 @@ export default function SubscriptionsPage() {
   // ── Subscription actions ────────────────────────────────────────
   const openTenantActions = (t: Tenant) => {
     setActionTenant(t);
+    setLastLink("");
     const current = subByTenant.get(t.id);
     setSelectedLookupKey(current?.lookup_key || "");
   };
 
-  const startCheckout = async () => {
+  const [lastLink, setLastLink] = useState<string>("");
+
+  const generateLink = async (mode: "open" | "copy") => {
     if (!actionTenant || !selectedLookupKey) return;
     setBusy(true);
     const { data, error } = await supabase.functions.invoke("mp-subscription-checkout", {
@@ -146,16 +149,23 @@ export default function SubscriptionsPage() {
       },
     });
     setBusy(false);
-    if (error || !(data as any)?.init_point) {
+    const link = (data as any)?.init_point as string | undefined;
+    if (error || !link) {
       const msg = (error as any)?.context?.error || (error as any)?.message || "Falha ao gerar checkout";
       toast.error(msg);
       return;
     }
-    window.open((data as any).init_point, "_blank", "noopener");
-    toast.success("Checkout aberto em nova aba");
-    setActionTenant(null);
+    setLastLink(link);
+    if (mode === "open") {
+      window.open(link, "_blank", "noopener");
+      toast.success("Checkout aberto em nova aba");
+    } else {
+      await navigator.clipboard.writeText(link);
+      toast.success("Link de pagamento copiado");
+    }
     setTimeout(refresh, 1500);
   };
+  const startCheckout = () => generateLink("open");
 
   const cancelSub = async () => {
     if (!actionTenant) return;
@@ -488,6 +498,17 @@ export default function SubscriptionsPage() {
                       )}
                     </div>
                   )}
+                  {lastLink && (
+                    <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 space-y-2">
+                      <div className="text-xs text-primary">Link de pagamento gerado:</div>
+                      <div className="flex gap-2">
+                        <Input value={lastLink} readOnly className="font-mono text-[11px]" />
+                        <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(lastLink); toast.success("Copiado"); }}>
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   {tenantInvoices.length > 0 && (
                     <div>
                       <div className="text-xs text-muted-foreground mb-1">Últimos pagamentos</div>
@@ -529,6 +550,10 @@ export default function SubscriptionsPage() {
                       <CheckCircle2 className="w-4 h-4" /> Reativar
                     </Button>
                   )}
+                  <Button variant="outline" onClick={() => generateLink("copy")} disabled={busy || !selectedLookupKey} className="gap-2">
+                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+                    Gerar e copiar link
+                  </Button>
                   <Button onClick={startCheckout} disabled={busy || !selectedLookupKey} className="gap-2">
                     {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
                     {hasActive ? "Novo checkout (troca de plano)" : "Iniciar assinatura"}
@@ -589,6 +614,15 @@ function MercadoPagoTab({
             {validating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             Testar conexão
           </Button>
+
+          <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-xs space-y-2">
+            <div className="font-medium text-foreground">Trocar Access Token</div>
+            <p className="text-muted-foreground">
+              O Access Token (APP_USR-…) é armazenado como segredo na nuvem. Para trocar,
+              peça no chat do Lovable: <code className="text-primary">"atualizar MP_ACCESS_TOKEN"</code>.
+              Um formulário seguro será aberto para você colar o novo token.
+            </p>
+          </div>
 
           <div className="border-t border-white/5 pt-3 space-y-2">
             <Label>Public Key (opcional)</Label>
