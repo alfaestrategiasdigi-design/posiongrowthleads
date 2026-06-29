@@ -85,6 +85,11 @@ Deno.serve(async (req) => {
     const requestedBackUrl = back_url || `${origin}/app/${tenant.slug}/planos?mp=success`;
     const finalBackUrl = requestedBackUrl?.startsWith("https://") ? requestedBackUrl : undefined;
     const payerEmail = typeof payer_email === "string" && payer_email.includes("@") ? payer_email.trim() : undefined;
+    if (!payerEmail) {
+      return new Response(JSON.stringify({ error: "Informe o e-mail do pagador para gerar o link Mercado Pago" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const frequency = (plan as any).interval === "quarter" ? 3 : 1;
     const reason = (plan as any).mp_reason || `POSION ${(plan as any).name}`;
     const externalReference = `${tenant.id}:${(plan as any).code}:${(plan as any).interval}:${Date.now()}`;
@@ -104,7 +109,7 @@ Deno.serve(async (req) => {
       status: "pending",
     };
     if (finalBackUrl) preapprovalBody.back_url = finalBackUrl;
-    if (payerEmail) preapprovalBody.payer_email = payerEmail;
+    preapprovalBody.payer_email = payerEmail;
 
     const preapproval = await mpFetch(`/preapproval`, {
       method: "POST",
