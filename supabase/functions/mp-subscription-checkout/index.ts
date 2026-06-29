@@ -106,7 +106,6 @@ Deno.serve(async (req) => {
         payer_email: payerEmail,
         back_url: finalBackUrl,
         external_reference: `${tenant.id}:${plan.code}:${plan.interval}`,
-        status: "pending",
       }),
     });
 
