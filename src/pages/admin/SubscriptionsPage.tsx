@@ -32,7 +32,7 @@ interface Invoice {
 interface MpConfig {
   account_email: string | null; account_id: string | null; account_site: string | null;
   webhook_url: string | null; last_validated_at: string | null;
-  last_validation_result: any;
+  last_validation_result: any; public_key: string | null;
 }
 
 const BRL = (cents: number, cur = "brl") =>
