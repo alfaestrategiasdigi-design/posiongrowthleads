@@ -1,29 +1,30 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTenant } from "@/hooks/useTenant";
 import { supabase } from "@/integrations/supabase/client";
-import { Check, Sparkles, Crown, Rocket, Loader2, ShieldCheck, FileText, Mail } from "lucide-react";
+import { Check, Sparkles, Crown, Rocket, Loader2, ShieldCheck, FileText, CreditCard, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
+import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
+import { getStripe, getStripeEnvironment, paymentsTokenAvailable } from "@/lib/stripe";
 
-const PLAN_META: Record<string, { icon: any; tagline: string; features: string[]; accent: string; border: string }> = {
+const PLAN_META: Record<string, { icon: any; tagline: string; features: string[] }> = {
   starter: {
     icon: Rocket,
     tagline: "Para clínicas começando a estruturar gestão",
-    accent: "from-slate-400/20 to-slate-300/5",
-    border: "border-white/10",
     features: ["Dashboard de faturamento e metas", "CRM Kanban (até 500 leads/mês)", "WhatsApp integrado (1 número)", "Agenda e prontuário básico", "Suporte por e-mail"],
   },
   pro: {
     icon: Sparkles,
     tagline: "Operação completa com automação e recall",
-    accent: "from-primary/30 to-primary/5",
-    border: "border-primary/40",
     features: ["Tudo do Starter, sem limite de leads", "Recall automatizado por WhatsApp", "Funil de avaliações + relatórios", "Até 5 usuários", "Integração com Meta Ads", "Suporte prioritário"],
   },
   scale: {
     icon: Crown,
     tagline: "Para redes e clínicas de alta performance",
-    accent: "from-amber-400/20 to-amber-300/5",
-    border: "border-amber-300/30",
     features: ["Tudo do Pro, usuários ilimitados", "Multi-unidades em um único painel", "API + tokens por unidade", "Agente de IA 24/7", "Onboarding dedicado + CS", "SLA 99,9%"],
   },
 };
@@ -39,77 +40,119 @@ const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   paused: { label: "Pausada", className: "bg-violet-500/15 text-violet-300 border-violet-500/30" },
 };
 
+interface Plan {
+  id: string; code: string; interval: string; name: string; description: string | null;
+  amount_cents: number; currency: string; lookup_key: string; active: boolean; sort_order: number;
+}
+
 export default function TenantPlans() {
-  const { tenant } = useTenant();
+  const { tenant, user } = useTenant();
   const [sub, setSub] = useState<any>(null);
   const [invoices, setInvoices] = useState<any[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
 
-  useEffect(() => {
+  const refresh = async () => {
     if (!tenant?.id) return;
-    (async () => {
-      setLoading(true);
-      const [subRes, invRes] = await Promise.all([
-        supabase.from("subscriptions").select("*").eq("tenant_id", tenant.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.from("subscription_invoices").select("*").eq("tenant_id", tenant.id).order("paid_at", { ascending: false, nullsFirst: false }).limit(10),
-      ]);
-      setSub(subRes.data);
-      setInvoices(invRes.data || []);
-      setLoading(false);
-    })();
-  }, [tenant?.id]);
+    setLoading(true);
+    const [subRes, invRes, planRes] = await Promise.all([
+      supabase.from("subscriptions").select("*").eq("tenant_id", tenant.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("subscription_invoices").select("*").eq("tenant_id", tenant.id).order("paid_at", { ascending: false, nullsFirst: false }).limit(10),
+      supabase.from("plan_catalog").select("*").eq("active", true).order("sort_order"),
+    ]);
+    setSub(subRes.data);
+    setInvoices(invRes.data || []);
+    setPlans((planRes.data || []) as Plan[]);
+    setLoading(false);
+  };
+  useEffect(() => { refresh(); }, [tenant?.id]);
+
+  const groupedPlans = useMemo(() => {
+    const by: Record<string, { monthly?: Plan; quarter?: Plan }> = {};
+    for (const p of plans) {
+      const k = p.code;
+      by[k] = by[k] || {};
+      if (p.interval === "quarter") by[k].quarter = p; else by[k].monthly = p;
+    }
+    return by;
+  }, [plans]);
+
+  const startCheckout = async (lookup_key: string) => {
+    if (!tenant?.id) return;
+    if (!paymentsTokenAvailable()) {
+      toast.error("Pagamentos ainda não configurados. Fale com a equipe POSION.");
+      return;
+    }
+    setBusyKey(lookup_key);
+    const { data, error } = await supabase.functions.invoke("subscription-checkout", {
+      body: {
+        tenant_id: tenant.id,
+        lookup_key,
+        environment: getStripeEnvironment(),
+        customer_email: user?.email,
+        return_url: `${window.location.origin}/app/${tenant.slug}/planos?session={CHECKOUT_SESSION_ID}`,
+      },
+    });
+    setBusyKey(null);
+    if (error || !(data as any)?.clientSecret) {
+      toast.error((error as any)?.message || "Falha ao iniciar checkout");
+      return;
+    }
+    setClientSecret((data as any).clientSecret);
+    setCheckoutOpen(true);
+  };
+
+  const closeCheckout = () => {
+    setCheckoutOpen(false);
+    setClientSecret(null);
+    setTimeout(refresh, 2000);
+  };
 
   if (loading) {
     return <div className="p-10 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
 
-  const planCode = (sub?.plan_code || "starter") as keyof typeof PLAN_META;
-  const meta = PLAN_META[planCode] || PLAN_META.starter;
-  const Icon = meta.icon;
+  const planCode = (sub?.plan_code || "") as keyof typeof PLAN_META;
+  const meta = PLAN_META[planCode];
   const statusInfo = sub ? (STATUS_LABEL[sub.status] || { label: sub.status, className: "bg-slate-500/15 text-slate-300 border-slate-500/30" }) : null;
+  const hasActiveSub = sub && ["active", "trialing", "past_due"].includes(sub.status);
 
   return (
-    <div className="p-4 md:p-10 max-w-[1100px] mx-auto space-y-8">
-      <div className="space-y-2">
-        <div className="text-[10px] uppercase tracking-[0.22em] text-primary/80 font-mono">Plano POSION</div>
-        <h1 className="font-display text-3xl md:text-4xl tracking-tight">
-          Plano da <span className="gold-gradient-text">{tenant?.name ?? "sua clínica"}</span>
-        </h1>
-        <p className="text-muted-foreground text-sm max-w-2xl">
-          A gestão do plano é feita pela equipe POSION. Para upgrade, downgrade ou alteração de pagamento, fale com seu CS.
-        </p>
-      </div>
-
-      {!sub ? (
-        <div className="rounded-2xl p-8 border border-white/10 bg-[#0E1730] text-center space-y-3">
-          <ShieldCheck className="w-10 h-10 mx-auto text-primary" />
-          <h2 className="font-display text-xl">Sem assinatura ativa</h2>
-          <p className="text-sm text-muted-foreground">Entre em contato com a equipe POSION para iniciar sua assinatura.</p>
-          <a href="mailto:lucas@posion.com.br" className="inline-flex items-center gap-2 text-primary hover:underline text-sm mt-2">
-            <Mail className="w-4 h-4" /> lucas@posion.com.br
-          </a>
+    <div className="min-h-screen">
+      <PaymentTestModeBanner />
+      <div className="p-4 md:p-10 max-w-[1200px] mx-auto space-y-8">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="space-y-2">
+            <div className="text-[10px] uppercase tracking-[0.22em] text-primary/80 font-mono">Plano POSION</div>
+            <h1 className="font-display text-3xl md:text-4xl tracking-tight">
+              Plano da <span className="gold-gradient-text">{tenant?.name ?? "sua clínica"}</span>
+            </h1>
+            <p className="text-muted-foreground text-sm max-w-2xl">
+              Escolha um plano e ative pagando com cartão. Você pode trocar ou cancelar a qualquer momento.
+            </p>
+          </div>
+          <Button variant="outline" onClick={refresh} className="gap-2"><RefreshCw className="w-4 h-4" /> Atualizar</Button>
         </div>
-      ) : (
-        <>
-          {/* Plano atual */}
-          <div
-            className={`rounded-2xl p-7 border ${meta.border}`}
-            style={{ background: "linear-gradient(180deg, rgba(212,175,55,0.08) 0%, #0A1124 60%)" }}
-          >
-            <div className="flex items-start justify-between gap-4 flex-wrap">
+
+        {/* Assinatura atual */}
+        {hasActiveSub && meta && (
+          <Card className="bg-[#0E1730] border-primary/30">
+            <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <Icon className="w-6 h-6 text-primary" />
+                <div className="w-11 h-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                  <meta.icon className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <div className="font-display text-3xl tracking-tight capitalize">{planCode}</div>
-                  <p className="text-sm text-muted-foreground">{meta.tagline}</p>
+                  <CardTitle className="text-xl capitalize">{planCode} {sub.interval === "quarter" ? "Trimestral" : "Mensal"}</CardTitle>
+                  <p className="text-xs text-muted-foreground">{meta.tagline}</p>
                 </div>
               </div>
               {statusInfo && <Badge className={`border ${statusInfo.className}`}>{statusInfo.label}</Badge>}
-            </div>
-
-            <div className="grid sm:grid-cols-3 gap-4 mt-6 pt-6 border-t border-white/10">
+            </CardHeader>
+            <CardContent className="grid sm:grid-cols-3 gap-4 pt-2 border-t border-white/5">
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Valor</div>
                 <div className="font-display text-2xl tabular-nums mt-1">{BRL(sub.amount_cents || 0, sub.currency || "brl")}</div>
@@ -123,28 +166,99 @@ export default function TenantPlans() {
                 {sub.cancel_at_period_end && <div className="text-xs text-amber-400">Cancela ao final do período</div>}
               </div>
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Forma de pagamento</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Pagamento</div>
                 <div className="font-display text-2xl mt-1">Cartão</div>
-                <div className="text-xs text-muted-foreground">via Stripe</div>
+                <div className="text-xs text-muted-foreground">via Stripe (seguro)</div>
               </div>
-            </div>
+            </CardContent>
+          </Card>
+        )}
 
-            <ul className="mt-6 grid sm:grid-cols-2 gap-2">
-              {meta.features.map((f) => (
-                <li key={f} className="flex items-start gap-2 text-sm">
-                  <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                  <span>{f}</span>
-                </li>
-              ))}
-            </ul>
+        {/* Seleção de planos */}
+        <div>
+          <h2 className="font-display text-xl mb-4">{hasActiveSub ? "Trocar de plano" : "Escolha seu plano"}</h2>
+          <div className="grid md:grid-cols-3 gap-4">
+            {(["starter", "pro", "scale"] as const).map((code) => {
+              const m = PLAN_META[code];
+              const Icon = m.icon;
+              const group = groupedPlans[code] || {};
+              const isCurrent = hasActiveSub && sub.plan_code === code;
+              return (
+                <Card key={code} className={`bg-[#0E1730] ${isCurrent ? "border-primary/60" : "border-white/10"} relative`}>
+                  {code === "pro" && (
+                    <div className="absolute -top-2 left-4 text-[10px] uppercase tracking-widest bg-primary text-primary-foreground px-2 py-0.5 rounded">Mais popular</div>
+                  )}
+                  <CardHeader>
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+                        <Icon className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle className="capitalize">{code}</CardTitle>
+                        <p className="text-xs text-muted-foreground">{m.tagline}</p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <ul className="space-y-1.5 text-sm">
+                      {m.features.map((f) => (
+                        <li key={f} className="flex items-start gap-2">
+                          <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                          <span>{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="space-y-2 pt-3 border-t border-white/5">
+                      {group.monthly && (
+                        <Button
+                          variant={isCurrent && sub.interval === "month" ? "secondary" : "default"}
+                          className="w-full justify-between"
+                          disabled={busyKey === group.monthly.lookup_key || (isCurrent && sub.interval === "month")}
+                          onClick={() => startCheckout(group.monthly!.lookup_key)}
+                        >
+                          <span className="flex items-center gap-2">
+                            {busyKey === group.monthly.lookup_key ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                            Mensal
+                          </span>
+                          <span className="tabular-nums font-semibold">{BRL(group.monthly.amount_cents, group.monthly.currency)}/mês</span>
+                        </Button>
+                      )}
+                      {group.quarter && (
+                        <Button
+                          variant={isCurrent && sub.interval === "quarter" ? "secondary" : "outline"}
+                          className="w-full justify-between"
+                          disabled={busyKey === group.quarter.lookup_key || (isCurrent && sub.interval === "quarter")}
+                          onClick={() => startCheckout(group.quarter!.lookup_key)}
+                        >
+                          <span className="flex items-center gap-2">
+                            {busyKey === group.quarter.lookup_key ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                            Trimestral <span className="text-[10px] text-emerald-300">-10%</span>
+                          </span>
+                          <span className="tabular-nums font-semibold">{BRL(group.quarter.amount_cents, group.quarter.currency)}</span>
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
+        </div>
 
-          {/* Faturas */}
-          <div className="rounded-2xl border border-white/10 bg-[#0E1730]">
-            <div className="px-5 py-4 border-b border-white/10 flex items-center gap-2">
-              <FileText className="w-4 h-4 text-primary" />
-              <h2 className="font-display text-lg">Histórico de pagamentos</h2>
-            </div>
+        {!hasActiveSub && (
+          <div className="rounded-xl p-5 border border-white/10 bg-[#0E1730] flex items-center gap-3 text-sm text-muted-foreground">
+            <ShieldCheck className="w-5 h-5 text-primary shrink-0" />
+            Pagamentos processados pelo Stripe. Você pode cancelar quando quiser pelo recibo de cobrança.
+          </div>
+        )}
+
+        {/* Faturas */}
+        <Card className="bg-[#0E1730] border-white/10">
+          <CardHeader className="flex flex-row items-center gap-2">
+            <FileText className="w-4 h-4 text-primary" />
+            <CardTitle className="text-base">Histórico de pagamentos</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
             {invoices.length === 0 ? (
               <div className="p-6 text-sm text-muted-foreground text-center">Nenhuma fatura registrada ainda.</div>
             ) : (
@@ -172,13 +286,25 @@ export default function TenantPlans() {
                 ))}
               </div>
             )}
-          </div>
-        </>
-      )}
-
-      <div className="text-center text-xs text-muted-foreground pt-2">
-        Precisa alterar o plano? <a href="mailto:lucas@posion.com.br" className="text-primary hover:underline">Fale com a equipe POSION</a>.
+          </CardContent>
+        </Card>
       </div>
+
+      <Dialog open={checkoutOpen} onOpenChange={(o) => !o && closeCheckout()}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Pagamento da assinatura</DialogTitle>
+            <DialogDescription>Conclua o pagamento para ativar seu plano POSION.</DialogDescription>
+          </DialogHeader>
+          {clientSecret && (
+            <div id="checkout" className="mt-2">
+              <EmbeddedCheckoutProvider stripe={getStripe()} options={{ fetchClientSecret: async () => clientSecret }}>
+                <EmbeddedCheckout />
+              </EmbeddedCheckoutProvider>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
