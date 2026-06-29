@@ -3,6 +3,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { ensureMpPreapprovalPlan, mpFetch } from "../_shared/mercadopago.ts";
+import { getMpAccessToken } from "../_shared/mp-token.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -52,7 +53,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const accessToken = Deno.env.get("MP_ACCESS_TOKEN");
+    const accessToken = await getMpAccessToken();
     if (!accessToken) {
       return new Response(JSON.stringify({ error: "Mercado Pago não configurado" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
