@@ -134,8 +134,8 @@ export default function SubscriptionsPage() {
   const openTenantActions = (t: Tenant) => {
     setActionTenant(t);
     setLastLink("");
-    setSelectedPayerEmail("");
     const current = subByTenant.get(t.id);
+    setSelectedPayerEmail(current?.mp_payer_email || "");
     setSelectedLookupKey(current?.lookup_key || "");
   };
 
@@ -160,8 +160,8 @@ export default function SubscriptionsPage() {
     setBusy(false);
     const link = (data as any)?.init_point as string | undefined;
     if (error || !link) {
-      const msg = (error as any)?.context?.error || (error as any)?.message || "Falha ao gerar checkout";
-      toast.error(msg);
+      const msg = (data as any)?.error || (error as any)?.context?.error || (error as any)?.message || "Falha ao gerar checkout";
+      toast.error(typeof msg === "string" ? msg : JSON.stringify(msg));
       return;
     }
     setLastLink(link);
