@@ -50,15 +50,24 @@ export function GenerateLinkCard({
     }
     setBusy(true);
     setLink("");
-    const { data, error } = await supabase.functions.invoke("mp-subscription-checkout", {
-      body: {
-        tenant_id: tenantId,
-        lookup_key: lookupKey,
-        payer_email: email,
-        back_url: `${window.location.origin}/admin/planos?mp=success`,
-      },
-    });
-    setBusy(false);
+    let data: any = null;
+    let error: any = null;
+    try {
+      const res = await supabase.functions.invoke("mp-subscription-checkout", {
+        body: {
+          tenant_id: tenantId,
+          lookup_key: lookupKey,
+          payer_email: email,
+          back_url: `${window.location.origin}/admin/planos?mp=success`,
+        },
+      });
+      data = res.data;
+      error = res.error;
+    } catch (e) {
+      error = e;
+    } finally {
+      setBusy(false);
+    }
     const url = (data as any)?.init_point as string | undefined;
     if (error || !url) {
       const msg = (data as any)?.error || (error as any)?.context?.error || (error as any)?.message || "Falha ao gerar link";

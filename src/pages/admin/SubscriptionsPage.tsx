@@ -149,15 +149,24 @@ export default function SubscriptionsPage() {
       return;
     }
     setBusy(true);
-    const { data, error } = await supabase.functions.invoke("mp-subscription-checkout", {
-      body: {
-        tenant_id: actionTenant.id,
-        lookup_key: selectedLookupKey,
-        payer_email: email,
-        back_url: `${window.location.origin}/admin/planos?mp=success`,
-      },
-    });
-    setBusy(false);
+    let data: any = null;
+    let error: any = null;
+    try {
+      const res = await supabase.functions.invoke("mp-subscription-checkout", {
+        body: {
+          tenant_id: actionTenant.id,
+          lookup_key: selectedLookupKey,
+          payer_email: email,
+          back_url: `${window.location.origin}/admin/planos?mp=success`,
+        },
+      });
+      data = res.data;
+      error = res.error;
+    } catch (e) {
+      error = e;
+    } finally {
+      setBusy(false);
+    }
     const link = (data as any)?.init_point as string | undefined;
     if (error || !link) {
       const msg = (data as any)?.error || (error as any)?.context?.error || (error as any)?.message || "Falha ao gerar checkout";
