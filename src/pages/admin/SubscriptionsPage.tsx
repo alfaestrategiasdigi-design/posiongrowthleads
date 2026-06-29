@@ -497,6 +497,17 @@ export default function SubscriptionsPage() {
                       )}
                     </div>
                   )}
+                  {lastLink && (
+                    <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 space-y-2">
+                      <div className="text-xs text-primary">Link de pagamento gerado:</div>
+                      <div className="flex gap-2">
+                        <Input value={lastLink} readOnly className="font-mono text-[11px]" />
+                        <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(lastLink); toast.success("Copiado"); }}>
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   {tenantInvoices.length > 0 && (
                     <div>
                       <div className="text-xs text-muted-foreground mb-1">Últimos pagamentos</div>
