@@ -1390,6 +1390,48 @@ export type Database = {
           },
         ]
       }
+      payment_provider_config: {
+        Row: {
+          account_email: string | null
+          account_id: string | null
+          account_site: string | null
+          created_at: string
+          id: string
+          last_validated_at: string | null
+          last_validation_result: Json | null
+          provider: string
+          public_key: string | null
+          updated_at: string
+          webhook_url: string | null
+        }
+        Insert: {
+          account_email?: string | null
+          account_id?: string | null
+          account_site?: string | null
+          created_at?: string
+          id?: string
+          last_validated_at?: string | null
+          last_validation_result?: Json | null
+          provider?: string
+          public_key?: string | null
+          updated_at?: string
+          webhook_url?: string | null
+        }
+        Update: {
+          account_email?: string | null
+          account_id?: string | null
+          account_site?: string | null
+          created_at?: string
+          id?: string
+          last_validated_at?: string | null
+          last_validation_result?: Json | null
+          provider?: string
+          public_key?: string | null
+          updated_at?: string
+          webhook_url?: string | null
+        }
+        Relationships: []
+      }
       plan_catalog: {
         Row: {
           active: boolean
@@ -1401,6 +1443,8 @@ export type Database = {
           id: string
           interval: string
           lookup_key: string
+          mp_preapproval_plan_id: string | null
+          mp_reason: string | null
           name: string
           sort_order: number
           stripe_price_id: string | null
@@ -1417,6 +1461,8 @@ export type Database = {
           id?: string
           interval: string
           lookup_key: string
+          mp_preapproval_plan_id?: string | null
+          mp_reason?: string | null
           name: string
           sort_order?: number
           stripe_price_id?: string | null
@@ -1433,6 +1479,8 @@ export type Database = {
           id?: string
           interval?: string
           lookup_key?: string
+          mp_preapproval_plan_id?: string | null
+          mp_reason?: string | null
           name?: string
           sort_order?: number
           stripe_price_id?: string | null
@@ -1987,9 +2035,11 @@ export type Database = {
           hosted_invoice_url: string | null
           id: string
           invoice_pdf: string | null
+          mp_payment_id: string | null
           paid_at: string | null
           period_end: string | null
           period_start: string | null
+          receipt_url: string | null
           status: string | null
           stripe_customer_id: string | null
           stripe_invoice_id: string | null
@@ -2005,9 +2055,11 @@ export type Database = {
           hosted_invoice_url?: string | null
           id?: string
           invoice_pdf?: string | null
+          mp_payment_id?: string | null
           paid_at?: string | null
           period_end?: string | null
           period_start?: string | null
+          receipt_url?: string | null
           status?: string | null
           stripe_customer_id?: string | null
           stripe_invoice_id?: string | null
@@ -2023,9 +2075,11 @@ export type Database = {
           hosted_invoice_url?: string | null
           id?: string
           invoice_pdf?: string | null
+          mp_payment_id?: string | null
           paid_at?: string | null
           period_end?: string | null
           period_start?: string | null
+          receipt_url?: string | null
           status?: string | null
           stripe_customer_id?: string | null
           stripe_invoice_id?: string | null
@@ -2062,7 +2116,11 @@ export type Database = {
           interval: string
           lookup_key: string | null
           metadata: Json | null
+          mp_init_point: string | null
+          mp_payer_email: string | null
+          mp_preapproval_id: string | null
           plan_code: string
+          provider: string
           status: string
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
@@ -2081,7 +2139,11 @@ export type Database = {
           interval: string
           lookup_key?: string | null
           metadata?: Json | null
+          mp_init_point?: string | null
+          mp_payer_email?: string | null
+          mp_preapproval_id?: string | null
           plan_code: string
+          provider?: string
           status?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
@@ -2100,7 +2162,11 @@ export type Database = {
           interval?: string
           lookup_key?: string | null
           metadata?: Json | null
+          mp_init_point?: string | null
+          mp_payer_email?: string | null
+          mp_preapproval_id?: string | null
           plan_code?: string
+          provider?: string
           status?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
@@ -2203,7 +2269,6 @@ export type Database = {
           segment: string | null
           slug: string
           status: string
-          stripe_publishable_key: string | null
           updated_at: string
         }
         Insert: {
@@ -2215,7 +2280,6 @@ export type Database = {
           segment?: string | null
           slug: string
           status?: string
-          stripe_publishable_key?: string | null
           updated_at?: string
         }
         Update: {
@@ -2227,7 +2291,6 @@ export type Database = {
           segment?: string | null
           slug?: string
           status?: string
-          stripe_publishable_key?: string | null
           updated_at?: string
         }
         Relationships: []
