@@ -643,5 +643,3 @@ function MercadoPagoTab({
 
 function getSecretPlaceholder() { return "MP_WEBHOOK_SECRET"; }
 
-// Re-export supabase for handlers used inside child components
-import { supabase as _sb } from "@/integrations/supabase/client";
