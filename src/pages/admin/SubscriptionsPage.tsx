@@ -223,6 +223,26 @@ export default function SubscriptionsPage() {
     refresh();
   };
 
+  const saveAccessToken = async (token: string): Promise<boolean> => {
+    const v = token.trim();
+    if (!v) { toast.error("Informe o Access Token"); return false; }
+    if (!/^(APP_USR-|TEST-)/.test(v)) {
+      toast.error("Access Token deve começar com APP_USR- (produção) ou TEST- (sandbox)");
+      return false;
+    }
+    setValidating(true);
+    const { data, error } = await supabase.functions.invoke("mp-set-token", { body: { access_token: v } });
+    setValidating(false);
+    if (error || (data as any)?.error) {
+      toast.error((data as any)?.error || (error as any)?.message || "Falha ao salvar token");
+      return false;
+    }
+    toast.success(`Token salvo — conta ${(data as any)?.account?.email || ""}`);
+    refresh();
+    return true;
+  };
+
+
   const copy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast.success(`${label} copiado`);
@@ -424,8 +444,10 @@ export default function SubscriptionsPage() {
               validating={validating}
               onValidate={validateMp}
               onSavePk={savePublicKey}
+              onSaveToken={saveAccessToken}
               onCopy={copy}
             />
+
           </TabsContent>
         </Tabs>
       </div>
@@ -569,15 +591,19 @@ export default function SubscriptionsPage() {
 }
 
 function MercadoPagoTab({
-  config, validating, onValidate, onSavePk, onCopy,
+  config, validating, onValidate, onSavePk, onSaveToken, onCopy,
 }: {
   config: MpConfig | null;
   validating: boolean;
   onValidate: () => void;
   onSavePk: (pk: string) => void;
+  onSaveToken: (token: string) => Promise<boolean>;
   onCopy: (text: string, label: string) => void;
 }) {
   const [pk, setPk] = useState(config?.public_key || "");
+  const [token, setToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
+  const [savingToken, setSavingToken] = useState(false);
   useEffect(() => { setPk(config?.public_key || ""); }, [config?.public_key]);
   const connected = !!config?.account_id;
   return (
@@ -588,8 +614,8 @@ function MercadoPagoTab({
             <ShieldCheck className="w-4 h-4 text-primary" /> Conta Mercado Pago
           </CardTitle>
           <CardDescription>
-            O Access Token de produção (APP_USR-…) está armazenado como segredo na nuvem.
-            Para trocar o token, use o botão "Atualizar token" abaixo.
+            Cadastre aqui o Access Token de produção (APP_USR-…) da sua conta Mercado Pago.
+            Ele é armazenado com segurança no banco e usado por todos os fluxos de cobrança.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -606,23 +632,50 @@ function MercadoPagoTab({
           ) : (
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-amber-300 mt-0.5" />
-              <div>Conta ainda não validada. Clique em "Testar conexão" para confirmar o Access Token.</div>
+              <div>Nenhum Access Token cadastrado. Cole o token abaixo para conectar sua conta.</div>
             </div>
           )}
 
-          <Button onClick={onValidate} disabled={validating} className="gap-2 w-full">
-            {validating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            Testar conexão
-          </Button>
-
-          <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-xs space-y-2">
-            <div className="font-medium text-foreground">Trocar Access Token</div>
-            <p className="text-muted-foreground">
-              O Access Token (APP_USR-…) é armazenado como segredo na nuvem. Para trocar,
-              peça no chat do Lovable: <code className="text-primary">"atualizar MP_ACCESS_TOKEN"</code>.
-              Um formulário seguro será aberto para você colar o novo token.
+          <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-2">
+            <Label>Access Token Mercado Pago</Label>
+            <div className="flex gap-2">
+              <Input
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="APP_USR-xxxxxxxxxxxxxxxx-xxxxxx-xxxxxxxxxxxxxxxx-xxxxxxxxx"
+                type={showToken ? "text" : "password"}
+                className="font-mono text-xs"
+                autoComplete="off"
+              />
+              <Button type="button" variant="outline" size="icon" onClick={() => setShowToken(s => !s)} title={showToken ? "Ocultar" : "Mostrar"}>
+                {showToken ? "🙈" : "👁"}
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                className="flex-1 gap-2"
+                disabled={savingToken || !token.trim()}
+                onClick={async () => {
+                  setSavingToken(true);
+                  const ok = await onSaveToken(token);
+                  setSavingToken(false);
+                  if (ok) setToken("");
+                }}
+              >
+                {savingToken ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                Salvar e validar
+              </Button>
+              <Button variant="outline" onClick={onValidate} disabled={validating} className="gap-2">
+                {validating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                Testar
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Obtenha em <a href="https://www.mercadopago.com.br/developers/panel/app" target="_blank" rel="noreferrer" className="text-primary underline">Mercado Pago → Suas integrações → Credenciais de produção</a>.
+              O token é validado contra a API antes de ser salvo.
             </p>
           </div>
+
 
           <div className="border-t border-white/5 pt-3 space-y-2">
             <Label>Public Key (opcional)</Label>

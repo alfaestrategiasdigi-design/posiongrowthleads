@@ -3,6 +3,7 @@
 // and re-fetches the resource from MP using the Access Token.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { mpFetch } from "../_shared/mercadopago.ts";
+import { getMpAccessToken } from "../_shared/mp-token.ts";
 
 let _supabase: ReturnType<typeof createClient> | null = null;
 function getSupabase() {
@@ -90,9 +91,9 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: false, error: "invalid secret" }), { status: 401 });
   }
 
-  const accessToken = Deno.env.get("MP_ACCESS_TOKEN");
+  const accessToken = await getMpAccessToken();
   if (!accessToken) {
-    return new Response(JSON.stringify({ ok: false, error: "MP_ACCESS_TOKEN not set" }), { status: 200 });
+    return new Response(JSON.stringify({ ok: false, error: "MP access token not set" }), { status: 200 });
   }
 
   let payload: any = null;
