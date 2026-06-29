@@ -64,7 +64,8 @@ export default function TenantConfig() {
     Promise.all([
       supabase.from("zapi_connections").select("*").eq("tenant_id", tenant.id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("api_tokens").select("*").eq("tenant_id", tenant.id).eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    ]).then(([conn, tok]) => {
+      supabase.from("tenants").select("stripe_publishable_key").eq("id", tenant.id).maybeSingle(),
+    ]).then(([conn, tok, ten]) => {
       if (conn.data) {
         setConnectionId(conn.data.id);
         setInstanceId(conn.data.instance_id || "");
@@ -77,9 +78,26 @@ export default function TenantConfig() {
         setStatus(conn.data.status || "disconnected");
       }
       if (tok.data) setApiToken(tok.data as ApiToken);
+      setStripePk(((ten.data as any)?.stripe_publishable_key) || "");
       setLoading(false);
     });
   }, [tenant]);
+
+  const saveStripePk = async () => {
+    if (!tenant) return;
+    const v = stripePk.trim();
+    if (v && !/^pk_(test|live)_/.test(v)) {
+      return toast.error("O token deve começar com pk_test_ ou pk_live_");
+    }
+    setSavingStripe(true);
+    const { error } = await supabase
+      .from("tenants")
+      .update({ stripe_publishable_key: v || null })
+      .eq("id", tenant.id);
+    setSavingStripe(false);
+    if (error) return toast.error("Erro ao salvar: " + error.message);
+    toast.success("Token do Stripe salvo");
+  };
 
 
   const generateToken = async () => {
