@@ -615,6 +615,15 @@ function MercadoPagoTab({
             Testar conexão
           </Button>
 
+          <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-xs space-y-2">
+            <div className="font-medium text-foreground">Trocar Access Token</div>
+            <p className="text-muted-foreground">
+              O Access Token (APP_USR-…) é armazenado como segredo na nuvem. Para trocar,
+              peça no chat do Lovable: <code className="text-primary">"atualizar MP_ACCESS_TOKEN"</code>.
+              Um formulário seguro será aberto para você colar o novo token.
+            </p>
+          </div>
+
           <div className="border-t border-white/5 pt-3 space-y-2">
             <Label>Public Key (opcional)</Label>
             <div className="flex gap-2">
