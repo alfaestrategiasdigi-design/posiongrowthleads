@@ -135,7 +135,9 @@ export default function SubscriptionsPage() {
     setSelectedLookupKey(current?.lookup_key || "");
   };
 
-  const startCheckout = async () => {
+  const [lastLink, setLastLink] = useState<string>("");
+
+  const generateLink = async (mode: "open" | "copy") => {
     if (!actionTenant || !selectedLookupKey) return;
     setBusy(true);
     const { data, error } = await supabase.functions.invoke("mp-subscription-checkout", {
@@ -146,16 +148,23 @@ export default function SubscriptionsPage() {
       },
     });
     setBusy(false);
-    if (error || !(data as any)?.init_point) {
+    const link = (data as any)?.init_point as string | undefined;
+    if (error || !link) {
       const msg = (error as any)?.context?.error || (error as any)?.message || "Falha ao gerar checkout";
       toast.error(msg);
       return;
     }
-    window.open((data as any).init_point, "_blank", "noopener");
-    toast.success("Checkout aberto em nova aba");
-    setActionTenant(null);
+    setLastLink(link);
+    if (mode === "open") {
+      window.open(link, "_blank", "noopener");
+      toast.success("Checkout aberto em nova aba");
+    } else {
+      await navigator.clipboard.writeText(link);
+      toast.success("Link de pagamento copiado");
+    }
     setTimeout(refresh, 1500);
   };
+  const startCheckout = () => generateLink("open");
 
   const cancelSub = async () => {
     if (!actionTenant) return;
