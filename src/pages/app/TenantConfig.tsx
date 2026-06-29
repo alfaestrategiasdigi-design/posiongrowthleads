@@ -282,51 +282,8 @@ export default function TenantConfig() {
         </CardContent>
       </Card>
 
-      {/* Stripe — Embedded Checkout */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2"><CreditCard className="w-4 h-4 text-primary" /> Stripe — Embedded Checkout</CardTitle>
-          <CardDescription>
-            Cole a sua <strong>Publishable Key</strong> do Stripe (começa com <code>pk_test_</code> ou <code>pk_live_</code>).
-            Esse token é público e ativa o checkout dentro de <strong>Planos</strong>.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-2">
-            <Label>Stripe Client Token</Label>
-            <div className="flex gap-2">
-              <Input
-                value={stripePk}
-                onChange={(e) => setStripePk(e.target.value)}
-                placeholder="pk_test_..."
-                type={revealStripePk ? "text" : "password"}
-                className="font-mono text-xs"
-              />
-              <Button type="button" variant="outline" size="icon" onClick={() => setRevealStripePk((v) => !v)}>
-                {revealStripePk ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </Button>
-              {stripePk && (
-                <Button type="button" variant="outline" size="icon" onClick={() => copy(stripePk, "Token")}>
-                  <Copy className="w-4 h-4" />
-                </Button>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Encontre em Stripe → Developers → API keys → Publishable key.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={saveStripePk} disabled={savingStripe} className="gap-2">
-              {savingStripe ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar
-            </Button>
-            {stripePk && (
-              <Badge variant="outline" className={stripePk.startsWith("pk_live_") ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : "bg-amber-500/15 text-amber-400 border-amber-500/30"}>
-                {stripePk.startsWith("pk_live_") ? "Modo Live" : "Modo Teste"}
-              </Badge>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Pagamentos: a gestão é centralizada no Admin Master (/admin/planos) via Mercado Pago */}
+
 
 
       {/* WhatsApp manual config */}
