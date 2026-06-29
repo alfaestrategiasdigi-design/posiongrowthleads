@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Copy, Save, Loader2, MessageCircle, CheckCircle2, Key, RefreshCw, Eye, EyeOff, Zap, AlertCircle, QrCode, Target, CreditCard } from "lucide-react";
+import { Copy, Save, Loader2, MessageCircle, CheckCircle2, Key, RefreshCw, Eye, EyeOff, Zap, AlertCircle, QrCode } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
@@ -47,10 +47,8 @@ export default function TenantConfig() {
   const [qr, setQr] = useState<string | null>(null);
   const [urlError, setUrlError] = useState<string | null>(null);
 
-  // Stripe (Embedded Checkout)
-  const [stripePk, setStripePk] = useState("");
-  const [revealStripePk, setRevealStripePk] = useState(false);
-  const [savingStripe, setSavingStripe] = useState(false);
+  // (Stripe removed — pagamentos agora via Mercado Pago no Admin Master)
+
 
   // Facebook CAPI: movido para Admin Master (/admin/capi)
 
@@ -64,8 +62,7 @@ export default function TenantConfig() {
     Promise.all([
       supabase.from("zapi_connections").select("*").eq("tenant_id", tenant.id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("api_tokens").select("*").eq("tenant_id", tenant.id).eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      supabase.from("tenants").select("stripe_publishable_key").eq("id", tenant.id).maybeSingle(),
-    ]).then(([conn, tok, ten]) => {
+    ]).then(([conn, tok]) => {
       if (conn.data) {
         setConnectionId(conn.data.id);
         setInstanceId(conn.data.instance_id || "");
@@ -78,26 +75,11 @@ export default function TenantConfig() {
         setStatus(conn.data.status || "disconnected");
       }
       if (tok.data) setApiToken(tok.data as ApiToken);
-      setStripePk(((ten.data as any)?.stripe_publishable_key) || "");
       setLoading(false);
     });
   }, [tenant]);
 
-  const saveStripePk = async () => {
-    if (!tenant) return;
-    const v = stripePk.trim();
-    if (v && !/^pk_(test|live)_/.test(v)) {
-      return toast.error("O token deve começar com pk_test_ ou pk_live_");
-    }
-    setSavingStripe(true);
-    const { error } = await supabase
-      .from("tenants")
-      .update({ stripe_publishable_key: v || null })
-      .eq("id", tenant.id);
-    setSavingStripe(false);
-    if (error) return toast.error("Erro ao salvar: " + error.message);
-    toast.success("Token do Stripe salvo");
-  };
+
 
 
   const generateToken = async () => {
