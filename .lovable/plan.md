@@ -1,82 +1,98 @@
-## Resumo
-Três frentes paralelas no POSION OS: (1) inbox WhatsApp ligado direto à Evolution API v2, (2) KPIs Meta puxando dados reais por período, (3) sync automático de leads Meta a cada 15 min. Mantenho a identidade visual atual e adapto o schema do projeto (que já é multi-tenant com `tenants`, `conversations`, `messages`, `zapi_connections`) em vez de criar tabelas paralelas com nomes genéricos.
 
-> Importante sobre o schema: o projeto usa `tenants` (não `organizations`), e já existem `conversations`, `messages` e `zapi_connections`. Vou estender essas tabelas em vez de criar `whatsapp_config`/`contacts`/`messages` novas — assim o WhatsApp inbox conversa com Kanban, Recall, Leads e o resto do app sem ilhas de dados. Se preferir tabelas novas e isoladas, me avise antes de implementar.
+# Migração de Pagamentos: Stripe → Mercado Pago
 
----
+Substituir totalmente o Stripe pelo Mercado Pago. Credenciais (Access Token + Public Key de produção) cadastradas dentro do **Admin Master → Planos e Cobranças**. O próprio sistema cria a assinatura (preapproval) e devolve o link de checkout do MP para o cliente pagar.
 
-## Parte 1 — Inbox WhatsApp (Evolution API v2)
+## 1. Credenciais (no Admin Master)
 
-### Schema (migrations)
-- `zapi_connections`: adicionar `provider='evolution'` como opção válida; já tem `instance_url`, `api_key`, `instance_name`. Adicionar `webhook_secret` (texto, opcional, para validar callbacks).
-- `conversations`: adicionar `provider` (texto), `remote_jid` (texto), índice por `(tenant_id, remote_jid)`.
-- `messages`: adicionar `direction` (`inbound`/`outbound`) derivado de `sender`, `wamid` (id da Evolution), `status` (`sent`/`delivered`/`read`/`failed`). Mantenho `sender`/`conteudo` para não quebrar a UI existente.
-- Habilitar Realtime: `ALTER PUBLICATION supabase_realtime ADD TABLE messages, conversations;`
+Nova aba **"Mercado Pago"** dentro de `/admin/planos` (SubscriptionsPage.tsx) com formulário para:
+- `MP_ACCESS_TOKEN` (APP_USR-...) — secreto, salvo via `add_secret`
+- `MP_PUBLIC_KEY` (APP_USR-...) — salvo na tabela `payment_provider_config`
+- `MP_WEBHOOK_SECRET` — gerado automaticamente (`generate_secret`)
+- Botão "Testar conexão" → chama `/users/me` no MP para validar
+- URL do webhook exibida para o usuário colar no painel do Mercado Pago
 
-### Edge functions
-- `evolution-connect` (POST): salva config em `zapi_connections`, chama `GET {instance_url}/instance/connect/{instanceName}` com header `apikey`, retorna `qrcode.base64` para a UI exibir.
-- `evolution-status` (GET): chama `/instance/fetchInstances`, devolve `state` (`open`/`close`/`connecting`) e atualiza `status` no banco.
-- `evolution-send` (POST): recebe `{conversation_id, body}`, busca config do tenant, chama `POST /message/sendText/{instance}` com `{number, text}`, insere em `messages` (`direction='outbound'`, `sender='usuario'`, `wamid` da resposta), atualiza `ultima_mensagem`/`ultima_interacao` na `conversations`.
-- `whatsapp-webhook` (POST público, `verify_jwt=false`): recebe evento `messages.upsert` da Evolution. Extrai `remoteJid`, `pushName`, `message.conversation` ou `extendedTextMessage.text`. Resolve tenant via `instance` no payload → `zapi_connections.instance_name`. Faz upsert em `conversations` por `(tenant_id, remote_jid)`, insere mensagem `direction='inbound'` (`sender='cliente'`), incrementa `nao_lidas`. Idempotente por `wamid`.
+Tabela nova `payment_provider_config` (singleton, somente admin):
+- provider = 'mercadopago'
+- public_key, account_email, account_id, last_validated_at, webhook_url
 
-### UI — `src/pages/admin/WhatsAppChat.tsx`
-A página já existe com layout de 2 colunas. Refinar:
-- Coluna esquerda 300px: busca por nome/número, lista ordenada por `ultima_interacao desc`, badge `nao_lidas`, prévia da `ultima_mensagem`, timestamp.
-- Janela de chat: bolhas — outbound (direita, fundo `#c9a84c` accent, texto escuro), inbound (esquerda, fundo `#0d1426`). Input fixo no rodapé chamando `evolution-send`.
-- Realtime subscription em `messages` filtrada pela `conversation_id` ativa; lista de conversas re-sorteia ao chegar nova mensagem.
-- Ao abrir conversa: zerar `nao_lidas`, marcar `lida=true`.
+## 2. Catálogo de planos
 
-### UI — Configuração (nova rota `/admin/whatsapp/config` ou aba dentro do WhatsAppChat)
-- Form: URL base, API Key global, Nome da instância → salva em `zapi_connections` (provider=`evolution`).
-- Botão **Conectar** → chama `evolution-connect`, exibe QR Code (img base64) com refresh a cada 30s até `status=open`.
-- Indicador colorido de status (puxando `evolution-status` a cada 15s quando a aba está aberta).
-- Bloco destacado **"Webhook URL"** com a URL completa da função `whatsapp-webhook` (montada a partir de `VITE_SUPABASE_URL`) + botão **Copiar** + instrução "Cole este webhook na sua instância Evolution em Settings → Webhooks, ativar evento `MESSAGES_UPSERT`".
+Reaproveitar `plan_catalog` existente, trocando colunas Stripe por MP:
+- adicionar `mp_preapproval_plan_id` (id do plano recorrente no MP)
+- adicionar `mp_reason` (descrição enviada na preapproval)
+- limpar `stripe_price_id` / `stripe_product_id` (manter colunas mas não usar)
 
----
+Edge function `mp-ensure-plan` cria/atualiza o **Preapproval Plan** no MP via `POST /preapproval_plan` para cada linha do catálogo (mensal e trimestral, BRL). IDs ficam cacheados.
 
-## Parte 2 — KPIs Meta Ads com dados reais
+## 3. Checkout (gerado pelo sistema)
 
-### Diagnóstico
-Os cards existem mas a função `facebook-campaigns-sync` salva por janela fixa (`days`) e os componentes leem do banco sem filtrar pelo seletor de período da UI.
+Nova edge function `mp-subscription-checkout` (substitui `subscription-checkout`):
+- Recebe `tenant_id` + `lookup_key`
+- Garante plano no MP (chama `mp-ensure-plan` se faltar id)
+- Cria **Preapproval** (`POST /preapproval`) com:
+  - `preapproval_plan_id`
+  - `payer_email` (do tenant)
+  - `back_url` = `/app/:slug/planos?mp=success`
+  - `external_reference` = `tenant_id:plan_code:interval`
+- Retorna `init_point` → frontend abre em nova aba (`window.open`)
 
-### Mudanças
-- `facebook-campaigns-sync`: aceitar `{since, until}` (YYYY-MM-DD) no body, montar `time_range={'since','until'}` na URL de insights, e gravar `period_start/period_end` exatos em `campaign_spend`. Garantir os campos `spend, impressions, clicks, ctr, cpc, actions, cost_per_action_type, account_currency` no `fields`.
-- Cálculo de leads: somar `actions[].value` onde `action_type in ('lead','onsite_conversion.lead_grouped','offsite_conversion.fb_pixel_lead')`.
-- UI Dashboard / CampanhasPage: ao mudar o seletor de período, disparar `facebook-campaigns-sync` com as datas e refazer queries em `campaign_spend` filtrando por `period_start>=since AND period_end<=until`.
-- Período padrão: últimos 30 dias.
-- Card de campanha: adicionar badge **AO VIVO** quando `status=ACTIVE` (campo `effective_status` da Graph API, salvo em coluna nova `campaign_status` em `campaign_spend`).
+`TenantPlans.tsx` deixa de usar `EmbeddedCheckoutProvider`/Stripe e passa a chamar essa função e redirecionar para o `init_point`.
 
-### KPIs derivados (CRM)
-- Receita = `SUM(valor_proposta)` em `leads` onde `status='fechado'` e `fechado_em` no período. (`leads` não tem coluna `valor` genérica — uso `valor_proposta`. Se preferir outro campo me avise.)
-- CAC = Investido / nº de leads `status='fechado'` no período.
-- ROI = (Receita − Investido) / Investido × 100.
-- Ticket Médio, Tx Qualificação (`mql=true`), Tx Conversão (`fechado/total`) — todos derivados de `leads` no período.
+## 4. Webhook MP
 
----
+Nova edge function `mp-webhook` (verify_jwt = false em `config.toml`):
+- Recebe notificações `preapproval`, `subscription_preapproval`, `payment`
+- Valida assinatura `x-signature` (HMAC com `MP_WEBHOOK_SECRET`)
+- Busca recurso no MP via Access Token e:
+  - upsert em `subscriptions` (status: authorized → active, paused, cancelled)
+  - upsert em `subscription_invoices` para cada `payment` (status, valor, data, link do recibo)
 
-## Parte 3 — Sync automático de leads Meta
+Schema:
+- `subscriptions`: adicionar colunas `mp_preapproval_id`, `mp_payer_email`, `provider` (default 'mercadopago'); manter `status`, `current_period_*`, `amount_cents`.
+- `subscription_invoices`: adicionar `mp_payment_id`, `receipt_url`.
 
-### Migration
-Mapear para colunas existentes em `leads`:
-- `facebook_lead_id` já existe e é único (vou adicionar `UNIQUE` se faltar) → equivale ao `meta_lead_id`.
-- `facebook_form_id`, `facebook_campaign` já existem.
-- Adicionar `facebook_ad_id`, `facebook_adset_id` (faltam).
+## 5. Remoção do Stripe
 
-### Edge function `sync-meta-leads`
-- Lê `facebook_webhook_config` (ad_account_id, page_access_token).
-- Pagina `GET /act_{adAccountId}/leads?fields=id,created_time,field_data,form_id,ad_id,adset_id,campaign_id&limit=100` seguindo `paging.next`.
-- Para cada lead: skip se `facebook_lead_id` já existe; senão insere em `leads` com `origem='facebook_ads'` e em `conversations` (upsert por `(tenant_id, remote_jid)` onde `remote_jid` = phone+`@s.whatsapp.net`) para aparecer no inbox.
-- `default_tenant_id` da `facebook_webhook_config` define o tenant.
+Apagar:
+- `supabase/functions/_shared/stripe.ts`
+- `supabase/functions/payments-webhook/`
+- `supabase/functions/subscription-checkout/`
+- `supabase/functions/subscription-change-plan/`
+- `src/lib/stripe.ts`
+- `src/components/PaymentTestModeBanner.tsx`
+- Card "Stripe — Embedded Checkout" em `TenantConfig.tsx`
+- Coluna `tenants.stripe_publishable_key`
+- Bloco `[functions.payments-webhook]` em `config.toml` (substituído por `[functions.mp-webhook]`)
+- Dependência `@stripe/stripe-js` (`bun remove`)
 
-### Agendamento (pg_cron)
-- Cron `*/15 * * * *` chamando `sync-meta-leads` via `net.http_post` com `Authorization: Bearer SERVICE_ROLE`. (Segue o padrão já usado no projeto — ativar `pg_cron` e `pg_net` se ainda não estiverem.)
+## 6. UI Admin Master — Planos e Cobranças
 
-### Landing page externa
-Edge function `landing-lead-webhook` já recebe leads de site externo (se não existir, crio). Ao inserir em `leads`, fazer upsert em `conversations` para o telefone aparecer no inbox imediatamente.
+`SubscriptionsPage.tsx` em tabs:
+1. **Assinaturas ativas** — lista por tenant (status, plano, próximo pagamento, MRR)
+2. **Faturas** — histórico de `subscription_invoices` com link do MP
+3. **Mercado Pago** — credenciais + status + URL do webhook + botão "Sincronizar planos no MP"
 
----
+## 7. UI Cliente
 
-## Confirmações antes de implementar
-1. **Schema**: ok adaptar a `tenants`/`conversations`/`messages`/`zapi_connections` existentes (recomendado) ou prefere tabelas novas `whatsapp_config`/`contacts`/`messages` em paralelo?
-2. **Receita**: usar `valor_proposta` como base do faturamento fechado, ou existe outro campo/tabela (`sales`?) que devo somar?
-3. **Tenant da Evolution**: uma instância por tenant (admin de cada clínica configura a dele) ou uma instância global Posion?
+`TenantPlans.tsx`:
+- Catálogo Starter/Pro/Scale (mensal/trimestral) — igual hoje
+- Botão "Assinar" → chama `mp-subscription-checkout` → abre `init_point` em nova aba
+- Banner com status atual da assinatura (autorizada, pausada, cancelada)
+- Histórico de pagamentos com link do recibo MP
+
+## Detalhes técnicos
+
+- **Endpoints MP usados**: `POST /preapproval_plan`, `POST /preapproval`, `GET /preapproval/{id}`, `GET /authorized_payments/search?preapproval_id=`, `GET /users/me`.
+- **Auth**: `Authorization: Bearer ${MP_ACCESS_TOKEN}` direto (sem gateway).
+- **Recorrência**: `auto_recurring.frequency=1/3`, `frequency_type=months`, `transaction_amount`, `currency_id=BRL`.
+- **Cancelamento**: `PUT /preapproval/{id}` com `status: "cancelled"` — exposto no Admin Master por linha.
+- **Secrets novos**: `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`.
+
+## Ordem de execução
+
+1. Migration: nova tabela `payment_provider_config`, colunas MP em `plan_catalog`/`subscriptions`/`subscription_invoices`, drop `tenants.stripe_publishable_key`.
+2. `add_secret` MP_ACCESS_TOKEN + `generate_secret` MP_WEBHOOK_SECRET.
+3. Edge functions: `mp-validate`, `mp-ensure-plan`, `mp-subscription-checkout`, `mp-webhook` + `config.toml`.
+4. Front: refatorar `SubscriptionsPage.tsx` (aba MP) e `TenantPlans.tsx` (redirect checkout); limpar `TenantConfig.tsx`.
+5. Deletar arquivos Stripe + `bun remove @stripe/stripe-js`.
