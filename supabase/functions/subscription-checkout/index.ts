@@ -43,14 +43,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
-    if (!isAdmin) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const { tenant_id, lookup_key, environment, return_url, customer_email } = await req.json();
     if (!tenant_id || !lookup_key) {
       return new Response(JSON.stringify({ error: "tenant_id and lookup_key required" }), {
@@ -58,6 +50,21 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
+    let allowed = !!isAdmin;
+    if (!allowed) {
+      const { data: membership } = await supabase
+        .from("tenant_users").select("role").eq("tenant_id", tenant_id).eq("user_id", user.id).maybeSingle();
+      allowed = !!membership;
+    }
+    if (!allowed) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
