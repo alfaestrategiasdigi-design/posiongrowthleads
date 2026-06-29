@@ -91,8 +91,12 @@ Deno.serve(async (req) => {
       });
     }
     const frequency = (plan as any).interval === "quarter" ? 3 : 1;
-    const reason = (plan as any).mp_reason || `POSION ${(plan as any).name}`;
-    const externalReference = `${tenant.id}:${(plan as any).code}:${(plan as any).interval}:${Date.now()}`;
+    const planName = String((plan as any).name || "Plano").replace(/posion/gi, "").trim();
+    const safePlanName = planName || `${(plan as any).code || "software"} ${(plan as any).interval || "mensal"}`;
+    const reason = String((plan as any).mp_reason || `Assinatura de software - ${safePlanName}`)
+      .replace(/posion/gi, "Software")
+      .slice(0, 250);
+    const externalReference = `tenant_${tenant.id}_plan_${(plan as any).code}_${(plan as any).interval}_${Date.now()}`;
 
     // Create a pending subscription WITHOUT preapproval_plan_id.
     // Mercado Pago requires card_token_id for subscriptions tied to a preapproval_plan.
