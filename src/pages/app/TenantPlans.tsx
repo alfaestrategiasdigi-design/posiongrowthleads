@@ -58,14 +58,16 @@ export default function TenantPlans() {
   const refresh = async () => {
     if (!tenant?.id) return;
     setLoading(true);
-    const [subRes, invRes, planRes] = await Promise.all([
+    const [subRes, invRes, planRes, tenantRes] = await Promise.all([
       supabase.from("subscriptions").select("*").eq("tenant_id", tenant.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("subscription_invoices").select("*").eq("tenant_id", tenant.id).order("paid_at", { ascending: false, nullsFirst: false }).limit(10),
       supabase.from("plan_catalog").select("*").eq("active", true).order("sort_order"),
+      supabase.from("tenants").select("stripe_publishable_key").eq("id", tenant.id).maybeSingle(),
     ]);
     setSub(subRes.data);
     setInvoices(invRes.data || []);
     setPlans((planRes.data || []) as Plan[]);
+    setStripeClientToken((tenantRes.data as any)?.stripe_publishable_key);
     setLoading(false);
   };
   useEffect(() => { refresh(); }, [tenant?.id]);
