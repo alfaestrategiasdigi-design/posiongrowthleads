@@ -81,9 +81,20 @@ Deno.serve(async (req) => {
       });
     }
 
+    const productionOrigin = Deno.env.get("PUBLIC_SITE_URL") || "https://posiongrowthleads.lovable.app";
     const origin = req.headers.get("origin") || "";
-    const requestedBackUrl = back_url || `${origin}/app/${tenant.slug}/planos?mp=success`;
-    const finalBackUrl = requestedBackUrl?.startsWith("https://") ? requestedBackUrl : undefined;
+    const requestedBackUrl = String(back_url || `${origin}/app/${tenant.slug}/planos?mp=success`);
+    let finalBackUrl: string | undefined;
+    try {
+      const parsed = new URL(requestedBackUrl);
+      const isLovablePreview = parsed.hostname.includes("id-preview--") || parsed.hostname.includes("lovableproject.com");
+      if (parsed.protocol === "https:" && !isLovablePreview) {
+        finalBackUrl = parsed.toString();
+      }
+    } catch (_) { /* fall through to production URL */ }
+    if (!finalBackUrl) {
+      finalBackUrl = `${productionOrigin.replace(/\/$/, "")}/admin/planos?mp=success`;
+    }
     const payerEmail = typeof payer_email === "string" && payer_email.includes("@") ? payer_email.trim() : undefined;
     if (!payerEmail) {
       return new Response(JSON.stringify({ error: "Informe o e-mail do pagador para gerar o link Mercado Pago" }), {
@@ -91,8 +102,12 @@ Deno.serve(async (req) => {
       });
     }
     const frequency = (plan as any).interval === "quarter" ? 3 : 1;
-    const reason = (plan as any).mp_reason || `POSION ${(plan as any).name}`;
-    const externalReference = `${tenant.id}:${(plan as any).code}:${(plan as any).interval}:${Date.now()}`;
+    const planName = String((plan as any).name || "Plano").replace(/posion/gi, "").trim();
+    const safePlanName = planName || `${(plan as any).code || "software"} ${(plan as any).interval || "mensal"}`;
+    const reason = String((plan as any).mp_reason || `Assinatura de software - ${safePlanName}`)
+      .replace(/posion/gi, "Software")
+      .slice(0, 250);
+    const externalReference = `tenant_${tenant.id}_plan_${(plan as any).code}_${(plan as any).interval}_${Date.now()}`;
 
     // Create a pending subscription WITHOUT preapproval_plan_id.
     // Mercado Pago requires card_token_id for subscriptions tied to a preapproval_plan.
@@ -108,7 +123,7 @@ Deno.serve(async (req) => {
       },
       status: "pending",
     };
-    if (finalBackUrl) preapprovalBody.back_url = finalBackUrl;
+    preapprovalBody.back_url = finalBackUrl;
     preapprovalBody.payer_email = payerEmail;
 
     const preapproval = await mpFetch(`/preapproval`, {
