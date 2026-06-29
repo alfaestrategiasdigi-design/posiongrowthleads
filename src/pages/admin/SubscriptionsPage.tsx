@@ -131,6 +131,7 @@ export default function SubscriptionsPage() {
   // ── Subscription actions ────────────────────────────────────────
   const openTenantActions = (t: Tenant) => {
     setActionTenant(t);
+    setLastLink("");
     const current = subByTenant.get(t.id);
     setSelectedLookupKey(current?.lookup_key || "");
   };
