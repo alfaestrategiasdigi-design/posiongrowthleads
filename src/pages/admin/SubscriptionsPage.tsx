@@ -438,7 +438,7 @@ export default function SubscriptionsPage() {
           </TabsContent>
 
           {/* ─── MERCADO PAGO ─── */}
-          <TabsContent value="mercadopago" className="mt-4">
+          <TabsContent value="mercadopago" className="mt-4 space-y-4">
             <MercadoPagoTab
               config={mpConfig}
               validating={validating}
@@ -448,7 +448,14 @@ export default function SubscriptionsPage() {
               onCopy={copy}
             />
 
+            <GenerateLinkCard
+              tenants={tenants}
+              plans={plans.filter(p => p.active)}
+              subByTenant={subByTenant}
+              onCopy={copy}
+            />
           </TabsContent>
+
         </Tabs>
       </div>
 
