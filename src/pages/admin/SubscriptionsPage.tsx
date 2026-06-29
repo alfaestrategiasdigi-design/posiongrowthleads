@@ -549,6 +549,10 @@ export default function SubscriptionsPage() {
                       <CheckCircle2 className="w-4 h-4" /> Reativar
                     </Button>
                   )}
+                  <Button variant="outline" onClick={() => generateLink("copy")} disabled={busy || !selectedLookupKey} className="gap-2">
+                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+                    Gerar e copiar link
+                  </Button>
                   <Button onClick={startCheckout} disabled={busy || !selectedLookupKey} className="gap-2">
                     {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
                     {hasActive ? "Novo checkout (troca de plano)" : "Iniciar assinatura"}
