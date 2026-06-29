@@ -74,7 +74,7 @@ export default function SubscriptionsPage() {
       supabase.from("tenants").select("id,slug,name,plan,status").order("name"),
       supabase.from("subscriptions").select("*").order("created_at", { ascending: false }),
       supabase.from("subscription_invoices").select("*").order("paid_at", { ascending: false, nullsFirst: false }).limit(100),
-      supabase.from("payment_provider_config").select("*").eq("provider", "mercadopago").maybeSingle(),
+      supabase.from("payment_provider_config").select("account_email,account_id,account_site,webhook_url,last_validated_at,last_validation_result,public_key").eq("provider", "mercadopago").maybeSingle(),
     ]);
     setPlans((planRes.data || []) as Plan[]);
     setTenants((tenantRes.data || []) as Tenant[]);
