@@ -59,7 +59,7 @@ export async function ensureMpPreapprovalPlan(
 
   const frequency = plan.interval === "quarter" ? 3 : 1;
   const reason = plan.mp_reason || `POSION ${plan.name}`;
-  const body = {
+  const body: Record<string, unknown> = {
     reason,
     external_reference: plan.lookup_key,
     auto_recurring: {
@@ -68,13 +68,11 @@ export async function ensureMpPreapprovalPlan(
       transaction_amount: Math.round(plan.amount_cents) / 100,
       currency_id: (plan.currency || "brl").toUpperCase(),
     },
-    payment_methods_allowed: {
-      payment_types: [{ id: "credit_card" }],
-      payment_methods: [],
-    },
-    back_url: backUrl,
     status: "active",
   };
+  if (backUrl && backUrl.startsWith("https://")) {
+    body.back_url = backUrl;
+  }
 
   const created = await mpFetch(`/preapproval_plan`, {
     method: "POST",
