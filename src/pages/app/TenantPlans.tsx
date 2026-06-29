@@ -1,15 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTenant } from "@/hooks/useTenant";
 import { supabase } from "@/integrations/supabase/client";
-import { Check, Sparkles, Crown, Rocket, Loader2, ShieldCheck, FileText, CreditCard, RefreshCw } from "lucide-react";
+import { Check, Sparkles, Crown, Rocket, Loader2, ShieldCheck, FileText, CreditCard, RefreshCw, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
-import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
-import { getStripe, getStripeEnvironment, paymentsTokenAvailable, setStripeClientToken } from "@/lib/stripe";
 
 const PLAN_META: Record<string, { icon: any; tagline: string; features: string[] }> = {
   starter: {
@@ -34,10 +30,11 @@ const BRL = (cents: number, cur = "brl") =>
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   active: { label: "Ativa", className: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
-  trialing: { label: "Em teste", className: "bg-sky-500/15 text-sky-300 border-sky-500/30" },
-  past_due: { label: "Pagamento pendente", className: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
+  authorized: { label: "Ativa", className: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
+  pending: { label: "Aguardando pagamento", className: "bg-sky-500/15 text-sky-300 border-sky-500/30" },
+  paused: { label: "Pausada", className: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
+  cancelled: { label: "Cancelada", className: "bg-rose-500/15 text-rose-300 border-rose-500/30" },
   canceled: { label: "Cancelada", className: "bg-rose-500/15 text-rose-300 border-rose-500/30" },
-  paused: { label: "Pausada", className: "bg-violet-500/15 text-violet-300 border-violet-500/30" },
 };
 
 interface Plan {
@@ -52,22 +49,18 @@ export default function TenantPlans() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState<string | null>(null);
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
 
   const refresh = async () => {
     if (!tenant?.id) return;
     setLoading(true);
-    const [subRes, invRes, planRes, tenantRes] = await Promise.all([
+    const [subRes, invRes, planRes] = await Promise.all([
       supabase.from("subscriptions").select("*").eq("tenant_id", tenant.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("subscription_invoices").select("*").eq("tenant_id", tenant.id).order("paid_at", { ascending: false, nullsFirst: false }).limit(10),
       supabase.from("plan_catalog").select("*").eq("active", true).order("sort_order"),
-      supabase.from("tenants").select("stripe_publishable_key").eq("id", tenant.id).maybeSingle(),
     ]);
     setSub(subRes.data);
     setInvoices(invRes.data || []);
     setPlans((planRes.data || []) as Plan[]);
-    setStripeClientToken((tenantRes.data as any)?.stripe_publishable_key);
     setLoading(false);
   };
   useEffect(() => { refresh(); }, [tenant?.id]);
@@ -84,33 +77,23 @@ export default function TenantPlans() {
 
   const startCheckout = async (lookup_key: string) => {
     if (!tenant?.id) return;
-    if (!paymentsTokenAvailable()) {
-      toast.error("Pagamentos ainda não configurados. Fale com a equipe POSION.");
-      return;
-    }
     setBusyKey(lookup_key);
-    const { data, error } = await supabase.functions.invoke("subscription-checkout", {
+    const { data, error } = await supabase.functions.invoke("mp-subscription-checkout", {
       body: {
         tenant_id: tenant.id,
         lookup_key,
-        environment: getStripeEnvironment(),
-        customer_email: user?.email,
-        return_url: `${window.location.origin}/app/${tenant.slug}/planos?session={CHECKOUT_SESSION_ID}`,
+        payer_email: user?.email,
+        back_url: `${window.location.origin}/app/${tenant.slug}/planos?mp=success`,
       },
     });
     setBusyKey(null);
-    if (error || !(data as any)?.clientSecret) {
-      toast.error((error as any)?.message || "Falha ao iniciar checkout");
+    if (error || !(data as any)?.init_point) {
+      toast.error((error as any)?.message || (data as any)?.error || "Falha ao gerar checkout");
       return;
     }
-    setClientSecret((data as any).clientSecret);
-    setCheckoutOpen(true);
-  };
-
-  const closeCheckout = () => {
-    setCheckoutOpen(false);
-    setClientSecret(null);
-    setTimeout(refresh, 2000);
+    window.open((data as any).init_point, "_blank", "noopener");
+    toast.success("Checkout aberto em nova aba do Mercado Pago");
+    setTimeout(refresh, 3000);
   };
 
   if (loading) {
@@ -120,11 +103,10 @@ export default function TenantPlans() {
   const planCode = (sub?.plan_code || "") as keyof typeof PLAN_META;
   const meta = PLAN_META[planCode];
   const statusInfo = sub ? (STATUS_LABEL[sub.status] || { label: sub.status, className: "bg-slate-500/15 text-slate-300 border-slate-500/30" }) : null;
-  const hasActiveSub = sub && ["active", "trialing", "past_due"].includes(sub.status);
+  const hasActiveSub = sub && ["active", "authorized", "pending", "paused"].includes(sub.status);
 
   return (
     <div className="min-h-screen">
-      <PaymentTestModeBanner />
       <div className="p-4 md:p-10 max-w-[1200px] mx-auto space-y-8">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="space-y-2">
@@ -133,13 +115,12 @@ export default function TenantPlans() {
               Plano da <span className="gold-gradient-text">{tenant?.name ?? "sua clínica"}</span>
             </h1>
             <p className="text-muted-foreground text-sm max-w-2xl">
-              Escolha um plano e ative pagando com cartão. Você pode trocar ou cancelar a qualquer momento.
+              Escolha um plano e pague com cartão pelo Mercado Pago. Você pode cancelar ou trocar a qualquer momento.
             </p>
           </div>
           <Button variant="outline" onClick={refresh} className="gap-2"><RefreshCw className="w-4 h-4" /> Atualizar</Button>
         </div>
 
-        {/* Assinatura atual */}
         {hasActiveSub && meta && (
           <Card className="bg-[#0E1730] border-primary/30">
             <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
@@ -165,18 +146,20 @@ export default function TenantPlans() {
                 <div className="font-display text-2xl mt-1">
                   {sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString("pt-BR") : "—"}
                 </div>
-                {sub.cancel_at_period_end && <div className="text-xs text-amber-400">Cancela ao final do período</div>}
               </div>
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Pagamento</div>
-                <div className="font-display text-2xl mt-1">Cartão</div>
-                <div className="text-xs text-muted-foreground">via Stripe (seguro)</div>
+                <div className="font-display text-2xl mt-1">Mercado Pago</div>
+                {sub.mp_init_point && sub.status === "pending" && (
+                  <a className="text-primary text-xs inline-flex items-center gap-1 hover:underline" href={sub.mp_init_point} target="_blank" rel="noreferrer">
+                    Concluir pagamento <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Seleção de planos */}
         <div>
           <h2 className="font-display text-xl mb-4">{hasActiveSub ? "Trocar de plano" : "Escolha seu plano"}</h2>
           <div className="grid md:grid-cols-3 gap-4">
@@ -215,7 +198,7 @@ export default function TenantPlans() {
                         <Button
                           variant={isCurrent && sub.interval === "month" ? "secondary" : "default"}
                           className="w-full justify-between"
-                          disabled={busyKey === group.monthly.lookup_key || (isCurrent && sub.interval === "month")}
+                          disabled={busyKey === group.monthly.lookup_key || (isCurrent && sub.interval === "month" && ["active", "authorized"].includes(sub.status))}
                           onClick={() => startCheckout(group.monthly!.lookup_key)}
                         >
                           <span className="flex items-center gap-2">
@@ -229,7 +212,7 @@ export default function TenantPlans() {
                         <Button
                           variant={isCurrent && sub.interval === "quarter" ? "secondary" : "outline"}
                           className="w-full justify-between"
-                          disabled={busyKey === group.quarter.lookup_key || (isCurrent && sub.interval === "quarter")}
+                          disabled={busyKey === group.quarter.lookup_key || (isCurrent && sub.interval === "quarter" && ["active", "authorized"].includes(sub.status))}
                           onClick={() => startCheckout(group.quarter!.lookup_key)}
                         >
                           <span className="flex items-center gap-2">
@@ -250,11 +233,10 @@ export default function TenantPlans() {
         {!hasActiveSub && (
           <div className="rounded-xl p-5 border border-white/10 bg-[#0E1730] flex items-center gap-3 text-sm text-muted-foreground">
             <ShieldCheck className="w-5 h-5 text-primary shrink-0" />
-            Pagamentos processados pelo Stripe. Você pode cancelar quando quiser pelo recibo de cobrança.
+            Pagamentos processados pelo Mercado Pago. Cartão de crédito com cobrança automática recorrente.
           </div>
         )}
 
-        {/* Faturas */}
         <Card className="bg-[#0E1730] border-white/10">
           <CardHeader className="flex flex-row items-center gap-2">
             <FileText className="w-4 h-4 text-primary" />
@@ -262,26 +244,24 @@ export default function TenantPlans() {
           </CardHeader>
           <CardContent className="p-0">
             {invoices.length === 0 ? (
-              <div className="p-6 text-sm text-muted-foreground text-center">Nenhuma fatura registrada ainda.</div>
+              <div className="p-6 text-sm text-muted-foreground text-center">Nenhum pagamento registrado ainda.</div>
             ) : (
               <div className="divide-y divide-white/5">
                 {invoices.map((inv) => (
                   <div key={inv.id} className="px-5 py-3 flex items-center justify-between gap-3 text-sm">
                     <div>
                       <div className="font-medium">{inv.paid_at ? new Date(inv.paid_at).toLocaleDateString("pt-BR") : "—"}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {inv.period_start && inv.period_end
-                          ? `${new Date(inv.period_start).toLocaleDateString("pt-BR")} → ${new Date(inv.period_end).toLocaleDateString("pt-BR")}`
-                          : ""}
-                      </div>
+                      {inv.mp_payment_id && <div className="text-[10px] text-muted-foreground font-mono">#{inv.mp_payment_id}</div>}
                     </div>
                     <div className="flex items-center gap-3">
-                      <Badge className={inv.status === "paid" ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" : "bg-amber-500/15 text-amber-300 border border-amber-500/30"}>
+                      <Badge className={inv.status === "approved" ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" : "bg-amber-500/15 text-amber-300 border border-amber-500/30"}>
                         {inv.status}
                       </Badge>
                       <span className="font-semibold tabular-nums">{BRL(inv.amount_paid_cents || 0, inv.currency || "brl")}</span>
-                      {inv.hosted_invoice_url && (
-                        <a className="text-primary hover:underline text-xs" href={inv.hosted_invoice_url} target="_blank" rel="noreferrer">Recibo →</a>
+                      {inv.receipt_url && (
+                        <a className="text-primary hover:underline text-xs inline-flex items-center gap-1" href={inv.receipt_url} target="_blank" rel="noreferrer">
+                          Recibo <ExternalLink className="w-3 h-3" />
+                        </a>
                       )}
                     </div>
                   </div>
@@ -291,22 +271,6 @@ export default function TenantPlans() {
           </CardContent>
         </Card>
       </div>
-
-      <Dialog open={checkoutOpen} onOpenChange={(o) => !o && closeCheckout()}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Pagamento da assinatura</DialogTitle>
-            <DialogDescription>Conclua o pagamento para ativar seu plano POSION.</DialogDescription>
-          </DialogHeader>
-          {clientSecret && (
-            <div id="checkout" className="mt-2">
-              <EmbeddedCheckoutProvider stripe={getStripe()} options={{ fetchClientSecret: async () => clientSecret }}>
-                <EmbeddedCheckout />
-              </EmbeddedCheckoutProvider>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
