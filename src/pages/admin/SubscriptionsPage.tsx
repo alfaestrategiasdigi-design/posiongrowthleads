@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Pencil, CreditCard, Ban, RefreshCw, CheckCircle2, FileText, Sparkles, Layers, ExternalLink, Copy, Settings2, ShieldCheck, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { GenerateLinkCard } from "@/components/admin/GenerateLinkCard";
 
 interface Plan {
   id: string; code: string; interval: string; name: string; description: string | null;
@@ -74,7 +75,7 @@ export default function SubscriptionsPage() {
       supabase.from("tenants").select("id,slug,name,plan,status").order("name"),
       supabase.from("subscriptions").select("*").order("created_at", { ascending: false }),
       supabase.from("subscription_invoices").select("*").order("paid_at", { ascending: false, nullsFirst: false }).limit(100),
-      supabase.from("payment_provider_config").select("*").eq("provider", "mercadopago").maybeSingle(),
+      supabase.from("payment_provider_config").select("account_email,account_id,account_site,webhook_url,last_validated_at,last_validation_result,public_key").eq("provider", "mercadopago").maybeSingle(),
     ]);
     setPlans((planRes.data || []) as Plan[]);
     setTenants((tenantRes.data || []) as Tenant[]);
@@ -438,7 +439,7 @@ export default function SubscriptionsPage() {
           </TabsContent>
 
           {/* ─── MERCADO PAGO ─── */}
-          <TabsContent value="mercadopago" className="mt-4">
+          <TabsContent value="mercadopago" className="mt-4 space-y-4">
             <MercadoPagoTab
               config={mpConfig}
               validating={validating}
@@ -448,7 +449,14 @@ export default function SubscriptionsPage() {
               onCopy={copy}
             />
 
+            <GenerateLinkCard
+              tenants={tenants}
+              plans={plans.filter(p => p.active)}
+              subByTenant={subByTenant}
+              onCopy={copy}
+            />
           </TabsContent>
+
         </Tabs>
       </div>
 
