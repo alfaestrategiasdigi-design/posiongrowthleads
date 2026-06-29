@@ -2203,6 +2203,7 @@ export type Database = {
           segment: string | null
           slug: string
           status: string
+          stripe_publishable_key: string | null
           updated_at: string
         }
         Insert: {
@@ -2214,6 +2215,7 @@ export type Database = {
           segment?: string | null
           slug: string
           status?: string
+          stripe_publishable_key?: string | null
           updated_at?: string
         }
         Update: {
@@ -2225,6 +2227,7 @@ export type Database = {
           segment?: string | null
           slug?: string
           status?: string
+          stripe_publishable_key?: string | null
           updated_at?: string
         }
         Relationships: []
