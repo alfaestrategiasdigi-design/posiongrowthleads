@@ -144,7 +144,7 @@ export default function AgencyContractsPage() {
                 {saas.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-muted-foreground text-sm">Nenhuma assinatura.</td></tr>}
                 {saas.map((c) => (
                   <tr key={c.id} className="border-t border-border/40">
-                    <td className="p-3 font-medium">{c.plan_name}</td>
+                    <td className="p-3 font-medium">{c.plan}</td>
                     <td className="p-3">{fmt(c.mrr)}</td>
                     <td className="p-3">{format(new Date(c.started_at), "dd/MM/yyyy")}</td>
                     <td className="p-3"><Badge variant={c.status === "active" ? "default" : "outline"}>{c.status}</Badge></td>
