@@ -125,7 +125,7 @@ export default function Dashboard() {
       .slice(0, 5);
   }, [tenantGmv, tenants]);
 
-  const activeTenants = tenants.filter((t) => t.active).length;
+  const activeTenants = tenants.filter((t) => t.status === "active").length;
   const totalGmvTenants = tenantGmv.reduce((s, g) => s + g.total, 0);
 
   if (loading) {
