@@ -27,7 +27,7 @@ interface AgencyContract {
 interface SaasContract {
   id: string;
   tenant_id: string | null;
-  plan_name: string;
+  plan: string;
   mrr: number;
   status: string;
   started_at: string;
