@@ -19,6 +19,8 @@ import QualificacaoPage from "./pages/admin/QualificacaoPage";
 import FacebookConfigPage from "./pages/admin/FacebookConfigPage";
 import CapiConfigPage from "./pages/admin/CapiConfigPage";
 import CampanhasPage from "./pages/admin/CampanhasPage";
+import AdMappingsPage from "./pages/admin/AdMappingsPage";
+
 import SubscriptionsPage from "./pages/admin/SubscriptionsPage";
 
 import AppointmentsPage from "./pages/admin/AppointmentsPage";
