@@ -14,6 +14,161 @@ export type Database = {
   }
   public: {
     Tables: {
+      agency_contracts: {
+        Row: {
+          agency_lead_id: string | null
+          cliente_nome: string
+          created_at: string
+          data_assinatura: string
+          duracao_meses: number | null
+          id: string
+          observacoes: string | null
+          status: string
+          tenant_id: string | null
+          updated_at: string
+          valor_comissao: number | null
+          valor_total: number
+        }
+        Insert: {
+          agency_lead_id?: string | null
+          cliente_nome: string
+          created_at?: string
+          data_assinatura?: string
+          duracao_meses?: number | null
+          id?: string
+          observacoes?: string | null
+          status?: string
+          tenant_id?: string | null
+          updated_at?: string
+          valor_comissao?: number | null
+          valor_total?: number
+        }
+        Update: {
+          agency_lead_id?: string | null
+          cliente_nome?: string
+          created_at?: string
+          data_assinatura?: string
+          duracao_meses?: number | null
+          id?: string
+          observacoes?: string | null
+          status?: string
+          tenant_id?: string | null
+          updated_at?: string
+          valor_comissao?: number | null
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_contracts_agency_lead_id_fkey"
+            columns: ["agency_lead_id"]
+            isOneToOne: false
+            referencedRelation: "agency_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_contracts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agency_leads: {
+        Row: {
+          ad_id: string | null
+          campaign_id: string | null
+          cidade: string | null
+          created_at: string
+          email: string | null
+          estado: string | null
+          form_id: string | null
+          ganho_at: string | null
+          id: string
+          nome_clinica: string
+          notas: string | null
+          origem: string | null
+          owner_id: string | null
+          perdido_motivo: string | null
+          plano_interesse: string | null
+          proximo_followup: string | null
+          responsavel: string | null
+          stage: string
+          tags: string[] | null
+          tenant_id_criado: string | null
+          updated_at: string
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          valor_proposta: number | null
+          whatsapp: string | null
+        }
+        Insert: {
+          ad_id?: string | null
+          campaign_id?: string | null
+          cidade?: string | null
+          created_at?: string
+          email?: string | null
+          estado?: string | null
+          form_id?: string | null
+          ganho_at?: string | null
+          id?: string
+          nome_clinica: string
+          notas?: string | null
+          origem?: string | null
+          owner_id?: string | null
+          perdido_motivo?: string | null
+          plano_interesse?: string | null
+          proximo_followup?: string | null
+          responsavel?: string | null
+          stage?: string
+          tags?: string[] | null
+          tenant_id_criado?: string | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          valor_proposta?: number | null
+          whatsapp?: string | null
+        }
+        Update: {
+          ad_id?: string | null
+          campaign_id?: string | null
+          cidade?: string | null
+          created_at?: string
+          email?: string | null
+          estado?: string | null
+          form_id?: string | null
+          ganho_at?: string | null
+          id?: string
+          nome_clinica?: string
+          notas?: string | null
+          origem?: string | null
+          owner_id?: string | null
+          perdido_motivo?: string | null
+          plano_interesse?: string | null
+          proximo_followup?: string | null
+          responsavel?: string | null
+          stage?: string
+          tags?: string[] | null
+          tenant_id_criado?: string | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          valor_proposta?: number | null
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_leads_tenant_id_criado_fkey"
+            columns: ["tenant_id_criado"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_tokens: {
         Row: {
           active: boolean
@@ -2336,6 +2491,53 @@ export type Database = {
           },
         ]
       }
+      tenant_products: {
+        Row: {
+          ativo: boolean
+          categoria: string | null
+          created_at: string
+          duracao_min: number | null
+          id: string
+          nome: string
+          ordem: number | null
+          preco_sugerido: number | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          categoria?: string | null
+          created_at?: string
+          duracao_min?: number | null
+          id?: string
+          nome: string
+          ordem?: number | null
+          preco_sugerido?: number | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          categoria?: string | null
+          created_at?: string
+          duracao_min?: number | null
+          id?: string
+          nome?: string
+          ordem?: number | null
+          preco_sugerido?: number | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_products_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_users: {
         Row: {
           active: boolean
@@ -2762,6 +2964,15 @@ export type Database = {
       is_tenant_admin: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
+      }
+      promote_agency_lead_to_tenant: {
+        Args: {
+          p_lead_id: string
+          p_plano?: string
+          p_slug: string
+          p_valor?: number
+        }
+        Returns: string
       }
       resolve_tenant_for_lead: {
         Args: {

@@ -3,7 +3,10 @@ import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, MessageCircle, Kanban, Users, DollarSign, Calendar, Settings, Building2, FileText, Bell, Sparkles } from "lucide-react";
+import {
+  LayoutDashboard, MessageCircle, Kanban, Users, DollarSign, Calendar, Settings,
+  Building2, Zap, Sparkles, Package,
+} from "lucide-react";
 import type { Tenant } from "@/hooks/useTenant";
 import posionLogo from "@/assets/posion/logo-posion.png.asset.json";
 
@@ -19,11 +22,11 @@ export default function TenantSidebar({ tenant, isSuperAdmin }: Props) {
     { title: "Dashboard", url: `${base}/dashboard`, icon: LayoutDashboard },
     { title: "WhatsApp", url: `${base}/whatsapp`, icon: MessageCircle },
     { title: "Kanban", url: `${base}/kanban`, icon: Kanban },
-    { title: "Pacientes", url: `${base}/pacientes`, icon: Users },
-    { title: "Prontuário", url: `${base}/prontuario`, icon: FileText },
-    { title: "Recall", url: `${base}/recall`, icon: Bell },
-    { title: "Fechamentos", url: `${base}/vendas`, icon: DollarSign },
+    { title: "Pacientes Ativos", url: `${base}/pacientes`, icon: Users },
     { title: "Agenda", url: `${base}/agenda`, icon: Calendar },
+    { title: "Financeiro", url: `${base}/financeiro`, icon: DollarSign },
+    { title: "Automações", url: `${base}/automacoes`, icon: Zap },
+    { title: "Produtos & Serviços", url: `${base}/produtos`, icon: Package },
     { title: "Planos", url: `${base}/planos`, icon: Sparkles },
     { title: "Configurações", url: `${base}/config`, icon: Settings },
   ];
