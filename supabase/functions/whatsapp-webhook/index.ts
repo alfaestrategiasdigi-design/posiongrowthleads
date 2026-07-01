@@ -232,8 +232,10 @@ Deno.serve(async (req) => {
         const wamid: string | null = key?.id ?? m?.id ?? null;
         const remoteJid: string = key?.remoteJid ?? m?.remoteJid ?? "";
         if (!remoteJid) continue;
-        if (remoteJid.endsWith("@g.us") || remoteJid.endsWith("@broadcast") || remoteJid.includes("@lid")) continue;
+        if (remoteJid.endsWith("@g.us") || remoteJid.endsWith("@broadcast")) continue;
         const fromMe: boolean = Boolean(key?.fromMe ?? m?.fromMe);
+        // descarta @lid apenas se NÃO for eco de dispositivo próprio (fromMe=true)
+        if (remoteJid.includes("@lid") && !fromMe) continue;
         const pushName: string = m?.pushName ?? m?.notifyName ?? "";
         const msgObj = m?.message ?? m;
 

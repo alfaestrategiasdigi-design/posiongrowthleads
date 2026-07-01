@@ -12,6 +12,8 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Legend, ReferenceLine, Cell,
 } from "recharts";
+import { DateRangePicker, makeRange, type DateRangeValue } from "@/components/shared/DateRangePicker";
+import { differenceInDays, startOfDay, endOfDay, subDays, format as fmtDate } from "date-fns";
 
 interface Goal { year: number; month: number; goal_1: number; goal_2: number; goal_3: number; }
 interface LeadRow { id: string; stage: string | null; created_at: string; }
@@ -34,8 +36,15 @@ export default function TenantDashboard() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [range, setRange] = useState<DateRangeValue>(() => makeRange(30));
+  const year = range.to.getFullYear();
+  const month = range.to.getMonth() + 1;
+  const periodDays = Math.max(1, differenceInDays(range.to, range.from) + 1);
+  const inRange = (dateStr: string) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr.length === 10 ? dateStr + "T12:00:00" : dateStr);
+    return d >= range.from && d <= range.to;
+  };
 
   // Investimento mensal (armazenado localmente por tenant+ano-mês)
   const invKey = tenant ? `posion:invest:${tenant.id}:${year}-${month}` : "";
@@ -66,16 +75,16 @@ export default function TenantDashboard() {
   }, [tenant]);
 
   const monthSales = useMemo(() =>
-    sales.filter((s) => {
-      const d = new Date(s.sale_date + "T00:00:00");
-      return d.getFullYear() === year && d.getMonth() + 1 === month;
-    }), [sales, year, month]);
+    sales.filter((s) => inRange(s.sale_date)), [sales, range]);
 
   const prevSales = useMemo(() => {
-    const pm = month === 1 ? 12 : month - 1;
-    const py = month === 1 ? year - 1 : year;
-    return sales.filter((s) => { const d = new Date(s.sale_date + "T00:00:00"); return d.getFullYear() === py && d.getMonth() + 1 === pm; });
-  }, [sales, year, month]);
+    const prevTo = subDays(range.from, 1);
+    const prevFrom = subDays(prevTo, periodDays - 1);
+    return sales.filter((s) => {
+      const d = new Date((s.sale_date || "") + "T12:00:00");
+      return d >= startOfDay(prevFrom) && d <= endOfDay(prevTo);
+    });
+  }, [sales, range, periodDays]);
 
   const trimester = useMemo(() => {
     const months = [-2, -1, 0].map((off) => {
@@ -112,10 +121,7 @@ export default function TenantDashboard() {
     return -1;
   };
   const funnelData = useMemo(() => {
-    const monthLeads = leads.filter((l) => {
-      const d = new Date(l.created_at);
-      return d.getFullYear() === year && d.getMonth() + 1 === month;
-    });
+    const monthLeads = leads.filter((l) => inRange(l.created_at));
     const counts: Record<string, number> = {};
     FUNNEL_ORDER.forEach((s) => (counts[s] = 0));
     let noShowCount = 0, perdidoCount = 0;
@@ -149,17 +155,16 @@ export default function TenantDashboard() {
       totals: { totalLeads, qualificados, agendados, compareceram, ganhos, noShowCount, perdidoCount },
     };
     return { chart, rates };
-  }, [leads, year, month]);
+  }, [leads, range]);
   const funnelChart = funnelData.chart;
   const funnelRates = funnelData.rates;
 
-  // Evolução dos últimos 30 dias (terminando no último dia do mês selecionado)
+  // Evolução por dia dentro do range (cap 90 dias para performance visual)
   const evolution30 = useMemo(() => {
-    const last = new Date(year, month, 0); // último dia do mês
-    const today = new Date();
-    const end = last > today ? today : last;
+    const days = Math.min(periodDays, 90);
+    const end = range.to;
     const data: { date: string; label: string; total: number; count: number }[] = [];
-    for (let i = 29; i >= 0; i--) {
+    for (let i = days - 1; i >= 0; i--) {
       const d = new Date(end);
       d.setDate(end.getDate() - i);
       const key = d.toISOString().slice(0, 10);
@@ -172,25 +177,26 @@ export default function TenantDashboard() {
       });
     }
     return data;
-  }, [sales, year, month]);
+  }, [sales, range, periodDays]);
 
   const avgDaily = evolution30.length ? evolution30.reduce((a, r) => a + r.total, 0) / evolution30.length : 0;
 
   // ROI vs Investimento
   const roi = investment > 0 ? (total - investment) / investment : 0;
   const cac = count > 0 && investment > 0 ? investment / count : 0;
-  const monthLeadsCount = useMemo(() => leads.filter((l) => {
-    const d = new Date(l.created_at);
-    return d.getFullYear() === year && d.getMonth() + 1 === month;
-  }).length, [leads, year, month]);
+  const monthLeadsCount = useMemo(
+    () => leads.filter((l) => inRange(l.created_at)).length,
+    [leads, range]
+  );
   const cpl = monthLeadsCount > 0 && investment > 0 ? investment / monthLeadsCount : 0;
 
-  // Available months from data
+  // Períodos com dados (mantido para labels do trimestre)
   const availableMonths = useMemo(() => {
     const set = new Set<string>();
     sales.forEach((s) => { const d = new Date(s.sale_date + "T00:00:00"); set.add(`${d.getFullYear()}-${d.getMonth() + 1}`); });
     return Array.from(set).sort().reverse().map((k) => { const [y, m] = k.split("-").map(Number); return { y, m }; });
   }, [sales]);
+
 
   const prevMonthLabel = MONTHS[(month === 1 ? 12 : month - 1) - 1].toLowerCase();
 
@@ -256,18 +262,13 @@ export default function TenantDashboard() {
         <div>
           <div className="text-[10px] uppercase tracking-[0.22em] text-primary/80 mb-2 font-medium">Dashboard Clínica</div>
           <h1 className="font-display text-4xl md:text-5xl tracking-tight">
-            Relatório de <span className="gold-gradient-text">{MONTHS[month - 1]}/{year}</span>
+            Relatório <span className="gold-gradient-text">{range.label}</span>
           </h1>
-          <p className="text-muted-foreground text-sm mt-2">{tenant?.name} — inteligência em tempo real</p>
+          <p className="text-muted-foreground text-sm mt-2">
+            {tenant?.name} · {fmtDate(range.from, "dd/MM/yy")} → {fmtDate(range.to, "dd/MM/yy")} · inteligência em tempo real
+          </p>
         </div>
-        <Select value={`${year}-${month}`} onValueChange={(v) => { const [y, m] = v.split("-").map(Number); setYear(y); setMonth(m); }}>
-          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {availableMonths.map(({ y, m }) => (
-              <SelectItem key={`${y}-${m}`} value={`${y}-${m}`}>{MONTHS[m - 1]}/{y}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <DateRangePicker value={range} onChange={setRange} />
       </div>
 
       {/* Alertas Inteligentes */}
@@ -331,27 +332,29 @@ export default function TenantDashboard() {
         </Card>
       )}
 
-      {/* Trimester */}
-      <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Evolução Trimestral</CardTitle></CardHeader>
-        <CardContent className="grid md:grid-cols-3 gap-4">
-          {trimester.map((t, i) => {
-            const isCurrent = i === 2;
-            return (
-              <div key={`${t.y}-${t.m}`} className={`card-luxe p-4 ${isCurrent ? "card-luxe-accent" : ""}`}>
-                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{t.label}/{t.y}</div>
-                <div className="font-display text-2xl num mt-1 leading-none">{BRL(t.total)}</div>
-                <div className="text-[11px] text-muted-foreground mt-1 num">{t.count} vendas · {BRL(t.avg)} ticket</div>
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
+      {/* Trimester — só aparece se houver ao menos 1 mês com venda */}
+      {trimester.some((t) => t.total > 0) && (
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-base">Evolução Trimestral</CardTitle></CardHeader>
+          <CardContent className="grid md:grid-cols-3 gap-4">
+            {trimester.map((t, i) => {
+              const isCurrent = i === 2;
+              return (
+                <div key={`${t.y}-${t.m}`} className={`card-luxe p-4 ${isCurrent ? "card-luxe-accent" : ""}`}>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{t.label}/{t.y}</div>
+                  <div className="font-display text-2xl num mt-1 leading-none">{BRL(t.total)}</div>
+                  <div className="text-[11px] text-muted-foreground mt-1 num">{t.count} vendas · {BRL(t.avg)} ticket</div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {/* 30-day Evolution */}
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Evolução — Últimos 30 dias</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Evolução — {range.label}</CardTitle>
           <span className="text-xs text-muted-foreground num">Média diária: <span className="text-foreground font-medium">{BRL(avgDaily)}</span></span>
         </CardHeader>
         <CardContent>
