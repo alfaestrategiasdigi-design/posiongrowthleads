@@ -2763,6 +2763,50 @@ export type Database = {
           },
         ]
       }
+      whatsapp_jid_aliases: {
+        Row: {
+          created_at: string
+          id: string
+          instance_name: string | null
+          last_seen_at: string
+          lid_jid: string
+          phone_jid: string
+          tenant_id: string | null
+          tenant_scope: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instance_name?: string | null
+          last_seen_at?: string
+          lid_jid: string
+          phone_jid: string
+          tenant_id?: string | null
+          tenant_scope?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instance_name?: string | null
+          last_seen_at?: string
+          lid_jid?: string
+          phone_jid?: string
+          tenant_id?: string | null
+          tenant_scope?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_jid_aliases_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_welcome_config: {
         Row: {
           created_at: string
