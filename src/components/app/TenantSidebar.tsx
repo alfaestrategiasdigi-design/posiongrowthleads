@@ -5,7 +5,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard, MessageCircle, Kanban, Users, DollarSign, Calendar, Settings,
-  Building2, Zap, Sparkles, Package,
+  Building2, Zap, Sparkles, Package, UserSearch,
 } from "lucide-react";
 import type { Tenant } from "@/hooks/useTenant";
 import posionLogo from "@/assets/posion/logo-posion.png.asset.json";
@@ -21,6 +21,7 @@ export default function TenantSidebar({ tenant, isSuperAdmin }: Props) {
   const items = [
     { title: "Dashboard", url: `${base}/dashboard`, icon: LayoutDashboard },
     { title: "WhatsApp", url: `${base}/whatsapp`, icon: MessageCircle },
+    { title: "Leads", url: `${base}/leads`, icon: UserSearch },
     { title: "Kanban", url: `${base}/kanban`, icon: Kanban },
     { title: "Pacientes Ativos", url: `${base}/pacientes`, icon: Users },
     { title: "Agenda", url: `${base}/agenda`, icon: Calendar },
