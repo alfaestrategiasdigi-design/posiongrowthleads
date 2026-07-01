@@ -121,10 +121,7 @@ export default function TenantDashboard() {
     return -1;
   };
   const funnelData = useMemo(() => {
-    const monthLeads = leads.filter((l) => {
-      const d = new Date(l.created_at);
-      return d.getFullYear() === year && d.getMonth() + 1 === month;
-    });
+    const monthLeads = leads.filter((l) => inRange(l.created_at));
     const counts: Record<string, number> = {};
     FUNNEL_ORDER.forEach((s) => (counts[s] = 0));
     let noShowCount = 0, perdidoCount = 0;
