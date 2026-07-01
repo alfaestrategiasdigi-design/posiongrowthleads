@@ -265,18 +265,13 @@ export default function TenantDashboard() {
         <div>
           <div className="text-[10px] uppercase tracking-[0.22em] text-primary/80 mb-2 font-medium">Dashboard Clínica</div>
           <h1 className="font-display text-4xl md:text-5xl tracking-tight">
-            Relatório de <span className="gold-gradient-text">{MONTHS[month - 1]}/{year}</span>
+            Relatório <span className="gold-gradient-text">{range.label}</span>
           </h1>
-          <p className="text-muted-foreground text-sm mt-2">{tenant?.name} — inteligência em tempo real</p>
+          <p className="text-muted-foreground text-sm mt-2">
+            {tenant?.name} · {fmtDate(range.from, "dd/MM/yy")} → {fmtDate(range.to, "dd/MM/yy")} · inteligência em tempo real
+          </p>
         </div>
-        <Select value={`${year}-${month}`} onValueChange={(v) => { const [y, m] = v.split("-").map(Number); setYear(y); setMonth(m); }}>
-          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {availableMonths.map(({ y, m }) => (
-              <SelectItem key={`${y}-${m}`} value={`${y}-${m}`}>{MONTHS[m - 1]}/{y}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <DateRangePicker value={range} onChange={setRange} />
       </div>
 
       {/* Alertas Inteligentes */}
