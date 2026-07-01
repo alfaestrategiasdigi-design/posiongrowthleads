@@ -11,20 +11,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Loader2, Plus, Phone, Globe2, Search } from "lucide-react";
 import { toast } from "sonner";
 
-type Stage =
-  | "lead" | "qualificado" | "reuniao_agendada" | "compareceu"
-  | "negociacao" | "ganho" | "perdido" | "no_show";
+import { PIPELINE_STAGES, type PipelineStage } from "@/types/admin";
 
-const STAGES: { id: Stage; title: string; accent: string; bg: string }[] = [
-  { id: "lead",             title: "Lead",              accent: "#4F8CFF", bg: "rgba(79,140,255,0.15)" },
-  { id: "qualificado",      title: "Qualificado",       accent: "#A78BFA", bg: "rgba(167,139,250,0.15)" },
-  { id: "reuniao_agendada", title: "Reunião Agendada",  accent: "#6366F1", bg: "rgba(99,102,241,0.15)" },
-  { id: "compareceu",       title: "Compareceu",        accent: "#8B5CF6", bg: "rgba(139,92,246,0.18)" },
-  { id: "negociacao",       title: "Negociação",        accent: "#F59E0B", bg: "rgba(245,158,11,0.15)" },
-  { id: "ganho",            title: "Ganho",             accent: "#22C55E", bg: "rgba(34,197,94,0.15)" },
-  { id: "perdido",          title: "Perdido",           accent: "#EF4444", bg: "rgba(239,68,68,0.15)" },
-  { id: "no_show",          title: "No-show",           accent: "#94A3B8", bg: "rgba(148,163,184,0.15)" },
-];
+type Stage = PipelineStage;
+
+// Ordem e labels vêm de PIPELINE_STAGES (fonte única — igual ao Dashboard).
+const STAGES: { id: Stage; title: string; accent: string; bg: string }[] = PIPELINE_STAGES.map((s) => ({
+  id: s.id as Stage,
+  title: s.title,
+  accent: s.hex,
+  bg: `${s.hex}22`,
+}));
 
 function daysIn(date: string | null) {
   if (!date) return 0;
