@@ -303,6 +303,39 @@ export default function TenantDashboard() {
         </CardContent>
       </Card>
 
+      {/* Taxas de conversão do funil padronizado */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Filter className="w-4 h-4 text-primary" /> Taxas de Conversão do Funil
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[
+              { label: "Qualificação",   value: funnelRates.qualificacao,   hint: "Qualif. ÷ Leads" },
+              { label: "Agendamento",    value: funnelRates.agendamento,    hint: "Agend. ÷ Qualif." },
+              { label: "Comparecimento", value: funnelRates.comparecimento, hint: "Comp. ÷ Agend." },
+              { label: "Fechamento",     value: funnelRates.fechamento,     hint: "Ganho ÷ Comp." },
+              { label: "No-show",        value: funnelRates.noShow,         hint: "No-show ÷ Agend.", invert: true },
+              { label: "Conversão Geral",value: funnelRates.geral,          hint: "Ganho ÷ Leads" },
+            ].map((k) => {
+              const good = k.invert ? k.value < 0.15 : k.value >= 0.3;
+              const color = k.invert
+                ? (k.value < 0.15 ? "#22C55E" : k.value < 0.3 ? "#F59E0B" : "#EF4444")
+                : (k.value >= 0.3 ? "#22C55E" : k.value >= 0.15 ? "#F59E0B" : "#EF4444");
+              return (
+                <div key={k.label} className="rounded-lg border border-border/50 bg-card/40 p-3">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{k.label}</div>
+                  <div className="font-display text-2xl num leading-none mt-1" style={{ color }}>{PCT(k.value)}</div>
+                  <div className="text-[10px] text-muted-foreground mt-1">{k.hint}</div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Funil do Kanban + ROI */}
       <div className="grid lg:grid-cols-2 gap-4">
         <Card>
@@ -324,7 +357,7 @@ export default function TenantDashboard() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <div className="grid grid-cols-5 gap-2 mt-3 pt-3 border-t border-border/40">
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-3 pt-3 border-t border-border/40">
               {funnelChart.map((d) => (
                 <div key={d.stage} className="text-center">
                   <div className="text-[9px] uppercase tracking-wider text-muted-foreground truncate" title={d.stage}>{d.stage}</div>
