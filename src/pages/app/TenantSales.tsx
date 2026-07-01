@@ -13,15 +13,15 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { BRL, type SaleRow } from "@/lib/clinic-kpis";
+import { useTenantApptConfig } from "@/hooks/useTenantApptConfig";
 
 const PRODUCTS = [
   "GOLD + Remodelação","GOLD + Harmonize","GOLD + LINNEA SAFE","Avaliação Gold","Consulta Nutro",
   "Vitaminas + Hormônio","Bioestimulador","Implante Hormonal","Toxina Botulínica","Contour Emagrecimento",
   "Ampola Tirezepatida","Peptídeos",
 ];
-const SELLERS = ["Dr Matheus","Aline","Mayara","Isabelle","Tamara"];
 const CHANNELS = ["Instagram Orgânico","Tráfego Pago","Paciente","Indicação","TikTok","Clínica São Caetano"];
-const PAYMENTS = ["PIX","Cartão","Boleto","Dinheiro","Crédito Recorrente","Outros"];
+const PAYMENTS = ["PIX","Crédito","PIX + Crédito","PayPal","Boleto","Dinheiro","Outros"];
 
 export default function TenantSales() {
   const { tenant } = useTenant();
@@ -134,28 +134,46 @@ export default function TenantSales() {
 }
 
 function NewSaleDialog({ tenantId, onCreated }: { tenantId: string; onCreated: () => void }) {
+  const { config } = useTenantApptConfig(tenantId);
   const [f, setF] = useState({
-    patient_name: "", seller_name: "Aline", sale_date: new Date().toISOString().slice(0, 10),
-    product: "", amount: "", payment_method: "PIX", channel: "Instagram Orgânico",
-    attended: "SIM", first_contact_date: "", international: false, notes: "",
+    patient_name: "", seller_name: "", sale_date: new Date().toISOString().slice(0, 10),
+    product: "", amount: "", payment_method: "PIX", installments: 1, channel: "Instagram Orgânico",
+    attended: "SIM", first_contact_date: "", international: false, arrival_date: "", notes: "",
   });
+  const [customProduct, setCustomProduct] = useState(false);
+  const [customSeller, setCustomSeller] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const sellers = (config?.team_members || []).map((m) => m.name).filter(Boolean);
+
+  useEffect(() => {
+    if (sellers.length && !f.seller_name) setF((p) => ({ ...p, seller_name: sellers[0] }));
+    // eslint-disable-next-line
+  }, [config]);
 
   async function submit() {
     if (!tenantId) return;
     if (!f.patient_name || !f.product || !f.amount) { toast.error("Cliente, produto e valor são obrigatórios"); return; }
     setSaving(true);
+    const isCredit = f.payment_method === "Crédito" || f.payment_method === "PIX + Crédito";
+    const notes = [
+      f.notes,
+      isCredit && f.installments > 1 ? `Parcelas: ${f.installments}x` : null,
+      f.international && f.arrival_date ? `Chegada: ${f.arrival_date}` : null,
+    ].filter(Boolean).join(" · ");
     const { error } = await supabase.from("sales").insert({
       tenant_id: tenantId, patient_name: f.patient_name, seller_name: f.seller_name,
       sale_date: f.sale_date, product: f.product, amount: Number(f.amount),
       payment_method: f.payment_method, channel: f.channel, attended: f.attended,
       first_contact_date: f.first_contact_date || null, international: f.international,
-      notes: f.notes || null,
+      notes: notes || null,
     });
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     toast.success("Fechamento registrado"); onCreated();
   }
+
+  const showInstallments = f.payment_method === "Crédito" || f.payment_method === "PIX + Crédito";
 
   return (
     <DialogContent className="max-w-xl">
@@ -164,18 +182,38 @@ function NewSaleDialog({ tenantId, onCreated }: { tenantId: string; onCreated: (
         <div className="col-span-2"><Label>Cliente *</Label><Input value={f.patient_name} onChange={(e) => setF({ ...f, patient_name: e.target.value })} /></div>
         <div>
           <Label>Vendedor</Label>
-          <Select value={f.seller_name} onValueChange={(v) => setF({ ...f, seller_name: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{SELLERS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-          </Select>
+          {customSeller || sellers.length === 0 ? (
+            <div className="flex gap-1">
+              <Input value={f.seller_name} onChange={(e) => setF({ ...f, seller_name: e.target.value })} placeholder="Nome do vendedor" />
+              {sellers.length > 0 && <Button type="button" variant="outline" size="sm" onClick={() => setCustomSeller(false)}>↺</Button>}
+            </div>
+          ) : (
+            <div className="flex gap-1">
+              <Select value={f.seller_name} onValueChange={(v) => setF({ ...f, seller_name: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{sellers.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+              <Button type="button" variant="outline" size="sm" onClick={() => setCustomSeller(true)} title="Digitar">✎</Button>
+            </div>
+          )}
         </div>
         <div><Label>Data</Label><Input type="date" value={f.sale_date} onChange={(e) => setF({ ...f, sale_date: e.target.value })} /></div>
         <div className="col-span-2">
-          <Label>Produto *</Label>
-          <Select value={f.product} onValueChange={(v) => setF({ ...f, product: v })}>
-            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-            <SelectContent>{PRODUCTS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-          </Select>
+          <Label>Procedimento *</Label>
+          {customProduct ? (
+            <div className="flex gap-1">
+              <Input value={f.product} onChange={(e) => setF({ ...f, product: e.target.value })} placeholder="Digite o procedimento" />
+              <Button type="button" variant="outline" size="sm" onClick={() => setCustomProduct(false)}>↺</Button>
+            </div>
+          ) : (
+            <div className="flex gap-1">
+              <Select value={f.product} onValueChange={(v) => setF({ ...f, product: v })}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>{PRODUCTS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+              </Select>
+              <Button type="button" variant="outline" size="sm" onClick={() => setCustomProduct(true)} title="Texto livre">✎</Button>
+            </div>
+          )}
         </div>
         <div><Label>Valor *</Label><Input type="number" step="0.01" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} /></div>
         <div>
@@ -185,6 +223,15 @@ function NewSaleDialog({ tenantId, onCreated }: { tenantId: string; onCreated: (
             <SelectContent>{PAYMENTS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
           </Select>
         </div>
+        {showInstallments && (
+          <div>
+            <Label>Parcelas</Label>
+            <Select value={String(f.installments)} onValueChange={(v) => setF({ ...f, installments: Number(v) })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{Array.from({ length: 12 }, (_, i) => i + 1).map((n) => <SelectItem key={n} value={String(n)}>{n}x</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+        )}
         <div>
           <Label>Canal</Label>
           <Select value={f.channel} onValueChange={(v) => setF({ ...f, channel: v })}>
@@ -208,6 +255,9 @@ function NewSaleDialog({ tenantId, onCreated }: { tenantId: string; onCreated: (
           <input id="intl" type="checkbox" checked={f.international} onChange={(e) => setF({ ...f, international: e.target.checked })} />
           <Label htmlFor="intl" className="cursor-pointer">Paciente internacional</Label>
         </div>
+        {f.international && (
+          <div className="col-span-2"><Label>Data prevista de chegada</Label><Input type="date" value={f.arrival_date} onChange={(e) => setF({ ...f, arrival_date: e.target.value })} /></div>
+        )}
         <div className="col-span-2"><Label>Observação</Label><Textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} rows={2} /></div>
       </div>
       <DialogFooter><Button onClick={submit} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar"}</Button></DialogFooter>

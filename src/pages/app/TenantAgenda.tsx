@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Calendar as CalIcon, ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { useTenantApptConfig } from "@/hooks/useTenantApptConfig";
 
 interface Appointment {
   id: string;
@@ -32,8 +33,6 @@ const STATUS_COLORS: Record<string, { bg: string; fg: string; label: string }> =
   reagendado:  { bg: "#EAB30822", fg: "#EAB308", label: "Reagendado" },
   cancelado:   { bg: "#94A3B822", fg: "#94A3B8", label: "Cancelado" },
 };
-const TYPES = ["Avaliação Gold","Consulta","Retorno","Procedimento","Outro"];
-const RESPONSIBLES = ["Dr Matheus","Aline","Mayara","Isabelle","Tamara"];
 
 const WEEKDAYS = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
@@ -207,13 +206,28 @@ function DayView({ day, items }: { day: Date; items: Appointment[] }) {
 }
 
 function NewAppointmentDialog({ tenantId, onCreated }: { tenantId: string; onCreated: () => void }) {
+  const { config } = useTenantApptConfig(tenantId);
   const today = new Date().toISOString().slice(0, 10);
   const [f, setF] = useState({
-    client_name: "", client_phone: "", appointment_type: "Avaliação Gold",
-    date: today, time: "14:00", duration: 60, responsible: "Dr Matheus",
+    client_name: "", client_phone: "", appointment_type: "",
+    date: today, time: "14:00", duration: 60, responsible: "",
     status: "agendado", notes: "",
   });
+  const [customType, setCustomType] = useState(false);
+  const [customResp, setCustomResp] = useState(false);
+  const [customDuration, setCustomDuration] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Sync defaults when config arrives
+  useEffect(() => {
+    if (!config) return;
+    setF((prev) => ({
+      ...prev,
+      appointment_type: prev.appointment_type || config.appointment_types[0] || "",
+      responsible: prev.responsible || config.team_members[0]?.name || "",
+      duration: prev.duration || config.default_duration_minutes || 60,
+    }));
+  }, [config]);
 
   async function submit() {
     if (!tenantId || !f.client_name) { toast.error("Paciente é obrigatório"); return; }
@@ -230,6 +244,9 @@ function NewAppointmentDialog({ tenantId, onCreated }: { tenantId: string; onCre
     toast.success("Agendamento criado"); onCreated();
   }
 
+  const types = config?.appointment_types || [];
+  const team = config?.team_members || [];
+
   return (
     <DialogContent className="max-w-lg">
       <DialogHeader><DialogTitle>Novo Agendamento</DialogTitle></DialogHeader>
@@ -238,26 +255,56 @@ function NewAppointmentDialog({ tenantId, onCreated }: { tenantId: string; onCre
         <div className="col-span-2"><Label>Telefone</Label><Input value={f.client_phone} onChange={(e) => setF({ ...f, client_phone: e.target.value })} placeholder="(11) 99999-9999" /></div>
         <div>
           <Label>Tipo</Label>
-          <Select value={f.appointment_type} onValueChange={(v) => setF({ ...f, appointment_type: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-          </Select>
+          {customType || types.length === 0 ? (
+            <div className="flex gap-1">
+              <Input value={f.appointment_type} onChange={(e) => setF({ ...f, appointment_type: e.target.value })} placeholder="Ex: Avaliação" />
+              {types.length > 0 && <Button type="button" variant="outline" size="sm" onClick={() => setCustomType(false)}>↺</Button>}
+            </div>
+          ) : (
+            <div className="flex gap-1">
+              <Select value={f.appointment_type} onValueChange={(v) => setF({ ...f, appointment_type: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{types.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+              <Button type="button" variant="outline" size="sm" onClick={() => setCustomType(true)} title="Digitar manualmente">✎</Button>
+            </div>
+          )}
         </div>
         <div>
           <Label>Responsável</Label>
-          <Select value={f.responsible} onValueChange={(v) => setF({ ...f, responsible: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{RESPONSIBLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-          </Select>
+          {customResp || team.length === 0 ? (
+            <div className="flex gap-1">
+              <Input value={f.responsible} onChange={(e) => setF({ ...f, responsible: e.target.value })} placeholder="Nome do responsável" />
+              {team.length > 0 && <Button type="button" variant="outline" size="sm" onClick={() => setCustomResp(false)}>↺</Button>}
+            </div>
+          ) : (
+            <div className="flex gap-1">
+              <Select value={f.responsible} onValueChange={(v) => setF({ ...f, responsible: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{team.map((r) => <SelectItem key={r.name} value={r.name}>{r.name}{r.role ? ` — ${r.role}` : ""}</SelectItem>)}</SelectContent>
+              </Select>
+              <Button type="button" variant="outline" size="sm" onClick={() => setCustomResp(true)} title="Digitar manualmente">✎</Button>
+            </div>
+          )}
         </div>
         <div><Label>Data</Label><Input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></div>
         <div><Label>Horário</Label><Input type="time" value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} /></div>
         <div>
           <Label>Duração (min)</Label>
-          <Select value={String(f.duration)} onValueChange={(v) => setF({ ...f, duration: Number(v) })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{[30,45,60,90,120].map((d) => <SelectItem key={d} value={String(d)}>{d} min</SelectItem>)}</SelectContent>
-          </Select>
+          {customDuration ? (
+            <div className="flex gap-1">
+              <Input type="number" min={5} value={f.duration} onChange={(e) => setF({ ...f, duration: Number(e.target.value) || 0 })} />
+              <Button type="button" variant="outline" size="sm" onClick={() => setCustomDuration(false)}>↺</Button>
+            </div>
+          ) : (
+            <div className="flex gap-1">
+              <Select value={String(f.duration)} onValueChange={(v) => setF({ ...f, duration: Number(v) })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{[15,30,45,60,90,120,180].map((d) => <SelectItem key={d} value={String(d)}>{d} min</SelectItem>)}</SelectContent>
+              </Select>
+              <Button type="button" variant="outline" size="sm" onClick={() => setCustomDuration(true)} title="Digitar manualmente">✎</Button>
+            </div>
+          )}
         </div>
         <div>
           <Label>Status</Label>

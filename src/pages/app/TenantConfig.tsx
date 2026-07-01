@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Copy, Save, Loader2, MessageCircle, CheckCircle2, Key, RefreshCw, Eye, EyeOff, Zap, AlertCircle, QrCode } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import AgendaConfigCard from "@/components/tenant/AgendaConfigCard";
 
 const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 
@@ -376,6 +377,9 @@ export default function TenantConfig() {
           )}
         </CardContent>
       </Card>
+
+      {/* Agenda config */}
+      {tenant && <AgendaConfigCard tenantId={tenant.id} />}
 
       {/* Facebook CAPI: gerenciado pelo Admin Master em /admin/capi */}
     </div>
