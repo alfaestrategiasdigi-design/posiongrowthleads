@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_account_mappings: {
+        Row: {
+          campaign_ids: string[]
+          created_at: string
+          facebook_ad_account_id: string | null
+          facebook_page_id: string | null
+          id: string
+          is_active: boolean
+          label: string | null
+          lead_form_ids: string[]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_ids?: string[]
+          created_at?: string
+          facebook_ad_account_id?: string | null
+          facebook_page_id?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          lead_form_ids?: string[]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_ids?: string[]
+          created_at?: string
+          facebook_ad_account_id?: string | null
+          facebook_page_id?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          lead_form_ids?: string[]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_account_mappings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_tokens: {
         Row: {
           active: boolean
@@ -2298,6 +2345,65 @@ export type Database = {
         }
         Relationships: []
       }
+      unrouted_leads: {
+        Row: {
+          ad_account_id: string | null
+          email: string | null
+          facebook_lead_id: string | null
+          form_id: string | null
+          id: string
+          nome: string | null
+          page_id: string | null
+          raw_payload: Json
+          received_at: string
+          resolved: boolean
+          resolved_at: string | null
+          resolved_lead_id: string | null
+          resolved_tenant_id: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          ad_account_id?: string | null
+          email?: string | null
+          facebook_lead_id?: string | null
+          form_id?: string | null
+          id?: string
+          nome?: string | null
+          page_id?: string | null
+          raw_payload: Json
+          received_at?: string
+          resolved?: boolean
+          resolved_at?: string | null
+          resolved_lead_id?: string | null
+          resolved_tenant_id?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          ad_account_id?: string | null
+          email?: string | null
+          facebook_lead_id?: string | null
+          form_id?: string | null
+          id?: string
+          nome?: string | null
+          page_id?: string | null
+          raw_payload?: Json
+          received_at?: string
+          resolved?: boolean
+          resolved_at?: string | null
+          resolved_lead_id?: string | null
+          resolved_tenant_id?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "unrouted_leads_resolved_tenant_id_fkey"
+            columns: ["resolved_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -2594,6 +2700,14 @@ export type Database = {
       is_tenant_admin: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
+      }
+      resolve_tenant_for_lead: {
+        Args: {
+          p_ad_account_id?: string
+          p_form_id: string
+          p_page_id?: string
+        }
+        Returns: string
       }
     }
     Enums: {
