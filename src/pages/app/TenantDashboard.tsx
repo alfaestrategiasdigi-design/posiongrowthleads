@@ -18,8 +18,14 @@ interface LeadRow { id: string; stage: string | null; created_at: string; }
 
 const MONTHS = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
-const FUNNEL_STAGES = ["Novo", "Qualificado", "Avaliação Agendada", "Compareceu", "Fechado Ganho"] as const;
-const FUNNEL_COLORS = ["#60A5FA", "#A78BFA", "#F472B6", "#FBBF24", "#34D399"];
+// Funil padronizado POSION — 8 etapas fixas
+const FUNNEL_ORDER = ["lead","qualificado","reuniao_agendada","compareceu","negociacao","ganho"] as const;
+const FUNNEL_LABELS: Record<string,string> = {
+  lead: "Lead", qualificado: "Qualificado", reuniao_agendada: "R. Agendada",
+  compareceu: "Compareceu", negociacao: "Negociação", ganho: "Ganho",
+  perdido: "Perdido", no_show: "No-show",
+};
+const FUNNEL_COLORS = ["#60A5FA", "#A78BFA", "#6366F1", "#8B5CF6", "#F59E0B", "#34D399"];
 
 export default function TenantDashboard() {
   const { tenant } = useTenant();
@@ -97,29 +103,55 @@ export default function TenantDashboard() {
   const intl = useMemo(() => monthSales.filter(isInternational), [monthSales]);
   const intlTotal = intl.reduce((s, r) => s + Number(r.amount), 0);
 
-  // Funil do Kanban (clinic_leads) — leads criados no mês selecionado
-  const funnelChart = useMemo(() => {
+  // Funil padronizado (8 etapas) — cumulativo por etapa alcançada
+  const stageIndex = (s: string | null) => {
+    const i = FUNNEL_ORDER.indexOf(s as any);
+    if (i >= 0) return i;
+    // perdido/no_show entram como "alcançou até onde estavam antes"
+    // sem contagem cumulativa; contabilizados como conversão negativa separadamente
+    return -1;
+  };
+  const funnelData = useMemo(() => {
     const monthLeads = leads.filter((l) => {
       const d = new Date(l.created_at);
       return d.getFullYear() === year && d.getMonth() + 1 === month;
     });
-    const ORDER = ["Novo", "Qualificado", "Avaliação Agendada", "Compareceu", "Fechado Ganho"];
     const counts: Record<string, number> = {};
-    ORDER.forEach((s) => (counts[s] = 0));
+    FUNNEL_ORDER.forEach((s) => (counts[s] = 0));
+    let noShowCount = 0, perdidoCount = 0;
     for (const l of monthLeads) {
-      const idx = ORDER.indexOf(l.stage || "");
-      // Cada lead conta para o estágio em que está + todos os anteriores (funil cumulativo)
-      const reachedIdx = idx >= 0 ? idx : (l.stage === "Em Negociação" ? 4 : -1);
-      if (reachedIdx >= 0) for (let i = 0; i <= reachedIdx; i++) counts[ORDER[i]]++;
+      if (l.stage === "no_show") { noShowCount++; continue; }
+      if (l.stage === "perdido") { perdidoCount++; continue; }
+      const idx = stageIndex(l.stage);
+      if (idx >= 0) for (let i = 0; i <= idx; i++) counts[FUNNEL_ORDER[i]]++;
     }
-    const top = counts[ORDER[0]] || 1;
-    return ORDER.map((stage, i) => ({
-      stage,
+    const top = counts[FUNNEL_ORDER[0]] || 1;
+    const chart = FUNNEL_ORDER.map((stage, i) => ({
+      stage: FUNNEL_LABELS[stage],
+      stageKey: stage,
       value: counts[stage],
       pct: counts[stage] / top,
       color: FUNNEL_COLORS[i],
     }));
+    // Taxas de conversão entre etapas do funil
+    const totalLeads = counts.lead || 0;
+    const qualificados = counts.qualificado || 0;
+    const agendados = counts.reuniao_agendada || 0;
+    const compareceram = counts.compareceu || 0;
+    const ganhos = counts.ganho || 0;
+    const rates = {
+      qualificacao: totalLeads ? qualificados / totalLeads : 0,
+      agendamento:  qualificados ? agendados / qualificados : 0,
+      comparecimento: agendados ? compareceram / agendados : 0,
+      fechamento: compareceram ? ganhos / compareceram : 0,
+      noShow: agendados ? noShowCount / agendados : 0,
+      geral: totalLeads ? ganhos / totalLeads : 0,
+      totals: { totalLeads, qualificados, agendados, compareceram, ganhos, noShowCount, perdidoCount },
+    };
+    return { chart, rates };
   }, [leads, year, month]);
+  const funnelChart = funnelData.chart;
+  const funnelRates = funnelData.rates;
 
   // Evolução dos últimos 30 dias (terminando no último dia do mês selecionado)
   const evolution30 = useMemo(() => {
