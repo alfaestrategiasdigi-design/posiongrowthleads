@@ -9,7 +9,6 @@ import NotFound from "./pages/NotFound";
 import AdminLayout from "./components/admin/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import WhatsAppChat from "./pages/admin/WhatsAppChat";
-import KanbanPage from "./pages/admin/KanbanPage";
 import LeadsPage from "./pages/admin/LeadsPage";
 
 import ConexaoWhatsappPage from "./pages/admin/ConexaoWhatsappPage";
@@ -36,7 +35,6 @@ import TenantKanban from "./pages/app/TenantKanban";
 import TenantWhatsApp from "./pages/app/TenantWhatsApp";
 import TenantAgenda from "./pages/app/TenantAgenda";
 import TenantConfig from "./pages/app/TenantConfig";
-import TenantProntuario from "./pages/app/TenantProntuario";
 import TenantRecall from "./pages/app/TenantRecall";
 import TenantPlans from "./pages/app/TenantPlans";
 import TenantProductsConfig from "./pages/app/TenantProductsConfig";
