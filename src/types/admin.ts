@@ -60,6 +60,26 @@ export interface Message {
   tipo_disparo?: string | null;
   lida: boolean;
   created_at: string;
+  wamid?: string | null;
+  reply_to_wamid?: string | null;
+  reply_preview?: string | null;
+  deleted_at?: string | null;
+  edited_at?: string | null;
+  location?: { lat?: number; lng?: number; name?: string | null; address?: string | null } | null;
+  contact_card?: { name?: string | null; vcard?: string | null; contacts?: any[] | null } | null;
+  tenant_id?: string | null;
+  direction?: "inbound" | "outbound" | null;
+}
+
+export interface MessageReaction {
+  id: string;
+  message_wamid: string;
+  conversation_id: string;
+  actor_jid: string;
+  from_me: boolean;
+  emoji: string;
+  created_at: string;
+  tenant_id?: string | null;
 }
 
 export interface ZapiConnection {
