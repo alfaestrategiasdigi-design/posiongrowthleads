@@ -36,8 +36,15 @@ export default function TenantDashboard() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [range, setRange] = useState<DateRangeValue>(() => makeRange(30));
+  const year = range.to.getFullYear();
+  const month = range.to.getMonth() + 1;
+  const periodDays = Math.max(1, differenceInDays(range.to, range.from) + 1);
+  const inRange = (dateStr: string) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr.length === 10 ? dateStr + "T12:00:00" : dateStr);
+    return d >= range.from && d <= range.to;
+  };
 
   // Investimento mensal (armazenado localmente por tenant+ano-mês)
   const invKey = tenant ? `posion:invest:${tenant.id}:${year}-${month}` : "";
