@@ -560,6 +560,50 @@ export default function TenantDashboard() {
       {/* Categories */}
       <BreakdownCard title="Receita por Categoria de Procedimento" rows={byCategory} total={total} />
 
+      {/* Ranking da equipe */}
+      {ranking.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Medal className="w-4 h-4 text-primary" /> Ranking da Equipe — {MONTHS[month - 1]}/{year}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground border-b border-border/40">
+                    <th className="text-left py-2 pr-3 font-medium w-10">#</th>
+                    <th className="text-left py-2 pr-3 font-medium">Vendedor</th>
+                    <th className="text-right py-2 pr-3 font-medium">Vendas</th>
+                    <th className="text-right py-2 pr-3 font-medium">Faturamento</th>
+                    <th className="text-right py-2 pr-3 font-medium">Ticket Médio</th>
+                    <th className="text-right py-2 pr-3 font-medium">% do Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ranking.map((r, i) => {
+                    const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}`;
+                    const ticket = r.count > 0 ? r.total / r.count : 0;
+                    const share = total > 0 ? r.total / total : 0;
+                    return (
+                      <tr key={r.seller} className="border-b border-border/20 hover:bg-muted/20 transition-colors">
+                        <td className="py-3 pr-3 text-base">{medal}</td>
+                        <td className="py-3 pr-3 font-medium truncate max-w-[220px]">{r.seller}</td>
+                        <td className="py-3 pr-3 text-right num">{r.count}</td>
+                        <td className="py-3 pr-3 text-right num font-semibold">{BRL(r.total)}</td>
+                        <td className="py-3 pr-3 text-right num text-muted-foreground">{BRL(ticket)}</td>
+                        <td className="py-3 pr-3 text-right num text-muted-foreground">{PCT(share)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Weekly */}
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">Performance Semanal</CardTitle></CardHeader>
