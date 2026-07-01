@@ -844,7 +844,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
               messages.map(msg => {
                 const isOut = msg.sender === "usuario";
                 return (
-                  <div key={msg.id} className={`flex ${isOut ? "justify-end" : "justify-start"} gap-2`}>
+                  <div key={msg.id} className={`group flex ${isOut ? "justify-end" : "justify-start"} gap-2`}>
                     {!isOut && (
                       <ContactAvatar
                         name={selectedConversation.nome_contato || selectedConversation.telefone}
@@ -853,17 +853,49 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                         className="mt-1 self-end"
                       />
                     )}
-                    <div className={`max-w-[70%] rounded-2xl px-3 py-2 ${isOut ? "rounded-br-md text-[#1a1208]" : "rounded-bl-md text-foreground border border-border/50"}`}
-                      style={isOut ? { background: "#c9a84c" } : { background: "#0d1426" }}>
-                      {msg.tipo_disparo === "boas_vindas" && (
-                        <div className="flex items-center gap-1 text-[10px] opacity-70 mb-1">
-                          <Sparkles className="w-3 h-3" /> Boas-vindas automática
+                    <div className="relative max-w-[70%]">
+                      <div className={`rounded-2xl px-3 py-2 ${isOut ? "rounded-br-md text-[#1a1208]" : "rounded-bl-md text-foreground border border-border/50"}`}
+                        style={isOut ? { background: "#c9a84c" } : { background: "#0d1426" }}>
+                        {msg.tipo_disparo === "boas_vindas" && (
+                          <div className="flex items-center gap-1 text-[10px] opacity-70 mb-1">
+                            <Sparkles className="w-3 h-3" /> Boas-vindas automática
+                          </div>
+                        )}
+                        {renderQuoted(msg)}
+                        {renderMessageBody(msg)}
+                        <p className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isOut ? "text-[#1a1208]/60" : "text-muted-foreground"}`}>
+                          {formatMessageTime(msg.created_at)} {renderStatus(msg)}
+                        </p>
+                        {renderReactions(msg)}
+                      </div>
+                      {/* Hover actions: reply + react */}
+                      {!msg.deleted_at && (
+                        <div className={`absolute top-0 ${isOut ? "left-0 -translate-x-full pr-1" : "right-0 translate-x-full pl-1"} opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5`}>
+                          <button
+                            onClick={() => setReplyTo(msg)}
+                            title="Responder"
+                            className="p-1 rounded-full bg-background/90 border border-border hover:bg-muted">
+                            <Reply className="w-3.5 h-3.5" />
+                          </button>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                title="Reagir"
+                                className="p-1 rounded-full bg-background/90 border border-border hover:bg-muted">
+                                <Smile className="w-3.5 h-3.5" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-1 flex gap-1" side="top">
+                              {["👍","❤️","😂","😮","😢","🙏","🔥"].map(e => (
+                                <button key={e} onClick={() => sendReaction(msg, e)}
+                                  className="text-lg hover:scale-125 transition-transform px-1">
+                                  {e}
+                                </button>
+                              ))}
+                            </PopoverContent>
+                          </Popover>
                         </div>
                       )}
-                      {renderMessageBody(msg)}
-                      <p className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isOut ? "text-[#1a1208]/60" : "text-muted-foreground"}`}>
-                        {formatMessageTime(msg.created_at)} {renderStatus(msg)}
-                      </p>
                     </div>
                   </div>
                 );
@@ -872,22 +904,57 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="p-3 border-t border-border bg-card/50 shrink-0">
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0"><Smile className="w-5 h-5 text-muted-foreground" /></Button>
-              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={handleAttach} disabled={uploading}>
-                {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5 text-muted-foreground" />}
-              </Button>
-              <input ref={fileInputRef} type="file" hidden onChange={handleFileSelected}
-                accept="image/*,video/*,audio/*,application/pdf" />
-              <Input placeholder="Digite uma mensagem..." value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)} onKeyDown={handleKeyPress}
-                disabled={sending} className="flex-1 bg-muted/50 border-none h-10" />
-              <Button onClick={handleSendMessage} disabled={!newMessage.trim() || sending}
-                size="icon" className="h-10 w-10 rounded-full bg-accent hover:bg-accent/90 shrink-0">
-                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              </Button>
+          {/* Reply chip */}
+          {replyTo && (
+            <div className="px-3 pt-2 bg-card/50 border-t border-border shrink-0">
+              <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-muted/50 border-l-2 border-accent">
+                <CornerDownRight className="w-4 h-4 text-accent mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] text-accent font-medium uppercase tracking-wide">Respondendo</div>
+                  <div className="text-xs text-muted-foreground truncate">{replyTo.conteudo || "mídia"}</div>
+                </div>
+                <button onClick={() => setReplyTo(null)} className="p-1 hover:bg-muted rounded">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
+          )}
+
+          <div className="p-3 border-t border-border bg-card/50 shrink-0">
+            {recording ? (
+              <div className="flex items-center gap-3 h-10 px-3 rounded-full bg-rose-500/10 border border-rose-500/30">
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                <span className="text-sm text-rose-300 flex-1">
+                  Gravando… {recordStart ? Math.floor((Date.now() - recordStart) / 1000) : 0}s
+                </span>
+                <Button onClick={stopRecording} size="icon" className="h-9 w-9 rounded-full bg-rose-500 hover:bg-rose-600">
+                  <StopCircle className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0"><Smile className="w-5 h-5 text-muted-foreground" /></Button>
+                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={handleAttach} disabled={uploading}>
+                  {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5 text-muted-foreground" />}
+                </Button>
+                <input ref={fileInputRef} type="file" hidden onChange={handleFileSelected}
+                  accept="image/*,video/*,audio/*,application/pdf" />
+                <Input placeholder="Digite uma mensagem..." value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)} onKeyDown={handleKeyPress}
+                  disabled={sending} className="flex-1 bg-muted/50 border-none h-10" />
+                {newMessage.trim() ? (
+                  <Button onClick={handleSendMessage} disabled={sending}
+                    size="icon" className="h-10 w-10 rounded-full bg-accent hover:bg-accent/90 shrink-0">
+                    {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  </Button>
+                ) : (
+                  <Button onClick={startRecording} title="Gravar áudio"
+                    size="icon" className="h-10 w-10 rounded-full bg-accent hover:bg-accent/90 shrink-0">
+                    <Mic className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       ) : (
