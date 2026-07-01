@@ -79,6 +79,8 @@ const App = () => (
           <Route path="/admin/facebook" element={<AdminLayout><FacebookConfigPage /></AdminLayout>} />
           <Route path="/admin/capi" element={<AdminLayout><CapiConfigPage /></AdminLayout>} />
           <Route path="/admin/campanhas" element={<AdminLayout><CampanhasPage /></AdminLayout>} />
+          <Route path="/admin/mapeamentos-ads" element={<AdminLayout><AdMappingsPage /></AdminLayout>} />
+
           <Route path="/admin/meta-ads" element={<Navigate to="/admin/campanhas" replace />} />
           <Route path="/admin/planos" element={<AdminLayout><SubscriptionsPage /></AdminLayout>} />
           <Route path="*" element={<NotFound />} />
