@@ -287,6 +287,12 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => loadConversations())
       .on("postgres_changes", { event: "*", schema: "public", table: "conversation_tag_assignments" }, () => loadTags())
+      .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, (payload) => {
+        const row: any = payload.new ?? payload.old;
+        if (row?.conversation_id && selectedConversation && row.conversation_id === selectedConversation.id) {
+          loadMessages(selectedConversation.id);
+        }
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [selectedConversation?.id, loadConversations, loadMessages, loadTags]);
