@@ -82,13 +82,15 @@ Deno.serve(async (req) => {
   if (!formsRes.ok) return json({ error: "Falha listando forms", detail: formsJson }, 502);
   const forms: any[] = formsJson.data ?? [];
 
-  const tenantId: string | null = cfg?.default_tenant_id ?? null;
-  let inserted = 0, deduped = 0, errors = 0;
+  const defaultTenantId: string | null = cfg?.default_tenant_id ?? null;
+  const adAccountId: string | null = (cfg as any)?.ad_account_id ?? null;
+  const pageId: string | null = (cfg as any)?.page_id ?? null;
+  let inserted = 0, deduped = 0, errors = 0, unrouted = 0;
   const perForm: any[] = [];
 
   for (const f of forms) {
     let url = `https://graph.facebook.com/v21.0/${f.id}/leads?fields=id,created_time,field_data,ad_id,adset_id,campaign_id,form_id&limit=${limitPerPage}&access_token=${encodeURIComponent(token)}`;
-    let pages = 0, fIns = 0, fDup = 0, fErr = 0;
+    let pages = 0, fIns = 0, fDup = 0, fErr = 0, fUnr = 0;
     while (url && pages < maxPages) {
       pages++;
       const r = await fetch(url);
@@ -102,6 +104,28 @@ Deno.serve(async (req) => {
         const nome = pick(fields, ["full_name", "name", "nome", "nome_completo"]) ?? "(sem nome)";
         const email = pick(fields, ["email", "e-mail", "email_address"]);
         const whatsapp = normPhone(pick(fields, ["phone_number", "phone", "telefone", "whatsapp"]) ?? "");
+
+        // Fase 2 — roteamento por mapeamento
+        const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
+          p_form_id: lead.form_id ?? f.id,
+          p_ad_account_id: adAccountId,
+          p_page_id: pageId,
+        });
+        const tenantId = (rpc as string | null) ?? defaultTenantId;
+
+        if (!tenantId) {
+          await admin.from("unrouted_leads").insert({
+            raw_payload: lead,
+            form_id: lead.form_id ?? f.id,
+            ad_account_id: adAccountId,
+            page_id: pageId,
+            facebook_lead_id: fbId,
+            nome, whatsapp, email,
+          });
+          fUnr++; unrouted++;
+          continue;
+        }
+
         const insLead = await admin.from("leads").insert({
           nome_completo: nome,
           whatsapp: whatsapp || "(sem telefone)",
@@ -117,6 +141,7 @@ Deno.serve(async (req) => {
         }).select("id").maybeSingle();
         if (insLead.error) { fErr++; errors++; continue; }
         fIns++; inserted++;
+
 
         // Create/upsert conversation so it shows in the WhatsApp inbox
         if (whatsapp) {
@@ -145,14 +170,15 @@ Deno.serve(async (req) => {
       }
       url = j?.paging?.next ?? "";
     }
-    perForm.push({ form_id: f.id, name: f.name, pages, inserted: fIns, duplicated: fDup, errors: fErr });
+    perForm.push({ form_id: f.id, name: f.name, pages, inserted: fIns, duplicated: fDup, errors: fErr, unrouted: fUnr });
   }
 
   await admin.from("facebook_webhook_config")
     .update({ last_leads_sync_at: new Date().toISOString() })
     .not("id", "is", null);
 
-  return json({ ok: true, inserted, deduped, errors, forms: perForm });
+  return json({ ok: true, inserted, deduped, errors, unrouted, forms: perForm });
+
 });
 
 function json(b: unknown, status = 200) {
