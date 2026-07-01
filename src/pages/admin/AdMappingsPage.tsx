@@ -169,9 +169,9 @@ export default function AdMappingsPage() {
     await supabase.from("unrouted_leads").update({
       resolved: true,
       resolved_tenant_id: routeTenant,
-      resolved_lead_id: lead.id,
       resolved_at: new Date().toISOString(),
     }).eq("id", u.id);
+
 
     toast.success("Lead roteado e mapeamento salvo para próximos");
     setRouteOpen(null); setRouteTenant(""); load();
