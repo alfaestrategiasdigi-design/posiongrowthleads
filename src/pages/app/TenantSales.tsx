@@ -255,6 +255,9 @@ function NewSaleDialog({ tenantId, onCreated }: { tenantId: string; onCreated: (
           <input id="intl" type="checkbox" checked={f.international} onChange={(e) => setF({ ...f, international: e.target.checked })} />
           <Label htmlFor="intl" className="cursor-pointer">Paciente internacional</Label>
         </div>
+        {f.international && (
+          <div className="col-span-2"><Label>Data prevista de chegada</Label><Input type="date" value={f.arrival_date} onChange={(e) => setF({ ...f, arrival_date: e.target.value })} /></div>
+        )}
         <div className="col-span-2"><Label>Observação</Label><Textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} rows={2} /></div>
       </div>
       <DialogFooter><Button onClick={submit} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar"}</Button></DialogFooter>
