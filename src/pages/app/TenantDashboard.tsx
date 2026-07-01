@@ -155,17 +155,16 @@ export default function TenantDashboard() {
       totals: { totalLeads, qualificados, agendados, compareceram, ganhos, noShowCount, perdidoCount },
     };
     return { chart, rates };
-  }, [leads, year, month]);
+  }, [leads, range]);
   const funnelChart = funnelData.chart;
   const funnelRates = funnelData.rates;
 
-  // Evolução dos últimos 30 dias (terminando no último dia do mês selecionado)
+  // Evolução por dia dentro do range (cap 90 dias para performance visual)
   const evolution30 = useMemo(() => {
-    const last = new Date(year, month, 0); // último dia do mês
-    const today = new Date();
-    const end = last > today ? today : last;
+    const days = Math.min(periodDays, 90);
+    const end = range.to;
     const data: { date: string; label: string; total: number; count: number }[] = [];
-    for (let i = 29; i >= 0; i--) {
+    for (let i = days - 1; i >= 0; i--) {
       const d = new Date(end);
       d.setDate(end.getDate() - i);
       const key = d.toISOString().slice(0, 10);
@@ -178,25 +177,26 @@ export default function TenantDashboard() {
       });
     }
     return data;
-  }, [sales, year, month]);
+  }, [sales, range, periodDays]);
 
   const avgDaily = evolution30.length ? evolution30.reduce((a, r) => a + r.total, 0) / evolution30.length : 0;
 
   // ROI vs Investimento
   const roi = investment > 0 ? (total - investment) / investment : 0;
   const cac = count > 0 && investment > 0 ? investment / count : 0;
-  const monthLeadsCount = useMemo(() => leads.filter((l) => {
-    const d = new Date(l.created_at);
-    return d.getFullYear() === year && d.getMonth() + 1 === month;
-  }).length, [leads, year, month]);
+  const monthLeadsCount = useMemo(
+    () => leads.filter((l) => inRange(l.created_at)).length,
+    [leads, range]
+  );
   const cpl = monthLeadsCount > 0 && investment > 0 ? investment / monthLeadsCount : 0;
 
-  // Available months from data
+  // Períodos com dados (mantido para labels do trimestre)
   const availableMonths = useMemo(() => {
     const set = new Set<string>();
     sales.forEach((s) => { const d = new Date(s.sale_date + "T00:00:00"); set.add(`${d.getFullYear()}-${d.getMonth() + 1}`); });
     return Array.from(set).sort().reverse().map((k) => { const [y, m] = k.split("-").map(Number); return { y, m }; });
   }, [sales]);
+
 
   const prevMonthLabel = MONTHS[(month === 1 ? 12 : month - 1) - 1].toLowerCase();
 
