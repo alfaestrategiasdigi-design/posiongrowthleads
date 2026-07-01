@@ -149,9 +149,14 @@ Deno.serve(async (req) => {
           let convQ = admin.from("conversations").select("id").eq("remote_jid", remoteJid);
           if (tenantId) convQ = convQ.eq("tenant_id", tenantId);
           else convQ = convQ.is("tenant_id", null);
-          const existing = await convQ.maybeSingle();
+          let existing = await convQ.maybeSingle();
           if (!existing.data) {
-            await admin.from("conversations").insert({
+            let phoneQ = admin.from("conversations").select("id").eq("telefone", whatsapp);
+            phoneQ = tenantId ? phoneQ.eq("tenant_id", tenantId) : phoneQ.is("tenant_id", null);
+            existing = await phoneQ.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
+          }
+          if (!existing.data) {
+            const insertedConv = await admin.from("conversations").insert({
               tenant_id: tenantId,
               telefone: whatsapp,
               remote_jid: remoteJid,
@@ -161,9 +166,19 @@ Deno.serve(async (req) => {
               ultima_mensagem: "Lead recém-chegado pelo Meta Ads",
               ultima_interacao: new Date().toISOString(),
             });
+            if (insertedConv.error && insLead.data?.id) {
+              let retryQ = admin.from("conversations").select("id").eq("telefone", whatsapp);
+              retryQ = tenantId ? retryQ.eq("tenant_id", tenantId) : retryQ.is("tenant_id", null);
+              const retry = await retryQ.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
+              if (retry.data?.id) {
+                await admin.from("conversations")
+                  .update({ lead_id: insLead.data.id, nome_contato: nome, remote_jid: remoteJid, telefone: whatsapp })
+                  .eq("id", retry.data.id);
+              }
+            }
           } else if (insLead.data?.id) {
             await admin.from("conversations")
-              .update({ lead_id: insLead.data.id, nome_contato: nome })
+              .update({ lead_id: insLead.data.id, nome_contato: nome, remote_jid: remoteJid, telefone: whatsapp })
               .eq("id", existing.data.id);
           }
         }
