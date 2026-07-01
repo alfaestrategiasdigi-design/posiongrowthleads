@@ -104,6 +104,12 @@ Deno.serve(async (req) => {
   else convQ = convQ.is("tenant_id", null);
   let { data: conv } = await convQ.maybeSingle();
   if (!conv) {
+    let phoneQ = admin.from("conversations").select("id").eq("telefone", phone);
+    phoneQ = lead.tenant_id ? phoneQ.eq("tenant_id", lead.tenant_id) : phoneQ.is("tenant_id", null);
+    const existingByPhone = await phoneQ.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
+    conv = existingByPhone.data;
+  }
+  if (!conv) {
     const ins = await admin.from("conversations").insert({
       tenant_id: lead.tenant_id,
       telefone: phone,
@@ -116,11 +122,18 @@ Deno.serve(async (req) => {
       nao_lidas: 0,
     }).select("id").maybeSingle();
     conv = ins.data;
+    if (!conv && ins.error) {
+      let retryQ = admin.from("conversations").select("id").eq("telefone", phone);
+      retryQ = lead.tenant_id ? retryQ.eq("tenant_id", lead.tenant_id) : retryQ.is("tenant_id", null);
+      conv = (await retryQ.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle()).data;
+    }
   } else {
     await admin.from("conversations").update({
       ultima_mensagem: text,
       ultima_interacao: new Date().toISOString(),
       lead_id: lead.id,
+      telefone: phone,
+      remote_jid: remoteJid,
     }).eq("id", conv.id);
   }
 
