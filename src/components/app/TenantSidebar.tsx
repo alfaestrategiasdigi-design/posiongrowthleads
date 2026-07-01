@@ -21,6 +21,7 @@ export default function TenantSidebar({ tenant, isSuperAdmin }: Props) {
   const items = [
     { title: "Dashboard", url: `${base}/dashboard`, icon: LayoutDashboard },
     { title: "WhatsApp", url: `${base}/whatsapp`, icon: MessageCircle },
+    { title: "Leads", url: `${base}/leads`, icon: UserSearch },
     { title: "Kanban", url: `${base}/kanban`, icon: Kanban },
     { title: "Pacientes Ativos", url: `${base}/pacientes`, icon: Users },
     { title: "Agenda", url: `${base}/agenda`, icon: Calendar },
