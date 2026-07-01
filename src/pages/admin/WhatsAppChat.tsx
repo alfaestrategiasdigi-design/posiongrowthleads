@@ -4,8 +4,9 @@ import {
   Search, Send, Paperclip, Phone, MoreVertical, MessageCircle, Smile,
   Settings, QrCode, Copy, CheckCircle2, Loader2, Wifi, WifiOff, RefreshCw,
   Tag as TagIcon, Sparkles, Filter, FileText, Check, CheckCheck, AlertTriangle,
-  Plus, X, Trash2,
+  Plus, X, Trash2, Reply, MapPin, User as UserIcon, Mic, StopCircle, CornerDownRight,
 } from "lucide-react";
+import type { MessageReaction } from "@/types/admin";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
