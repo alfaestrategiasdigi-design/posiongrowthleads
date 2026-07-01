@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
   const maxPerForm: number = Number(payload.max_per_form ?? 200);
 
   const { data: cfg } = await admin
-    .from("facebook_webhook_config").select("page_access_token, page_id, default_tenant_id").limit(1).maybeSingle();
+    .from("facebook_webhook_config").select("page_access_token, page_id, ad_account_id, default_tenant_id").limit(1).maybeSingle();
   const token = cfg?.page_access_token || FB_TOKEN_ENV;
   if (!token) {
     return new Response(JSON.stringify({ error: "Token do Facebook não configurado (banco e secret vazios)" }), {
