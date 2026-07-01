@@ -38,6 +38,7 @@ import TenantConfig from "./pages/app/TenantConfig";
 import TenantRecall from "./pages/app/TenantRecall";
 import TenantPlans from "./pages/app/TenantPlans";
 import TenantProductsConfig from "./pages/app/TenantProductsConfig";
+import TenantLeads from "./pages/app/TenantLeads";
 
 const queryClient = new QueryClient();
 
