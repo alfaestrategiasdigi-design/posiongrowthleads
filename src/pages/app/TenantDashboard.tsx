@@ -354,7 +354,7 @@ export default function TenantDashboard() {
       {/* 30-day Evolution */}
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Evolução — Últimos 30 dias</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Evolução — {range.label}</CardTitle>
           <span className="text-xs text-muted-foreground num">Média diária: <span className="text-foreground font-medium">{BRL(avgDaily)}</span></span>
         </CardHeader>
         <CardContent>
