@@ -597,9 +597,39 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   };
 
   const renderMessageBody = (msg: Message) => {
+    if (msg.deleted_at) {
+      return <p className="text-sm italic opacity-60">🚫 Mensagem apagada</p>;
+    }
     const tipo = msg.media_type || msg.tipo;
+    if (msg.location?.lat && msg.location?.lng) {
+      const { lat, lng, name, address } = msg.location;
+      return (
+        <a href={`https://maps.google.com/?q=${lat},${lng}`} target="_blank" rel="noreferrer"
+           className="flex items-start gap-2 underline decoration-dotted">
+          <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
+          <span className="text-sm">
+            <span className="block font-medium">{name || "Localização"}</span>
+            {address && <span className="block text-xs opacity-80">{address}</span>}
+            <span className="block text-[10px] opacity-60">{lat?.toFixed(5)}, {lng?.toFixed(5)}</span>
+          </span>
+        </a>
+      );
+    }
+    if (msg.contact_card?.name || msg.contact_card?.vcard) {
+      const phone = /TEL[^:]*:([^\r\n]+)/i.exec(msg.contact_card?.vcard || "")?.[1]?.trim();
+      return (
+        <div className="flex items-start gap-2 bg-black/10 rounded-lg px-2 py-1.5">
+          <UserIcon className="w-4 h-4 mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <div className="font-medium">{msg.contact_card.name || "Contato"}</div>
+            {phone && <div className="text-xs opacity-80">{phone}</div>}
+          </div>
+        </div>
+      );
+    }
     if (msg.media_url) {
       if (tipo === "image") return <img src={msg.media_url} alt="" className="rounded-lg max-w-full max-h-72 object-cover mb-1" />;
+      if (tipo === "sticker") return <img src={msg.media_url} alt="" className="max-w-[120px] max-h-[120px] mb-1" />;
       if (tipo === "audio") return <audio controls src={msg.media_url} className="max-w-full" />;
       if (tipo === "video") return <video controls src={msg.media_url} className="rounded-lg max-w-full max-h-72" />;
       if (tipo === "document") return (
@@ -608,7 +638,41 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
         </a>
       );
     }
-    return <p className="text-sm whitespace-pre-wrap break-words">{msg.conteudo}</p>;
+    return (
+      <p className="text-sm whitespace-pre-wrap break-words">
+        {msg.conteudo}
+        {msg.edited_at && <span className="ml-1 text-[10px] opacity-60">(editada)</span>}
+      </p>
+    );
+  };
+
+  const renderQuoted = (msg: Message) => {
+    if (!msg.reply_preview && !msg.reply_to_wamid) return null;
+    return (
+      <div className="mb-1 pl-2 border-l-2 border-current/40 opacity-80 text-[11px] rounded bg-black/10 px-2 py-1 flex items-start gap-1">
+        <CornerDownRight className="w-3 h-3 mt-0.5 shrink-0" />
+        <span className="line-clamp-2">{msg.reply_preview || "Mensagem citada"}</span>
+      </div>
+    );
+  };
+
+  const renderReactions = (msg: Message) => {
+    if (!msg.wamid) return null;
+    const list = reactions[msg.wamid] || [];
+    if (list.length === 0) return null;
+    const groups = list.reduce<Record<string, number>>((acc, r) => {
+      acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+      return acc;
+    }, {});
+    return (
+      <div className="flex flex-wrap gap-1 mt-1 -mb-1">
+        {Object.entries(groups).map(([emoji, n]) => (
+          <span key={emoji} className="text-[11px] px-1.5 py-0.5 rounded-full bg-black/30 border border-white/10">
+            {emoji}{n > 1 && <span className="ml-0.5 opacity-80">{n}</span>}
+          </span>
+        ))}
+      </div>
+    );
   };
 
   const renderStatus = (msg: Message) => {
