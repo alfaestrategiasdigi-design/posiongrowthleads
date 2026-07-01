@@ -13,15 +13,15 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { BRL, type SaleRow } from "@/lib/clinic-kpis";
+import { useTenantApptConfig } from "@/hooks/useTenantApptConfig";
 
 const PRODUCTS = [
   "GOLD + Remodelação","GOLD + Harmonize","GOLD + LINNEA SAFE","Avaliação Gold","Consulta Nutro",
   "Vitaminas + Hormônio","Bioestimulador","Implante Hormonal","Toxina Botulínica","Contour Emagrecimento",
   "Ampola Tirezepatida","Peptídeos",
 ];
-const SELLERS = ["Dr Matheus","Aline","Mayara","Isabelle","Tamara"];
 const CHANNELS = ["Instagram Orgânico","Tráfego Pago","Paciente","Indicação","TikTok","Clínica São Caetano"];
-const PAYMENTS = ["PIX","Cartão","Boleto","Dinheiro","Crédito Recorrente","Outros"];
+const PAYMENTS = ["PIX","Crédito","PIX + Crédito","PayPal","Boleto","Dinheiro","Outros"];
 
 export default function TenantSales() {
   const { tenant } = useTenant();
