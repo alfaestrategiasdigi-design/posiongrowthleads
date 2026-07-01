@@ -243,6 +243,40 @@ Deno.serve(async (req) => {
           }
         }
 
+        // Fase 2 — resolve tenant via mapeamento; fallback para default_tenant_id; senão, fila de não-roteados
+        const pageIdForRoute = v.page_id ? String(v.page_id) : (entry.id ? String(entry.id) : null);
+        const formIdForRoute = v.form_id ? String(v.form_id) : null;
+        const adAccountForRoute = null; // webhook não recebe ad_account_id
+        let routedTenant: string | null = null;
+        {
+          const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
+            p_form_id: formIdForRoute,
+            p_ad_account_id: adAccountForRoute,
+            p_page_id: pageIdForRoute,
+          });
+          routedTenant = (rpc as string | null) ?? (cfg as any)?.default_tenant_id ?? null;
+        }
+
+        if (!routedTenant) {
+          const ur = await admin.from("unrouted_leads").insert({
+            raw_payload: { entry_id: entry.id, change, graph_field_data: flat },
+            form_id: formIdForRoute,
+            page_id: pageIdForRoute,
+            ad_account_id: adAccountForRoute,
+            facebook_lead_id: leadgenId ? String(leadgenId) : null,
+            nome: flat["full_name"] ?? flat["nome"] ?? null,
+            whatsapp: flat["phone_number"] ?? flat["phone"] ?? null,
+            email: flat["email"] ?? null,
+          }).select("id").single();
+          results.push({ ok: true, unrouted: true, id: ur.data?.id ?? null });
+          if (evtId) {
+            await admin.from("facebook_webhook_events").update({
+              processed: false, error: "no tenant mapping",
+            }).eq("id", evtId);
+          }
+          continue;
+        }
+
         const r = await insertLead(flat, {
           facebook_lead_id: leadgenId,
           facebook_form_id: v.form_id ?? null,
@@ -250,7 +284,7 @@ Deno.serve(async (req) => {
           facebook_form_name: null,
           facebook_ad_name: adName,
           facebook_adset_name: adsetName,
-          tenant_id: (cfg as any)?.default_tenant_id ?? null,
+          tenant_id: routedTenant,
         });
         results.push(r);
 
@@ -265,28 +299,69 @@ Deno.serve(async (req) => {
     }
   } else if (Array.isArray(body?.field_data)) {
     const flat = flattenFieldData(body.field_data);
-    const r = await insertLead(flat, {
-      facebook_lead_id: body.id ?? body.leadgen_id ?? null,
-      facebook_form_id: body.form_id ?? null,
-      facebook_campaign: body.campaign_name ?? body.campaign_id ?? null,
-      facebook_form_name: body.form_name ?? null,
-      facebook_ad_name: body.ad_name ?? null,
-      facebook_adset_name: body.adset_name ?? null,
-      tenant_id: (cfg as any)?.default_tenant_id ?? null,
+    const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
+      p_form_id: body.form_id ?? null,
+      p_ad_account_id: body.ad_account_id ?? null,
+      p_page_id: body.page_id ?? null,
     });
-    results.push(r);
+    const routedTenant = (rpc as string | null) ?? (cfg as any)?.default_tenant_id ?? null;
+    if (!routedTenant) {
+      const ur = await admin.from("unrouted_leads").insert({
+        raw_payload: body,
+        form_id: body.form_id ?? null,
+        page_id: body.page_id ?? null,
+        ad_account_id: body.ad_account_id ?? null,
+        facebook_lead_id: body.id ?? body.leadgen_id ?? null,
+        nome: flat["full_name"] ?? flat["nome"] ?? null,
+        whatsapp: flat["phone_number"] ?? flat["phone"] ?? null,
+        email: flat["email"] ?? null,
+      }).select("id").single();
+      results.push({ ok: true, unrouted: true, id: ur.data?.id ?? null });
+    } else {
+      const r = await insertLead(flat, {
+        facebook_lead_id: body.id ?? body.leadgen_id ?? null,
+        facebook_form_id: body.form_id ?? null,
+        facebook_campaign: body.campaign_name ?? body.campaign_id ?? null,
+        facebook_form_name: body.form_name ?? null,
+        facebook_ad_name: body.ad_name ?? null,
+        facebook_adset_name: body.adset_name ?? null,
+        tenant_id: routedTenant,
+      });
+      results.push(r);
+    }
   } else {
-    const r = await insertLead(body, {
-      facebook_lead_id: body.facebook_lead_id ?? body.lead_id ?? body.id ?? null,
-      facebook_form_id: body.form_id ?? null,
-      facebook_campaign: body.campaign_name ?? body.utm_campaign ?? null,
-      facebook_form_name: body.form_name ?? null,
-      facebook_ad_name: body.ad_name ?? null,
-      facebook_adset_name: body.adset_name ?? null,
-      tenant_id: (cfg as any)?.default_tenant_id ?? null,
+    const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
+      p_form_id: body.form_id ?? null,
+      p_ad_account_id: body.ad_account_id ?? null,
+      p_page_id: body.page_id ?? null,
     });
-    results.push(r);
+    const routedTenant = (rpc as string | null) ?? (cfg as any)?.default_tenant_id ?? null;
+    if (!routedTenant) {
+      const ur = await admin.from("unrouted_leads").insert({
+        raw_payload: body,
+        form_id: body.form_id ?? null,
+        page_id: body.page_id ?? null,
+        ad_account_id: body.ad_account_id ?? null,
+        facebook_lead_id: body.facebook_lead_id ?? body.lead_id ?? body.id ?? null,
+        nome: body.nome ?? body.full_name ?? null,
+        whatsapp: body.whatsapp ?? body.phone_number ?? null,
+        email: body.email ?? null,
+      }).select("id").single();
+      results.push({ ok: true, unrouted: true, id: ur.data?.id ?? null });
+    } else {
+      const r = await insertLead(body, {
+        facebook_lead_id: body.facebook_lead_id ?? body.lead_id ?? body.id ?? null,
+        facebook_form_id: body.form_id ?? null,
+        facebook_campaign: body.campaign_name ?? body.utm_campaign ?? null,
+        facebook_form_name: body.form_name ?? null,
+        facebook_ad_name: body.ad_name ?? null,
+        facebook_adset_name: body.adset_name ?? null,
+        tenant_id: routedTenant,
+      });
+      results.push(r);
+    }
   }
+
 
   console.log(`[webhook] Processados: ${results.length}`, JSON.stringify(results));
   return new Response(JSON.stringify({ received: results.length, results }), {
