@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, MessageCircle, Kanban, Users, LogOut, UserPlus, ListChecks,
-  Facebook, Calendar, Building2, TrendingUp, FileText, Megaphone, Plug, Activity, Target, CreditCard,
+  LayoutDashboard, MessageCircle, Users, LogOut, UserPlus, ListChecks,
+  Facebook, Building2, FileText, Megaphone, Plug, Activity, Target, CreditCard, GitBranch,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -13,37 +13,35 @@ import logoAsset from "@/assets/posion/logo-posion.png.asset.json";
 
 const navGroups = [
   {
-    label: "Comando",
+    label: "Agência POSION",
     items: [
       { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
-      { title: "Kanban", url: "/admin/kanban", icon: Kanban },
-      { title: "Leads", url: "/admin/leads", icon: Users },
+      { title: "Pipeline Agência", url: "/admin/pipeline", icon: GitBranch },
+      { title: "Contratos", url: "/admin/contratos-agencia", icon: FileText },
     ],
   },
   {
-    label: "Crescimento",
+    label: "Marketing",
     items: [
-      { title: "Campanhas & Anúncios", url: "/admin/campanhas", icon: Megaphone },
+      { title: "Campanhas Meta", url: "/admin/campanhas", icon: Megaphone },
+      { title: "Leads (formulário)", url: "/admin/leads", icon: Users },
+      { title: "Qualificação", url: "/admin/qualificacao", icon: ListChecks },
       { title: "Conexão Facebook", url: "/admin/facebook", icon: Facebook },
       { title: "Conversions API", url: "/admin/capi", icon: Target },
-      
-    ],
-
-  },
-  {
-    label: "Operação",
-    items: [
-      { title: "WhatsApp", url: "/admin/whatsapp", icon: MessageCircle, live: true },
-      { title: "Agendamentos", url: "/admin/agendamentos", icon: Calendar },
-      { title: "Qualificação", url: "/admin/qualificacao", icon: ListChecks },
     ],
   },
   {
-    label: "Plataforma",
+    label: "Clínicas Clientes",
     items: [
-      { title: "Clínicas Clientes", url: "/admin/tenants", icon: Building2 },
+      { title: "Clínicas", url: "/admin/tenants", icon: Building2 },
       { title: "Planos & Cobranças", url: "/admin/planos", icon: CreditCard },
-      { title: "Contratos", url: "/admin/contratos", icon: FileText },
+      { title: "Contratos SaaS", url: "/admin/contratos", icon: FileText },
+    ],
+  },
+  {
+    label: "Operação Master",
+    items: [
+      { title: "WhatsApp Master", url: "/admin/whatsapp", icon: MessageCircle, live: true },
       { title: "Conexão WhatsApp", url: "/admin/conexao-whatsapp", icon: Plug },
       { title: "Status WhatsApp", url: "/admin/whatsapp-status", icon: Activity },
       { title: "Usuários", url: "/admin/usuarios", icon: UserPlus },
