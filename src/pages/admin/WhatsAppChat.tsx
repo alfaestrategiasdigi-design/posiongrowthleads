@@ -77,6 +77,15 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Reply / reactions / audio recorder
+  const [reactions, setReactions] = useState<Record<string, MessageReaction[]>>({});
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [recording, setRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordChunksRef = useRef<Blob[]>([]);
+  const [recordStart, setRecordStart] = useState<number | null>(null);
+  const [recordTick, setRecordTick] = useState(0);
+
   // Config
   const [cfgOpen, setCfgOpen] = useState(false);
   const [conn, setConn] = useState<EvoConn>({ instance_url: "", api_key: "", instance_name: "", status: "disconnected" });
