@@ -148,6 +148,27 @@ Deno.serve(async (req) => {
           .from("leads").select("id").eq("facebook_lead_id", lead.id).maybeSingle();
         if (existing) { deduped++; continue; }
 
+        // Fase 2 — roteamento por mapeamento
+        const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
+          p_form_id: lead.form_id ?? formId,
+          p_ad_account_id: (cfg as any)?.ad_account_id ?? null,
+          p_page_id: (cfg as any)?.page_id ?? null,
+        });
+        const routedTenant = (rpc as string | null) ?? (cfg as any)?.default_tenant_id ?? null;
+
+        if (!routedTenant) {
+          await admin.from("unrouted_leads").insert({
+            raw_payload: lead,
+            form_id: lead.form_id ?? formId,
+            page_id: (cfg as any)?.page_id ?? null,
+            ad_account_id: (cfg as any)?.ad_account_id ?? null,
+            facebook_lead_id: lead.id,
+            nome, whatsapp, email,
+          });
+          failed++;
+          continue;
+        }
+
         const observacoesParts: string[] = [];
         if (instagram) observacoesParts.push(`Instagram: ${instagram}`);
         if (trafego)   observacoesParts.push(`Tráfego pago: ${trafego}`);
@@ -175,7 +196,7 @@ Deno.serve(async (req) => {
           utm_campaign: lead.campaign_name ?? null,
           utm_content: lead.ad_name ?? null,
           utm_term: lead.adset_name ?? null,
-          tenant_id: (cfg as any)?.default_tenant_id ?? null,
+          tenant_id: routedTenant,
           created_at: lead.created_time ?? undefined,
         } as any);
         if (error) {
@@ -184,6 +205,7 @@ Deno.serve(async (req) => {
         } else {
           imported++;
         }
+
       }
       url = j.paging?.next ?? null;
     }
