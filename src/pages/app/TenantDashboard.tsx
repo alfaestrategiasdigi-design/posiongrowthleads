@@ -75,16 +75,16 @@ export default function TenantDashboard() {
   }, [tenant]);
 
   const monthSales = useMemo(() =>
-    sales.filter((s) => {
-      const d = new Date(s.sale_date + "T00:00:00");
-      return d.getFullYear() === year && d.getMonth() + 1 === month;
-    }), [sales, year, month]);
+    sales.filter((s) => inRange(s.sale_date)), [sales, range]);
 
   const prevSales = useMemo(() => {
-    const pm = month === 1 ? 12 : month - 1;
-    const py = month === 1 ? year - 1 : year;
-    return sales.filter((s) => { const d = new Date(s.sale_date + "T00:00:00"); return d.getFullYear() === py && d.getMonth() + 1 === pm; });
-  }, [sales, year, month]);
+    const prevTo = subDays(range.from, 1);
+    const prevFrom = subDays(prevTo, periodDays - 1);
+    return sales.filter((s) => {
+      const d = new Date((s.sale_date || "") + "T12:00:00");
+      return d >= startOfDay(prevFrom) && d <= endOfDay(prevTo);
+    });
+  }, [sales, range, periodDays]);
 
   const trimester = useMemo(() => {
     const months = [-2, -1, 0].map((off) => {
