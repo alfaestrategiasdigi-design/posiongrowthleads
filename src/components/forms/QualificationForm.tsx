@@ -132,7 +132,7 @@ const QualificationForm = ({ fields: fieldsProp, preview = false }: Props) => {
 
       // Map answers: known db_column → column, else → extras jsonb
       const row: Record<string, any> = {
-        status: qualified ? "novo" : "desqualificado",
+        status: qualified ? "lead" : "perdido",
         revendedor_iniciante: false,
         origem: utms.utm_source?.toLowerCase().includes("facebook") ? "facebook_ads" : "site",
         mql: qualified,

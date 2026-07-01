@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
                   nome_completo: pushName || phone,
                   whatsapp: phone,
                   origem: "whatsapp",
-                  status: "novo",
+                  status: "lead",
                   is_organic: true,
                   observacoes: "Lead criado automaticamente via WhatsApp",
                 });

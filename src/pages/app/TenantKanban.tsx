@@ -12,19 +12,18 @@ import { Loader2, Plus, Phone, Globe2, Search } from "lucide-react";
 import { toast } from "sonner";
 
 type Stage =
-  | "contato_iniciado" | "qualificando" | "avaliacao_agendada" | "avaliacao_realizada"
-  | "negociando" | "fechado_ganho" | "fechado_perdido" | "no_show" | "futuro";
+  | "lead" | "qualificado" | "reuniao_agendada" | "compareceu"
+  | "negociacao" | "ganho" | "perdido" | "no_show";
 
 const STAGES: { id: Stage; title: string; accent: string; bg: string }[] = [
-  { id: "contato_iniciado",   title: "Novo",                accent: "#4F8CFF", bg: "rgba(79,140,255,0.15)" },
-  { id: "qualificando",       title: "Qualificado",         accent: "#A78BFA", bg: "rgba(167,139,250,0.15)" },
-  { id: "avaliacao_agendada", title: "Avaliação Agendada",  accent: "#D4AF37", bg: "rgba(212,175,55,0.15)" },
-  { id: "avaliacao_realizada",title: "Compareceu",          accent: "#D4AF37", bg: "rgba(212,175,55,0.22)" },
-  { id: "negociando",         title: "Em Negociação",       accent: "#F59E0B", bg: "rgba(245,158,11,0.15)" },
-  { id: "fechado_ganho",      title: "Fechado Ganho",       accent: "#22C55E", bg: "rgba(34,197,94,0.15)" },
-  { id: "fechado_perdido",    title: "Fechado Perdido",     accent: "#EF4444", bg: "rgba(239,68,68,0.15)" },
-  { id: "no_show",            title: "Sem Resposta",        accent: "#94A3B8", bg: "rgba(148,163,184,0.15)" },
-  { id: "futuro",             title: "Cancelado",           accent: "#64748B", bg: "rgba(100,116,139,0.15)" },
+  { id: "lead",             title: "Lead",              accent: "#4F8CFF", bg: "rgba(79,140,255,0.15)" },
+  { id: "qualificado",      title: "Qualificado",       accent: "#A78BFA", bg: "rgba(167,139,250,0.15)" },
+  { id: "reuniao_agendada", title: "Reunião Agendada",  accent: "#6366F1", bg: "rgba(99,102,241,0.15)" },
+  { id: "compareceu",       title: "Compareceu",        accent: "#8B5CF6", bg: "rgba(139,92,246,0.18)" },
+  { id: "negociacao",       title: "Negociação",        accent: "#F59E0B", bg: "rgba(245,158,11,0.15)" },
+  { id: "ganho",            title: "Ganho",             accent: "#22C55E", bg: "rgba(34,197,94,0.15)" },
+  { id: "perdido",          title: "Perdido",           accent: "#EF4444", bg: "rgba(239,68,68,0.15)" },
+  { id: "no_show",          title: "No-show",           accent: "#94A3B8", bg: "rgba(148,163,184,0.15)" },
 ];
 
 function daysIn(date: string | null) {
@@ -86,7 +85,7 @@ export default function TenantKanban() {
   async function moveLead(id: string, stage: Stage) {
     const lead = leads.find((l) => l.id === id);
     if (!lead || lead.stage === stage) return;
-    if (stage === "fechado_ganho") { setWinLead(lead); setDragId(null); return; }
+    if (stage === "ganho") { setWinLead(lead); setDragId(null); return; }
     const prev = leads;
     setLeads((cur) => cur.map((l) => (l.id === id ? { ...l, stage } : l)));
     const { error } = await supabase.from("clinic_leads").update({ stage }).eq("id", id);
@@ -213,7 +212,7 @@ export default function TenantKanban() {
 function NewLeadDialog({ tenantId, onCreated }: { tenantId: string; onCreated: () => void }) {
   const [form, setForm] = useState({
     full_name: "", whatsapp: "", channel: "", seller_name: "", procedure_interest: "",
-    stage: "contato_iniciado" as Stage,
+    stage: "lead" as Stage,
     first_contact_date: new Date().toISOString().slice(0, 10),
     notes: "", international: false,
   });
@@ -318,7 +317,7 @@ function WinSaleDialog({ lead, tenantId, onClose, onSaved }: {
     setSaving(true);
     const today = new Date().toISOString().slice(0, 10);
     const [u1, u2] = await Promise.all([
-      supabase.from("clinic_leads").update({ stage: "fechado_ganho", sale_amount: amt }).eq("id", lead.id),
+      supabase.from("clinic_leads").update({ stage: "ganho", sale_amount: amt }).eq("id", lead.id),
       supabase.from("sales").insert({
         tenant_id: tenantId,
         clinic_lead_id: lead.id,

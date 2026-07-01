@@ -13,22 +13,18 @@ import LeadDetailModal from "@/components/admin/LeadDetailModal";
 import type { Lead } from "@/types/admin";
 
 const statusLabels: Record<string, { label: string; color: string; dot: string }> = {
-  novo:               { label: "Novo",         color: "bg-sky-500/10 text-sky-300 border-sky-500/30",       dot: "bg-sky-400" },
-  mql:                { label: "MQL",          color: "bg-violet-500/10 text-violet-300 border-violet-500/30", dot: "bg-violet-400" },
-  sql:                { label: "SQL",          color: "bg-indigo-500/10 text-indigo-300 border-indigo-500/30", dot: "bg-indigo-400" },
-  em_contato:         { label: "Em Contato",   color: "bg-amber-500/10 text-amber-300 border-amber-500/30", dot: "bg-amber-400" },
-  reuniao_agendada:   { label: "Reunião",      color: "bg-cyan-500/10 text-cyan-300 border-cyan-500/30",   dot: "bg-cyan-400" },
-  reuniao_realizada:  { label: "Reunião OK",   color: "bg-teal-500/10 text-teal-300 border-teal-500/30",   dot: "bg-teal-400" },
-  proposta:           { label: "Proposta",     color: "bg-purple-500/10 text-purple-300 border-purple-500/30", dot: "bg-purple-400" },
-  negociacao:         { label: "Negociação",   color: "bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30", dot: "bg-fuchsia-400" },
-  negociando:         { label: "Negociando",   color: "bg-purple-500/10 text-purple-300 border-purple-500/30", dot: "bg-purple-400" },
-  ganho:              { label: "Ganho",        color: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30", dot: "bg-emerald-400" },
-  convertido:         { label: "Convertido",   color: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30", dot: "bg-emerald-400" },
-  perdido:            { label: "Perdido",      color: "bg-rose-500/10 text-rose-300 border-rose-500/30",   dot: "bg-rose-400" },
+  lead:             { label: "Lead",            color: "bg-slate-500/10 text-slate-300 border-slate-500/30",       dot: "bg-slate-400" },
+  qualificado:      { label: "Qualificado",     color: "bg-sky-500/10 text-sky-300 border-sky-500/30",             dot: "bg-sky-400" },
+  reuniao_agendada: { label: "R. Agendada",     color: "bg-indigo-500/10 text-indigo-300 border-indigo-500/30",    dot: "bg-indigo-400" },
+  compareceu:       { label: "Compareceu",      color: "bg-violet-500/10 text-violet-300 border-violet-500/30",    dot: "bg-violet-400" },
+  negociacao:       { label: "Negociação",      color: "bg-amber-500/10 text-amber-300 border-amber-500/30",       dot: "bg-amber-400" },
+  ganho:            { label: "Ganho",           color: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30", dot: "bg-emerald-400" },
+  perdido:          { label: "Perdido",         color: "bg-rose-500/10 text-rose-300 border-rose-500/30",          dot: "bg-rose-400" },
+  no_show:          { label: "No-show",         color: "bg-zinc-500/10 text-zinc-300 border-zinc-500/30",          dot: "bg-zinc-400" },
 };
 
-const QUALIFIED = ["mql","sql","reuniao_agendada","reuniao_realizada","proposta","negociacao"];
-const WON = ["ganho","convertido","fechado_ganho"];
+const QUALIFIED = ["qualificado","reuniao_agendada","compareceu","negociacao"];
+const WON = ["ganho"];
 
 const LeadsPage = () => {
   const [leads, setLeads] = useState<Lead[]>([]);

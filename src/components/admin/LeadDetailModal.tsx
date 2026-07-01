@@ -23,7 +23,7 @@ interface LeadDetailModalProps {
 }
 
 const LeadDetailModal = ({ lead, open, onClose, onUpdated }: LeadDetailModalProps) => {
-  const [status, setStatus] = useState<string>("novo");
+  const [status, setStatus] = useState<string>("lead");
   const [valor, setValor] = useState<string>("");
   const [motivoPerda, setMotivoPerda] = useState<string>("");
   const [observacoes, setObservacoes] = useState<string>("");
@@ -55,11 +55,10 @@ const LeadDetailModal = ({ lead, open, onClose, onUpdated }: LeadDetailModalProp
       motivo_perda: motivoPerda || null,
       observacoes: observacoes || null,
     };
-    if (status === "mql") patch.mql = true;
-    if (status === "sql") { patch.mql = true; patch.sql_qualified = true; }
+    if (status === "qualificado") { patch.mql = true; patch.sql_qualified = true; }
     if (status === "reuniao_agendada" && !lead.reuniao_agendada_em) patch.reuniao_agendada_em = now;
-    if (status === "reuniao_realizada" && !lead.reuniao_realizada_em) patch.reuniao_realizada_em = now;
-    if (status === "proposta" && !lead.proposta_enviada_em) patch.proposta_enviada_em = now;
+    if (status === "compareceu" && !lead.reuniao_realizada_em) patch.reuniao_realizada_em = now;
+    if (status === "negociacao" && !lead.proposta_enviada_em) patch.proposta_enviada_em = now;
     if ((status === "ganho" || status === "perdido") && !lead.fechado_em) patch.fechado_em = now;
 
     const { error } = await supabase.from("leads").update(patch as any).eq("id", lead.id);
