@@ -332,22 +332,24 @@ export default function TenantDashboard() {
         </Card>
       )}
 
-      {/* Trimester */}
-      <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Evolução Trimestral</CardTitle></CardHeader>
-        <CardContent className="grid md:grid-cols-3 gap-4">
-          {trimester.map((t, i) => {
-            const isCurrent = i === 2;
-            return (
-              <div key={`${t.y}-${t.m}`} className={`card-luxe p-4 ${isCurrent ? "card-luxe-accent" : ""}`}>
-                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{t.label}/{t.y}</div>
-                <div className="font-display text-2xl num mt-1 leading-none">{BRL(t.total)}</div>
-                <div className="text-[11px] text-muted-foreground mt-1 num">{t.count} vendas · {BRL(t.avg)} ticket</div>
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
+      {/* Trimester — só aparece se houver ao menos 1 mês com venda */}
+      {trimester.some((t) => t.total > 0) && (
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-base">Evolução Trimestral</CardTitle></CardHeader>
+          <CardContent className="grid md:grid-cols-3 gap-4">
+            {trimester.map((t, i) => {
+              const isCurrent = i === 2;
+              return (
+                <div key={`${t.y}-${t.m}`} className={`card-luxe p-4 ${isCurrent ? "card-luxe-accent" : ""}`}>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{t.label}/{t.y}</div>
+                  <div className="font-display text-2xl num mt-1 leading-none">{BRL(t.total)}</div>
+                  <div className="text-[11px] text-muted-foreground mt-1 num">{t.count} vendas · {BRL(t.avg)} ticket</div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {/* 30-day Evolution */}
       <Card>
