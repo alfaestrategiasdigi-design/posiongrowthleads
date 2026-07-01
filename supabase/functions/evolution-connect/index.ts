@@ -128,7 +128,10 @@ async function createInstance(base: string, apiKey: string, instanceName: string
   const response = await fetch(`${base}/instance/create`, {
     method: "POST",
     headers: { "Content-Type": "application/json", apikey: apiKey },
-    body: JSON.stringify({ instanceName, qrcode: true, integration: "WHATSAPP-BAILEYS" }),
+    body: JSON.stringify({
+      instanceName, qrcode: true, integration: "WHATSAPP-BAILEYS",
+      syncFullHistory: true, alwaysOnline: true, readMessages: true, readStatus: true,
+    }),
   });
   return { ok: response.ok, response, body: await safeJson(response) };
 }
@@ -141,10 +144,17 @@ async function buildWebhookUrl(admin: any, tenantId: string | null): Promise<str
 }
 
 async function configureWebhook(base: string, apiKey: string, instanceName: string, webhookUrl: string): Promise<void> {
-  const events = ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "CONTACTS_UPDATE", "CONTACTS_UPSERT", "CONNECTION_UPDATE"];
+  // Full coverage: inbound + outbound (from any device), status, contacts, reactions, deletes, edits, presence.
+  const events = [
+    "MESSAGES_UPSERT", "MESSAGES_UPDATE", "MESSAGES_DELETE",
+    "SEND_MESSAGE", "MESSAGES_REACTION", "MESSAGES_EDITED",
+    "CONTACTS_UPDATE", "CONTACTS_UPSERT",
+    "CHATS_UPSERT", "CHATS_UPDATE", "CHATS_DELETE",
+    "PRESENCE_UPDATE", "CONNECTION_UPDATE",
+  ];
   const bodies = [
-    { webhook: { enabled: true, url: webhookUrl, webhookByEvents: false, events } },
-    { enabled: true, url: webhookUrl, webhookByEvents: false, events },
+    { webhook: { enabled: true, url: webhookUrl, webhookByEvents: false, webhook_by_events: false, events } },
+    { enabled: true, url: webhookUrl, webhookByEvents: false, webhook_by_events: false, events },
   ];
   for (const body of bodies) {
     try {
@@ -153,9 +163,20 @@ async function configureWebhook(base: string, apiKey: string, instanceName: stri
         headers: { "Content-Type": "application/json", apikey: apiKey },
         body: JSON.stringify(body),
       });
-      if (r.ok) return;
+      if (r.ok) break;
     } catch (_) { /* non-fatal */ }
   }
+  // Enable full history sync + always-online for already-created instances.
+  try {
+    await fetch(`${base}/settings/set/${encodeURIComponent(instanceName)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: apiKey },
+      body: JSON.stringify({
+        syncFullHistory: true, alwaysOnline: true,
+        readMessages: true, readStatus: true, rejectCall: false,
+      }),
+    });
+  } catch (_) { /* non-fatal */ }
 }
 
 function normalizeBase(raw: string): string {
