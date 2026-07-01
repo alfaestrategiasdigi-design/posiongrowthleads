@@ -7,19 +7,18 @@ import LeadDetailModal from "./LeadDetailModal";
 import { PIPELINE_STAGES } from "@/types/admin";
 import type { Lead } from "@/types/admin";
 import {
-  Inbox, Filter, Target, Calendar, CheckCircle2, FileText, Handshake, Trophy, XCircle,
+  Inbox, Filter, Calendar, UserCheck, Handshake, Trophy, XCircle, CalendarX,
 } from "lucide-react";
 
 const iconMap: Record<string, any> = {
-  novo: Inbox,
-  mql: Filter,
-  sql: Target,
+  lead: Inbox,
+  qualificado: Filter,
   reuniao_agendada: Calendar,
-  reuniao_realizada: CheckCircle2,
-  proposta: FileText,
+  compareceu: UserCheck,
   negociacao: Handshake,
   ganho: Trophy,
   perdido: XCircle,
+  no_show: CalendarX,
 };
 
 interface KanbanBoardProps {
@@ -49,11 +48,10 @@ const KanbanBoard = ({ leads, onLeadsChange }: KanbanBoardProps) => {
 
     const patch: Record<string, any> = { status: newStatus };
     const now = new Date().toISOString();
-    if (newStatus === "mql") patch.mql = true;
-    if (newStatus === "sql") { patch.mql = true; patch.sql_qualified = true; }
+    if (newStatus === "qualificado") { patch.mql = true; patch.sql_qualified = true; }
     if (newStatus === "reuniao_agendada" && !lead.reuniao_agendada_em) patch.reuniao_agendada_em = now;
-    if (newStatus === "reuniao_realizada" && !lead.reuniao_realizada_em) patch.reuniao_realizada_em = now;
-    if (newStatus === "proposta" && !lead.proposta_enviada_em) patch.proposta_enviada_em = now;
+    if (newStatus === "compareceu" && !lead.reuniao_realizada_em) patch.reuniao_realizada_em = now;
+    if (newStatus === "negociacao" && !lead.proposta_enviada_em) patch.proposta_enviada_em = now;
     if (newStatus === "ganho" && !lead.fechado_em) patch.fechado_em = now;
     if (newStatus === "perdido" && !lead.fechado_em) patch.fechado_em = now;
 
