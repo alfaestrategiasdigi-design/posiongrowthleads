@@ -378,6 +378,9 @@ export default function TenantConfig() {
         </CardContent>
       </Card>
 
+      {/* Agenda config */}
+      {tenant && <AgendaConfigCard tenantId={tenant.id} />}
+
       {/* Facebook CAPI: gerenciado pelo Admin Master em /admin/capi */}
     </div>
   );
