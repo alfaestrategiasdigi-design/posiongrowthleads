@@ -41,9 +41,14 @@ Deno.serve(async (req) => {
   const media_url = payload.media_url ? String(payload.media_url) : null;
   const media_type = payload.media_type ? String(payload.media_type) : null;
   const caption = payload.caption ? String(payload.caption) : "";
+  const reply_to_wamid: string | null = payload.reply_to_wamid ? String(payload.reply_to_wamid) : null;
+  const reply_preview: string | null = payload.reply_preview ? String(payload.reply_preview) : null;
+  const reaction_wamid: string | null = payload.reaction_wamid ? String(payload.reaction_wamid) : null;
+  const reaction_emoji: string | null = payload.reaction_emoji != null ? String(payload.reaction_emoji) : null;
 
-  if (!conversation_id || (!text && !media_url)) {
-    return json({ error: "conversation_id + body ou media_url obrigatórios" }, 400);
+  if (!conversation_id) return json({ error: "conversation_id obrigatório" }, 400);
+  if (!text && !media_url && reaction_wamid == null) {
+    return json({ error: "body, media_url ou reaction_wamid obrigatórios" }, 400);
   }
 
   const { data: conv } = await admin.from("conversations")
@@ -76,14 +81,55 @@ Deno.serve(async (req) => {
 
   const number = (conv.remote_jid?.split("@")[0]) || conv.telefone.replace(/\D/g, "");
 
+  // ============ REACTION ============
+  if (reaction_wamid) {
+    try {
+      const r = await fetch(`${base}/message/sendReaction/${encodeURIComponent(conn.instance_name)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: conn.api_key },
+        body: JSON.stringify({
+          reactionMessage: {
+            key: { remoteJid: conv.remote_jid, fromMe: true, id: reaction_wamid },
+            reaction: reaction_emoji ?? "",
+          },
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) return json({ error: "Falha ao enviar reação", detail: j }, 502);
+      // Persist locally
+      if (reaction_emoji) {
+        await admin.from("message_reactions").upsert({
+          message_wamid: reaction_wamid,
+          conversation_id,
+          tenant_id: conv.tenant_id,
+          actor_jid: "me",
+          from_me: true,
+          emoji: reaction_emoji,
+        }, { onConflict: "message_wamid,actor_jid" });
+      } else {
+        await admin.from("message_reactions").delete()
+          .eq("message_wamid", reaction_wamid).eq("actor_jid", "me");
+      }
+      return json({ ok: true, reacted: true });
+    } catch (e) {
+      return json({ error: "Erro de rede (reação)", detail: String(e) }, 502);
+    }
+  }
+
   let wamid: string | null = null;
   try {
     let endpoint = `${base}/message/sendText/${encodeURIComponent(conn.instance_name)}`;
     let body: any = { number, text };
+    const quoted = reply_to_wamid ? {
+      quoted: {
+        key: { remoteJid: conv.remote_jid, fromMe: false, id: reply_to_wamid },
+        message: { conversation: reply_preview ?? "" },
+      },
+    } : {};
     if (media_url) {
       if (media_type === "audio") {
         endpoint = `${base}/message/sendWhatsAppAudio/${encodeURIComponent(conn.instance_name)}`;
-        body = { number, audio: media_url };
+        body = { number, audio: media_url, ...quoted };
       } else {
         endpoint = `${base}/message/sendMedia/${encodeURIComponent(conn.instance_name)}`;
         body = {
@@ -91,8 +137,11 @@ Deno.serve(async (req) => {
           mediatype: media_type === "video" ? "video" : media_type === "document" ? "document" : "image",
           media: media_url,
           caption: caption || text || undefined,
+          ...quoted,
         };
       }
+    } else {
+      body = { number, text, ...quoted };
     }
     const r = await fetch(endpoint, {
       method: "POST",
@@ -118,6 +167,8 @@ Deno.serve(async (req) => {
     direction: "outbound",
     status: "sent",
     wamid,
+    reply_to_wamid,
+    reply_preview,
     tenant_id: conv.tenant_id,
   });
   await admin.from("conversations").update({
