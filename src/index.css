@@ -149,9 +149,9 @@
     color: hsl(var(--primary));
   }
 
-  /* Repurposed: indigo→violet gradient (legacy class name kept) */
+  /* Gold gradient for hero text */
   .gold-gradient-text {
-    background: linear-gradient(135deg, hsl(234 89% 78%) 0%, hsl(245 85% 70%) 50%, hsl(265 90% 76%) 100%);
+    background: linear-gradient(135deg, #C9A84C 0%, #E4C876 50%, #D4B45C 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -163,57 +163,37 @@
     font-weight: 700;
   }
 
-  /* Luxe card — indigo-tinted glass with subtle gradient border */
+  /* Luxe card — black with gold hairline */
   .card-luxe {
     position: relative;
-    border-radius: 1rem;
-    background:
-      linear-gradient(180deg, hsl(238 44% 14% / 0.7) 0%, hsl(240 44% 8% / 0.85) 100%);
-    border: 1px solid hsl(240 30% 22% / 0.7);
+    border-radius: 0.5rem;
+    background: #111111;
+    border: 1px solid #1E1E1E;
     box-shadow:
-      0 1px 0 hsl(245 78% 70% / 0.06) inset,
-      0 20px 50px -25px rgba(0, 0, 0, 0.8),
-      0 0 0 1px hsl(0 0% 0% / 0.4);
-    transition: transform 0.35s cubic-bezier(.2,.7,.2,1), border-color 0.3s, box-shadow 0.3s;
-    backdrop-filter: blur(12px);
-  }
-  .card-luxe::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(135deg, hsl(245 78% 70% / 0.35), transparent 40%, transparent 60%, hsl(265 85% 70% / 0.25));
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-            mask-composite: exclude;
-    pointer-events: none;
-    opacity: 0.8;
+      0 1px 0 rgba(255,255,255,0.02) inset,
+      0 12px 32px -16px rgba(0, 0, 0, 0.6);
+    transition: border-color 0.25s, box-shadow 0.25s;
   }
   .card-luxe:hover {
-    transform: translateY(-2px);
-    border-color: hsl(245 78% 65% / 0.5);
-    box-shadow:
-      0 1px 0 hsl(245 78% 70% / 0.12) inset,
-      0 28px 60px -28px rgba(0, 0, 0, 0.9),
-      0 0 40px hsl(245 78% 60% / 0.18);
+    border-color: #2A2A2A;
   }
-  .card-luxe-accent::before {
-    background: linear-gradient(135deg, hsl(245 78% 70% / 0.6), hsl(265 85% 70% / 0.25) 40%, transparent 70%);
-    opacity: 1;
+  .card-luxe-accent {
+    border-color: rgba(201,168,76,0.35);
+    box-shadow:
+      0 1px 0 rgba(201,168,76,0.08) inset,
+      0 12px 32px -16px rgba(0, 0, 0, 0.7);
   }
 
   /* Subtle hairline divider */
   .hairline {
-    background: linear-gradient(90deg, transparent, hsl(240 30% 30% / 0.5) 20%, hsl(240 30% 30% / 0.5) 80%, transparent);
+    background: linear-gradient(90deg, transparent, #1E1E1E 20%, #1E1E1E 80%, transparent);
     height: 1px;
   }
 }
 
-/* Midnight backdrop with indigo grid */
+/* Black backdrop with subtle gold grid */
 .tech-bg {
-  background:
-    radial-gradient(ellipse at top, hsl(245 50% 12%) 0%, hsl(240 44% 6%) 60%, hsl(240 44% 4%) 100%);
+  background: radial-gradient(ellipse at top, #0F0F0F 0%, #0A0A0A 60%, #050505 100%);
   position: relative;
 }
 
@@ -222,8 +202,8 @@
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(79,70,229,0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(79,70,229,0.06) 1px, transparent 1px);
+    linear-gradient(rgba(201,168,76,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(201,168,76,0.04) 1px, transparent 1px);
   background-size: 60px 60px;
   -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 20%, #000 40%, transparent 90%);
           mask-image: radial-gradient(ellipse 70% 60% at 50% 20%, #000 40%, transparent 90%);
@@ -232,47 +212,45 @@
 
 .geo-pattern {
   background-image:
-    radial-gradient(circle at 20% 30%, hsl(245 78% 60% / 0.12) 0%, transparent 50%),
-    radial-gradient(circle at 80% 70%, hsl(265 85% 65% / 0.10) 0%, transparent 50%);
+    radial-gradient(circle at 20% 30%, rgba(201,168,76,0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(201,168,76,0.05) 0%, transparent 50%);
 }
 
 .glow-gold {
-  box-shadow: 0 0 30px hsl(245 78% 60% / 0.4), 0 0 60px hsl(265 85% 65% / 0.18);
+  box-shadow: 0 0 30px rgba(201,168,76,0.35), 0 0 60px rgba(201,168,76,0.15);
 }
 
 .gradient-tech {
-  background: linear-gradient(135deg, hsl(240 44% 6%) 0%, hsl(238 44% 12%) 100%);
+  background: linear-gradient(135deg, #0A0A0A 0%, #111111 100%);
 }
 
 .gradient-header {
-  background: linear-gradient(180deg, hsl(240 50% 5%) 0%, hsl(240 44% 7%) 100%);
+  background: linear-gradient(180deg, #0D0D0D 0%, #0A0A0A 100%);
 }
 
 .gradient-accent {
-  background: linear-gradient(135deg, hsl(245 78% 59%) 0%, hsl(255 85% 65%) 50%, hsl(265 85% 70%) 100%);
+  background: linear-gradient(135deg, #C9A84C 0%, #D4B45C 50%, #E4C876 100%);
 }
 
 .gradient-accent-hover {
-  background: linear-gradient(135deg, hsl(245 82% 64%) 0%, hsl(255 88% 70%) 50%, hsl(265 88% 75%) 100%);
+  background: linear-gradient(135deg, #D4B45C 0%, #E4C876 50%, #F0D78C 100%);
 }
 
 .card-elevated {
-  @apply bg-card border border-border/50 rounded-2xl;
+  @apply bg-card border border-border/50 rounded-lg;
   box-shadow:
     0 4px 6px -1px rgba(0, 0, 0, 0.5),
-    0 10px 30px -10px rgba(0, 0, 0, 0.6),
-    0 0 40px hsl(245 78% 60% / 0.08);
+    0 10px 30px -10px rgba(0, 0, 0, 0.6);
 }
 
 .card-tech {
-  @apply bg-secondary/50 backdrop-blur-sm border border-border/30 rounded-xl;
-  transition: all 0.3s ease;
+  @apply bg-card border border-border/60 rounded-lg;
+  transition: all 0.25s ease;
 }
 
 .card-tech:hover {
-  @apply border-accent/50;
-  box-shadow: 0 0 24px hsl(245 78% 60% / 0.22);
-  transform: translateY(-2px);
+  border-color: rgba(201,168,76,0.35);
+  box-shadow: 0 0 24px rgba(201,168,76,0.15);
 }
 
 /* Custom animations */
