@@ -58,23 +58,33 @@ const App = () => (
           <Route path="/app/:tenantSlug/dashboard" element={<AppLayout><TenantDashboard /></AppLayout>} />
           <Route path="/app/:tenantSlug/whatsapp" element={<AppLayout><TenantWhatsApp /></AppLayout>} />
           <Route path="/app/:tenantSlug/kanban" element={<AppLayout><TenantKanban /></AppLayout>} />
+          {/* Tenant SaaS area */}
+          <Route path="/app" element={<AppLayout><div /></AppLayout>} />
+          <Route path="/app/:tenantSlug/dashboard" element={<AppLayout><TenantDashboard /></AppLayout>} />
+          <Route path="/app/:tenantSlug/whatsapp" element={<AppLayout><TenantWhatsApp /></AppLayout>} />
+          <Route path="/app/:tenantSlug/kanban" element={<AppLayout><TenantKanban /></AppLayout>} />
           <Route path="/app/:tenantSlug/pacientes" element={<AppLayout><TenantPatients /></AppLayout>} />
-          <Route path="/app/:tenantSlug/vendas" element={<AppLayout><TenantSales /></AppLayout>} />
+          <Route path="/app/:tenantSlug/financeiro" element={<AppLayout><TenantSales /></AppLayout>} />
+          <Route path="/app/:tenantSlug/vendas" element={<Navigate to="../financeiro" replace />} />
           <Route path="/app/:tenantSlug/agenda" element={<AppLayout><TenantAgenda /></AppLayout>} />
           <Route path="/app/:tenantSlug/config" element={<AppLayout><TenantConfig /></AppLayout>} />
-          <Route path="/app/:tenantSlug/prontuario" element={<AppLayout><TenantProntuario /></AppLayout>} />
-          <Route path="/app/:tenantSlug/recall" element={<AppLayout><TenantRecall /></AppLayout>} />
+          <Route path="/app/:tenantSlug/produtos" element={<AppLayout><TenantProductsConfig /></AppLayout>} />
+          <Route path="/app/:tenantSlug/prontuario" element={<Navigate to="../pacientes" replace />} />
+          <Route path="/app/:tenantSlug/automacoes" element={<AppLayout><TenantRecall /></AppLayout>} />
+          <Route path="/app/:tenantSlug/recall" element={<Navigate to="../automacoes" replace />} />
           <Route path="/app/:tenantSlug/planos" element={<AppLayout><TenantPlans /></AppLayout>} />
 
           {/* Posion master admin */}
           <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
+          <Route path="/admin/pipeline" element={<AdminLayout><AgencyPipelinePage /></AdminLayout>} />
+          <Route path="/admin/contratos-agencia" element={<AdminLayout><AgencyContractsPage /></AdminLayout>} />
           <Route path="/admin/tenants" element={<AdminLayout><TenantsPage /></AdminLayout>} />
           <Route path="/admin/contratos" element={<AdminLayout><ContractsPage /></AdminLayout>} />
           <Route path="/admin/agendamentos" element={<AdminLayout><AppointmentsPage /></AdminLayout>} />
           <Route path="/admin/whatsapp" element={<AdminLayout><WhatsAppChat masterMode /></AdminLayout>} />
-          <Route path="/admin/kanban" element={<AdminLayout><KanbanPage /></AdminLayout>} />
+          <Route path="/admin/kanban" element={<Navigate to="/admin/pipeline" replace />} />
           <Route path="/admin/leads" element={<AdminLayout><LeadsPage /></AdminLayout>} />
-          
+
           <Route path="/admin/conexao-whatsapp" element={<AdminLayout><ConexaoWhatsappPage /></AdminLayout>} />
           <Route path="/admin/whatsapp-status" element={<AdminLayout><WhatsAppStatusPage /></AdminLayout>} />
           <Route path="/admin/usuarios" element={<AdminLayout><CreateUserPage /></AdminLayout>} />
@@ -82,7 +92,6 @@ const App = () => (
           <Route path="/admin/facebook" element={<AdminLayout><FacebookConfigPage /></AdminLayout>} />
           <Route path="/admin/capi" element={<AdminLayout><CapiConfigPage /></AdminLayout>} />
           <Route path="/admin/campanhas" element={<AdminLayout><CampanhasPage /></AdminLayout>} />
-          
 
           <Route path="/admin/meta-ads" element={<Navigate to="/admin/campanhas" replace />} />
           <Route path="/admin/planos" element={<AdminLayout><SubscriptionsPage /></AdminLayout>} />
