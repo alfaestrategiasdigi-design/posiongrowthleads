@@ -100,7 +100,7 @@ function rowToLead(row: ParsedRow) {
     nome_empresa: row["company_name"] || null,
     especialidade: row["você_já_realiza_cirurgias_de_transplante_capilar?"] || null,
     faturamento_mensal: row["qual_o_faturamento_médio_mensal_da_sua_clínica_hoje?"] || null,
-    status: "novo",
+    status: "lead",
     origem: "facebook_ads",
     revendedor_iniciante: false,
     facebook_lead_id: row["id"] || null,
@@ -1286,7 +1286,7 @@ function LeadsTab({ reloadKey }: { reloadKey: number }) {
         </div>
         <div className="rounded-xl border border-border/50 bg-card p-4">
           <div className="text-xs text-muted-foreground">Novos (não trabalhados)</div>
-          <div className="text-2xl font-bold text-foreground">{leads.filter(l => l.status === "novo").length}</div>
+          <div className="text-2xl font-bold text-foreground">{leads.filter(l => l.status === "lead").length}</div>
         </div>
       </div>
 
