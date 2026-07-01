@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Calendar as CalIcon, ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { useTenantApptConfig } from "@/hooks/useTenantApptConfig";
 
 interface Appointment {
   id: string;
@@ -32,8 +33,6 @@ const STATUS_COLORS: Record<string, { bg: string; fg: string; label: string }> =
   reagendado:  { bg: "#EAB30822", fg: "#EAB308", label: "Reagendado" },
   cancelado:   { bg: "#94A3B822", fg: "#94A3B8", label: "Cancelado" },
 };
-const TYPES = ["Avaliação Gold","Consulta","Retorno","Procedimento","Outro"];
-const RESPONSIBLES = ["Dr Matheus","Aline","Mayara","Isabelle","Tamara"];
 
 const WEEKDAYS = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
