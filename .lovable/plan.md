@@ -1,113 +1,135 @@
+# Plano — WhatsApp Bidirecional Completo + Kanban alinhado
 
-# Implementação P2 → P7
+## Diagnóstico
 
-Aviso honesto: são ~7 frentes grandes tocando >15 arquivos + schema novo + cron. Vou entregar tudo em um turno de build, mas priorizando **funcional acima de perfeição estética**. Refinos finos de tema em telas secundárias podem exigir um segundo passe.
+**1) Enviados não aparecem**
+- O `whatsapp-webhook` já processa `fromMe=true` (linhas 173/261/267), mas o `evolution-connect` assina apenas os eventos padrão (`MESSAGES_UPSERT, MESSAGES_UPDATE, CONTACTS_UPDATE, CONTACTS_UPSERT, CONNECTION_UPDATE`) — na Evolution v2, mensagens enviadas por **outros dispositivos** (celular do médico, WhatsApp Web nativo) só chegam quando o webhook também escuta `SEND_MESSAGE` e a instância está com `syncFullHistory` ativo. Além disso, o `evolution-send` grava com `sender:"usuario"` mas quando o mesmo texto volta via webhook cai como duplicata silenciosa (o `dup` check por `wamid` funciona só se veio wamid da API — precisa reconciliar por `(conversation_id, wamid)` e por `(remote_jid, timestamp, texto)`).
+- O `evolution-sync-chats` (histórico) hoje só puxa inbound. Precisa puxar todo o histórico bidirecional na primeira sincronização.
 
-## P2 — Tema visual preto POSION
+**2) Recursos WhatsApp incompletos**
+- Já renderiza `image/audio/video/document`. Faltam: **sticker, location, contact card, reply/quote (mensagem citada), reactions (👍❤️), forward, edited messages, deleted (revoked), presença "digitando…", indicador online, gravação de áudio in-app, envio de múltiplas mídias, preview de link, busca dentro da conversa, marcar como não lida/fixar/arquivar**.
+- Falta ingestão de `stickerMessage`, `locationMessage`, `contactMessage`, `contextInfo.quotedMessage` e eventos `MESSAGES_REACTION` / `MESSAGES_DELETE` / `PRESENCE_UPDATE` / `CHATS_UPDATE`.
 
-Reescrever tokens em `src/index.css` (e `tailwind.config.ts` se necessário):
+**3) Kanban vs Dashboard KPIs**
+- `TenantKanban.tsx:21` usa `"Reunião Agendada"` mas `PIPELINE_STAGES` já foi padronizado para `"CONSULTA AGENDADA"`. `TenantDashboard.tsx:22-24` usa `FUNNEL_ORDER` próprio (com label `"R. Agendada"`) — três fontes de verdade divergentes. O funil precisa ser único, vindo de `PIPELINE_STAGES`.
 
-- `--background: 0 0% 3.9%` (#0A0A0A), `--card: 0 0% 6.7%` (#111111), `--muted/elevated: 0 0% 9.4%` (#181818), `--input: 0 0% 7.8%` (#141414)
-- `--border: 0 0% 16.5%` (#2A2A2A), `--border-subtle: 0 0% 11.8%` (#1E1E1E)
-- `--foreground: 0 0% 100%`, `--muted-foreground: 0 0% 60.4%` (#9A9A9A), `--tertiary: 0 0% 37.6%` (#606060)
-- `--primary: 44 55% 54%` (#C9A84C dourado), `--primary-hover: 44 58% 60%` (#D4B45C), `--primary-foreground: 0 0% 0%`
-- Sidebar tokens: `--sidebar-background: 0 0% 5.1%` (#0D0D0D), item ativo com `border-left: 2px #C9A84C` + fundo `#C9A84C15`
-- Recharts helper CSS: grid `#1E1E1E`, labels `#606060`, tooltip fundo `#1A1A1A` + borda `#2A2A2A`
+## Escopo desta implementação
 
-Auditar `src/components/admin/AdminLayout.tsx`, `AppSidebar.tsx` e páginas com cores hard-coded (`#0f0f23`, `bg-slate-*`, roxo/indigo) e trocar por tokens semânticos.
+### Fase A — WhatsApp bidirecional (o que o usuário está pedindo direto)
+1. **`evolution-connect`**: adicionar eventos `SEND_MESSAGE`, `MESSAGES_DELETE`, `MESSAGES_REACTION`, `PRESENCE_UPDATE`, `CHATS_UPSERT`, `CHATS_UPDATE` à assinatura de webhook e ligar `syncFullHistory: true` no create/set-settings.
+2. **`whatsapp-webhook`**: 
+   - Tratar `send.message`/`SEND_MESSAGE` idêntico a `messages.upsert` com `fromMe=true` (garante que envios feitos do celular do médico apareçam).
+   - Ingestão de novos tipos: `stickerMessage`, `locationMessage`, `contactMessage`, `reactionMessage`, `pollMessage`, `templateMessage`.
+   - Extração de `contextInfo.quotedMessage` → coluna nova `reply_to_wamid` em `messages`.
+   - Evento `messages.delete` → marcar `deleted_at`.
+   - Evento `messages.reaction` → nova tabela `message_reactions (message_wamid, emoji, actor_jid, created_at)`.
+   - Dedup reforçado: além de `wamid`, checar `(conversation_id, sender, conteudo, created_at±5s)` para blindar contra envios locais que ecoam via webhook.
+3. **`evolution-sync-chats`**: puxar histórico bidirecional (endpoint `/chat/findMessages` sem filtro fromMe) e importar N últimas mensagens por conversa.
+4. **UI `WhatsAppChat.tsx`**:
+   - Renderizar novos tipos (sticker como imagem menor, location como mini-mapa/link, contact card, reply quoted acima da bolha).
+   - Renderizar reactions embaixo da bolha (agrupadas por emoji).
+   - Riscar mensagens deletadas ("🚫 Mensagem apagada").
+   - Indicador "digitando…" (Realtime na tabela `presences`).
+   - **Gravador de áudio in-app** (MediaRecorder API → webm → upload → `evolution-send` com `media_type:"audio"`).
+   - Preview de link automático (unfurl via edge function nova `link-preview`).
+   - Ações por conversa: **fixar, arquivar, marcar não lida** (colunas `pinned_at`, `archived_at` em `conversations`).
+   - Busca full-text dentro da conversa selecionada.
+   - Botão de responder (reply) em qualquer mensagem → envia com `quoted` para Evolution.
+5. **Realtime**: canal em `messages` e `conversations` já existe, adicionar canais em `message_reactions` e `presences`.
 
-## P3 — Agenda configurável por tenant
+### Fase B — Alinhar Kanban ↔ Dashboard
+1. Fonte única: `PIPELINE_STAGES` em `src/types/admin.ts`.
+2. `TenantKanban.tsx` passa a montar as colunas a partir de `PIPELINE_STAGES` (elimina o array local, corrige "Reunião Agendada" → "CONSULTA AGENDADA").
+3. `TenantDashboard.tsx` deriva `FUNNEL_ORDER` e labels de `PIPELINE_STAGES` (mesma ordem, mesmos rótulos). Adiciona bloco "Funil por estágio" clicável — clicar leva ao Kanban filtrado por estágio.
+4. Card **Taxas de Conversão** no dashboard já existente passa a usar as taxas canônicas: Lead → Qualificado, Qualificado → Consulta, Consulta → Compareceu, Compareceu → Ganho.
 
-**Migração** (`tenant_appointment_config`):
-
-```text
-tenant_id (UNIQUE) · appointment_types text[] · team_members jsonb 
-  [{name, role}] · working_hours jsonb · default_duration_minutes int
-+ GRANT + RLS (has_tenant_access + is_tenant_admin para update)
-+ trigger updated_at
-```
-
-- `src/pages/app/TenantAgenda.tsx`: modal Novo Agendamento passa a ler tipos/responsáveis/duração da config. Se vazio → input livre. Fallback pros tipos default do enum.
-- `src/pages/app/TenantConfig.tsx`: nova aba/seção **Agenda** com:
-  - chips editáveis de tipos (add/remove)
-  - lista de membros com Nome + Cargo
-  - horário por dia da semana com toggle "Fechado"
-  - input de duração padrão
-
-## P4 — Fechamentos melhorado
-
-`src/pages/app/TenantSales.tsx`:
-
-- Vendedor: dropdown carregado de `tenant_appointment_config.team_members` (fallback texto livre)
-- Procedimento: `Input` texto livre
-- Pagamento: select `PIX | Crédito | PIX+Crédito | PayPal | Outro` — se Crédito, aparece select de parcelas 1–12
-- Canal: puxa de `channels` do tenant (com fallback livre)
-- Compareceu: `Sim | Não | Futura`
-- 1º Contato: date picker · Toggle internacional + campo "prevista chegada"
-- Tabela: colunas Data/Cliente/Procedimento/Vendedor/Valor/Pagamento/Canal/Status
-- Filtros topo: período, vendedor, canal, procedimento + totalizadores (faturamento, nº vendas, ticket)
-
-## P5 — Recall funcional
-
-**Migração**: reaproveitar `recall_campaigns` e `recall_executions` existentes; adicionar campos que faltem (`type` enum: `pos_procedure|birthday|reactivation_90d`, `message_template`, `enabled`, `last_run_at`).
-
-**Edge function** `recall-runner`:
-- Para cada tenant com regras ativas:
-  - **pos_procedure**: appointments com `status='compareceu'` e `date = today - 1`
-  - **birthday**: patients cujo `data_nascimento` bate mês/dia com hoje
-  - **reactivation_90d**: patients sem appointment nos últimos 90d
-- Renderiza template com `{nome} {procedimento} {data_ultimo_atendimento}` e chama `evolution-send-message` na instância do tenant
-- Registra em `recall_executions`
-
-**pg_cron**: agendar diariamente 09:00 (via `supabase--insert`, não migração — contém anon key).
-
-**UI** `src/pages/app/TenantRecall.tsx`: tabela dos 3 tipos (ativo/inativo), editor de mensagem com variáveis, histórico últimos 30d (enviados / respostas via mensagens inbound subsequentes).
-
-## P6 — Dashboard tenant (reforço)
-
-Em `src/pages/app/TenantDashboard.tsx` (já tem alertas + ranking + sparklines):
-
-- **Alertas**: adicionar regra "leads sem follow-up 48h" (leads sem `updated_at` recente) e link "Ver leads"
-- **Card Agenda de hoje**: query em `appointments` para `date = today` do tenant, ordenar por hora, mostrar até 6 com botão "Ver agenda completa"
-- Confirmar ranking (já existe) com janela 30d como opção
-
-## P7 — Pacientes útil
-
-`src/pages/app/TenantPatients.tsx`:
-
-- Modal **Novo Paciente**: nome*, telefone*, nascimento, email, origem (channels), observações
-- Row clicável → drawer/página com **4 abas**:
-  1. Dados pessoais (edit inline)
-  2. Agendamentos (query `appointments` por `patient_id` ou telefone)
-  3. Compras (query `sales` por telefone/nome)
-  4. WhatsApp (link `/app/{slug}/whatsapp?jid={telefone}`)
-- Coluna **Total Gasto** = soma `sales.amount` por telefone/nome (computado client-side na listagem)
+### Fase C — Diferenciais competitivos ("tecnologia que só este sistema vai ter")
+1. **Timeline unificada do lead**: novo drawer no Kanban que junta em ordem cronológica — evento de origem (Facebook Ad/form), primeira mensagem WhatsApp, mudanças de estágio, agendamentos, vendas, disparo CAPI. Uma view SQL `lead_timeline` agrega das tabelas `leads`, `messages`, `lead_stage_history`, `appointments`, `sales`, `capi_events`.
+2. **Auto-tag por IA na conversa**: edge function `wa-ai-tagger` que, a cada nova mensagem inbound, chama Lovable AI Gateway (Gemini flash) para extrair intenção (`interessado_procedimento`, `pediu_preco`, `agendou`, `objecao_valor`, `frio`) e aplica tag na conversa + move o lead no funil quando detecta "quero agendar" / "posso fechar".
+3. **Score de temperatura do lead** (0-100) calculado a cada mensagem: recência + volume + palavras-chave positivas. Coluna `heat_score` em `leads`, badge colorido no card do Kanban e ordenação por temperatura.
+4. **Rastreio UTM ponta-a-ponta**: quando o webhook cria lead do WhatsApp, se a última mensagem tem `wa.me/?text=` ou vem de link com UTM registrado (tabela `utm_touches`), atribuir campanha/adset/ad ao lead. Dashboard mostra ROAS real por criativo.
+5. **Alerta SLA de resposta**: se conversa inbound ficar > 10min sem resposta, badge vermelho + notificação sonora no navegador + registro na tabela `sla_breaches`. KPI "Tempo médio de 1ª resposta" no dashboard.
 
 ## Detalhes técnicos
 
-**Schema novo:**
-- `tenant_appointment_config` (UNIQUE tenant_id, RLS: SELECT via has_tenant_access, UPDATE/INSERT via is_tenant_admin)
-- Alterações em `recall_campaigns` se necessário
+### Schema
+```sql
+alter table public.messages
+  add column reply_to_wamid text,
+  add column deleted_at timestamptz,
+  add column edited_at timestamptz,
+  add column location jsonb,          -- {lat, lng, name, address}
+  add column contact_card jsonb;      -- {name, phones[]}
 
-**Edge functions:**
-- `recall-runner` (novo) — verify_jwt=false, service role, itera tenants
-- Reutiliza `evolution-send-message` existente
+create table public.message_reactions (
+  id uuid primary key default gen_random_uuid(),
+  message_wamid text not null,
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
+  actor_jid text not null,
+  emoji text not null,
+  created_at timestamptz default now(),
+  unique(message_wamid, actor_jid)
+);
 
-**Cron:** `select cron.schedule('posion-recall-daily', '0 12 * * *', ...)` — 09h BRT = 12 UTC
+alter table public.conversations
+  add column pinned_at timestamptz,
+  add column archived_at timestamptz,
+  add column marked_unread boolean default false;
 
-## Ordem de execução no build
+alter table public.leads
+  add column heat_score int default 0,
+  add column heat_updated_at timestamptz;
 
-1. Migração `tenant_appointment_config` + ajustes `recall_campaigns`
-2. Tokens de tema (`index.css` + `tailwind.config.ts`)
-3. `TenantConfig` (aba Agenda) → `TenantAgenda` (modal usa config)
-4. `TenantSales` (equipe da config + campos novos + filtros)
-5. `recall-runner` edge function + cron + `TenantRecall` UI
-6. `TenantDashboard` (agenda do dia + alerta 48h)
-7. `TenantPatients` (modal + perfil com abas)
-8. Auditoria visual rápida das telas admin para remover azul/roxo residual
+create table public.sla_breaches (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid, conversation_id uuid references public.conversations(id) on delete cascade,
+  triggered_at timestamptz default now(), minutes_waited int
+);
 
-## Fora de escopo deste turno
+create table public.utm_touches (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid, phone text, utm_source text, utm_medium text,
+  utm_campaign text, utm_content text, created_at timestamptz default now()
+);
 
-- P1 (Leads de Campanhas no menu do tenant) — não pediu explicitamente, marcar como próximo passo
-- Refino pixel-perfect em telas admin secundárias (Contracts, Facebook config) — trocar só tokens
-- Testes automatizados
+create or replace view public.lead_timeline as
+  select 'stage_change' as kind, id::text as ref, tenant_id, lead_id, changed_at as ts, jsonb_build_object('from', from_status,'to', to_status) as data
+  from lead_stage_history
+  union all select 'message', m.id::text, m.tenant_id, l.id, m.created_at,
+    jsonb_build_object('direction', m.direction, 'text', m.conteudo, 'type', m.tipo)
+  from messages m join conversations c on c.id = m.conversation_id
+  left join leads l on l.tenant_id = c.tenant_id and l.whatsapp = c.telefone
+  -- ... appointments, sales, capi_events
+;
+```
+Todos com `GRANT` + RLS por `has_tenant_access`.
+
+### Edge functions novas
+- `wa-ai-tagger` — trigger via pg_net após insert em `messages` (inbound only).
+- `wa-heat-score` — job pg_cron a cada 5min recalcula `heat_score`.
+- `sla-monitor` — pg_cron 1min, detecta conversas inbound sem resposta.
+- `link-preview` — POST { url } → { title, description, image }.
+
+### Arquivos afetados
+- `supabase/functions/evolution-connect/index.ts` — eventos + syncFullHistory
+- `supabase/functions/whatsapp-webhook/index.ts` — novos tipos, dedup reforçado, reactions, delete
+- `supabase/functions/evolution-sync-chats/index.ts` — histórico bidirecional
+- `supabase/functions/evolution-send/index.ts` — suporte a reply (`quoted`) e reaction
+- `src/pages/admin/WhatsAppChat.tsx` — renderers, gravador de áudio, ações, timeline
+- `src/pages/app/TenantWhatsApp.tsx` — herdar mesmos renderers
+- `src/pages/app/TenantKanban.tsx` — usar `PIPELINE_STAGES` como fonte + badge heat_score + drawer timeline
+- `src/pages/app/TenantDashboard.tsx` — funil derivado de `PIPELINE_STAGES`, KPI SLA de resposta
+- `src/types/admin.ts` — expor helper `getFunnelOrder()`
+
+## O que fica de fora (aviso honesto)
+- Chamadas de voz/vídeo via WhatsApp — Evolution API não expõe endpoint estável para isso; ícones de call ficam decorativos.
+- Envio de figurinhas personalizadas (só recebimento) — Evolution v2 não tem `sendSticker` confiável em Baileys.
+- Status/Stories — fora do escopo do CRM.
+
+## Ordem de execução (uma ida só, sem quebrar em fases separadas)
+1. Migration (schema + view + grants + RLS).
+2. Edge functions (connect, webhook, sync-chats, send, wa-ai-tagger, wa-heat-score, sla-monitor, link-preview).
+3. UI Kanban unificado com PIPELINE_STAGES + heat badge + drawer timeline.
+4. UI Dashboard funil derivado + KPI SLA.
+5. UI WhatsAppChat com renderers completos, gravador de áudio, ações (pin/arquivar/reply/reaction), busca in-chat.
+6. Reconectar cada instância Evolution existente (script SQL faz upsert nos webhooks para todas as `zapi_connections` ativas).

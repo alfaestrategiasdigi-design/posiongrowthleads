@@ -594,12 +594,15 @@ export type Database = {
       }
       conversations: {
         Row: {
+          archived_at: string | null
           created_at: string
           foto_url: string | null
           id: string
           lead_id: string | null
+          marked_unread: boolean | null
           nao_lidas: number
           nome_contato: string | null
+          pinned_at: string | null
           provider: string | null
           remote_jid: string | null
           telefone: string
@@ -608,12 +611,15 @@ export type Database = {
           ultima_mensagem: string | null
         }
         Insert: {
+          archived_at?: string | null
           created_at?: string
           foto_url?: string | null
           id?: string
           lead_id?: string | null
+          marked_unread?: boolean | null
           nao_lidas?: number
           nome_contato?: string | null
+          pinned_at?: string | null
           provider?: string | null
           remote_jid?: string | null
           telefone: string
@@ -622,12 +628,15 @@ export type Database = {
           ultima_mensagem?: string | null
         }
         Update: {
+          archived_at?: string | null
           created_at?: string
           foto_url?: string | null
           id?: string
           lead_id?: string | null
+          marked_unread?: boolean | null
           nao_lidas?: number
           nome_contato?: string | null
+          pinned_at?: string | null
           provider?: string | null
           remote_jid?: string | null
           telefone?: string
@@ -1152,17 +1161,64 @@ export type Database = {
           },
         ]
       }
+      message_reactions: {
+        Row: {
+          actor_jid: string
+          conversation_id: string
+          created_at: string
+          emoji: string
+          from_me: boolean | null
+          id: string
+          message_wamid: string
+          tenant_id: string | null
+        }
+        Insert: {
+          actor_jid: string
+          conversation_id: string
+          created_at?: string
+          emoji: string
+          from_me?: boolean | null
+          id?: string
+          message_wamid: string
+          tenant_id?: string | null
+        }
+        Update: {
+          actor_jid?: string
+          conversation_id?: string
+          created_at?: string
+          emoji?: string
+          from_me?: boolean | null
+          id?: string
+          message_wamid?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_reactions_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
+          contact_card: Json | null
           conteudo: string
           conversation_id: string
           created_at: string
+          deleted_at: string | null
           direction: string | null
+          edited_at: string | null
           id: string
           lida: boolean
+          location: Json | null
           media_mime: string | null
           media_type: string | null
           media_url: string | null
+          reply_preview: string | null
+          reply_to_wamid: string | null
           sender: string
           status: string | null
           tenant_id: string | null
@@ -1171,15 +1227,21 @@ export type Database = {
           wamid: string | null
         }
         Insert: {
+          contact_card?: Json | null
           conteudo: string
           conversation_id: string
           created_at?: string
+          deleted_at?: string | null
           direction?: string | null
+          edited_at?: string | null
           id?: string
           lida?: boolean
+          location?: Json | null
           media_mime?: string | null
           media_type?: string | null
           media_url?: string | null
+          reply_preview?: string | null
+          reply_to_wamid?: string | null
           sender: string
           status?: string | null
           tenant_id?: string | null
@@ -1188,15 +1250,21 @@ export type Database = {
           wamid?: string | null
         }
         Update: {
+          contact_card?: Json | null
           conteudo?: string
           conversation_id?: string
           created_at?: string
+          deleted_at?: string | null
           direction?: string | null
+          edited_at?: string | null
           id?: string
           lida?: boolean
+          location?: Json | null
           media_mime?: string | null
           media_type?: string | null
           media_url?: string | null
+          reply_preview?: string | null
+          reply_to_wamid?: string | null
           sender?: string
           status?: string | null
           tenant_id?: string | null

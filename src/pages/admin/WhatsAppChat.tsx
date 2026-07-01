@@ -4,8 +4,9 @@ import {
   Search, Send, Paperclip, Phone, MoreVertical, MessageCircle, Smile,
   Settings, QrCode, Copy, CheckCircle2, Loader2, Wifi, WifiOff, RefreshCw,
   Tag as TagIcon, Sparkles, Filter, FileText, Check, CheckCheck, AlertTriangle,
-  Plus, X, Trash2,
+  Plus, X, Trash2, Reply, MapPin, User as UserIcon, Mic, StopCircle, CornerDownRight,
 } from "lucide-react";
+import type { MessageReaction } from "@/types/admin";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -76,6 +77,15 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Reply / reactions / audio recorder
+  const [reactions, setReactions] = useState<Record<string, MessageReaction[]>>({});
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [recording, setRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordChunksRef = useRef<Blob[]>([]);
+  const [recordStart, setRecordStart] = useState<number | null>(null);
+  const [recordTick, setRecordTick] = useState(0);
+
   // Config
   const [cfgOpen, setCfgOpen] = useState(false);
   const [conn, setConn] = useState<EvoConn>({ instance_url: "", api_key: "", instance_name: "", status: "disconnected" });
@@ -134,8 +144,101 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
     const { data } = await supabase
       .from("messages").select("*").eq("conversation_id", conversationId)
       .order("created_at", { ascending: true });
-    setMessages((data as Message[]) || []);
+    const msgs = (data as Message[]) || [];
+    setMessages(msgs);
+    // Load reactions for this conversation
+    const { data: reactRows } = await supabase
+      .from("message_reactions").select("*").eq("conversation_id", conversationId);
+    const map: Record<string, MessageReaction[]> = {};
+    (reactRows || []).forEach((r: any) => {
+      (map[r.message_wamid] ||= []).push(r as MessageReaction);
+    });
+    setReactions(map);
   }, []);
+
+  // ============ Reactions & Reply helpers ============
+  const sendReaction = useCallback(async (msg: Message, emoji: string) => {
+    if (!msg.wamid || !selectedConversation) return;
+    // Toggle: if already reacted with same emoji, remove
+    const existing = (reactions[msg.wamid] || []).find(r => r.from_me);
+    const targetEmoji = existing?.emoji === emoji ? "" : emoji;
+    const { error } = await supabase.functions.invoke("evolution-send", {
+      body: {
+        conversation_id: selectedConversation.id,
+        reaction_wamid: msg.wamid,
+        reaction_emoji: targetEmoji,
+      },
+    });
+    if (error) toast.error("Falha ao reagir", { description: error.message });
+    else loadMessages(selectedConversation.id);
+  }, [reactions, selectedConversation, loadMessages]);
+
+  // ============ Audio recorder ============
+  const startRecording = useCallback(async () => {
+    if (recording) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      recordChunksRef.current = [];
+      rec.ondataavailable = (e) => e.data.size > 0 && recordChunksRef.current.push(e.data);
+      rec.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(recordChunksRef.current, { type: "audio/webm" });
+        await uploadAndSendAudio(blob);
+      };
+      mediaRecorderRef.current = rec;
+      rec.start();
+      setRecording(true);
+      setRecordStart(Date.now());
+    } catch (e: any) {
+      toast.error("Microfone bloqueado", { description: e?.message || "Permita o acesso ao microfone" });
+    }
+  }, [recording]);
+
+  const stopRecording = useCallback(() => {
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+    setRecording(false);
+    setRecordStart(null);
+  }, []);
+
+  const uploadAndSendAudio = useCallback(async (blob: Blob) => {
+    if (!selectedConversation) return;
+    setUploading(true);
+    try {
+      const path = `${tenantId || "master"}/outgoing/${selectedConversation.id}/${Date.now()}_voice.webm`;
+      const { error: upErr } = await supabase.storage.from("whatsapp-media").upload(path, blob, {
+        contentType: "audio/webm", upsert: false,
+      });
+      if (upErr) { toast.error("Falha ao subir áudio", { description: upErr.message }); return; }
+      const { data: signed } = await supabase.storage.from("whatsapp-media").createSignedUrl(path, 60 * 60 * 24 * 7);
+      const url = signed?.signedUrl;
+      if (!url) { toast.error("URL não gerada"); return; }
+      const { data, error } = await supabase.functions.invoke("evolution-send", {
+        body: {
+          conversation_id: selectedConversation.id,
+          media_url: url,
+          media_type: "audio",
+          reply_to_wamid: replyTo?.wamid ?? null,
+          reply_preview: replyTo?.conteudo?.slice(0, 80) ?? null,
+        },
+      });
+      if (error || (data as any)?.error) {
+        toast.error("Falha ao enviar áudio", { description: (data as any)?.error || error?.message });
+      } else {
+        setReplyTo(null);
+        loadMessages(selectedConversation.id);
+      }
+    } finally { setUploading(false); }
+  }, [selectedConversation, tenantId, replyTo, loadMessages]);
+
+  // Tick recording timer
+  useEffect(() => {
+    if (!recording) return;
+    const t = setInterval(() => setRecordTick(x => x + 1), 500);
+    return () => clearInterval(t);
+  }, [recording]);
+
 
   const loadConn = useCallback(async () => {
     let query = supabase.from("zapi_connections")
@@ -184,6 +287,12 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => loadConversations())
       .on("postgres_changes", { event: "*", schema: "public", table: "conversation_tag_assignments" }, () => loadTags())
+      .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, (payload) => {
+        const row: any = payload.new ?? payload.old;
+        if (row?.conversation_id && selectedConversation && row.conversation_id === selectedConversation.id) {
+          loadMessages(selectedConversation.id);
+        }
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [selectedConversation?.id, loadConversations, loadMessages, loadTags]);
@@ -227,6 +336,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation || sending) return;
     const body = newMessage.trim();
+    const currentReply = replyTo;
     const tempId = `tmp-${Date.now()}`;
     const optimistic: Message = {
       id: tempId,
@@ -244,24 +354,31 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       tipo_disparo: null,
       tenant_id: tenantId ?? null,
       created_at: new Date().toISOString(),
+      reply_to_wamid: currentReply?.wamid ?? null,
+      reply_preview: currentReply?.conteudo?.slice(0, 80) ?? null,
     } as Message;
     setMessages(prev => [...prev, optimistic]);
-    setNewMessage(""); setSending(true);
+    setNewMessage(""); setReplyTo(null); setSending(true);
     try {
       const { data, error } = await supabase.functions.invoke("evolution-send", {
-        body: { conversation_id: selectedConversation.id, body },
+        body: {
+          conversation_id: selectedConversation.id,
+          body,
+          reply_to_wamid: currentReply?.wamid ?? null,
+          reply_preview: currentReply?.conteudo?.slice(0, 80) ?? null,
+        },
       });
       if (error || (data as any)?.error) {
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: "failed" } : m));
         toast.error("Falha ao enviar", { description: (data as any)?.error || error?.message });
         setNewMessage(body);
       } else {
-        // Real row will arrive via realtime; remove optimistic
         loadMessages(selectedConversation.id);
         loadConversations();
       }
     } finally { setSending(false); }
   };
+
 
   const handleAttach = () => fileInputRef.current?.click();
 
@@ -480,9 +597,39 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   };
 
   const renderMessageBody = (msg: Message) => {
+    if (msg.deleted_at) {
+      return <p className="text-sm italic opacity-60">🚫 Mensagem apagada</p>;
+    }
     const tipo = msg.media_type || msg.tipo;
+    if (msg.location?.lat && msg.location?.lng) {
+      const { lat, lng, name, address } = msg.location;
+      return (
+        <a href={`https://maps.google.com/?q=${lat},${lng}`} target="_blank" rel="noreferrer"
+           className="flex items-start gap-2 underline decoration-dotted">
+          <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
+          <span className="text-sm">
+            <span className="block font-medium">{name || "Localização"}</span>
+            {address && <span className="block text-xs opacity-80">{address}</span>}
+            <span className="block text-[10px] opacity-60">{lat?.toFixed(5)}, {lng?.toFixed(5)}</span>
+          </span>
+        </a>
+      );
+    }
+    if (msg.contact_card?.name || msg.contact_card?.vcard) {
+      const phone = /TEL[^:]*:([^\r\n]+)/i.exec(msg.contact_card?.vcard || "")?.[1]?.trim();
+      return (
+        <div className="flex items-start gap-2 bg-black/10 rounded-lg px-2 py-1.5">
+          <UserIcon className="w-4 h-4 mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <div className="font-medium">{msg.contact_card.name || "Contato"}</div>
+            {phone && <div className="text-xs opacity-80">{phone}</div>}
+          </div>
+        </div>
+      );
+    }
     if (msg.media_url) {
       if (tipo === "image") return <img src={msg.media_url} alt="" className="rounded-lg max-w-full max-h-72 object-cover mb-1" />;
+      if (tipo === "sticker") return <img src={msg.media_url} alt="" className="max-w-[120px] max-h-[120px] mb-1" />;
       if (tipo === "audio") return <audio controls src={msg.media_url} className="max-w-full" />;
       if (tipo === "video") return <video controls src={msg.media_url} className="rounded-lg max-w-full max-h-72" />;
       if (tipo === "document") return (
@@ -491,7 +638,41 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
         </a>
       );
     }
-    return <p className="text-sm whitespace-pre-wrap break-words">{msg.conteudo}</p>;
+    return (
+      <p className="text-sm whitespace-pre-wrap break-words">
+        {msg.conteudo}
+        {msg.edited_at && <span className="ml-1 text-[10px] opacity-60">(editada)</span>}
+      </p>
+    );
+  };
+
+  const renderQuoted = (msg: Message) => {
+    if (!msg.reply_preview && !msg.reply_to_wamid) return null;
+    return (
+      <div className="mb-1 pl-2 border-l-2 border-current/40 opacity-80 text-[11px] rounded bg-black/10 px-2 py-1 flex items-start gap-1">
+        <CornerDownRight className="w-3 h-3 mt-0.5 shrink-0" />
+        <span className="line-clamp-2">{msg.reply_preview || "Mensagem citada"}</span>
+      </div>
+    );
+  };
+
+  const renderReactions = (msg: Message) => {
+    if (!msg.wamid) return null;
+    const list = reactions[msg.wamid] || [];
+    if (list.length === 0) return null;
+    const groups = list.reduce<Record<string, number>>((acc, r) => {
+      acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+      return acc;
+    }, {});
+    return (
+      <div className="flex flex-wrap gap-1 mt-1 -mb-1">
+        {Object.entries(groups).map(([emoji, n]) => (
+          <span key={emoji} className="text-[11px] px-1.5 py-0.5 rounded-full bg-black/30 border border-white/10">
+            {emoji}{n > 1 && <span className="ml-0.5 opacity-80">{n}</span>}
+          </span>
+        ))}
+      </div>
+    );
   };
 
   const renderStatus = (msg: Message) => {
@@ -663,7 +844,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
               messages.map(msg => {
                 const isOut = msg.sender === "usuario";
                 return (
-                  <div key={msg.id} className={`flex ${isOut ? "justify-end" : "justify-start"} gap-2`}>
+                  <div key={msg.id} className={`group flex ${isOut ? "justify-end" : "justify-start"} gap-2`}>
                     {!isOut && (
                       <ContactAvatar
                         name={selectedConversation.nome_contato || selectedConversation.telefone}
@@ -672,17 +853,49 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                         className="mt-1 self-end"
                       />
                     )}
-                    <div className={`max-w-[70%] rounded-2xl px-3 py-2 ${isOut ? "rounded-br-md text-[#1a1208]" : "rounded-bl-md text-foreground border border-border/50"}`}
-                      style={isOut ? { background: "#c9a84c" } : { background: "#0d1426" }}>
-                      {msg.tipo_disparo === "boas_vindas" && (
-                        <div className="flex items-center gap-1 text-[10px] opacity-70 mb-1">
-                          <Sparkles className="w-3 h-3" /> Boas-vindas automática
+                    <div className="relative max-w-[70%]">
+                      <div className={`rounded-2xl px-3 py-2 ${isOut ? "rounded-br-md text-[#1a1208]" : "rounded-bl-md text-foreground border border-border/50"}`}
+                        style={isOut ? { background: "#c9a84c" } : { background: "#0d1426" }}>
+                        {msg.tipo_disparo === "boas_vindas" && (
+                          <div className="flex items-center gap-1 text-[10px] opacity-70 mb-1">
+                            <Sparkles className="w-3 h-3" /> Boas-vindas automática
+                          </div>
+                        )}
+                        {renderQuoted(msg)}
+                        {renderMessageBody(msg)}
+                        <p className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isOut ? "text-[#1a1208]/60" : "text-muted-foreground"}`}>
+                          {formatMessageTime(msg.created_at)} {renderStatus(msg)}
+                        </p>
+                        {renderReactions(msg)}
+                      </div>
+                      {/* Hover actions: reply + react */}
+                      {!msg.deleted_at && (
+                        <div className={`absolute top-0 ${isOut ? "left-0 -translate-x-full pr-1" : "right-0 translate-x-full pl-1"} opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5`}>
+                          <button
+                            onClick={() => setReplyTo(msg)}
+                            title="Responder"
+                            className="p-1 rounded-full bg-background/90 border border-border hover:bg-muted">
+                            <Reply className="w-3.5 h-3.5" />
+                          </button>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                title="Reagir"
+                                className="p-1 rounded-full bg-background/90 border border-border hover:bg-muted">
+                                <Smile className="w-3.5 h-3.5" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-1 flex gap-1" side="top">
+                              {["👍","❤️","😂","😮","😢","🙏","🔥"].map(e => (
+                                <button key={e} onClick={() => sendReaction(msg, e)}
+                                  className="text-lg hover:scale-125 transition-transform px-1">
+                                  {e}
+                                </button>
+                              ))}
+                            </PopoverContent>
+                          </Popover>
                         </div>
                       )}
-                      {renderMessageBody(msg)}
-                      <p className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isOut ? "text-[#1a1208]/60" : "text-muted-foreground"}`}>
-                        {formatMessageTime(msg.created_at)} {renderStatus(msg)}
-                      </p>
                     </div>
                   </div>
                 );
@@ -691,22 +904,57 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="p-3 border-t border-border bg-card/50 shrink-0">
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0"><Smile className="w-5 h-5 text-muted-foreground" /></Button>
-              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={handleAttach} disabled={uploading}>
-                {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5 text-muted-foreground" />}
-              </Button>
-              <input ref={fileInputRef} type="file" hidden onChange={handleFileSelected}
-                accept="image/*,video/*,audio/*,application/pdf" />
-              <Input placeholder="Digite uma mensagem..." value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)} onKeyDown={handleKeyPress}
-                disabled={sending} className="flex-1 bg-muted/50 border-none h-10" />
-              <Button onClick={handleSendMessage} disabled={!newMessage.trim() || sending}
-                size="icon" className="h-10 w-10 rounded-full bg-accent hover:bg-accent/90 shrink-0">
-                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              </Button>
+          {/* Reply chip */}
+          {replyTo && (
+            <div className="px-3 pt-2 bg-card/50 border-t border-border shrink-0">
+              <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-muted/50 border-l-2 border-accent">
+                <CornerDownRight className="w-4 h-4 text-accent mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] text-accent font-medium uppercase tracking-wide">Respondendo</div>
+                  <div className="text-xs text-muted-foreground truncate">{replyTo.conteudo || "mídia"}</div>
+                </div>
+                <button onClick={() => setReplyTo(null)} className="p-1 hover:bg-muted rounded">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
+          )}
+
+          <div className="p-3 border-t border-border bg-card/50 shrink-0">
+            {recording ? (
+              <div className="flex items-center gap-3 h-10 px-3 rounded-full bg-rose-500/10 border border-rose-500/30">
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                <span className="text-sm text-rose-300 flex-1">
+                  Gravando… {recordStart ? Math.floor((Date.now() - recordStart) / 1000) : 0}s
+                </span>
+                <Button onClick={stopRecording} size="icon" className="h-9 w-9 rounded-full bg-rose-500 hover:bg-rose-600">
+                  <StopCircle className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0"><Smile className="w-5 h-5 text-muted-foreground" /></Button>
+                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={handleAttach} disabled={uploading}>
+                  {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5 text-muted-foreground" />}
+                </Button>
+                <input ref={fileInputRef} type="file" hidden onChange={handleFileSelected}
+                  accept="image/*,video/*,audio/*,application/pdf" />
+                <Input placeholder="Digite uma mensagem..." value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)} onKeyDown={handleKeyPress}
+                  disabled={sending} className="flex-1 bg-muted/50 border-none h-10" />
+                {newMessage.trim() ? (
+                  <Button onClick={handleSendMessage} disabled={sending}
+                    size="icon" className="h-10 w-10 rounded-full bg-accent hover:bg-accent/90 shrink-0">
+                    {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  </Button>
+                ) : (
+                  <Button onClick={startRecording} title="Gravar áudio"
+                    size="icon" className="h-10 w-10 rounded-full bg-accent hover:bg-accent/90 shrink-0">
+                    <Mic className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       ) : (
