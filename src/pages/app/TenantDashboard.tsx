@@ -600,7 +600,7 @@ function KpiCard({ icon: Icon, label, value, delta, accent, sub }: any) {
   );
 }
 
-function KpiPremium({ icon: Icon, label, value, delta, loading, sub, prevLabel }: { icon: any; label: string; value: string | null; delta?: number; loading?: boolean; sub?: string; prevLabel?: string }) {
+function KpiPremium({ icon: Icon, label, value, delta, loading, sub, prevLabel, spark }: { icon: any; label: string; value: string | null; delta?: number; loading?: boolean; sub?: string; prevLabel?: string; spark?: { v: number }[] }) {
   const showSkeleton = loading || value === null;
   const positive = (delta ?? 0) >= 0;
   // Auto-shrink: números longos (ex: "R$ 1.245.000") nunca estouram o card
