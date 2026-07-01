@@ -157,8 +157,72 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Messages upsert
-    if (event.includes("messages.upsert") || (!event && body?.data)) {
+    // Message DELETE (revoked)
+    if (event.includes("messages.delete") || event === "message.delete") {
+      const arr: any[] = Array.isArray(body?.data) ? body.data : [body?.data].filter(Boolean);
+      for (const u of arr) {
+        const wamid = u?.key?.id ?? u?.id;
+        if (!wamid) continue;
+        await admin.from("messages").update({
+          deleted_at: new Date().toISOString(),
+          conteudo: "🚫 Mensagem apagada",
+        }).eq("wamid", wamid);
+      }
+    }
+
+    // Message EDITED
+    if (event.includes("messages.edited") || event === "message.edited") {
+      const arr: any[] = Array.isArray(body?.data) ? body.data : [body?.data].filter(Boolean);
+      for (const u of arr) {
+        const wamid = u?.key?.id ?? u?.id;
+        const newText = u?.message?.editedMessage?.message?.conversation
+          ?? u?.message?.editedMessage?.message?.extendedTextMessage?.text
+          ?? u?.text;
+        if (!wamid || !newText) continue;
+        await admin.from("messages").update({
+          conteudo: newText,
+          edited_at: new Date().toISOString(),
+        }).eq("wamid", wamid);
+      }
+    }
+
+    // REACTIONS
+    if (event.includes("messages.reaction") || event === "message.reaction") {
+      const arr: any[] = Array.isArray(body?.data) ? body.data : [body?.data].filter(Boolean);
+      for (const r of arr) {
+        const targetWamid = r?.reaction?.key?.id ?? r?.message?.reactionMessage?.key?.id ?? r?.key?.id;
+        const emoji = r?.reaction?.text ?? r?.message?.reactionMessage?.text ?? r?.text;
+        const actor = r?.key?.participant ?? r?.key?.remoteJid ?? r?.reaction?.key?.participant ?? "unknown";
+        const fromMe = Boolean(r?.key?.fromMe);
+        if (!targetWamid) continue;
+        // Find conversation via target message
+        const { data: targetMsg } = await admin.from("messages")
+          .select("conversation_id, tenant_id").eq("wamid", targetWamid).maybeSingle();
+        if (!targetMsg) continue;
+        if (!emoji || emoji === "") {
+          // reaction removed
+          await admin.from("message_reactions").delete()
+            .eq("message_wamid", targetWamid).eq("actor_jid", actor);
+        } else {
+          await admin.from("message_reactions").upsert({
+            message_wamid: targetWamid,
+            conversation_id: targetMsg.conversation_id,
+            tenant_id: targetMsg.tenant_id,
+            actor_jid: actor,
+            from_me: fromMe,
+            emoji,
+          }, { onConflict: "message_wamid,actor_jid" });
+        }
+      }
+    }
+
+    // Messages upsert (includes SEND_MESSAGE for outbound echoes from other devices)
+    if (
+      event.includes("messages.upsert") ||
+      event.includes("send.message") ||
+      event === "send_message" ||
+      (!event && body?.data)
+    ) {
       const messagesArr: any[] = Array.isArray(body?.data) ? body.data
         : Array.isArray(body?.data?.messages) ? body.data.messages
         : body?.data ? [body.data] : [];
@@ -168,11 +232,42 @@ Deno.serve(async (req) => {
         const wamid: string | null = key?.id ?? m?.id ?? null;
         const remoteJid: string = key?.remoteJid ?? m?.remoteJid ?? "";
         if (!remoteJid) continue;
-        // Skip groups, broadcast lists and @lid (linked-device alias IDs that duplicate contacts)
         if (remoteJid.endsWith("@g.us") || remoteJid.endsWith("@broadcast") || remoteJid.includes("@lid")) continue;
         const fromMe: boolean = Boolean(key?.fromMe ?? m?.fromMe);
         const pushName: string = m?.pushName ?? m?.notifyName ?? "";
         const msgObj = m?.message ?? m;
+
+        // Detect message type (broad coverage)
+        const stickerMsg = msgObj?.stickerMessage;
+        const locationMsg = msgObj?.locationMessage ?? msgObj?.liveLocationMessage;
+        const contactMsg = msgObj?.contactMessage ?? msgObj?.contactsArrayMessage;
+        const reactionMsg = msgObj?.reactionMessage;
+
+        // Reactions arriving inside upsert flow -> reroute
+        if (reactionMsg) {
+          const targetWamid = reactionMsg?.key?.id;
+          if (targetWamid) {
+            const { data: targetMsg } = await admin.from("messages")
+              .select("conversation_id, tenant_id").eq("wamid", targetWamid).maybeSingle();
+            if (targetMsg) {
+              const emoji = reactionMsg?.text ?? "";
+              const actor = key?.participant ?? key?.remoteJid ?? "unknown";
+              if (!emoji) {
+                await admin.from("message_reactions").delete()
+                  .eq("message_wamid", targetWamid).eq("actor_jid", actor);
+              } else {
+                await admin.from("message_reactions").upsert({
+                  message_wamid: targetWamid,
+                  conversation_id: targetMsg.conversation_id,
+                  tenant_id: targetMsg.tenant_id,
+                  actor_jid: actor, from_me: fromMe, emoji,
+                }, { onConflict: "message_wamid,actor_jid" });
+              }
+            }
+          }
+          continue;
+        }
+
         const text: string = msgObj?.conversation
           ?? msgObj?.extendedTextMessage?.text
           ?? msgObj?.imageMessage?.caption
@@ -180,12 +275,57 @@ Deno.serve(async (req) => {
           ?? msgObj?.documentMessage?.caption
           ?? m?.text
           ?? "";
+
         const tipo = msgObj?.imageMessage ? "image"
           : msgObj?.audioMessage ? "audio"
           : msgObj?.videoMessage ? "video"
           : msgObj?.documentMessage ? "document"
+          : stickerMsg ? "sticker"
+          : locationMsg ? "location"
+          : contactMsg ? "contact"
           : "text";
+
         if (!text && tipo === "text") continue;
+
+        // Quoted / reply context
+        const ctx = msgObj?.extendedTextMessage?.contextInfo
+          ?? msgObj?.imageMessage?.contextInfo
+          ?? msgObj?.videoMessage?.contextInfo
+          ?? msgObj?.audioMessage?.contextInfo
+          ?? msgObj?.documentMessage?.contextInfo
+          ?? msgObj?.stickerMessage?.contextInfo
+          ?? null;
+        const replyToWamid: string | null = ctx?.stanzaId ?? null;
+        let replyPreview: string | null = null;
+        if (ctx?.quotedMessage) {
+          const qm = ctx.quotedMessage;
+          replyPreview = qm?.conversation
+            ?? qm?.extendedTextMessage?.text
+            ?? (qm?.imageMessage ? "📷 Imagem" : null)
+            ?? (qm?.videoMessage ? "🎬 Vídeo" : null)
+            ?? (qm?.audioMessage ? "🎤 Áudio" : null)
+            ?? (qm?.documentMessage ? "📄 Documento" : null)
+            ?? null;
+        }
+
+        // Location / contact payloads
+        let locationJson: any = null;
+        if (locationMsg) {
+          locationJson = {
+            lat: locationMsg?.degreesLatitude,
+            lng: locationMsg?.degreesLongitude,
+            name: locationMsg?.name || null,
+            address: locationMsg?.address || null,
+          };
+        }
+        let contactJson: any = null;
+        if (contactMsg) {
+          contactJson = {
+            name: contactMsg?.displayName || null,
+            vcard: contactMsg?.vcard || null,
+            contacts: contactMsg?.contacts || null,
+          };
+        }
 
         const phone = remoteJid.split("@")[0];
 
@@ -193,7 +333,15 @@ Deno.serve(async (req) => {
         if (tenantId) convQ = convQ.eq("tenant_id", tenantId); else convQ = convQ.is("tenant_id", null);
         let { data: conv } = await convQ.maybeSingle();
 
-        const preview = text || (tipo === "audio" ? "🎤 Áudio" : tipo === "image" ? "📷 Imagem" : tipo === "video" ? "🎬 Vídeo" : tipo === "document" ? "📄 Documento" : `[${tipo}]`);
+        const preview = text
+          || (tipo === "audio" ? "🎤 Áudio"
+            : tipo === "image" ? "📷 Imagem"
+            : tipo === "video" ? "🎬 Vídeo"
+            : tipo === "document" ? "📄 Documento"
+            : tipo === "sticker" ? "😊 Figurinha"
+            : tipo === "location" ? "📍 Localização"
+            : tipo === "contact" ? "👤 Contato"
+            : `[${tipo}]`);
 
         if (!conv) {
           const ins = await admin.from("conversations").insert({
@@ -208,30 +356,23 @@ Deno.serve(async (req) => {
           }).select("id, nao_lidas").maybeSingle();
           conv = ins.data;
 
-          // Auto-create lead in Kanban for inbound conversations (tenant scope)
+          // Auto-create lead (tenant scope, inbound only)
           if (!fromMe && tenantId) {
             try {
               const { data: existingLead } = await admin
                 .from("leads")
-                .select("id")
-                .eq("tenant_id", tenantId)
-                .eq("whatsapp", phone)
-                .limit(1)
-                .maybeSingle();
+                .select("id").eq("tenant_id", tenantId).eq("whatsapp", phone)
+                .limit(1).maybeSingle();
               if (!existingLead) {
                 await admin.from("leads").insert({
                   tenant_id: tenantId,
                   nome_completo: pushName || phone,
-                  whatsapp: phone,
-                  origem: "whatsapp",
-                  status: "lead",
-                  is_organic: true,
+                  whatsapp: phone, origem: "whatsapp",
+                  status: "lead", is_organic: true,
                   observacoes: "Lead criado automaticamente via WhatsApp",
                 });
               }
-            } catch (e) {
-              console.error("[wa auto-lead]", e);
-            }
+            } catch (e) { console.error("[wa auto-lead]", e); }
           }
         } else {
           await admin.from("conversations").update({
@@ -244,14 +385,33 @@ Deno.serve(async (req) => {
 
         if (!conv?.id) continue;
 
+        // Dedup: by wamid first, then by (conversation + sender + content + 10s window)
         if (wamid) {
           const dup = await admin.from("messages").select("id").eq("wamid", wamid).maybeSingle();
           if (dup.data) continue;
         }
+        if (fromMe && text) {
+          const since = new Date(Date.now() - 15000).toISOString();
+          const dup2 = await admin.from("messages")
+            .select("id")
+            .eq("conversation_id", conv.id)
+            .eq("sender", "usuario")
+            .eq("conteudo", text)
+            .gte("created_at", since)
+            .limit(1).maybeSingle();
+          if (dup2.data) {
+            // Attach the wamid to the existing outbound row so future ACKs match.
+            if (wamid) {
+              await admin.from("messages").update({ wamid, status: "delivered" }).eq("id", dup2.data.id);
+            }
+            continue;
+          }
+        }
 
         let media_url: string | null = null;
         let media_mime: string | null = null;
-        if (tipo !== "text" && conn) {
+        const isMedia = ["image","audio","video","document","sticker"].includes(tipo);
+        if (isMedia && conn) {
           const r = await fetchAndStoreMedia(conn as any, m, tipo);
           media_url = r.url; media_mime = r.mime;
         }
@@ -260,17 +420,21 @@ Deno.serve(async (req) => {
           conversation_id: conv.id,
           sender: fromMe ? "usuario" : "cliente",
           conteudo: text || preview,
-          tipo,
-          media_type: tipo === "text" ? null : tipo,
-          media_url,
-          media_mime,
+          tipo: tipo === "sticker" || tipo === "location" || tipo === "contact" ? "text" : tipo,
+          media_type: isMedia ? tipo : null,
+          media_url, media_mime,
           direction: fromMe ? "outbound" : "inbound",
-          status: "delivered",
+          status: fromMe ? "sent" : "delivered",
           wamid,
+          reply_to_wamid: replyToWamid,
+          reply_preview: replyPreview,
+          location: locationJson,
+          contact_card: contactJson,
           tenant_id: tenantId,
         });
       }
     }
+
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
