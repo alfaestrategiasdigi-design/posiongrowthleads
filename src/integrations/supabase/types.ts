@@ -2186,6 +2186,47 @@ export type Database = {
           },
         ]
       }
+      tenant_appointment_config: {
+        Row: {
+          appointment_types: string[]
+          created_at: string
+          default_duration_minutes: number
+          id: string
+          team_members: Json
+          tenant_id: string
+          updated_at: string
+          working_hours: Json
+        }
+        Insert: {
+          appointment_types?: string[]
+          created_at?: string
+          default_duration_minutes?: number
+          id?: string
+          team_members?: Json
+          tenant_id: string
+          updated_at?: string
+          working_hours?: Json
+        }
+        Update: {
+          appointment_types?: string[]
+          created_at?: string
+          default_duration_minutes?: number
+          id?: string
+          team_members?: Json
+          tenant_id?: string
+          updated_at?: string
+          working_hours?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_appointment_config_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_capi_config: {
         Row: {
           access_token: string | null
