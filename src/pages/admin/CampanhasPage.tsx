@@ -552,21 +552,67 @@ export default function CampanhasPage() {
       }
       if (data?.error) throw new Error(data.error);
       setMetaCampaigns((data?.data ?? []) as MetaCampaign[]);
-      // Load CRM wins for these campaigns
+      // Load CRM wins (kanban) for these campaigns — mescla leads e agency_leads
       try {
         const names = (data?.data ?? []).map((c: any) => c.name).filter(Boolean);
         if (names.length) {
-          let q = supabase.from("leads").select("utm_campaign,status,tenant_id,valor_proposta").eq("status", "ganho").in("utm_campaign", names);
-          if (selectedTenantId) q = q.eq("tenant_id", selectedTenantId);
-          const { data: wins } = await q;
+          const nameKeys = names.map((n: string) => n.trim().toLowerCase());
           const map: Record<string, number> = {};
           const rev: Record<string, number> = {};
-          (wins ?? []).forEach((l: any) => {
-            const k = (l.utm_campaign || "").trim().toLowerCase();
-            if (!k) return;
+          const seenIds = new Set<string>();
+
+          const addWin = (rawName: string | null | undefined, valor: number | null, id: string) => {
+            const k = (rawName || "").trim().toLowerCase();
+            if (!k || !nameKeys.includes(k)) return;
+            if (seenIds.has(id)) return;
+            seenIds.add(id);
             map[k] = (map[k] || 0) + 1;
-            rev[k] = (rev[k] || 0) + (Number(l.valor_proposta) || 0);
+            rev[k] = (rev[k] || 0) + (Number(valor) || 0);
+          };
+
+          // 1) tabela leads (legado) — status ganho
+          let q1 = supabase
+            .from("leads")
+            .select("id,utm_campaign,facebook_campaign,status,tenant_id,valor_proposta")
+            .eq("status", "ganho");
+          if (selectedTenantId) q1 = q1.eq("tenant_id", selectedTenantId);
+          const { data: wins1 } = await q1;
+          (wins1 ?? []).forEach((l: any) => {
+            addWin(l.utm_campaign, l.valor_proposta, l.id);
+            addWin(l.facebook_campaign, l.valor_proposta, l.id);
           });
+
+          // 2) tabela agency_leads (novo kanban) — stage ganho; casa pelo id ou utm_campaign
+          const { data: wins2 } = await supabase
+            .from("agency_leads")
+            .select("id,utm_campaign,valor_proposta,stage")
+            .eq("stage", "ganho");
+          if (wins2 && wins2.length) {
+            // busca origem no leads pelo mesmo id para pegar campanha se agency não tem utm
+            const idsSemUtm = wins2.filter((a: any) => !a.utm_campaign).map((a: any) => a.id);
+            let origem: Record<string, { utm: string | null; fb: string | null }> = {};
+            if (idsSemUtm.length) {
+              const { data: origs } = await supabase
+                .from("leads")
+                .select("id,utm_campaign,facebook_campaign")
+                .in("id", idsSemUtm);
+              (origs ?? []).forEach((o: any) => {
+                origem[o.id] = { utm: o.utm_campaign, fb: o.facebook_campaign };
+              });
+            }
+            wins2.forEach((a: any) => {
+              if (a.utm_campaign) {
+                addWin(a.utm_campaign, a.valor_proposta, a.id);
+              } else {
+                const o = origem[a.id];
+                if (o) {
+                  addWin(o.utm, a.valor_proposta, a.id);
+                  addWin(o.fb, a.valor_proposta, a.id);
+                }
+              }
+            });
+          }
+
           setCrmWinsByCampaign(map);
           setCrmRevenueByCampaign(rev);
         } else {
@@ -574,6 +620,7 @@ export default function CampanhasPage() {
           setCrmRevenueByCampaign({});
         }
       } catch { /* non-fatal */ }
+
     } catch (e: any) {
       toast({ title: "Falha ao carregar campanhas", description: e.message ?? "", variant: "destructive" });
       setMetaCampaigns([]);
