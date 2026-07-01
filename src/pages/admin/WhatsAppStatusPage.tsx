@@ -246,15 +246,33 @@ export default function WhatsAppStatusPage() {
           </h1>
           <p className="text-muted-foreground">Conta Master + todos os clientes. Teste a conexão Evolution e veja erros detectados por instância.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" onClick={load} disabled={loading} className="gap-2">
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> Recarregar
+          </Button>
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={async () => {
+              toast.info("Reassinando eventos em todas as instâncias…");
+              const { data, error } = await supabase.functions.invoke("evolution-resubscribe", { body: {} });
+              if (error) return toast.error("Falha ao reassinar", { description: error.message });
+              const ok = (data?.results ?? []).filter((r: any) => r.ok).length;
+              const total = data?.count ?? 0;
+              toast.success(`Eventos reassinados: ${ok}/${total}`, {
+                description: "Mensagens enviadas de outros aparelhos vão aparecer no inbox.",
+              });
+              load();
+            }}
+          >
+            <Smartphone className="w-4 h-4" /> Reassinar eventos (bidirecional)
           </Button>
           <Button onClick={testAll} disabled={bulkTesting || loading} className="gap-2">
             {bulkTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
             Testar todos
           </Button>
         </div>
+
       </div>
 
       {/* KPIs (incluem master) */}

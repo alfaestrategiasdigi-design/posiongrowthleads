@@ -144,17 +144,17 @@ async function buildWebhookUrl(admin: any, tenantId: string | null): Promise<str
 }
 
 async function configureWebhook(base: string, apiKey: string, instanceName: string, webhookUrl: string): Promise<void> {
-  // Full coverage: inbound + outbound (from any device), status, contacts, reactions, deletes, edits, presence.
+  // Full coverage: inbound + outbound (from any device), status, contacts, deletes, edits, presence.
   const events = [
-    "MESSAGES_UPSERT", "MESSAGES_UPDATE", "MESSAGES_DELETE",
-    "SEND_MESSAGE", "MESSAGES_REACTION", "MESSAGES_EDITED",
+    "MESSAGES_UPSERT", "MESSAGES_UPDATE", "MESSAGES_DELETE", "MESSAGES_EDITED",
+    "SEND_MESSAGE", "SEND_MESSAGE_UPDATE",
     "CONTACTS_UPDATE", "CONTACTS_UPSERT",
     "CHATS_UPSERT", "CHATS_UPDATE", "CHATS_DELETE",
     "PRESENCE_UPDATE", "CONNECTION_UPDATE",
   ];
   const bodies = [
-    { webhook: { enabled: true, url: webhookUrl, webhookByEvents: false, webhook_by_events: false, events } },
-    { enabled: true, url: webhookUrl, webhookByEvents: false, webhook_by_events: false, events },
+    { webhook: { enabled: true, url: webhookUrl, webhookByEvents: false, byEvents: false, base64: true, events } },
+    { webhook: { enabled: true, url: webhookUrl, events } },
   ];
   for (const body of bodies) {
     try {
