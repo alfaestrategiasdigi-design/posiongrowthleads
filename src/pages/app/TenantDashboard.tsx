@@ -270,13 +270,35 @@ export default function TenantDashboard() {
         </Select>
       </div>
 
+      {/* Alertas Inteligentes */}
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          {alerts.map((a, i) => {
+            const cfg = {
+              success: { bg: "rgba(34,197,94,0.08)", border: "rgba(34,197,94,0.3)", color: "#22C55E", Icon: PartyPopper },
+              warning: { bg: "rgba(234,179,8,0.08)", border: "rgba(234,179,8,0.3)", color: "#EAB308", Icon: AlertTriangle },
+              danger:  { bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.3)", color: "#EF4444", Icon: XCircle },
+              info:    { bg: "rgba(59,130,246,0.08)", border: "rgba(59,130,246,0.3)", color: "#3B82F6", Icon: Info },
+            }[a.level];
+            const Icon = cfg.Icon;
+            return (
+              <div key={i} className="flex items-center gap-3 rounded-lg px-4 py-2.5" style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}>
+                <Icon className="w-4 h-4 shrink-0" style={{ color: cfg.color }} />
+                <span className="text-sm" style={{ color: cfg.color }}>{a.msg}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Headline KPIs — Premium Flat */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiPremium icon={DollarSign} label="Faturamento" value={total ? BRL(total) : null} delta={varTotal} loading={loading} prevLabel={prevMonthLabel} />
-        <KpiPremium icon={ShoppingBag} label="Nº de Vendas" value={count ? count.toString() : null} delta={varCount} loading={loading} prevLabel={prevMonthLabel} />
-        <KpiPremium icon={Receipt} label="Ticket Médio" value={avg ? BRL(avg) : null} delta={varTicket} loading={loading} prevLabel={prevMonthLabel} />
+        <KpiPremium icon={DollarSign} label="Faturamento" value={total ? BRL(total) : null} delta={varTotal} loading={loading} prevLabel={prevMonthLabel} spark={sparkRev} />
+        <KpiPremium icon={ShoppingBag} label="Nº de Vendas" value={count ? count.toString() : null} delta={varCount} loading={loading} prevLabel={prevMonthLabel} spark={sparkCount} />
+        <KpiPremium icon={Receipt} label="Ticket Médio" value={avg ? BRL(avg) : null} delta={varTicket} loading={loading} prevLabel={prevMonthLabel} spark={sparkTicket} />
         <KpiPremium icon={Trophy} label="Maior Venda" value={maxSale ? BRL(maxSale.amount) : null} sub={maxSale?.patient_name} loading={loading} />
       </div>
+
 
       {/* Goals */}
       {goal && (
