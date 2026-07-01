@@ -672,6 +672,21 @@ function KpiPremium({ icon: Icon, label, value, delta, loading, sub, prevLabel, 
       {sub && !showSkeleton && (
         <div className="mt-2 text-[11px] truncate" style={{ color: "#94A3B8" }} title={sub}>{sub}</div>
       )}
+      {spark && spark.length > 0 && !showSkeleton && (
+        <div className="mt-3 h-8 -mx-1 opacity-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={spark} margin={{ top: 2, right: 2, left: 2, bottom: 0 }}>
+              <defs>
+                <linearGradient id={`spk-${label}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#D4AF37" stopOpacity={0.5} />
+                  <stop offset="100%" stopColor="#D4AF37" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <Area type="monotone" dataKey="v" stroke="#D4AF37" strokeWidth={1.5} fill={`url(#spk-${label})`} isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
