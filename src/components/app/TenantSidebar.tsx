@@ -5,7 +5,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard, MessageCircle, Kanban, Users, DollarSign, Calendar, Settings,
-  Building2, Zap, Sparkles, Package,
+  Building2, Zap, Sparkles, Package, UserSearch,
 } from "lucide-react";
 import type { Tenant } from "@/hooks/useTenant";
 import posionLogo from "@/assets/posion/logo-posion.png.asset.json";
