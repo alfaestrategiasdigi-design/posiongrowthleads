@@ -47,7 +47,7 @@ export default function Dashboard() {
         supabase.from("agency_leads").select("id,stage,valor_proposta,created_at,nome_clinica,plano_interesse"),
         supabase.from("agency_contracts").select("id,tenant_id,cliente_nome,valor_total,data_assinatura,status"),
         supabase.from("saas_contracts").select("id,tenant_id,mrr,status,started_at"),
-        supabase.from("tenants").select("id,name,active,created_at"),
+        supabase.from("tenants").select("id,name,status,created_at"),
         supabase.from("sales").select("tenant_id,amount,sale_date").gte("sale_date", range.from.toISOString().slice(0, 10)).lte("sale_date", range.to.toISOString().slice(0, 10)),
       ]);
       setLeads((l.data || []) as AgencyLead[]);
