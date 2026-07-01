@@ -46,9 +46,37 @@ function firstStandardJid(candidates: unknown[]): string | null {
   return null;
 }
 
-function resolveRemoteJid(message: any, key: any): { remoteJid: string | null; rawRemoteJid: string | null; unresolvedLid: boolean } {
+function firstLidJid(candidates: unknown[]): string | null {
+  for (const candidate of candidates) {
+    const jid = normalizePhoneJid(candidate);
+    if (jid?.includes("@lid")) return jid;
+  }
+  return null;
+}
+
+async function upsertJidAlias(tenantId: string | null, instanceName: string | null, lidJid: string | null, phoneJid: string | null) {
+  if (!lidJid?.includes("@lid") || !phoneJid || phoneJid.includes("@lid")) return;
+  await admin.from("whatsapp_jid_aliases").upsert({
+    tenant_id: tenantId,
+    instance_name: instanceName,
+    lid_jid: lidJid,
+    phone_jid: phoneJid,
+    updated_at: new Date().toISOString(),
+    last_seen_at: new Date().toISOString(),
+  }, { onConflict: "tenant_id,lid_jid" }).throwOnError().catch(() => undefined);
+}
+
+async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): Promise<string | null> {
+  if (!lidJid?.includes("@lid")) return null;
+  let q = admin.from("whatsapp_jid_aliases").select("phone_jid").eq("lid_jid", lidJid);
+  q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
+  const { data } = await q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
+  return data?.phone_jid ?? null;
+}
+
+async function resolveRemoteJid(message: any, key: any, tenantId: string | null, instanceName: string | null): Promise<{ remoteJid: string | null; rawRemoteJid: string | null; unresolvedLid: boolean }> {
   const rawRemoteJid = String(key?.remoteJid ?? message?.remoteJid ?? "").trim() || null;
-  const standard = firstStandardJid([
+  const candidates = [
     key?.remoteJidAlt,
     key?.remoteJid_alt,
     key?.participantAlt,
@@ -58,10 +86,18 @@ function resolveRemoteJid(message: any, key: any): { remoteJid: string | null; r
     message?.message?.key?.remoteJidAlt,
     message?.message?.key?.remoteJid_alt,
     rawRemoteJid,
-  ]);
-  if (standard) return { remoteJid: standard, rawRemoteJid, unresolvedLid: false };
+  ];
+  const standard = firstStandardJid(candidates);
+  const lid = firstLidJid(candidates);
+  if (standard) {
+    await upsertJidAlias(tenantId, instanceName, lid, standard);
+    return { remoteJid: standard, rawRemoteJid, unresolvedLid: false };
+  }
 
   const normalizedRaw = normalizePhoneJid(rawRemoteJid);
+  const mapped = await mappedPhoneJid(tenantId, normalizedRaw ?? null);
+  if (mapped) return { remoteJid: mapped, rawRemoteJid, unresolvedLid: false };
+
   return {
     remoteJid: normalizedRaw?.includes("@lid") ? null : normalizedRaw,
     rawRemoteJid,
@@ -193,7 +229,9 @@ Deno.serve(async (req) => {
     if (event.includes("contacts.")) {
       const contacts: any[] = Array.isArray(body?.data) ? body.data : [body?.data].filter(Boolean);
       for (const c of contacts) {
-        const jid = firstStandardJid([c?.remoteJidAlt, c?.remoteJid_alt, c?.remoteJid, c?.id]);
+        const contactCandidates = [c?.remoteJidAlt, c?.remoteJid_alt, c?.jidAlt, c?.idAlt, c?.remoteJid, c?.id];
+        const jid = firstStandardJid(contactCandidates);
+        await upsertJidAlias(tenantId, instanceName || null, firstLidJid(contactCandidates), jid);
         if (!jid) continue;
         const updates: any = {};
         if (c?.pushName || c?.name) updates.nome_contato = c.pushName || c.name;
@@ -291,7 +329,7 @@ Deno.serve(async (req) => {
       for (const m of messagesArr) {
         const key = m?.key ?? m?.message?.key ?? {};
         const wamid: string | null = key?.id ?? m?.id ?? null;
-        const { remoteJid, rawRemoteJid, unresolvedLid } = resolveRemoteJid(m, key);
+        const { remoteJid, rawRemoteJid, unresolvedLid } = await resolveRemoteJid(m, key, tenantId, instanceName || null);
         if (rawRemoteJid?.endsWith("@g.us") || rawRemoteJid?.endsWith("@broadcast")) continue;
         const fromMe: boolean = Boolean(key?.fromMe ?? m?.fromMe);
         // Nunca cria conversa com @lid: LID é um identificador temporário do multi-device
