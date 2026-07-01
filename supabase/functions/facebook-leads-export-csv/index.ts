@@ -200,7 +200,7 @@ Deno.serve(async (req) => {
         cidade_estado: cidade,
         especialidade,
         faturamento_mensal: faturamento,
-        status: "novo",
+        status: "lead",
         origem: isOrganic ? "facebook_organic" : "facebook_ads",
         revendedor_iniciante: false,
         facebook_lead_id: fbLeadId,

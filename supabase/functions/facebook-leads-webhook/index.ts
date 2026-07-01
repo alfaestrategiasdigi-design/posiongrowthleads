@@ -130,7 +130,7 @@ export async function insertLead(payload: Record<string, string>, meta: {
     cidade_estado: cidade,
     especialidade,
     faturamento_mensal: faturamento,
-    status: "novo",
+    status: "lead",
     origem: "facebook_ads",
     revendedor_iniciante: false,
     facebook_lead_id: meta.facebook_lead_id,

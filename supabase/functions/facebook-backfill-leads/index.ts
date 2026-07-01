@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
           cidade_estado: cidade,
           especialidade,
           faturamento_mensal: faturamento,
-          status: "novo",
+          status: "lead",
           origem: "facebook_ads",
           revendedor_iniciante: false,
           facebook_lead_id: lead.id,

@@ -88,13 +88,13 @@ Deno.serve(async (req) => {
             .maybeSingle();
           if (existingLead) {
             leadId = existingLead.id;
-            await admin.from("leads").update({ status: "novo" }).eq("id", existingLead.id);
+            await admin.from("leads").update({ status: "lead" }).eq("id", existingLead.id);
           } else {
             const { data: newLead } = await admin.from("leads").insert({
               nome_completo: nome,
               whatsapp: from,
               origem: "whatsapp_cloud",
-              status: "novo",
+              status: "lead",
               tenant_id: tenantId,
               observacoes: `Lead criado automaticamente via WhatsApp Cloud API. Primeira mensagem: ${text?.slice(0, 200) ?? "(mídia)"}`,
             }).select("id").single();
