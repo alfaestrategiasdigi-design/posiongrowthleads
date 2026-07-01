@@ -73,10 +73,16 @@ export default function Dashboard() {
   // ============= AGÊNCIA =============
   const agency = useMemo(() => {
     const leadsPeriodo = leads.filter((l) => inRange(l.created_at));
-    const ganhos = leadsPeriodo.filter((l) => l.stage === "ganho");
+    const ganhosAll = leads.filter((l) => l.stage === "ganho");
+    const ganhosPeriodo = ganhosAll.filter((l) => inRange((l as any).ganho_at || l.created_at));
     const emNegociacao = leads.filter((l) => ["proposta", "negociacao"].includes(l.stage));
     const contratosPeriodo = agencyContracts.filter((c) => inRange(c.data_assinatura));
-    const receitaAgencia = contratosPeriodo.reduce((s, c) => s + Number(c.valor_total || 0), 0);
+
+    // Receita = contratos assinados no período + leads em GANHO no período (fallback quando ainda não há contrato)
+    const receitaContratos = contratosPeriodo.reduce((s, c) => s + Number(c.valor_total || 0), 0);
+    const receitaGanhos = ganhosPeriodo.reduce((s, l) => s + Number(l.valor_proposta || 0), 0);
+    const receitaAgencia = receitaContratos + receitaGanhos;
+
     const mrr = saasContracts.filter((s) => s.status === "active").reduce((s, c) => s + Number(c.mrr || 0), 0);
 
     const stageCount: Record<string, number> = {};
@@ -85,13 +91,14 @@ export default function Dashboard() {
       stage: STAGE_LABELS[stage] || stage, count, fill: STAGE_COLORS[stage] || "#888",
     }));
 
-    const convRate = leadsPeriodo.length > 0 ? (ganhos.length / leadsPeriodo.length) * 100 : 0;
+    const convRate = leadsPeriodo.length > 0 ? (ganhosPeriodo.length / leadsPeriodo.length) * 100 : 0;
     const pipelineValue = emNegociacao.reduce((s, l) => s + (l.valor_proposta || 0), 0);
-    const ticketMedio = contratosPeriodo.length > 0 ? receitaAgencia / contratosPeriodo.length : 0;
+    const totalFechamentos = contratosPeriodo.length + ganhosPeriodo.length;
+    const ticketMedio = totalFechamentos > 0 ? receitaAgencia / totalFechamentos : 0;
 
     return {
       leadsPeriodo: leadsPeriodo.length,
-      ganhos: ganhos.length,
+      ganhos: ganhosPeriodo.length,
       emNegociacao: emNegociacao.length,
       pipelineValue,
       receitaAgencia,
@@ -109,13 +116,16 @@ export default function Dashboard() {
     const days = eachDayOfInterval({ start: range.from, end: range.to });
     return days.map((d) => {
       const dayKey = format(d, "yyyy-MM-dd");
-      const receita = agencyContracts
+      const receitaContratos = agencyContracts
         .filter((c) => c.data_assinatura === dayKey)
         .reduce((s, c) => s + Number(c.valor_total || 0), 0);
+      const receitaGanhos = leads
+        .filter((l) => l.stage === "ganho" && format(new Date((l as any).ganho_at || l.created_at), "yyyy-MM-dd") === dayKey)
+        .reduce((s, l) => s + Number(l.valor_proposta || 0), 0);
       const label = format(d, days.length > 45 ? "dd/MM" : "dd/MM", { locale: ptBR });
-      return { day: label, receita };
+      return { day: label, receita: receitaContratos + receitaGanhos };
     });
-  }, [agencyContracts, range]);
+  }, [agencyContracts, leads, range]);
 
   // Top clínicas por GMV
   const topTenants = useMemo(() => {
