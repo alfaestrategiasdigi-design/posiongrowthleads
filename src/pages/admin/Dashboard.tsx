@@ -27,7 +27,7 @@ const STAGE_LABELS: Record<string, string> = {
 interface AgencyLead { id: string; stage: string; valor_proposta: number | null; created_at: string; nome_clinica: string; plano_interesse: string | null }
 interface AgencyContract { id: string; tenant_id: string | null; cliente_nome: string; valor_total: number; data_assinatura: string; status: string }
 interface SaasContract { id: string; tenant_id: string | null; mrr: number; status: string; started_at: string }
-interface Tenant { id: string; name: string; active: boolean; created_at: string }
+interface Tenant { id: string; name: string; status: string; created_at: string }
 
 export default function Dashboard() {
   const [range, setRange] = useState<DateRangeValue>(() => makeRange(30));
