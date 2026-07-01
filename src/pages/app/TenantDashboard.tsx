@@ -12,6 +12,8 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Legend, ReferenceLine, Cell,
 } from "recharts";
+import { DateRangePicker, makeRange, type DateRangeValue } from "@/components/shared/DateRangePicker";
+import { differenceInDays, startOfDay, endOfDay, subDays, format as fmtDate } from "date-fns";
 
 interface Goal { year: number; month: number; goal_1: number; goal_2: number; goal_3: number; }
 interface LeadRow { id: string; stage: string | null; created_at: string; }
