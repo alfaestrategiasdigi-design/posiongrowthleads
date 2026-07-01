@@ -26,6 +26,8 @@ import SubscriptionsPage from "./pages/admin/SubscriptionsPage";
 import AppointmentsPage from "./pages/admin/AppointmentsPage";
 import TenantsPage from "./pages/admin/TenantsPage";
 import ContractsPage from "./pages/admin/ContractsPage";
+import AgencyPipelinePage from "./pages/admin/AgencyPipelinePage";
+import AgencyContractsPage from "./pages/admin/AgencyContractsPage";
 import AppLayout from "./components/app/AppLayout";
 import TenantDashboard from "./pages/app/TenantDashboard";
 import TenantSales from "./pages/app/TenantSales";
@@ -37,6 +39,7 @@ import TenantConfig from "./pages/app/TenantConfig";
 import TenantProntuario from "./pages/app/TenantProntuario";
 import TenantRecall from "./pages/app/TenantRecall";
 import TenantPlans from "./pages/app/TenantPlans";
+import TenantProductsConfig from "./pages/app/TenantProductsConfig";
 
 const queryClient = new QueryClient();
 
