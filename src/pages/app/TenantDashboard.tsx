@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Receipt, Target, Trophy, Users, Globe, AlertTriangle, CheckCircle2, Filter, LineChart as LineIcon, Activity } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Receipt, Target, Trophy, Users, Globe, AlertTriangle, CheckCircle2, Filter, LineChart as LineIcon, Activity, Medal, Bell, Info, XCircle, PartyPopper } from "lucide-react";
 import { SaleRow, BRL, PCT, summarize, groupSum, evaluationFunnel, weeklyBreakdown, categorize, isInternational, isEvaluation } from "@/lib/clinic-kpis";
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar,
@@ -194,6 +194,61 @@ export default function TenantDashboard() {
 
   const prevMonthLabel = MONTHS[(month === 1 ? 12 : month - 1) - 1].toLowerCase();
 
+  // Sparkline data — últimos 14 dias
+  const sparkRev = useMemo(() => evolution30.slice(-14).map((d) => ({ v: d.total })), [evolution30]);
+  const sparkCount = useMemo(() => evolution30.slice(-14).map((d) => ({ v: d.count })), [evolution30]);
+  const sparkTicket = useMemo(() => evolution30.slice(-14).map((d) => ({ v: d.count > 0 ? d.total / d.count : 0 })), [evolution30]);
+
+  // Leads por dia (últimos 30)
+  const leadsPerDay = useMemo(() => {
+    const map: Record<string, number> = {};
+    leads.forEach((l) => { const k = l.created_at.slice(0, 10); map[k] = (map[k] || 0) + 1; });
+    return evolution30.map((d) => ({ date: d.date, count: map[d.date] || 0 }));
+  }, [leads, evolution30]);
+
+  // Ranking da equipe
+  const ranking = useMemo(() => {
+    const map = new Map<string, { seller: string; count: number; total: number; ganhos: number; perdas: number }>();
+    monthSales.forEach((s) => {
+      const k = s.seller_name || "—";
+      const r = map.get(k) || { seller: k, count: 0, total: 0, ganhos: 0, perdas: 0 };
+      r.count += 1; r.total += Number(s.amount || 0); r.ganhos += 1;
+      map.set(k, r);
+    });
+    return Array.from(map.values()).sort((a, b) => b.total - a.total).slice(0, 10);
+  }, [monthSales]);
+
+  // Alertas inteligentes
+  const alerts = useMemo(() => {
+    const arr: { level: "success" | "warning" | "danger" | "info"; msg: string }[] = [];
+    // Meta atingida
+    if (goal) {
+      if (goal.goal_3 && total >= goal.goal_3) arr.push({ level: "success", msg: `Meta 3 atingida! Faturamento acima de ${BRL(goal.goal_3)}.` });
+      else if (goal.goal_2 && total >= goal.goal_2) arr.push({ level: "success", msg: `Meta 2 atingida! Faltam ${BRL(Math.max(0, goal.goal_3 - total))} para a Meta 3.` });
+      else if (goal.goal_1 && total >= goal.goal_1) arr.push({ level: "success", msg: `Meta 1 atingida! Faltam ${BRL(Math.max(0, goal.goal_2 - total))} para a Meta 2.` });
+    }
+    // No-show alto
+    if (funnelData.rates.noShow > 0.2 && funnelData.rates.totals.agendados >= 3) {
+      arr.push({ level: "warning", msg: `Taxa de no-show em ${PCT(funnelData.rates.noShow)} este período — acima do benchmark (20%).` });
+    }
+    // Zero leads em 3 dias
+    const last3 = leadsPerDay.slice(-3);
+    if (last3.length === 3 && last3.every((d) => d.count === 0)) {
+      arr.push({ level: "danger", msg: "Nenhum lead capturado nos últimos 3 dias — verificar campanhas de tráfego." });
+    }
+    // Win rate baixo
+    if (funnelData.rates.totals.compareceram >= 5 && funnelData.rates.fechamento < 0.2) {
+      arr.push({ level: "warning", msg: `Taxa de fechamento em ${PCT(funnelData.rates.fechamento)} — considere revisar o script de venda.` });
+    }
+    // Sem vendas na semana
+    const last7 = evolution30.slice(-7).reduce((s, d) => s + d.total, 0);
+    if (last7 === 0 && monthSales.length > 0) {
+      arr.push({ level: "warning", msg: "Sem vendas registradas nos últimos 7 dias." });
+    }
+    return arr;
+  }, [goal, total, funnelData, leadsPerDay, evolution30, monthSales]);
+
+
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-[1600px] mx-auto">
       {/* Header */}
@@ -215,13 +270,35 @@ export default function TenantDashboard() {
         </Select>
       </div>
 
+      {/* Alertas Inteligentes */}
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          {alerts.map((a, i) => {
+            const cfg = {
+              success: { bg: "rgba(34,197,94,0.08)", border: "rgba(34,197,94,0.3)", color: "#22C55E", Icon: PartyPopper },
+              warning: { bg: "rgba(234,179,8,0.08)", border: "rgba(234,179,8,0.3)", color: "#EAB308", Icon: AlertTriangle },
+              danger:  { bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.3)", color: "#EF4444", Icon: XCircle },
+              info:    { bg: "rgba(59,130,246,0.08)", border: "rgba(59,130,246,0.3)", color: "#3B82F6", Icon: Info },
+            }[a.level];
+            const Icon = cfg.Icon;
+            return (
+              <div key={i} className="flex items-center gap-3 rounded-lg px-4 py-2.5" style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}>
+                <Icon className="w-4 h-4 shrink-0" style={{ color: cfg.color }} />
+                <span className="text-sm" style={{ color: cfg.color }}>{a.msg}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Headline KPIs — Premium Flat */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiPremium icon={DollarSign} label="Faturamento" value={total ? BRL(total) : null} delta={varTotal} loading={loading} prevLabel={prevMonthLabel} />
-        <KpiPremium icon={ShoppingBag} label="Nº de Vendas" value={count ? count.toString() : null} delta={varCount} loading={loading} prevLabel={prevMonthLabel} />
-        <KpiPremium icon={Receipt} label="Ticket Médio" value={avg ? BRL(avg) : null} delta={varTicket} loading={loading} prevLabel={prevMonthLabel} />
+        <KpiPremium icon={DollarSign} label="Faturamento" value={total ? BRL(total) : null} delta={varTotal} loading={loading} prevLabel={prevMonthLabel} spark={sparkRev} />
+        <KpiPremium icon={ShoppingBag} label="Nº de Vendas" value={count ? count.toString() : null} delta={varCount} loading={loading} prevLabel={prevMonthLabel} spark={sparkCount} />
+        <KpiPremium icon={Receipt} label="Ticket Médio" value={avg ? BRL(avg) : null} delta={varTicket} loading={loading} prevLabel={prevMonthLabel} spark={sparkTicket} />
         <KpiPremium icon={Trophy} label="Maior Venda" value={maxSale ? BRL(maxSale.amount) : null} sub={maxSale?.patient_name} loading={loading} />
       </div>
+
 
       {/* Goals */}
       {goal && (
@@ -483,6 +560,50 @@ export default function TenantDashboard() {
       {/* Categories */}
       <BreakdownCard title="Receita por Categoria de Procedimento" rows={byCategory} total={total} />
 
+      {/* Ranking da equipe */}
+      {ranking.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Medal className="w-4 h-4 text-primary" /> Ranking da Equipe — {MONTHS[month - 1]}/{year}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground border-b border-border/40">
+                    <th className="text-left py-2 pr-3 font-medium w-10">#</th>
+                    <th className="text-left py-2 pr-3 font-medium">Vendedor</th>
+                    <th className="text-right py-2 pr-3 font-medium">Vendas</th>
+                    <th className="text-right py-2 pr-3 font-medium">Faturamento</th>
+                    <th className="text-right py-2 pr-3 font-medium">Ticket Médio</th>
+                    <th className="text-right py-2 pr-3 font-medium">% do Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ranking.map((r, i) => {
+                    const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}`;
+                    const ticket = r.count > 0 ? r.total / r.count : 0;
+                    const share = total > 0 ? r.total / total : 0;
+                    return (
+                      <tr key={r.seller} className="border-b border-border/20 hover:bg-muted/20 transition-colors">
+                        <td className="py-3 pr-3 text-base">{medal}</td>
+                        <td className="py-3 pr-3 font-medium truncate max-w-[220px]">{r.seller}</td>
+                        <td className="py-3 pr-3 text-right num">{r.count}</td>
+                        <td className="py-3 pr-3 text-right num font-semibold">{BRL(r.total)}</td>
+                        <td className="py-3 pr-3 text-right num text-muted-foreground">{BRL(ticket)}</td>
+                        <td className="py-3 pr-3 text-right num text-muted-foreground">{PCT(share)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Weekly */}
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">Performance Semanal</CardTitle></CardHeader>
@@ -523,7 +644,7 @@ function KpiCard({ icon: Icon, label, value, delta, accent, sub }: any) {
   );
 }
 
-function KpiPremium({ icon: Icon, label, value, delta, loading, sub, prevLabel }: { icon: any; label: string; value: string | null; delta?: number; loading?: boolean; sub?: string; prevLabel?: string }) {
+function KpiPremium({ icon: Icon, label, value, delta, loading, sub, prevLabel, spark }: { icon: any; label: string; value: string | null; delta?: number; loading?: boolean; sub?: string; prevLabel?: string; spark?: { v: number }[] }) {
   const showSkeleton = loading || value === null;
   const positive = (delta ?? 0) >= 0;
   // Auto-shrink: números longos (ex: "R$ 1.245.000") nunca estouram o card
@@ -594,6 +715,21 @@ function KpiPremium({ icon: Icon, label, value, delta, loading, sub, prevLabel }
       )}
       {sub && !showSkeleton && (
         <div className="mt-2 text-[11px] truncate" style={{ color: "#94A3B8" }} title={sub}>{sub}</div>
+      )}
+      {spark && spark.length > 0 && !showSkeleton && (
+        <div className="mt-3 h-8 -mx-1 opacity-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={spark} margin={{ top: 2, right: 2, left: 2, bottom: 0 }}>
+              <defs>
+                <linearGradient id={`spk-${label}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#D4AF37" stopOpacity={0.5} />
+                  <stop offset="100%" stopColor="#D4AF37" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <Area type="monotone" dataKey="v" stroke="#D4AF37" strokeWidth={1.5} fill={`url(#spk-${label})`} isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
       )}
     </div>
   );
