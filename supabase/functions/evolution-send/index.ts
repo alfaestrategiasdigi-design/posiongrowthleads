@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
   if (!conn) return json({ error: conv.tenant_id ? "Este cliente ainda não tem uma instância Evolution configurada" : "Nenhuma instância Evolution configurada" }, 400);
   const base = normalizeBase(conn.instance_url);
 
-  const number = (conv.remote_jid?.split("@")[0]) || conv.telefone.replace(/\D/g, "");
+  const number = (conv.telefone || conv.remote_jid?.split("@")[0] || "").replace(/\D/g, "");
 
   // ============ REACTION ============
   if (reaction_wamid) {
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
         headers: { "Content-Type": "application/json", apikey: conn.api_key },
         body: JSON.stringify({
           reactionMessage: {
-            key: { remoteJid: conv.remote_jid, fromMe: true, id: reaction_wamid },
+            key: { remoteJid: `${number}@s.whatsapp.net`, fromMe: true, id: reaction_wamid },
             reaction: reaction_emoji ?? "",
           },
         }),
@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
     let body: any = { number, text };
     const quoted = reply_to_wamid ? {
       quoted: {
-        key: { remoteJid: conv.remote_jid, fromMe: false, id: reply_to_wamid },
+        key: { remoteJid: `${number}@s.whatsapp.net`, fromMe: false, id: reply_to_wamid },
         message: { conversation: reply_preview ?? "" },
       },
     } : {};

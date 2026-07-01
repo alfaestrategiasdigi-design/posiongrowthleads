@@ -20,6 +20,33 @@ function normalizeBase(raw: string): string {
   catch { return s.replace(/\/+$/, ""); }
 }
 
+function onlyDigits(value: unknown): string {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
+function normalizePhoneJid(value: unknown): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw || raw.endsWith("@g.us") || raw.endsWith("@broadcast") || raw.includes("@lid")) return null;
+  const phone = onlyDigits(raw.split("@")[0]);
+  return phone ? `${phone}@s.whatsapp.net` : null;
+}
+
+async function findConversation(admin: any, tenantId: string | null, remoteJid: string, phone: string) {
+  let byJid = admin.from("conversations")
+    .select("id, foto_url")
+    .eq("remote_jid", remoteJid);
+  byJid = tenantId ? byJid.eq("tenant_id", tenantId) : byJid.is("tenant_id", null);
+  const jidResult = await byJid.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
+  if (jidResult.data) return jidResult.data;
+
+  let byPhone = admin.from("conversations")
+    .select("id, foto_url")
+    .eq("telefone", phone);
+  byPhone = tenantId ? byPhone.eq("tenant_id", tenantId) : byPhone.is("tenant_id", null);
+  const phoneResult = await byPhone.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
+  return phoneResult.data ?? null;
+}
+
 function json(b: unknown, status = 200) {
   return new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
@@ -77,11 +104,10 @@ Deno.serve(async (req) => {
 
   let upserted = 0, pictures = 0;
   for (const c of chats) {
-    const jid: string = c.remoteJid || c.id || c.chatId || "";
+    const jid = normalizePhoneJid(c.remoteJid || c.id || c.chatId || "");
     if (!jid) continue;
     // Skip groups, broadcast lists and @lid (multi-device alias IDs that duplicate the same contact)
-    if (jid.endsWith("@g.us") || jid.endsWith("@broadcast") || jid.includes("@lid")) continue;
-    const phone = jid.split("@")[0];
+    const phone = onlyDigits(jid.split("@")[0]);
     if (!phone || !/^\d+$/.test(phone)) continue;
     const name = c.pushName || c.name || c.contact?.name || c.subject || null;
     const lastTs = c.lastMessageTimestamp || c.updatedAt || c.lastMessage?.messageTimestamp;
@@ -93,15 +119,11 @@ Deno.serve(async (req) => {
       c.lastMessage?.message?.extendedTextMessage?.text ||
       (c.lastMessage?.messageType ? `[${c.lastMessage.messageType}]` : null);
 
-    // Upsert by (tenant_id, remote_jid)
-    const existing = await admin.from("conversations")
-      .select("id, foto_url")
-      .eq("remote_jid", jid)
-      .eq(tenantId ? "tenant_id" : "tenant_id", tenantId as any)
-      .maybeSingle();
+    // Upsert by normalized phone/JID so @c.us/@s.whatsapp.net variants reuse one conversation
+    const existing = await findConversation(admin, tenantId, jid, phone);
 
-    let convId = existing.data?.id as string | undefined;
-    let fotoUrl = existing.data?.foto_url as string | null | undefined;
+    let convId = existing?.id as string | undefined;
+    let fotoUrl = existing?.foto_url as string | null | undefined;
 
     if (withPictures && !fotoUrl) {
       try {
@@ -133,7 +155,11 @@ Deno.serve(async (req) => {
     if (convId) {
       await admin.from("conversations").update(payload).eq("id", convId);
     } else {
-      await admin.from("conversations").insert(payload);
+      const inserted = await admin.from("conversations").insert(payload);
+      if (inserted.error) {
+        const existingAfterConflict = await findConversation(admin, tenantId, jid, phone);
+        if (existingAfterConflict?.id) await admin.from("conversations").update(payload).eq("id", existingAfterConflict.id);
+      }
     }
     upserted++;
   }
