@@ -56,14 +56,18 @@ function firstLidJid(candidates: unknown[]): string | null {
 
 async function upsertJidAlias(tenantId: string | null, instanceName: string | null, lidJid: string | null, phoneJid: string | null) {
   if (!lidJid?.includes("@lid") || !phoneJid || phoneJid.includes("@lid")) return;
-  await admin.from("whatsapp_jid_aliases").upsert({
-    tenant_id: tenantId,
-    instance_name: instanceName,
-    lid_jid: lidJid,
-    phone_jid: phoneJid,
-    updated_at: new Date().toISOString(),
-    last_seen_at: new Date().toISOString(),
-  }, { onConflict: "tenant_id,lid_jid" }).throwOnError().catch(() => undefined);
+  try {
+    await admin.from("whatsapp_jid_aliases").upsert({
+      tenant_id: tenantId,
+      instance_name: instanceName,
+      lid_jid: lidJid,
+      phone_jid: phoneJid,
+      updated_at: new Date().toISOString(),
+      last_seen_at: new Date().toISOString(),
+    }, { onConflict: "tenant_scope,lid_jid" });
+  } catch {
+    // Alias mapping is an optimization: if it fails, webhook ingestion must continue.
+  }
 }
 
 async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): Promise<string | null> {
