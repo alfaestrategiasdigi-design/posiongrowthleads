@@ -86,22 +86,29 @@ Deno.serve(async (req) => {
       slugPart ? `?tenant=${encodeURIComponent(slugPart)}` : conn.tenant_id ? `?tenant_id=${encodeURIComponent(conn.tenant_id)}` : ""
     }`;
 
-    const bodies = [
-      { webhook: { enabled: true, url: webhookUrl, webhookByEvents: false, webhook_by_events: false, events: EVENTS } },
-      { enabled: true, url: webhookUrl, webhookByEvents: false, webhook_by_events: false, events: EVENTS },
+    // Try multiple payload variants (Evolution v1 flat, v2 wrapped, v2 minimal)
+    const attempts = [
+      { name: "v2_wrapped_full", body: { webhook: { enabled: true, url: webhookUrl, webhookByEvents: false, byEvents: false, base64: true, events: EVENTS } } },
+      { name: "v2_wrapped_min",  body: { webhook: { enabled: true, url: webhookUrl, events: EVENTS } } },
+      { name: "v1_flat_full",    body: { enabled: true, url: webhookUrl, webhookByEvents: false, webhook_by_events: false, events: EVENTS } },
+      { name: "v1_flat_min",     body: { enabled: true, url: webhookUrl, events: EVENTS } },
     ];
-    let ok = false; let detail: any = null;
-    for (const bd of bodies) {
+    let ok = false; const debug: any[] = [];
+    for (const att of attempts) {
       try {
         const r = await fetch(`${base}/webhook/set/${encodeURIComponent(conn.instance_name)}`, {
           method: "POST",
           headers: { "Content-Type": "application/json", apikey: conn.api_key },
-          body: JSON.stringify(bd),
+          body: JSON.stringify(att.body),
         });
-        detail = await r.text();
+        const txt = await r.text();
+        debug.push({ variant: att.name, status: r.status, body: txt.slice(0, 200) });
         if (r.ok) { ok = true; break; }
-      } catch (e) { detail = String(e); }
+      } catch (e) {
+        debug.push({ variant: att.name, error: String(e) });
+      }
     }
+
 
     try {
       await fetch(`${base}/settings/set/${encodeURIComponent(conn.instance_name)}`, {
