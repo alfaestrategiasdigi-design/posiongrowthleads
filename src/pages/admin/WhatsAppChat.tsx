@@ -144,8 +144,101 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
     const { data } = await supabase
       .from("messages").select("*").eq("conversation_id", conversationId)
       .order("created_at", { ascending: true });
-    setMessages((data as Message[]) || []);
+    const msgs = (data as Message[]) || [];
+    setMessages(msgs);
+    // Load reactions for this conversation
+    const { data: reactRows } = await supabase
+      .from("message_reactions").select("*").eq("conversation_id", conversationId);
+    const map: Record<string, MessageReaction[]> = {};
+    (reactRows || []).forEach((r: any) => {
+      (map[r.message_wamid] ||= []).push(r as MessageReaction);
+    });
+    setReactions(map);
   }, []);
+
+  // ============ Reactions & Reply helpers ============
+  const sendReaction = useCallback(async (msg: Message, emoji: string) => {
+    if (!msg.wamid || !selectedConversation) return;
+    // Toggle: if already reacted with same emoji, remove
+    const existing = (reactions[msg.wamid] || []).find(r => r.from_me);
+    const targetEmoji = existing?.emoji === emoji ? "" : emoji;
+    const { error } = await supabase.functions.invoke("evolution-send", {
+      body: {
+        conversation_id: selectedConversation.id,
+        reaction_wamid: msg.wamid,
+        reaction_emoji: targetEmoji,
+      },
+    });
+    if (error) toast.error("Falha ao reagir", { description: error.message });
+    else loadMessages(selectedConversation.id);
+  }, [reactions, selectedConversation, loadMessages]);
+
+  // ============ Audio recorder ============
+  const startRecording = useCallback(async () => {
+    if (recording) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      recordChunksRef.current = [];
+      rec.ondataavailable = (e) => e.data.size > 0 && recordChunksRef.current.push(e.data);
+      rec.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(recordChunksRef.current, { type: "audio/webm" });
+        await uploadAndSendAudio(blob);
+      };
+      mediaRecorderRef.current = rec;
+      rec.start();
+      setRecording(true);
+      setRecordStart(Date.now());
+    } catch (e: any) {
+      toast.error("Microfone bloqueado", { description: e?.message || "Permita o acesso ao microfone" });
+    }
+  }, [recording]);
+
+  const stopRecording = useCallback(() => {
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+    setRecording(false);
+    setRecordStart(null);
+  }, []);
+
+  const uploadAndSendAudio = useCallback(async (blob: Blob) => {
+    if (!selectedConversation) return;
+    setUploading(true);
+    try {
+      const path = `${tenantId || "master"}/outgoing/${selectedConversation.id}/${Date.now()}_voice.webm`;
+      const { error: upErr } = await supabase.storage.from("whatsapp-media").upload(path, blob, {
+        contentType: "audio/webm", upsert: false,
+      });
+      if (upErr) { toast.error("Falha ao subir áudio", { description: upErr.message }); return; }
+      const { data: signed } = await supabase.storage.from("whatsapp-media").createSignedUrl(path, 60 * 60 * 24 * 7);
+      const url = signed?.signedUrl;
+      if (!url) { toast.error("URL não gerada"); return; }
+      const { data, error } = await supabase.functions.invoke("evolution-send", {
+        body: {
+          conversation_id: selectedConversation.id,
+          media_url: url,
+          media_type: "audio",
+          reply_to_wamid: replyTo?.wamid ?? null,
+          reply_preview: replyTo?.conteudo?.slice(0, 80) ?? null,
+        },
+      });
+      if (error || (data as any)?.error) {
+        toast.error("Falha ao enviar áudio", { description: (data as any)?.error || error?.message });
+      } else {
+        setReplyTo(null);
+        loadMessages(selectedConversation.id);
+      }
+    } finally { setUploading(false); }
+  }, [selectedConversation, tenantId, replyTo, loadMessages]);
+
+  // Tick recording timer
+  useEffect(() => {
+    if (!recording) return;
+    const t = setInterval(() => setRecordTick(x => x + 1), 500);
+    return () => clearInterval(t);
+  }, [recording]);
+
 
   const loadConn = useCallback(async () => {
     let query = supabase.from("zapi_connections")
