@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
       instance: conn.instance_name,
       tenant_id: conn.tenant_id,
       ok, webhook_url: webhookUrl,
-      detail: ok ? null : detail?.toString().slice(0, 400),
+      debug,
     });
   }
 
