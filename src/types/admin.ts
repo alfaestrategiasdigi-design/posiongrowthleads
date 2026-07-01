@@ -77,7 +77,7 @@ export interface ZapiConnection {
 export const PIPELINE_STAGES = [
   { id: "lead",             title: "Lead",              short: "Lead",         color: "from-slate-500 to-slate-600",     hex: "#64748b" },
   { id: "qualificado",      title: "Qualificado",       short: "Qualificado",  color: "from-sky-500 to-sky-600",         hex: "#0ea5e9" },
-  { id: "reuniao_agendada", title: "Reunião Agendada",  short: "R. Agendada",  color: "from-indigo-500 to-indigo-600",   hex: "#6366f1" },
+  { id: "reuniao_agendada", title: "CONSULTA AGENDADA", short: "CONSULTA",      color: "from-indigo-500 to-indigo-600",   hex: "#6366f1" },
   { id: "compareceu",       title: "Compareceu",        short: "Compareceu",   color: "from-violet-500 to-violet-600",   hex: "#8b5cf6" },
   { id: "negociacao",       title: "Negociação",        short: "Negociação",   color: "from-amber-500 to-amber-600",     hex: "#f59e0b" },
   { id: "ganho",            title: "Ganho",             short: "Ganho",        color: "from-emerald-500 to-emerald-600", hex: "#10b981" },
