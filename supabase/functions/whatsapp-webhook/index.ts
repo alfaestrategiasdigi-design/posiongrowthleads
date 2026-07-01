@@ -24,6 +24,67 @@ function normalizeBase(raw: string): string {
   } catch { return s.replace(/\/+$/, ""); }
 }
 
+function onlyDigits(value: unknown): string {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
+function normalizePhoneJid(value: unknown): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  if (raw.endsWith("@g.us") || raw.endsWith("@broadcast")) return null;
+  if (raw.includes("@lid")) return raw;
+  const digits = onlyDigits(raw.split("@")[0]);
+  if (!digits) return null;
+  return `${digits}@s.whatsapp.net`;
+}
+
+function firstStandardJid(candidates: unknown[]): string | null {
+  for (const candidate of candidates) {
+    const jid = normalizePhoneJid(candidate);
+    if (jid && !jid.includes("@lid")) return jid;
+  }
+  return null;
+}
+
+function resolveRemoteJid(message: any, key: any): { remoteJid: string | null; rawRemoteJid: string | null; unresolvedLid: boolean } {
+  const rawRemoteJid = String(key?.remoteJid ?? message?.remoteJid ?? "").trim() || null;
+  const standard = firstStandardJid([
+    key?.remoteJidAlt,
+    key?.remoteJid_alt,
+    key?.participantAlt,
+    message?.remoteJidAlt,
+    message?.remoteJid_alt,
+    message?.participantAlt,
+    message?.message?.key?.remoteJidAlt,
+    message?.message?.key?.remoteJid_alt,
+    rawRemoteJid,
+  ]);
+  if (standard) return { remoteJid: standard, rawRemoteJid, unresolvedLid: false };
+
+  const normalizedRaw = normalizePhoneJid(rawRemoteJid);
+  return {
+    remoteJid: normalizedRaw?.includes("@lid") ? null : normalizedRaw,
+    rawRemoteJid,
+    unresolvedLid: Boolean(normalizedRaw?.includes("@lid")),
+  };
+}
+
+async function findConversation(tenantId: string | null, remoteJid: string, phone: string) {
+  let byJid = admin.from("conversations")
+    .select("id, nao_lidas, remote_jid, telefone")
+    .eq("remote_jid", remoteJid);
+  byJid = tenantId ? byJid.eq("tenant_id", tenantId) : byJid.is("tenant_id", null);
+  const jidResult = await byJid.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
+  if (jidResult.data) return jidResult.data;
+
+  let byPhone = admin.from("conversations")
+    .select("id, nao_lidas, remote_jid, telefone")
+    .eq("telefone", phone);
+  byPhone = tenantId ? byPhone.eq("tenant_id", tenantId) : byPhone.is("tenant_id", null);
+  const phoneResult = await byPhone.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
+  return phoneResult.data ?? null;
+}
+
 async function fetchAndStoreMedia(
   conn: { instance_url: string; api_key: string; instance_name: string },
   message: any,
@@ -132,7 +193,7 @@ Deno.serve(async (req) => {
     if (event.includes("contacts.")) {
       const contacts: any[] = Array.isArray(body?.data) ? body.data : [body?.data].filter(Boolean);
       for (const c of contacts) {
-        const jid = c?.remoteJid ?? c?.id;
+        const jid = firstStandardJid([c?.remoteJidAlt, c?.remoteJid_alt, c?.remoteJid, c?.id]);
         if (!jid) continue;
         const updates: any = {};
         if (c?.pushName || c?.name) updates.nome_contato = c.pushName || c.name;
@@ -230,12 +291,16 @@ Deno.serve(async (req) => {
       for (const m of messagesArr) {
         const key = m?.key ?? m?.message?.key ?? {};
         const wamid: string | null = key?.id ?? m?.id ?? null;
-        const remoteJid: string = key?.remoteJid ?? m?.remoteJid ?? "";
-        if (!remoteJid) continue;
-        if (remoteJid.endsWith("@g.us") || remoteJid.endsWith("@broadcast")) continue;
+        const { remoteJid, rawRemoteJid, unresolvedLid } = resolveRemoteJid(m, key);
+        if (rawRemoteJid?.endsWith("@g.us") || rawRemoteJid?.endsWith("@broadcast")) continue;
         const fromMe: boolean = Boolean(key?.fromMe ?? m?.fromMe);
-        // descarta @lid apenas se NÃO for eco de dispositivo próprio (fromMe=true)
-        if (remoteJid.includes("@lid") && !fromMe) continue;
+        // Nunca cria conversa com @lid: LID é um identificador temporário do multi-device
+        // e causa uma conversa nova por mensagem/dispositivo. Quando a Evolution envia
+        // remoteJidAlt usamos o JID real; sem isso, descartamos para não duplicar o inbox.
+        if (!remoteJid || unresolvedLid) {
+          console.warn("[whatsapp-webhook] unresolved_lid_dropped", { wamid, rawRemoteJid, fromMe });
+          continue;
+        }
         const pushName: string = m?.pushName ?? m?.notifyName ?? "";
         const msgObj = m?.message ?? m;
 
@@ -329,11 +394,10 @@ Deno.serve(async (req) => {
           };
         }
 
-        const phone = remoteJid.split("@")[0];
+        const phone = onlyDigits(remoteJid.split("@")[0]);
+        if (!phone) continue;
 
-        let convQ = admin.from("conversations").select("id, nao_lidas").eq("remote_jid", remoteJid);
-        if (tenantId) convQ = convQ.eq("tenant_id", tenantId); else convQ = convQ.is("tenant_id", null);
-        let { data: conv } = await convQ.maybeSingle();
+        let conv = await findConversation(tenantId, remoteJid, phone);
 
         const preview = text
           || (tipo === "audio" ? "🎤 Áudio"
@@ -355,8 +419,11 @@ Deno.serve(async (req) => {
             ultima_mensagem: preview,
             ultima_interacao: new Date().toISOString(),
             nao_lidas: fromMe ? 0 : 1,
-          }).select("id, nao_lidas").maybeSingle();
+          }).select("id, nao_lidas, remote_jid, telefone").maybeSingle();
           conv = ins.data;
+          if (!conv && ins.error) {
+            conv = await findConversation(tenantId, remoteJid, phone);
+          }
 
           // Auto-create lead (tenant scope, inbound only)
           if (!fromMe && tenantId) {
@@ -381,6 +448,8 @@ Deno.serve(async (req) => {
             ultima_mensagem: preview,
             ultima_interacao: new Date().toISOString(),
             nao_lidas: fromMe ? conv.nao_lidas : (conv.nao_lidas ?? 0) + 1,
+            telefone: phone,
+            remote_jid: remoteJid,
             nome_contato: pushName || undefined,
           }).eq("id", conv.id);
         }
