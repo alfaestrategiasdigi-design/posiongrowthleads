@@ -14,53 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      ad_account_mappings: {
-        Row: {
-          campaign_ids: string[]
-          created_at: string
-          facebook_ad_account_id: string | null
-          facebook_page_id: string | null
-          id: string
-          is_active: boolean
-          label: string | null
-          lead_form_ids: string[]
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          campaign_ids?: string[]
-          created_at?: string
-          facebook_ad_account_id?: string | null
-          facebook_page_id?: string | null
-          id?: string
-          is_active?: boolean
-          label?: string | null
-          lead_form_ids?: string[]
-          tenant_id: string
-          updated_at?: string
-        }
-        Update: {
-          campaign_ids?: string[]
-          created_at?: string
-          facebook_ad_account_id?: string | null
-          facebook_page_id?: string | null
-          id?: string
-          is_active?: boolean
-          label?: string | null
-          lead_form_ids?: string[]
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ad_account_mappings_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       api_tokens: {
         Row: {
           active: boolean
