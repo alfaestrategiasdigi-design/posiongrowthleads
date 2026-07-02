@@ -7,8 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
   Loader2, RefreshCw, TrendingUp, Users, DollarSign, Target,
-  Activity, AlertCircle, Megaphone, Star,
+  Activity, AlertCircle, Megaphone, Star, ExternalLink, Copy, Eye, MousePointerClick,
 } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 const BRL = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v || 0);
 const NUM = (v: number) => new Intl.NumberFormat("pt-BR").format(Math.round(v || 0));
@@ -48,6 +52,7 @@ export default function TenantCampaigns() {
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [linkedForms, setLinkedForms] = useState<LinkedForm[]>([]);
   const [lastBackfill, setLastBackfill] = useState<Date | null>(null);
+  const [detail, setDetail] = useState<Campaign | null>(null);
 
   const load = async () => {
     if (!tenant) return;
@@ -258,54 +263,123 @@ export default function TenantCampaigns() {
         </Card>
       )}
 
-      {/* Cards */}
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {/* Cards compactos */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {campaigns.map((c) => {
           const key = c.name.trim().toLowerCase();
           const win = crmWins[key];
           const revenue = (c.insights?.purchase_value || 0) + (win?.value || 0);
           const roas = c.insights?.spend ? revenue / c.insights.spend : 0;
           const isActive = c.effective_status === "ACTIVE" || c.status === "ACTIVE";
+          const metaUrl = `https://business.facebook.com/adsmanager/manage/campaigns?act=${(c.ad_account_id || "").replace(/^act_/, "")}&selected_campaign_ids=${c.id}`;
+          const copyId = async () => {
+            await navigator.clipboard.writeText(c.id);
+            toast.success("ID da campanha copiado");
+          };
           return (
-            <Card key={c.id} className="p-4 flex flex-col gap-3 hover:border-primary/40 transition-colors">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground truncate">
+            <Card key={c.id} className="relative p-3.5 flex flex-col gap-2.5 hover:border-primary/40 transition-colors overflow-hidden group">
+              {/* status strip */}
+              <div className={`absolute left-0 top-0 h-full w-[3px] ${isActive ? "bg-emerald-400 shadow-[0_0_12px_hsl(var(--primary))]" : "bg-muted"}`} />
+
+              <div className="flex items-start justify-between gap-2 pl-1">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground truncate">
                     {c.ad_account_label || c.ad_account_id}
                   </div>
-                  <div className="font-medium truncate" title={c.name}>{c.name}</div>
+                  <div className="text-sm font-medium truncate leading-tight mt-0.5" title={c.name}>{c.name}</div>
                 </div>
-                <Badge variant={isActive ? "default" : "secondary"} className="shrink-0 text-[10px]">
-                  {isActive ? "Ativa" : c.effective_status || c.status}
+                <Badge variant={isActive ? "default" : "secondary"} className="shrink-0 text-[9px] px-1.5 py-0 h-4">
+                  {isActive ? "ATIVA" : (c.effective_status || c.status || "").slice(0, 8)}
                 </Badge>
               </div>
 
               {c.insights ? (
-                <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
                   <Metric label="Gasto" value={BRL(c.insights.spend)} />
                   <Metric label="Leads" value={NUM(c.insights.leads)} />
                   <Metric label="CPL" value={BRL(c.insights.cpl)} />
-                  <Metric label="CTR" value={`${(c.insights.ctr).toFixed(2)}%`} />
-                  <Metric label="CPC" value={BRL(c.insights.cpc)} />
-                  <Metric label="Impr." value={NUM(c.insights.impressions)} />
+                  <Metric label="CTR" value={`${c.insights.ctr.toFixed(1)}%`} />
                 </div>
               ) : (
-                <div className="text-xs text-muted-foreground italic">Sem dados de insights no período.</div>
+                <div className="text-[11px] text-muted-foreground italic pl-1">Sem dados no período.</div>
               )}
 
-              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 flex items-center justify-between">
-                <div className="text-[10px] uppercase tracking-wider text-emerald-400 flex items-center gap-1">
-                  <Star className="w-3 h-3" /> Ganhos + Receita
+              <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1.5 flex items-center justify-between ml-1">
+                <div className="text-[9px] uppercase tracking-wider text-emerald-400 flex items-center gap-1">
+                  <Star className="w-3 h-3" /> Receita
                 </div>
                 <div className="text-right leading-tight">
-                  <div className="text-sm font-bold tabular-nums text-emerald-400">{BRL(revenue)}</div>
-                  <div className="text-[10px] text-muted-foreground">ROAS {roas.toFixed(2)}x{win?.count ? ` · ${win.count} venda${win.count > 1 ? "s" : ""}` : ""}</div>
+                  <div className="text-xs font-bold tabular-nums text-emerald-400">{BRL(revenue)}</div>
+                  <div className="text-[9px] text-muted-foreground">
+                    ROAS {roas.toFixed(2)}x{win?.count ? ` · ${win.count} venda${win.count > 1 ? "s" : ""}` : ""}
+                  </div>
                 </div>
+              </div>
+
+              {/* Ações rápidas */}
+              <div className="flex items-center gap-1 pl-1 pt-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={() => setDetail(c)}>
+                  <Eye className="w-3 h-3" /> Detalhes
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={() => window.open(metaUrl, "_blank")}>
+                  <ExternalLink className="w-3 h-3" /> Meta
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={copyId}>
+                  <Copy className="w-3 h-3" /> ID
+                </Button>
               </div>
             </Card>
           );
         })}
       </div>
+
+      {/* Detail Dialog */}
+      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="pr-6">{detail?.name}</DialogTitle>
+            <DialogDescription className="font-mono text-[11px]">
+              {detail?.ad_account_label || detail?.ad_account_id} · {detail?.id}
+            </DialogDescription>
+          </DialogHeader>
+          {detail?.insights ? (
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <Metric label="Gasto" value={BRL(detail.insights.spend)} />
+              <Metric label="Impr." value={NUM(detail.insights.impressions)} />
+              <Metric label="Cliques" value={NUM(detail.insights.clicks)} />
+              <Metric label="CTR" value={`${detail.insights.ctr.toFixed(2)}%`} />
+              <Metric label="CPC" value={BRL(detail.insights.cpc)} />
+              <Metric label="CPM" value={BRL(detail.insights.cpm)} />
+              <Metric label="Leads" value={NUM(detail.insights.leads)} />
+              <Metric label="CPL" value={BRL(detail.insights.cpl)} />
+              <Metric label="ROAS" value={`${detail.insights.roas.toFixed(2)}x`} />
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground italic">Sem insights no período.</div>
+          )}
+          <div className="flex items-center gap-2 pt-2">
+            <Badge variant="outline" className="text-[10px]">{detail?.objective || "—"}</Badge>
+            <Badge variant="outline" className="text-[10px]">Status: {detail?.effective_status || detail?.status}</Badge>
+            {detail?.daily_budget && (
+              <Badge variant="outline" className="text-[10px]">
+                Diário: {BRL(Number(detail.daily_budget) / 100)}
+              </Badge>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => detail && navigator.clipboard.writeText(detail.id).then(() => toast.success("ID copiado"))}>
+              <Copy className="w-3.5 h-3.5" /> Copiar ID
+            </Button>
+            <Button size="sm" className="gap-1" onClick={() => {
+              if (!detail) return;
+              const url = `https://business.facebook.com/adsmanager/manage/campaigns?act=${(detail.ad_account_id || "").replace(/^act_/, "")}&selected_campaign_ids=${detail.id}`;
+              window.open(url, "_blank");
+            }}>
+              <ExternalLink className="w-3.5 h-3.5" /> Abrir no Meta
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
