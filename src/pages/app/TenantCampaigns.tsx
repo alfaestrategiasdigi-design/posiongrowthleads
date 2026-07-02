@@ -93,7 +93,40 @@ export default function TenantCampaigns() {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { if (tenant) load(); /* eslint-disable-next-line */ }, [tenant?.id, activeOnly]);
+  useEffect(() => { if (tenant) { load(); loadLinkedForms(); } /* eslint-disable-next-line */ }, [tenant?.id, activeOnly]);
+
+  const loadLinkedForms = async () => {
+    if (!tenant) return;
+    const { data: rules } = await supabase
+      .from("lead_routing_rules")
+      .select("match_value,match_label")
+      .eq("tenant_id", tenant.id).eq("match_type", "form_id").eq("active", true);
+    const ruleList = (rules ?? []) as Array<{ match_value: string; match_label: string | null }>;
+    if (ruleList.length === 0) { setLinkedForms([]); setLastBackfill(null); return; }
+    const ids = ruleList.map((r) => r.match_value);
+    const { data: leads } = await supabase
+      .from("agency_leads")
+      .select("facebook_form_id,created_at")
+      .eq("tenant_id_criado", tenant.id)
+      .in("facebook_form_id", ids);
+    const rows = (leads ?? []) as Array<{ facebook_form_id: string; created_at: string }>;
+    const byForm: Record<string, { total: number; last: string | null }> = {};
+    let globalLast: string | null = null;
+    for (const l of rows) {
+      const k = l.facebook_form_id;
+      byForm[k] = byForm[k] || { total: 0, last: null };
+      byForm[k].total += 1;
+      if (!byForm[k].last || l.created_at > byForm[k].last!) byForm[k].last = l.created_at;
+      if (!globalLast || l.created_at > globalLast) globalLast = l.created_at;
+    }
+    setLinkedForms(ruleList.map((r) => ({
+      form_id: r.match_value,
+      label: r.match_label || `Form ${r.match_value}`,
+      total_leads: byForm[r.match_value]?.total ?? 0,
+      last_lead_at: byForm[r.match_value]?.last ?? null,
+    })));
+    setLastBackfill(globalLast ? new Date(globalLast) : null);
+  };
 
   const kpis = useMemo(() => {
     const s = campaigns.reduce((acc, c) => {
