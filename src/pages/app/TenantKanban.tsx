@@ -180,9 +180,26 @@ export default function TenantKanban() {
             style={{ background: "#0B1224", border: "1px solid rgba(255,255,255,0.05)" }}
           >
             <div className="px-3 py-2.5 rounded-t-xl" style={{ background: col.bg, borderBottom: `2px solid ${col.accent}` }}>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: col.accent }}>{col.title}</span>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${col.accent}22`, color: col.accent }}>{col.rows.length}</span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-[11px] font-bold tracking-wider uppercase truncate" style={{ color: col.accent }}>{col.title}</span>
+                  {AUTOMATED_STAGES[col.id] && (
+                    <span title={`⚡ Automação ativa: ${AUTOMATED_STAGES[col.id]}`} className="shrink-0">
+                      <Zap className="w-3 h-3" style={{ color: col.accent }} />
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {col.stale > 0 && (
+                    <span
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-500/15 text-rose-400 flex items-center gap-0.5"
+                      title={`${col.stale} lead(s) parados há mais de ${STALE_DAYS} dias`}
+                    >
+                      <AlertTriangle className="w-2.5 h-2.5" /> {col.stale}
+                    </span>
+                  )}
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${col.accent}22`, color: col.accent }}>{col.rows.length}</span>
+                </div>
               </div>
               {col.total > 0 && <div className="text-[10px] text-muted-foreground mt-1 tabular-nums">{BRL(col.total)}</div>}
             </div>
