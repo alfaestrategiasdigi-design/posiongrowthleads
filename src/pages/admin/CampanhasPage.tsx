@@ -554,74 +554,97 @@ export default function CampanhasPage() {
       }
       if (data?.error) throw new Error(data.error);
       setMetaCampaigns((data?.data ?? []) as MetaCampaign[]);
-      // Load CRM wins (kanban) for these campaigns — mescla leads e agency_leads
+      // Load CRM wins (kanban) for these campaigns — mescla leads e agency_leads (fuzzy match por tokens)
       try {
-        const names = (data?.data ?? []).map((c: any) => c.name).filter(Boolean);
-        if (names.length) {
-          const nameKeys = names.map((n: string) => n.trim().toLowerCase());
-          const map: Record<string, number> = {};
+        const camps = (data?.data ?? []).map((c: any) => ({ id: c.id, name: c.name || "" })).filter((c: any) => c.name);
+        if (camps.length) {
+          // normaliza: minusculo, remove colchetes/pontuação, tokens de >=3 letras
+          const normalize = (s: string) =>
+            (s || "")
+              .toLowerCase()
+              .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+              .replace(/[\[\]\(\)\{\}\-\_\/\\\.,;:!\?]/g, " ")
+              .replace(/\s+/g, " ").trim();
+          const tokens = (s: string) => new Set(normalize(s).split(" ").filter((t) => t.length >= 3));
+          const campTokens = camps.map((c: any) => ({ key: c.name.trim().toLowerCase(), name: c.name, toks: tokens(c.name) }));
+
+          const wins: Record<string, number> = {};
           const rev: Record<string, number> = {};
+          const leadsMap: Record<string, { name: string; valor: number; source: string }[]> = {};
           const seenIds = new Set<string>();
 
-          const addWin = (rawName: string | null | undefined, valor: number | null, id: string) => {
-            const k = (rawName || "").trim().toLowerCase();
-            if (!k || !nameKeys.includes(k)) return;
-            if (seenIds.has(id)) return;
-            seenIds.add(id);
-            map[k] = (map[k] || 0) + 1;
-            rev[k] = (rev[k] || 0) + (Number(valor) || 0);
+          const attribute = (leadId: string, leadName: string, valor: number, ...candidates: (string | null | undefined)[]) => {
+            if (seenIds.has(leadId)) return;
+            let best: { key: string; name: string; score: number } | null = null;
+            for (const cand of candidates) {
+              if (!cand) continue;
+              const candNorm = cand.trim().toLowerCase();
+              const candToks = tokens(cand);
+              if (candToks.size === 0) continue;
+              for (const c of campTokens) {
+                // exato
+                if (c.key === candNorm) { best = { key: c.key, name: c.name, score: 1 }; break; }
+                // Jaccard
+                let inter = 0;
+                for (const t of candToks) if (c.toks.has(t)) inter++;
+                const union = candToks.size + c.toks.size - inter;
+                const score = union ? inter / union : 0;
+                if (score >= 0.4 && (!best || score > best.score)) best = { key: c.key, name: c.name, score };
+              }
+              if (best && best.score === 1) break;
+            }
+            if (!best) return;
+            seenIds.add(leadId);
+            wins[best.key] = (wins[best.key] || 0) + 1;
+            rev[best.key] = (rev[best.key] || 0) + (Number(valor) || 0);
+            (leadsMap[best.key] = leadsMap[best.key] || []).push({
+              name: leadName || "Lead",
+              valor: Number(valor) || 0,
+              source: best.score === 1 ? "utm" : "fuzzy",
+            });
           };
 
-          // 1) tabela leads (legado) — status ganho
+          // 1) leads (legado)
           let q1 = supabase
             .from("leads")
-            .select("id,utm_campaign,facebook_campaign,status,tenant_id,valor_proposta")
+            .select("id,nome_completo,utm_campaign,facebook_campaign,facebook_form_name,status,tenant_id,valor_proposta,campaign_id_manual")
             .eq("status", "ganho");
           if (selectedTenantId) q1 = q1.eq("tenant_id", selectedTenantId);
           const { data: wins1 } = await q1;
-          (wins1 ?? []).forEach((l: any) => {
-            addWin(l.utm_campaign, l.valor_proposta, l.id);
-            addWin(l.facebook_campaign, l.valor_proposta, l.id);
-          });
+          (wins1 ?? []).forEach((l: any) =>
+            attribute(l.id, l.nome_completo, l.valor_proposta, l.campaign_id_manual, l.utm_campaign, l.facebook_campaign, l.facebook_form_name)
+          );
 
-          // 2) tabela agency_leads (novo kanban) — stage ganho; casa pelo id ou utm_campaign
+          // 2) agency_leads (kanban novo)
           const { data: wins2 } = await supabase
             .from("agency_leads")
-            .select("id,utm_campaign,valor_proposta,stage")
+            .select("id,nome_clinica,responsavel,utm_campaign,valor_proposta,stage,campaign_id_manual")
             .eq("stage", "ganho");
-          if (wins2 && wins2.length) {
-            // busca origem no leads pelo mesmo id para pegar campanha se agency não tem utm
-            const idsSemUtm = wins2.filter((a: any) => !a.utm_campaign).map((a: any) => a.id);
-            let origem: Record<string, { utm: string | null; fb: string | null }> = {};
+          if (wins2?.length) {
+            const idsSemUtm = wins2.filter((a: any) => !a.utm_campaign && !a.campaign_id_manual).map((a: any) => a.id);
+            const origem: Record<string, { utm: string | null; fb: string | null; form: string | null }> = {};
             if (idsSemUtm.length) {
               const { data: origs } = await supabase
                 .from("leads")
-                .select("id,utm_campaign,facebook_campaign")
+                .select("id,utm_campaign,facebook_campaign,facebook_form_name")
                 .in("id", idsSemUtm);
-              (origs ?? []).forEach((o: any) => {
-                origem[o.id] = { utm: o.utm_campaign, fb: o.facebook_campaign };
-              });
+              (origs ?? []).forEach((o: any) => { origem[o.id] = { utm: o.utm_campaign, fb: o.facebook_campaign, form: o.facebook_form_name }; });
             }
             wins2.forEach((a: any) => {
-              if (a.utm_campaign) {
-                addWin(a.utm_campaign, a.valor_proposta, a.id);
-              } else {
-                const o = origem[a.id];
-                if (o) {
-                  addWin(o.utm, a.valor_proposta, a.id);
-                  addWin(o.fb, a.valor_proposta, a.id);
-                }
-              }
+              const o = origem[a.id] || { utm: null, fb: null, form: null };
+              const label = a.nome_clinica || a.responsavel || "Lead";
+              attribute(a.id, label, a.valor_proposta, a.campaign_id_manual, a.utm_campaign, o.utm, o.fb, o.form);
             });
           }
 
-          setCrmWinsByCampaign(map);
+          setCrmWinsByCampaign(wins);
           setCrmRevenueByCampaign(rev);
+          setWonLeadsByCampaign(leadsMap);
         } else {
-          setCrmWinsByCampaign({});
-          setCrmRevenueByCampaign({});
+          setCrmWinsByCampaign({}); setCrmRevenueByCampaign({}); setWonLeadsByCampaign({});
         }
       } catch { /* non-fatal */ }
+
 
     } catch (e: any) {
       toast({ title: "Falha ao carregar campanhas", description: e.message ?? "", variant: "destructive" });
