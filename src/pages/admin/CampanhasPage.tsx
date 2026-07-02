@@ -325,15 +325,22 @@ export default function CampanhasPage() {
 
   // ===== Mapping actions =====
   const linkAccountToTenant = async (account: AdAccount, tenantId: string) => {
+    // Espelha em lead_routing_rules (roteio de leads) e tenant_ad_accounts (visão do cliente)
     await supabase.from("lead_routing_rules")
       .delete().eq("match_type", "ad_account_id").eq("match_value", account.id);
+    await supabase.from("tenant_ad_accounts")
+      .delete().eq("ad_account_id", account.id);
     if (tenantId && tenantId !== "__none__") {
-      const { error } = await supabase.from("lead_routing_rules").insert({
+      const { error: e1 } = await supabase.from("lead_routing_rules").insert({
         tenant_id: tenantId, match_type: "ad_account_id", match_value: account.id,
         match_label: account.name, ad_account_id: account.id, priority: 10, active: true,
       } as any);
-      if (error) { toast({ title: "Erro ao vincular", description: error.message, variant: "destructive" }); return; }
-      toast({ title: "Conta vinculada" });
+      if (e1) { toast({ title: "Erro ao vincular (routing)", description: e1.message, variant: "destructive" }); return; }
+      const { error: e2 } = await supabase.from("tenant_ad_accounts").insert({
+        tenant_id: tenantId, ad_account_id: account.id, label: account.name, active: true,
+      } as any);
+      if (e2) { toast({ title: "Erro ao vincular (tenant)", description: e2.message, variant: "destructive" }); return; }
+      toast({ title: "Conta vinculada ao cliente", description: account.name });
     } else {
       toast({ title: "Vínculo removido" });
     }

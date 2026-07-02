@@ -1,61 +1,37 @@
-## Contexto
+# Vincular Contas Meta ↔ Cliente
 
-O sistema já roda `sync-meta-leads` a cada 15 minutos: ele lista todos os `leadgen_forms` da página Facebook conectada, chama `resolve_tenant_for_lead` (que lê `lead_routing_rules`, `match_type='form_id'`) e insere o lead no tenant correto. Falta apenas a UI para o admin ver quais forms existem e vinculá-los.
+## Problema
+- No painel do cliente (`/app/:slug/campanhas`) a função `tenant-campaigns` lê a tabela **`tenant_ad_accounts`** para saber quais `act_*` mostrar.
+- Hoje essa tabela está **vazia**. O admin master escreve o vínculo apenas em `lead_routing_rules` (usado para roteio de leads), então o cliente do Dr. Alessandro vê "Nenhuma campanha".
+- Precisamos de uma UI no Admin Master para escolher a conta de anúncio e o cliente e persistir em `tenant_ad_accounts`, mantendo o roteio de leads coerente.
 
-Hoje a página Campanhas Meta tem um botão "Adicionar regra form_id" que exige digitar o ID cru — inútil na prática. Vamos substituir por uma tabela viva que puxa os forms direto do Meta.
+## O que vou implementar
 
-## O que muda
+### 1. Painel Admin — nova seção "Vincular conta ao cliente"
+Local: topo de `src/pages/admin/CampanhasPage.tsx`, ao lado do seletor de conta atual.
 
-### 1. Edge function `facebook-ads-manage` — nova action
+- Card "Contas vinculadas a clientes" listando cada linha de `tenant_ad_accounts` com: nome do tenant, `act_id`, label, toggle ativo, botão remover.
+- Formulário inline: `Select` de conta (usa `list_ad_accounts` já disponível) + `Select` de tenant (query `tenants`) + campo opcional de label → botão **Vincular**.
+- Ao vincular:
+  - `upsert` em `tenant_ad_accounts` (respeita o `unique (tenant_id, ad_account_id)`).
+  - `upsert` espelhado em `lead_routing_rules` (`match_type='ad_account_id'`) para manter o roteio automático de leads que já usamos.
+- Ao remover: apaga em ambos.
+- Uma mesma conta pode ficar vinculada a mais de um tenant se necessário; o admin master continua vendo tudo (nada muda no seletor de conta atual dele).
 
-Adiciono `case "list_lead_forms"` em `supabase/functions/facebook-ads-manage/index.ts`. Ele lê `page_id` de `facebook_webhook_config` e chama `GET {page_id}/leadgen_forms?fields=id,name,status,leads_count,created_time`. Retorna `{ ok, data: [{id, name, status, leads_count, created_time}] }`.
+### 2. Painel do Cliente — reflexo automático
+`src/pages/app/TenantCampaigns.tsx` e `supabase/functions/tenant-campaigns` já filtram por `tenant_ad_accounts`. Só preciso:
+- Melhorar o estado vazio: quando `reason === "no_mapping"`, mostrar "Nenhuma conta de anúncio vinculada. Peça à Posion." (já parecido, ajustar cópia).
+- Mostrar no header a(s) conta(s) vinculadas (nome + `act_id`), vindas do array `ad_accounts` que a função já devolve.
+- Nada de escrita pelo cliente: RLS já garante que ele só lê as próprias linhas.
 
-Sem novo secret; usa o `page_access_token` já persistido.
+### 3. Migração de dados
+Backfill único: para cada regra existente em `lead_routing_rules` com `match_type='ad_account_id' AND active`, inserir a linha correspondente em `tenant_ad_accounts` (ON CONFLICT DO NOTHING) para que vínculos antigos apareçam de imediato no painel dos clientes atuais.
 
-### 2. `src/pages/admin/CampanhasPage.tsx` — bloco Mapeamento reformulado
+### 4. Sem mudanças de escopo
+- Não altero autenticação, RLS existente, nem o dashboard do Admin Master.
+- Não mudo o fluxo de formulários Meta Lead Ads (segue como está).
+- Nenhum novo secret ou tabela — `tenant_ad_accounts` já existe com as políticas certas.
 
-Dentro do `<details>` "Mapeamento de Contas & Formulários" o segundo sub-bloco vira uma **tabela viva de Lead Forms**:
-
-```text
-FORMULÁRIO (Meta)          ID              LEADS   CLIENTE VINCULADO       AÇÃO
-Consulta Botox — Roar      1234567890      42     [Instituto Roar ▾]    ↻ Sync
-Aval. Facial Alessandro    9876543210      17     [— sem vínculo ▾]     ↻ Sync
-Landing Genérica           5555555555      3      [Admin Master (fallback) ▾]  ↻ Sync
-```
-
-Comportamento:
-
-- Ao abrir o `<details>`, chama `facebook-ads-manage` action `list_lead_forms`. Mostra loader e depois a tabela.
-- Coluna "Cliente vinculado" é um `<Select>` alimentado pelo array `tenants`; opção adicional "— sem vínculo —" e "Admin Master (fallback)".
-- Trocar o valor faz upsert em `lead_routing_rules` (`match_type='form_id'`, `match_value=form.id`, `match_label=form.name`, `priority=5`, `active=true`). "— sem vínculo —" apaga a regra. Toast de confirmação.
-- Botão ↻ Sync por linha chama `facebook-backfill-leads` com `{ form_ids: [form.id], max_per_form: 200 }` e mostra o resultado (X importados, Y duplicados).
-- Cabeçalho do bloco ganha um botão global "Sincronizar todos os forms agora" que dispara `facebook-backfill-leads` sem `form_ids` (backfill de todos).
-- Some o diálogo "Nova regra form_id → cliente" (input cru de ID) — não é mais necessário.
-
-### 3. Sub-bloco "Contas de anúncios → Cliente" permanece como está
-
-Fica no mesmo `<details>`, acima dos Lead Forms. Sem mudanças de comportamento.
-
-### 4. Reflexo no cliente — nenhuma mudança de código
-
-Não precisa mexer em `TenantCampaigns.tsx` nem no Kanban do tenant. Assim que o admin vincula um form à clínica X, o próximo ciclo do cron `sync-meta-leads` (≤15 min) já grava os leads com `tenant_id = X` e o tenant vê no Kanban ("Novo") e em Leads. O botão ↻ Sync individual serve para não esperar 15 min no primeiro vínculo.
-
-### 5. Feedback ao admin
-
-Card acima da tabela mostra: total de forms, quantos já vinculados, quantos sem cliente, timestamp da última sync (lê `last_leads_sync_at` do RPC `get_facebook_config_meta` que já existe).
-
-## Detalhes técnicos
-
-Arquivos tocados:
-- `supabase/functions/facebook-ads-manage/index.ts` — +30 linhas para a nova action.
-- `src/pages/admin/CampanhasPage.tsx` — substituo o bloco `formIdRules` + `addFormRule` dialog pela tabela nova (~120 linhas trocadas). O restante da página (KPIs, cards de campanha, header sticky) fica intacto.
-
-Reaproveitados sem mexer: `resolve_tenant_for_lead` (RPC), `facebook-backfill-leads`, `sync-meta-leads` (cron), `lead_routing_rules`.
-
-Nenhuma migração de banco. Nenhum secret novo.
-
-## Fora de escopo
-
-- Configurar webhook Meta em tempo real (usuário pediu "puxar automaticamente"; o cron de 15 min já cobre e não requer setup extra).
-- Renderizar campos do formulário (nome, telefone etc.) na tabela — só ID e nome bastam para vincular.
-- Vincular a nível de campaign_id ou ad_id (fica só form_id + ad_account, como hoje).
+## Resultado esperado
+- Admin master abre "Campanhas Meta", escolhe conta + cliente, clica Vincular.
+- Cliente entra em `/app/<slug>/campanhas` e vê os mesmos cards de campanha (com KPIs, ganhos CRM, ROAS) que o admin vê para aquela conta — filtrados só à(s) conta(s) dele.
