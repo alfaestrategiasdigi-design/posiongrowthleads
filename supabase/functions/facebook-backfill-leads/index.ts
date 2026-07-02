@@ -49,6 +49,7 @@ Deno.serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
   const isService = bearer === SERVICE_KEY;
+  let callerUserId: string | null = null;
   if (!isService) {
     const userClient = createClient(SUPABASE_URL, ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
@@ -59,20 +60,37 @@ Deno.serve(async (req) => {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const { data: roleOk } = await admin.rpc("has_role", {
-      _user_id: claims.claims.sub, _role: "admin",
-    });
-    if (!roleOk) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    callerUserId = claims.claims.sub;
   }
 
   let payload: any = {};
   try { payload = await req.json(); } catch { /* no body */ }
   const requestedForms: string[] = Array.isArray(payload.form_ids) ? payload.form_ids : [];
   const maxPerForm: number = Number(payload.max_per_form ?? 200);
+  const scopeTenantId: string | null = typeof payload.tenant_id === "string" && payload.tenant_id
+    ? payload.tenant_id : null;
+
+  // Authorization: admin OR tenant member (when scoping to a specific tenant).
+  if (!isService && callerUserId) {
+    const { data: roleOk } = await admin.rpc("has_role", {
+      _user_id: callerUserId, _role: "admin",
+    });
+    if (!roleOk) {
+      if (!scopeTenantId) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: canAccess } = await admin.rpc("has_tenant_access", {
+        _user_id: callerUserId, _tenant_id: scopeTenantId,
+      });
+      if (!canAccess) {
+        return new Response(JSON.stringify({ error: "Forbidden: no access to tenant" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+  }
 
   const { data: cfg } = await admin
     .from("facebook_webhook_config")
