@@ -274,8 +274,23 @@ export default function TenantDashboard() {
           <h1 className="font-display text-4xl md:text-5xl tracking-tight">
             Relatório <span className="gold-gradient-text">{range.label}</span>
           </h1>
-          <p className="text-muted-foreground text-sm mt-2">
-            {tenant?.name} · {fmtDate(range.from, "dd/MM/yy")} → {fmtDate(range.to, "dd/MM/yy")} · inteligência em tempo real
+          <p className="text-muted-foreground text-sm mt-2 flex items-center gap-2 flex-wrap">
+            <span>{tenant?.name}</span>
+            {waStatus && (
+              <Link
+                to={`/app/${tenant?.slug}/whatsapp`}
+                title={`WhatsApp: ${waStatus.label}`}
+                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border transition ${
+                  waStatus.connected
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
+                    : "bg-muted/40 text-muted-foreground border-border/40 hover:bg-muted/60"
+                }`}
+              >
+                <MessageCircle className="w-3 h-3" />
+                {waStatus.connected ? "WhatsApp conectado" : "WhatsApp offline"}
+              </Link>
+            )}
+            <span>· {fmtDate(range.from, "dd/MM/yy")} → {fmtDate(range.to, "dd/MM/yy")} · inteligência em tempo real</span>
           </p>
         </div>
         <DateRangePicker value={range} onChange={setRange} />
