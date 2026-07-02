@@ -157,7 +157,72 @@ const LeadDetailModal = ({ lead, open, onClose, onUpdated }: LeadDetailModalProp
             )}
           </div>
 
-          {/* Respostas do formulário (Facebook Lead Ads) */}
+          {/* Metadados do formulário Meta Lead Ads */}
+          {(() => {
+            const fb: any = (lead as any).extras?.facebook ?? {};
+            const ff: any[] = (lead as any).extras?.form_fields ?? [];
+            const findVal = (keys: string[]) => {
+              const f = ff.find((x) => keys.includes(String(x?.name ?? "").toLowerCase()));
+              return f?.value ? String(f.value).replace(/^→[_\s]*/, "").replace(/_/g, " ").trim() : null;
+            };
+            const inboxUrl = findVal(["inbox_url"]);
+            const campanhaTag = findVal(["campanha"]);
+            const fonteTag = findVal(["fonte"]);
+            const formTag = findVal(["formulario", "formulário"]);
+            const submittedAt = fb.created_time ?? null;
+            const formId = fb.form_id ?? lead.facebook_form_id ?? null;
+            const formName = fb.form_name ?? null;
+            const campaignName = fb.campaign_name ?? lead.facebook_campaign ?? null;
+            if (!formId && !submittedAt && !campaignName && !inboxUrl) return null;
+            return (
+              <div className="rounded-lg border border-accent/20 bg-accent/5 p-4 space-y-3">
+                <h4 className="text-xs font-semibold text-foreground flex items-center gap-2">
+                  <FileText className="w-3.5 h-3.5 text-accent" /> Meta Lead Ads
+                  {formName && <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-accent/15 text-accent">{formName}</span>}
+                </h4>
+                <div className="grid md:grid-cols-2 gap-2 text-xs">
+                  {formId && (
+                    <div className="rounded-md border border-border/50 bg-background/40 p-2">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Identificação do formulário</p>
+                      <p className="text-sm font-mono text-foreground break-all">{formId}</p>
+                    </div>
+                  )}
+                  {submittedAt && (
+                    <div className="rounded-md border border-border/50 bg-background/40 p-2">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Enviado em</p>
+                      <p className="text-sm text-foreground">{format(new Date(submittedAt), "EEE, dd 'de' MMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}</p>
+                    </div>
+                  )}
+                  {(campaignName || campanhaTag) && (
+                    <div className="rounded-md border border-border/50 bg-background/40 p-2">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Campanha</p>
+                      <p className="text-sm text-foreground break-words">{campanhaTag ?? campaignName}</p>
+                    </div>
+                  )}
+                  {fonteTag && (
+                    <div className="rounded-md border border-border/50 bg-background/40 p-2">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Fonte</p>
+                      <p className="text-sm text-foreground">{fonteTag}</p>
+                    </div>
+                  )}
+                  {formTag && (
+                    <div className="rounded-md border border-border/50 bg-background/40 p-2">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Formulário (tag)</p>
+                      <p className="text-sm text-foreground">{formTag}</p>
+                    </div>
+                  )}
+                  {inboxUrl && (
+                    <div className="rounded-md border border-border/50 bg-background/40 p-2 md:col-span-2">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Inbox URL</p>
+                      <a href={inboxUrl} target="_blank" rel="noreferrer" className="text-sm text-accent hover:underline break-all">{inboxUrl}</a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+
           {(() => {
             const ff: any[] = ((lead as any).extras?.form_fields) ?? [];
             if (!Array.isArray(ff) || ff.length === 0) return null;
