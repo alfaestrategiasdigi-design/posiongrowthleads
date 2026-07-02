@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Plus, Phone, Globe2, Search } from "lucide-react";
+import { Loader2, Plus, Phone, Globe2, Search, AlertTriangle, Facebook, Instagram, MessageCircle, Users2, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { PIPELINE_STAGES, type PipelineStage } from "@/types/admin";
@@ -23,9 +23,21 @@ const STAGES: { id: Stage; title: string; accent: string; bg: string }[] = PIPEL
   bg: `${s.hex}22`,
 }));
 
+const STALE_DAYS = 3;
+
 function daysIn(date: string | null) {
   if (!date) return 0;
   return Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
+}
+
+function channelIcon(ch: string | null) {
+  if (!ch) return null;
+  const s = ch.toLowerCase();
+  if (s.includes("facebook") || s.includes("meta") || s.includes("tráfego")) return Facebook;
+  if (s.includes("instagram") || s.includes("orgânico") || s.includes("organico")) return Instagram;
+  if (s.includes("whats")) return MessageCircle;
+  if (s.includes("indicação") || s.includes("paciente")) return Users2;
+  return null;
 }
 
 type Lead = {
@@ -33,6 +45,7 @@ type Lead = {
   seller_name: string | null; procedure_interest: string | null; stage: Stage;
   sale_amount: number | null; international: boolean; notes: string | null;
   first_contact_date: string | null; created_at: string;
+  updated_at: string | null; last_contact_at: string | null;
 };
 
 const BRL = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
