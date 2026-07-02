@@ -1656,7 +1656,31 @@ function CampaignCard({ c, maxSpend, toggling, busy, crmWins = 0, crmRevenue = 0
         <div className="mt-3 text-xs text-muted-foreground italic">Sem insights no período.</div>
       )}
 
+      {/* Leads GANHOS vinculados (Kanban) */}
+      {wonLeads.length > 0 && (
+        <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-2">
+          <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-emerald-400 mb-1.5">
+            <span className="flex items-center gap-1"><Star className="w-3 h-3" /> Ganhos vinculados</span>
+            <span className="tabular-nums font-bold">{BRL(crmRevenue)}</span>
+          </div>
+          <div className="space-y-0.5 max-h-24 overflow-auto">
+            {wonLeads.slice(0, 6).map((l, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 text-[11px]">
+                <span className="truncate flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-emerald-400 shrink-0" />
+                  <span className="truncate" title={l.name}>{l.name}</span>
+                  {l.source === "fuzzy" && <span className="text-[9px] text-amber-400/80" title="Vínculo por similaridade">~</span>}
+                </span>
+                <span className="tabular-nums font-semibold text-emerald-400 shrink-0">{BRL(l.valor)}</span>
+              </div>
+            ))}
+            {wonLeads.length > 6 && <div className="text-[10px] text-muted-foreground pt-1">+{wonLeads.length - 6} mais…</div>}
+          </div>
+        </div>
+      )}
+
       {/* Footer actions */}
+
       <div className="mt-3 pt-3 border-t border-border/40 flex items-center gap-1">
         <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onToggle} disabled={toggling}>
           {toggling ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : isActive ? <Pause className="w-3 h-3 mr-1" /> : <Play className="w-3 h-3 mr-1 text-emerald-400" />}
