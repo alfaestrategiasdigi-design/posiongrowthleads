@@ -106,14 +106,14 @@ export default function TenantCampaigns() {
     const ids = ruleList.map((r) => r.match_value);
     const { data: leads } = await supabase
       .from("agency_leads")
-      .select("facebook_form_id,created_at")
+      .select("form_id,created_at")
       .eq("tenant_id_criado", tenant.id)
-      .in("facebook_form_id", ids);
-    const rows = (leads ?? []) as Array<{ facebook_form_id: string; created_at: string }>;
+      .in("form_id", ids);
+    const rows = ((leads ?? []) as unknown) as Array<{ form_id: string; created_at: string }>;
     const byForm: Record<string, { total: number; last: string | null }> = {};
     let globalLast: string | null = null;
     for (const l of rows) {
-      const k = l.facebook_form_id;
+      const k = l.form_id;
       byForm[k] = byForm[k] || { total: 0, last: null };
       byForm[k].total += 1;
       if (!byForm[k].last || l.created_at > byForm[k].last!) byForm[k].last = l.created_at;
