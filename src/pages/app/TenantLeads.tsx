@@ -82,14 +82,51 @@ export default function TenantLeads() {
   const [rangeId, setRangeId] = useState<string>("30");
   const [detail, setDetail] = useState<ClinicLead | null>(null);
 
+  function mapRow(r: any): ClinicLead {
+    const ex = (r.extras ?? {}) as any;
+    const originRaw = String(r.origem ?? "").toLowerCase();
+    const channel =
+      originRaw.includes("facebook") ? "Facebook Ads" :
+      originRaw.includes("whatsapp") ? "WhatsApp" :
+      originRaw === "site" ? "Site" :
+      r.origem ?? null;
+    return {
+      id: r.id,
+      tenant_id: r.tenant_id,
+      full_name: r.nome_completo ?? "—",
+      whatsapp: r.whatsapp ?? null,
+      email: r.email ?? null,
+      channel,
+      seller_name: ex.seller_name ?? null,
+      procedure_interest: r.especialidade ?? null,
+      product: ex.product ?? r.facebook_form_name ?? null,
+      stage: (r.status ?? "lead") as PipelineStage,
+      sale_amount: r.status === "ganho" ? Number(r.valor_proposta ?? 0) : null,
+      negotiation_value: r.valor_proposta != null ? Number(r.valor_proposta) : null,
+      notes: r.observacoes ?? null,
+      international: false,
+      first_contact_date: null,
+      last_contact_at: ex.last_contact_at ?? null,
+      contact_count: ex.contact_count ?? null,
+      created_at: r.created_at,
+      responsible_user_id: null,
+      facebook_campaign_id: r.facebook_campaign ?? null,
+      utm_source: r.utm_source ?? null,
+      utm_medium: r.utm_medium ?? null,
+      utm_campaign: r.utm_campaign ?? null,
+      lead_type: r.origem ?? null,
+      metadata: r,
+    };
+  }
+
   async function loadAll() {
     if (!tenant?.id) return;
     setLoading(true);
     const [{ data: l }, { data: s }] = await Promise.all([
-      supabase.from("clinic_leads").select("*").eq("tenant_id", tenant.id).order("created_at", { ascending: false }),
+      supabase.from("leads").select("*").eq("tenant_id", tenant.id).order("created_at", { ascending: false }),
       supabase.from("sellers").select("id,name").eq("tenant_id", tenant.id).order("name"),
     ]);
-    setLeads((l ?? []) as ClinicLead[]);
+    setLeads((l ?? []).map(mapRow));
     setSellers((s ?? []) as Seller[]);
     setLoading(false);
   }
@@ -101,12 +138,13 @@ export default function TenantLeads() {
     const ch = supabase
       .channel(`tenant_leads_${tenant.id}`)
       .on("postgres_changes",
-        { event: "*", schema: "public", table: "clinic_leads", filter: `tenant_id=eq.${tenant.id}` },
+        { event: "*", schema: "public", table: "leads", filter: `tenant_id=eq.${tenant.id}` },
         () => loadAll())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
     // eslint-disable-next-line
   }, [tenant?.id]);
+
 
   const options = useMemo(() => {
     const sellersSet = new Set<string>(); const channelsSet = new Set<string>(); const productsSet = new Set<string>();
