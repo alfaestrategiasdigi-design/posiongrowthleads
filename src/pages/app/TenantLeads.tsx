@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Loader2, Search, Filter, Download, MessageCircle, Phone, Globe2,
   Users as UsersIcon, Kanban as KanbanIcon, Calendar, Flame, Trophy, Sparkles, X,
+  ShieldAlert, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -81,6 +82,8 @@ export default function TenantLeads() {
   const [productF, setProductF] = useState<string>("all");
   const [rangeId, setRangeId] = useState<string>("30");
   const [detail, setDetail] = useState<ClinicLead | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   function mapRow(r: any): ClinicLead {
     const ex = (r.extras ?? {}) as any;
@@ -122,15 +125,63 @@ export default function TenantLeads() {
   async function loadAll() {
     if (!tenant?.id) return;
     setLoading(true);
+
+    // Extra guard: verify the current user has access to this tenant BEFORE loading rows.
+    const { data: userRes } = await supabase.auth.getUser();
+    const uid = userRes.user?.id;
+    if (!uid) { setAccessDenied(true); setLoading(false); return; }
+    const { data: canAccess, error: accErr } = await supabase.rpc("has_tenant_access", {
+      _user_id: uid, _tenant_id: tenant.id,
+    });
+    if (accErr || canAccess !== true) {
+      setAccessDenied(true); setLeads([]); setSellers([]); setLoading(false);
+      return;
+    }
+    setAccessDenied(false);
+
     const [{ data: l }, { data: s }] = await Promise.all([
       supabase.from("leads").select("*").eq("tenant_id", tenant.id).order("created_at", { ascending: false }),
       supabase.from("sellers").select("id,name").eq("tenant_id", tenant.id).order("name"),
     ]);
-    setLeads((l ?? []).map(mapRow));
+    // Defensive filter — never render a row from a different tenant even if the API leaks.
+    const clean = (l ?? []).filter((r: any) => r?.tenant_id === tenant.id);
+    setLeads(clean.map(mapRow));
     setSellers((s ?? []) as Seller[]);
     setLoading(false);
   }
   useEffect(() => { loadAll(); /* eslint-disable-next-line */ }, [tenant?.id]);
+
+  async function syncSources() {
+    if (!tenant?.id || syncing) return;
+    setSyncing(true);
+    try {
+      const [fb, wa] = await Promise.all([
+        supabase.functions.invoke("facebook-backfill-leads", {
+          body: { tenant_id: tenant.id, max_per_form: 500 },
+        }),
+        supabase.functions.invoke("evolution-sync-chats", {
+          body: { tenant_id: tenant.id, with_pictures: false },
+        }),
+      ]);
+      const fbErr = (fb as any)?.error?.message ?? (fb as any)?.data?.error;
+      const waErr = (wa as any)?.error?.message ?? (wa as any)?.data?.error;
+      if (fbErr || waErr) {
+        toast.warning("Sincronização parcial", {
+          description: [fbErr && `Meta: ${fbErr}`, waErr && `WhatsApp: ${waErr}`].filter(Boolean).join(" · "),
+        });
+      } else {
+        const t = (fb as any)?.data?.totals;
+        toast.success("Sincronização concluída", {
+          description: t ? `Meta: ${t.imported} novos, ${t.deduped} já existiam · WhatsApp atualizado` : "Fontes atualizadas",
+        });
+      }
+      await loadAll();
+    } catch (e: any) {
+      toast.error("Falha ao sincronizar", { description: e?.message ?? String(e) });
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   // Realtime updates
   useEffect(() => {
@@ -239,21 +290,38 @@ export default function TenantLeads() {
 
   if (!tenant) return null;
   if (loading) return <div className="p-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+  if (accessDenied) return (
+    <div className="p-8 max-w-lg mx-auto">
+      <Card className="card-elevated border-rose-500/30">
+        <CardContent className="p-6 text-center space-y-2">
+          <ShieldAlert className="w-10 h-10 text-rose-400 mx-auto" />
+          <h2 className="text-xl font-bold">Acesso negado</h2>
+          <p className="text-sm text-muted-foreground">
+            Você não tem permissão para visualizar os leads do tenant <b>{tenant.name}</b>.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
 
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-[1600px] mx-auto">
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.22em] text-primary/80 mb-1">CRM</p>
+          <p className="text-[11px] uppercase tracking-[0.22em] text-primary/80 mb-1">CRM · {tenant.name}</p>
           <h1 className="text-3xl font-bold tracking-tight font-display flex items-center gap-2">
             <UsersIcon className="w-7 h-7 text-primary" /> Leads
           </h1>
           <p className="text-muted-foreground text-sm">
-            {kpis.total} leads no período · filtros por vendedor, canal, etapa e produto
+            {kpis.total} leads no período · somente leads vinculados a este tenant
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={syncSources} disabled={syncing}>
+            {syncing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+            Sincronizar
+          </Button>
           <Button variant="outline" asChild>
             <Link to={`/app/${tenant.slug}/kanban`}><KanbanIcon className="w-4 h-4 mr-1" /> Ver Kanban</Link>
           </Button>

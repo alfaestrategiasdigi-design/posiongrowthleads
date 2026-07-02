@@ -49,6 +49,7 @@ Deno.serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
   const isService = bearer === SERVICE_KEY;
+  let callerUserId: string | null = null;
   if (!isService) {
     const userClient = createClient(SUPABASE_URL, ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
@@ -59,20 +60,37 @@ Deno.serve(async (req) => {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const { data: roleOk } = await admin.rpc("has_role", {
-      _user_id: claims.claims.sub, _role: "admin",
-    });
-    if (!roleOk) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    callerUserId = claims.claims.sub;
   }
 
   let payload: any = {};
   try { payload = await req.json(); } catch { /* no body */ }
   const requestedForms: string[] = Array.isArray(payload.form_ids) ? payload.form_ids : [];
   const maxPerForm: number = Number(payload.max_per_form ?? 200);
+  const scopeTenantId: string | null = typeof payload.tenant_id === "string" && payload.tenant_id
+    ? payload.tenant_id : null;
+
+  // Authorization: admin OR tenant member (when scoping to a specific tenant).
+  if (!isService && callerUserId) {
+    const { data: roleOk } = await admin.rpc("has_role", {
+      _user_id: callerUserId, _role: "admin",
+    });
+    if (!roleOk) {
+      if (!scopeTenantId) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: canAccess } = await admin.rpc("has_tenant_access", {
+        _user_id: callerUserId, _tenant_id: scopeTenantId,
+      });
+      if (!canAccess) {
+        return new Response(JSON.stringify({ error: "Forbidden: no access to tenant" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+  }
 
   const { data: cfg } = await admin
     .from("facebook_webhook_config")
@@ -109,9 +127,28 @@ Deno.serve(async (req) => {
     } catch (e) { loadPagesErrors.push(String(e)); }
   }
 
-  // Resolve list of forms — quando vazio, usa a página primária
+  // Resolve list of forms — quando vazio, usa a página primária.
+  // Se scopeTenantId estiver setado e nenhum form for enviado, usamos apenas os
+  // formulários vinculados àquele tenant em lead_routing_rules.
   let formIds: string[] = requestedForms.slice();
   const formsMeta: Record<string, { name?: string; page_id?: string; page_name?: string }> = {};
+
+  if (!formIds.length && scopeTenantId) {
+    const { data: routes } = await admin
+      .from("lead_routing_rules")
+      .select("match_value")
+      .eq("active", true)
+      .eq("match_type", "form_id")
+      .eq("tenant_id", scopeTenantId);
+    formIds = Array.from(new Set((routes ?? []).map((r: any) => String(r.match_value)).filter(Boolean)));
+    if (!formIds.length) {
+      return new Response(JSON.stringify({
+        ok: true, totals: { fetched: 0, imported: 0, deduped: 0, failed: 0 },
+        by_form: [], tenant_id: scopeTenantId,
+        message: "Nenhum formulário Meta está vinculado a este tenant.",
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+  }
 
   if (!formIds.length) {
     if (!primaryPageId) {
@@ -218,6 +255,13 @@ Deno.serve(async (req) => {
         });
         const routedTenant = (rpc as string | null) ?? (cfg as any)?.default_tenant_id ?? null;
 
+        // Se estamos importando com escopo de tenant, ignore leads que não sejam
+        // roteados para ele — evita cross-tenant contamination.
+        if (scopeTenantId && routedTenant !== scopeTenantId) {
+          failed++;
+          continue;
+        }
+
         if (!routedTenant) {
           await admin.from("unrouted_leads").insert({
             raw_payload: lead,
@@ -286,6 +330,7 @@ Deno.serve(async (req) => {
 
   return new Response(JSON.stringify({
     ok: true,
+    tenant_id: scopeTenantId,
     totals,
     by_form,
     summary: by_form, // compat com UI antiga
