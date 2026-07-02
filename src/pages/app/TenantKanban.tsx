@@ -115,14 +115,22 @@ export default function TenantKanban() {
     return leads.filter((l) =>
       (filterProduct === "all" || l.procedure_interest === filterProduct) &&
       (filterChannel === "all" || l.channel === filterChannel) &&
+      (filterSeller === "all" || l.seller_name === filterSeller) &&
       (!q || l.full_name.toLowerCase().includes(q) || l.whatsapp.includes(q))
     );
-  }, [leads, filterProduct, filterChannel, search]);
+  }, [leads, filterProduct, filterChannel, filterSeller, search]);
+
+  const sellerOptions = useMemo(() => {
+    const set = new Set<string>();
+    leads.forEach(l => l.seller_name && set.add(l.seller_name));
+    return Array.from(set).sort();
+  }, [leads]);
 
   const columns = useMemo(
     () => STAGES.map((s) => {
       const rows = filtered.filter((l) => l.stage === s.id);
-      return { ...s, rows, total: rows.reduce((a, b) => a + Number(b.sale_amount || 0), 0) };
+      const stale = rows.filter(l => daysIn(l.updated_at || l.created_at) >= STALE_DAYS && !["ganho","perdido","no_show"].includes(l.stage)).length;
+      return { ...s, rows, stale, total: rows.reduce((a, b) => a + Number(b.sale_amount || 0), 0) };
     }), [filtered]);
 
   if (!tenant || loading) return <div className="p-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
