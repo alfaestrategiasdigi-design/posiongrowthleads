@@ -274,12 +274,15 @@ Deno.serve(async (req) => {
           deduped++; continue;
         }
 
+        // ISOLAMENTO ESTRITO: só roteia se existir uma regra explícita para o form_id
+        // (ou ad_account/page). Sem fallback para default_tenant_id — evita vazamento
+        // cross-tenant como aconteceu com o FORM CAPILAR indo para tenants errados.
         const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
           p_form_id: lead.form_id ?? formId,
           p_ad_account_id: (cfg as any)?.ad_account_id ?? null,
           p_page_id: pageId ?? primaryPageId ?? null,
         });
-        const routedTenant = (rpc as string | null) ?? (cfg as any)?.default_tenant_id ?? null;
+        const routedTenant: string | null = (rpc as string | null) ?? null;
 
         // Se estamos importando com escopo de tenant, ignore leads que não sejam
         // roteados para ele — evita cross-tenant contamination.
