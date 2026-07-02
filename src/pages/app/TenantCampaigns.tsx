@@ -104,7 +104,7 @@ export default function TenantCampaigns() {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { if (tenant) { load(); loadLinkedForms(); } /* eslint-disable-next-line */ }, [tenant?.id, activeOnly]);
+  useEffect(() => { if (tenant) { load(); loadLinkedForms(); } /* eslint-disable-next-line */ }, [tenant?.id, activeOnly, period]);
 
   const loadLinkedForms = async () => {
     if (!tenant) return;
