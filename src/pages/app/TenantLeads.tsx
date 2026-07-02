@@ -232,7 +232,7 @@ export default function TenantLeads() {
       dbPatch.extras = nextExtras;
     }
 
-    const { error } = await supabase.from("leads").update(dbPatch).eq("id", id);
+    const { error } = await supabase.from("leads").update(dbPatch as any).eq("id", id);
     if (error) { setLeads(prev); toast.error("Não foi possível salvar", { description: error.message }); }
   }
 
