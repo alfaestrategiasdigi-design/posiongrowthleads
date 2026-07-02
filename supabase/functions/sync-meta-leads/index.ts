@@ -82,7 +82,8 @@ Deno.serve(async (req) => {
   if (!formsRes.ok) return json({ error: "Falha listando forms", detail: formsJson }, 502);
   const forms: any[] = formsJson.data ?? [];
 
-  const defaultTenantId: string | null = cfg?.default_tenant_id ?? null;
+  // ISOLAMENTO ESTRITO: default_tenant_id NÃO é usado como fallback.
+  // Cada lead precisa de uma regra explícita em lead_routing_rules.
   const adAccountId: string | null = (cfg as any)?.ad_account_id ?? null;
   const pageId: string | null = (cfg as any)?.page_id ?? null;
   let inserted = 0, deduped = 0, errors = 0, unrouted = 0;
