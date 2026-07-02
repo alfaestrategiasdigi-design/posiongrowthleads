@@ -192,13 +192,14 @@ export default function Dashboard() {
   // Timeline de receita (agência + saas) por dia
   const timelineData = useMemo(() => {
     const days = eachDayOfInterval({ start: range.from, end: range.to });
+    const contractLeadIds = new Set(agencyContracts.map((c: any) => c.agency_lead_id).filter(Boolean));
     return days.map((d) => {
       const dayKey = format(d, "yyyy-MM-dd");
       const receitaContratos = agencyContracts
         .filter((c) => c.data_assinatura === dayKey)
         .reduce((s, c) => s + Number(c.valor_total || 0), 0);
       const receitaGanhos = leads
-        .filter((l) => l.stage === "ganho" && format(new Date((l as any).ganho_at || l.created_at), "yyyy-MM-dd") === dayKey)
+        .filter((l) => l.stage === "ganho" && !contractLeadIds.has(l.id) && format(new Date((l as any).ganho_at || l.created_at), "yyyy-MM-dd") === dayKey)
         .reduce((s, l) => s + Number(l.valor_proposta || 0), 0);
       const label = format(d, days.length > 45 ? "dd/MM" : "dd/MM", { locale: ptBR });
       return { day: label, receita: receitaContratos + receitaGanhos };
