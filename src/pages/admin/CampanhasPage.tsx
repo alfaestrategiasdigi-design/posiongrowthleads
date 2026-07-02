@@ -380,7 +380,17 @@ export default function CampanhasPage() {
           match_label: formName, priority: 5, active: true,
         } as any);
         if (error) throw error;
-        toast({ title: "Formulário vinculado", description: formName });
+        toast({ title: "Formulário vinculado", description: `${formName} — importando histórico…` });
+        // Auto import historical leads for this form so they land on the tenant
+        supabase.functions.invoke("facebook-backfill-leads", {
+          body: { form_ids: [formId], max_per_form: 2000 },
+        }).then(({ data }) => {
+          const s = (data?.summary ?? [])[0] ?? {};
+          if (s.imported != null) {
+            toast({ title: "Histórico importado", description: `${formName}: ${s.imported} novo(s), ${s.deduped ?? 0} já existentes.` });
+            setLastLeadsSync(new Date().toISOString());
+          }
+        }).catch(() => {});
       } else {
         toast({ title: "Vínculo removido", description: formName });
       }
@@ -389,6 +399,7 @@ export default function CampanhasPage() {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     } finally { setBusy(null); }
   };
+
 
   const syncFormNow = async (formId: string, formName: string, maxPerForm = 200) => {
     setSyncingForm(formId);
