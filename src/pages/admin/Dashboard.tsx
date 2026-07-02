@@ -40,18 +40,24 @@ export default function Dashboard() {
   const [saasContracts, setSaasContracts] = useState<SaasContract[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [tenantGmv, setTenantGmv] = useState<{ tenant_id: string; total: number }[]>([]);
+  const [clinicLeadStages, setClinicLeadStages] = useState<{ stage: string; count: number }[]>([]);
+  const [roiSeries, setRoiSeries] = useState<{ month: string; invest: number; receita: number; lucro: number }[]>([]);
+  const [tenantsPerf, setTenantsPerf] = useState<{ tenant_id: string; name: string; leads: number; ganhos: number; gmv: number; invest: number; roas: number }[]>([]);
+  const [tenantSearch, setTenantSearch] = useState("");
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const fromISO = range.from.toISOString();
-      const toISO = range.to.toISOString();
-      const [l, ac, sc, t, sales] = await Promise.all([
+      const fromDate = range.from.toISOString().slice(0, 10);
+      const toDate = range.to.toISOString().slice(0, 10);
+      const [l, ac, sc, t, sales, clinic, spend] = await Promise.all([
         supabase.from("agency_leads").select("id,stage,valor_proposta,created_at,nome_clinica,plano_interesse"),
         supabase.from("agency_contracts").select("id,tenant_id,cliente_nome,valor_total,data_assinatura,status"),
         supabase.from("saas_contracts").select("id,tenant_id,mrr,status,started_at"),
         supabase.from("tenants").select("id,name,status,created_at"),
-        supabase.from("sales").select("tenant_id,amount,sale_date").gte("sale_date", range.from.toISOString().slice(0, 10)).lte("sale_date", range.to.toISOString().slice(0, 10)),
+        supabase.from("sales").select("tenant_id,amount,sale_date").gte("sale_date", fromDate).lte("sale_date", toDate),
+        supabase.from("clinic_leads").select("tenant_id,stage,created_at").gte("created_at", range.from.toISOString()).lte("created_at", range.to.toISOString()),
+        supabase.from("campaign_spend").select("tenant_id,amount_spent,period_start").gte("period_start", fromDate).lte("period_start", toDate),
       ]);
       setLeads((l.data || []) as AgencyLead[]);
       setAgencyContracts((ac.data || []) as AgencyContract[]);
@@ -64,6 +70,71 @@ export default function Dashboard() {
         byTenant.set(s.tenant_id, (byTenant.get(s.tenant_id) || 0) + Number(s.amount || 0));
       });
       setTenantGmv(Array.from(byTenant.entries()).map(([tenant_id, total]) => ({ tenant_id, total })));
+
+      // Global funnel: agregação por stage entre todos os tenants
+      const stageAgg = new Map<string, number>();
+      (clinic.data || []).forEach((r: any) => {
+        stageAgg.set(r.stage, (stageAgg.get(r.stage) || 0) + 1);
+      });
+      const FUNNEL_ORDER = ["lead", "qualificado", "consulta_agendada", "compareceu", "negociacao", "ganho", "perdido", "no_show"];
+      setClinicLeadStages(FUNNEL_ORDER.map((s) => ({ stage: s, count: stageAgg.get(s) || 0 })));
+
+      // ROI vs Investimento por mês
+      const monthMap = new Map<string, { invest: number; receita: number }>();
+      (spend.data || []).forEach((r: any) => {
+        const k = format(startOfMonth(new Date(r.period_start)), "yyyy-MM");
+        const cur = monthMap.get(k) || { invest: 0, receita: 0 };
+        cur.invest += Number(r.amount_spent || 0);
+        monthMap.set(k, cur);
+      });
+      (sales.data || []).forEach((r: any) => {
+        const k = format(startOfMonth(new Date(r.sale_date)), "yyyy-MM");
+        const cur = monthMap.get(k) || { invest: 0, receita: 0 };
+        cur.receita += Number(r.amount || 0);
+        monthMap.set(k, cur);
+      });
+      setRoiSeries(
+        Array.from(monthMap.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([k, v]) => ({
+            month: format(new Date(k + "-01"), "MMM/yy", { locale: ptBR }),
+            invest: v.invest,
+            receita: v.receita,
+            lucro: Math.max(v.receita - v.invest, 0),
+          }))
+      );
+
+      // Performance consolidada por tenant
+      const leadsByT = new Map<string, { total: number; ganhos: number }>();
+      (clinic.data || []).forEach((r: any) => {
+        if (!r.tenant_id) return;
+        const cur = leadsByT.get(r.tenant_id) || { total: 0, ganhos: 0 };
+        cur.total += 1;
+        if (r.stage === "ganho") cur.ganhos += 1;
+        leadsByT.set(r.tenant_id, cur);
+      });
+      const spendByT = new Map<string, number>();
+      (spend.data || []).forEach((r: any) => {
+        if (!r.tenant_id) return;
+        spendByT.set(r.tenant_id, (spendByT.get(r.tenant_id) || 0) + Number(r.amount_spent || 0));
+      });
+      const tenantsList = (t.data || []) as Tenant[];
+      const perf = tenantsList.map((tn) => {
+        const gmv = byTenant.get(tn.id) || 0;
+        const invest = spendByT.get(tn.id) || 0;
+        const ld = leadsByT.get(tn.id) || { total: 0, ganhos: 0 };
+        return {
+          tenant_id: tn.id,
+          name: tn.name,
+          leads: ld.total,
+          ganhos: ld.ganhos,
+          gmv,
+          invest,
+          roas: invest > 0 ? gmv / invest : 0,
+        };
+      }).sort((a, b) => b.gmv - a.gmv);
+      setTenantsPerf(perf);
+
       setLoading(false);
     })();
   }, [range]);
