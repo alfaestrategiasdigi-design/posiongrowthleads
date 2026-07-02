@@ -12,7 +12,11 @@ import { SaleRow, BRL, PCT, summarize, groupSum, evaluationFunnel, weeklyBreakdo
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Legend, ReferenceLine, Cell,
+  FunnelChart, Funnel, LabelList,
 } from "recharts";
+import { format as fmtD, startOfMonth } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { Search, GitBranch, Building2, Sparkles, ArrowUpRight } from "lucide-react";
 import { DateRangePicker, makeRange, type DateRangeValue } from "@/components/shared/DateRangePicker";
 import { differenceInDays, startOfDay, endOfDay, subDays, format as fmtDate } from "date-fns";
 
