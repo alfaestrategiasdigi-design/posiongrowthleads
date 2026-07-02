@@ -10,28 +10,33 @@ import {
 import type { Tenant } from "@/hooks/useTenant";
 import posionLogo from "@/assets/posion/logo-posion.png.asset.json";
 
-interface Props { tenant: Tenant; isSuperAdmin: boolean }
+interface Props { tenant: Tenant; isSuperAdmin: boolean; tenantRole?: string | null }
 
-export default function TenantSidebar({ tenant, isSuperAdmin }: Props) {
+const COMERCIAL_ROLES = new Set(["comercial_tenant", "vendedor", "recepcao", "viewer"]);
+
+export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Props) {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const { pathname } = useLocation();
   const base = `/app/${tenant.slug}`;
+  const isComercial = !isSuperAdmin && !!tenantRole && COMERCIAL_ROLES.has(tenantRole);
 
-  const items = [
-    { title: "Dashboard", url: `${base}/dashboard`, icon: LayoutDashboard },
-    { title: "WhatsApp", url: `${base}/whatsapp`, icon: MessageCircle },
-    { title: "Leads", url: `${base}/leads`, icon: UserSearch },
+  // itens `comercial: true` são visíveis para todos; os demais só para admin/owner/master
+  const allItems: Array<{ title: string; url: string; icon: any; comercial?: boolean }> = [
+    { title: "Dashboard", url: `${base}/dashboard`, icon: LayoutDashboard, comercial: true },
+    { title: "WhatsApp", url: `${base}/whatsapp`, icon: MessageCircle, comercial: true },
+    { title: "Leads", url: `${base}/leads`, icon: UserSearch, comercial: true },
     { title: "Campanhas Meta", url: `${base}/campanhas`, icon: Megaphone },
-    { title: "Kanban", url: `${base}/kanban`, icon: Kanban },
+    { title: "Kanban", url: `${base}/kanban`, icon: Kanban, comercial: true },
     { title: "Pacientes Ativos", url: `${base}/pacientes`, icon: Users },
-    { title: "Agenda", url: `${base}/agenda`, icon: Calendar },
+    { title: "Agenda", url: `${base}/agenda`, icon: Calendar, comercial: true },
     { title: "Financeiro", url: `${base}/financeiro`, icon: DollarSign },
     { title: "Automações", url: `${base}/automacoes`, icon: Zap },
-    { title: "Produtos & Serviços", url: `${base}/produtos`, icon: Package },
+    { title: "Produtos & Serviços", url: `${base}/produtos`, icon: Package, comercial: true },
     { title: "Planos", url: `${base}/planos`, icon: Sparkles },
     { title: "Configurações", url: `${base}/config`, icon: Settings },
   ];
+  const items = isComercial ? allItems.filter(i => i.comercial) : allItems;
 
   return (
     <Sidebar collapsible="icon">
