@@ -152,10 +152,14 @@ export default function Dashboard() {
     const emNegociacao = leads.filter((l) => ["proposta", "negociacao"].includes(l.stage));
     const contratosPeriodo = agencyContracts.filter((c) => inRange(c.data_assinatura));
 
-    // Receita = contratos assinados no período + leads em GANHO no período (fallback quando ainda não há contrato)
+    // Receita = contratos assinados no período (cada lead em GANHO já gera contrato automaticamente).
+    // Fallback: soma leads em ganho que ainda não possuem contrato correspondente.
+    const contractLeadIds = new Set(agencyContracts.map((c: any) => c.agency_lead_id).filter(Boolean));
     const receitaContratos = contratosPeriodo.reduce((s, c) => s + Number(c.valor_total || 0), 0);
-    const receitaGanhos = ganhosPeriodo.reduce((s, l) => s + Number(l.valor_proposta || 0), 0);
-    const receitaAgencia = receitaContratos + receitaGanhos;
+    const receitaGanhosSemContrato = ganhosPeriodo
+      .filter((l) => !contractLeadIds.has(l.id))
+      .reduce((s, l) => s + Number(l.valor_proposta || 0), 0);
+    const receitaAgencia = receitaContratos + receitaGanhosSemContrato;
 
     const mrr = saasContracts.filter((s) => s.status === "active").reduce((s, c) => s + Number(c.mrr || 0), 0);
 
