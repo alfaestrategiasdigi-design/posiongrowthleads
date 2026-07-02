@@ -426,7 +426,23 @@ export default function TenantCampaigns() {
   );
 }
 
-function Kpi({ icon: Icon, label, value, tone }: { icon: any; label: string; value: string; tone: string }) {
+const TONE_HSL: Record<string, string> = {
+  primary: "hsl(var(--primary))",
+  amber: "#f59e0b",
+  cyan: "#22d3ee",
+  violet: "#8b5cf6",
+  emerald: "#34d399",
+  rose: "#fb7185",
+};
+
+function Kpi({
+  icon: Icon, label, value, tone,
+  series, dataKey, formatter,
+}: {
+  icon: any; label: string; value: string; tone: string;
+  series?: Array<Record<string, any>>; dataKey?: string;
+  formatter?: (v: number) => string;
+}) {
   const toneMap: Record<string, string> = {
     primary: "text-primary border-primary/20 bg-primary/5",
     amber: "text-amber-400 border-amber-500/20 bg-amber-500/5",
@@ -435,13 +451,50 @@ function Kpi({ icon: Icon, label, value, tone }: { icon: any; label: string; val
     emerald: "text-emerald-400 border-emerald-500/20 bg-emerald-500/5",
     rose: "text-rose-400 border-rose-500/20 bg-rose-500/5",
   };
+  const showSpark = !!(series && series.length > 1 && dataKey);
+  const color = TONE_HSL[tone] ?? "currentColor";
+  const gid = `spark-${tone}-${label}`.replace(/\s+/g, "-");
   return (
-    <Card className={`p-3 border ${toneMap[tone]}`}>
+    <Card className={`p-3 border ${toneMap[tone]} relative overflow-hidden`}>
       <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider opacity-80">
         <Icon className="w-3.5 h-3.5" /> {label}
       </div>
       <div className="text-lg font-bold tabular-nums mt-1">{value}</div>
+      {showSpark && (
+        <div className="h-8 -mx-1 -mb-1 mt-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={series} margin={{ top: 2, right: 2, bottom: 0, left: 2 }}>
+              <defs>
+                <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={color} stopOpacity={0.4} />
+                  <stop offset="100%" stopColor={color} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <RTooltip
+                cursor={{ stroke: color, strokeOpacity: 0.3 }}
+                contentStyle={{ background: "hsl(var(--card))", border: `1px solid ${color}`, borderRadius: 6, fontSize: 11, padding: "4px 8px" }}
+                labelStyle={{ color: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                formatter={(v: any) => [formatter ? formatter(Number(v)) : v, label]}
+              />
+              <Area type="monotone" dataKey={dataKey!} stroke={color} strokeWidth={1.5} fill={`url(#${gid})`} isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </Card>
+  );
+}
+
+function Sparkline({ data, dataKey, color = "hsl(var(--primary))" }: { data: Array<Record<string, any>>; dataKey: string; color?: string }) {
+  if (!data || data.length < 2) return null;
+  return (
+    <div className="h-6 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 1, right: 1, bottom: 1, left: 1 }}>
+          <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={1.2} dot={false} isAnimationActive={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
