@@ -249,12 +249,13 @@ Deno.serve(async (req) => {
         const adAccountForRoute = null; // webhook não recebe ad_account_id
         let routedTenant: string | null = null;
         {
+          // ISOLAMENTO ESTRITO: só roteia com regra explícita. Sem default_tenant_id.
           const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
             p_form_id: formIdForRoute,
             p_ad_account_id: adAccountForRoute,
             p_page_id: pageIdForRoute,
           });
-          routedTenant = (rpc as string | null) ?? (cfg as any)?.default_tenant_id ?? null;
+          routedTenant = (rpc as string | null) ?? null;
         }
 
         if (!routedTenant) {
@@ -304,7 +305,7 @@ Deno.serve(async (req) => {
       p_ad_account_id: body.ad_account_id ?? null,
       p_page_id: body.page_id ?? null,
     });
-    const routedTenant = (rpc as string | null) ?? (cfg as any)?.default_tenant_id ?? null;
+    const routedTenant = (rpc as string | null) ?? null;
     if (!routedTenant) {
       const ur = await admin.from("unrouted_leads").insert({
         raw_payload: body,
@@ -335,7 +336,7 @@ Deno.serve(async (req) => {
       p_ad_account_id: body.ad_account_id ?? null,
       p_page_id: body.page_id ?? null,
     });
-    const routedTenant = (rpc as string | null) ?? (cfg as any)?.default_tenant_id ?? null;
+    const routedTenant = (rpc as string | null) ?? null;
     if (!routedTenant) {
       const ur = await admin.from("unrouted_leads").insert({
         raw_payload: body,
