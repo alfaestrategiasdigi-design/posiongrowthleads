@@ -76,9 +76,9 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        display: ['Syne', '"Inter Tight"', "system-ui", "sans-serif"],
-        sans: ['Inter', '"Inter Tight"', "system-ui", "sans-serif"],
-        mono: ['"JetBrains Mono"', "ui-monospace", "monospace"],
+        display: ['Syne', 'Geist', '"Inter Tight"', "system-ui", "sans-serif"],
+        sans: ['Geist', 'Inter', '"Inter Tight"', "system-ui", "sans-serif"],
+        mono: ['"Geist Mono"', '"JetBrains Mono"', "ui-monospace", "monospace"],
       },
       keyframes: {
         "accordion-down": {
