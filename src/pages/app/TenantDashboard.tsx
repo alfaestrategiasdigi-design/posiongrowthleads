@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Receipt, Target, Trophy, Users, Globe, AlertTriangle, CheckCircle2, Filter, LineChart as LineIcon, Activity, Medal, Bell, Info, XCircle, PartyPopper } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Receipt, Target, Trophy, Users, Globe, AlertTriangle, CheckCircle2, Filter, LineChart as LineIcon, Activity, Medal, Bell, Info, XCircle, PartyPopper, MessageCircle } from "lucide-react";
+import { Link } from "react-router-dom";
 import { SaleRow, BRL, PCT, summarize, groupSum, evaluationFunnel, weeklyBreakdown, categorize, isInternational, isEvaluation } from "@/lib/clinic-kpis";
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar,
