@@ -13,9 +13,12 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { ResponsiveContainer, AreaChart, Area, LineChart, Line, Tooltip as RTooltip } from "recharts";
 
 const BRL = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v || 0);
 const NUM = (v: number) => new Intl.NumberFormat("pt-BR").format(Math.round(v || 0));
+const daysAgoISO = (d: number) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
 interface Campaign {
   id: string;
