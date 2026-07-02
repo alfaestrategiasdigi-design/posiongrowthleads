@@ -597,8 +597,8 @@ export default function CampanhasPage() {
                   <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Formulários de Lead Ads → Cliente</div>
                   <div className="text-[10px] text-slate-600 mt-0.5">
                     {leadForms.length > 0
-                      ? `${leadForms.filter((f) => formTenantMap.has(f.id)).length} de ${leadForms.length} vinculado(s)${lastLeadsSync ? ` · última sync ${new Date(lastLeadsSync).toLocaleTimeString("pt-BR")}` : ""}`
-                      : "Puxa direto da página Facebook conectada"}
+                      ? `${leadForms.filter((f) => formTenantMap.has(f.id)).length} de ${leadForms.length} vinculado(s) · ${leadPages.length} página(s) verificadas${lastLeadsSync ? ` · última sync ${new Date(lastLeadsSync).toLocaleTimeString("pt-BR")}` : ""}`
+                      : "Varre todas as Páginas do Business Manager acessíveis"}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
