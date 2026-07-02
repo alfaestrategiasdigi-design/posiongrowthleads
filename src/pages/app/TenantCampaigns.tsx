@@ -414,3 +414,34 @@ function Metric({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+function exportCsv(campaigns: any[], crmWins: Map<string, { count: number; revenue: number; names: string[] }>) {
+  const header = ["campaign_id","name","status","spend","leads","cpl","impressions","clicks","ctr","cpc","crm_wins","crm_revenue"];
+  const rows = campaigns.map((c) => {
+    const ins = c.insights || {};
+    const spend = Number(ins.spend || 0);
+    const leads = Number(ins.leads || 0);
+    const wins = crmWins.get(c.id) || { count: 0, revenue: 0, names: [] };
+    return [
+      c.id,
+      `"${String(c.name || "").replace(/"/g, '""')}"`,
+      c.effective_status || c.status || "",
+      spend.toFixed(2),
+      leads,
+      leads > 0 ? (spend / leads).toFixed(2) : "",
+      ins.impressions || 0,
+      ins.clicks || 0,
+      ins.ctr || "",
+      ins.cpc || "",
+      wins.count,
+      wins.revenue.toFixed(2),
+    ].join(",");
+  });
+  const csv = [header.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `campanhas_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
