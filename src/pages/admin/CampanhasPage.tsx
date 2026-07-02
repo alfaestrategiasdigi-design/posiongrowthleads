@@ -1573,8 +1573,9 @@ export default function CampanhasPage() {
   );
 }
 
-function CampaignCard({ c, maxSpend, toggling, busy, crmWins = 0, crmRevenue = 0, onToggle, onBudget, onArchive, onOpen }: {
+function CampaignCard({ c, maxSpend, toggling, busy, crmWins = 0, crmRevenue = 0, wonLeads = [], onToggle, onBudget, onArchive, onOpen }: {
   c: any; maxSpend: number; toggling: boolean; busy: boolean; crmWins?: number; crmRevenue?: number;
+  wonLeads?: { name: string; valor: number; source: string }[];
   onToggle: () => void; onBudget: () => void; onArchive: () => void; onOpen: () => void;
 }) {
   const ins = c.insights;
