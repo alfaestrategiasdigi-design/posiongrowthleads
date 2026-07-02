@@ -157,6 +157,13 @@ export default function TenantKanban() {
           <SelectTrigger className="w-[180px] h-9"><SelectValue placeholder="Canal" /></SelectTrigger>
           <SelectContent><SelectItem value="all">Todos os canais</SelectItem>{CHANNELS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
         </Select>
+        <Select value={filterSeller} onValueChange={setFilterSeller}>
+          <SelectTrigger className="w-[180px] h-9"><SelectValue placeholder="Vendedor" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os vendedores</SelectItem>
+            {sellerOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar nome ou telefone..." className="pl-9 h-9" />
