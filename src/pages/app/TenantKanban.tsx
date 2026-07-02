@@ -164,41 +164,94 @@ export default function TenantKanban() {
               {col.total > 0 && <div className="text-[10px] text-muted-foreground mt-1 tabular-nums">{BRL(col.total)}</div>}
             </div>
             <div className="flex-1 p-2.5 space-y-2 overflow-y-auto max-h-[calc(100vh-280px)] min-h-[180px]">
-              {col.rows.map((l) => (
+              {col.rows.map((l) => {
+                const stageDays = daysIn(l.updated_at || l.created_at);
+                const stalled = stageDays >= STALE_DAYS && !["ganho", "perdido", "no_show"].includes(l.stage);
+                const CIcon = channelIcon(l.channel);
+                const initials = (l.full_name || "?").trim().slice(0, 2).toUpperCase();
+                return (
                 <Card
                   key={l.id}
                   draggable
                   onDragStart={() => setDragId(l.id)}
                   onDragEnd={() => setDragId(null)}
-                  className="p-3.5 cursor-grab active:cursor-grabbing transition border bg-[#0B1224]"
-                  style={{ borderColor: "rgba(255,255,255,0.07)" }}
-                  onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(212,175,55,0.3)"}
-                  onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)"}
+                  className="p-3 cursor-grab active:cursor-grabbing transition border bg-[#0B1224] relative"
+                  style={{ borderColor: stalled ? "rgba(239,68,68,0.35)" : "rgba(255,255,255,0.07)" }}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(212,175,55,0.4)"}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = stalled ? "rgba(239,68,68,0.35)" : "rgba(255,255,255,0.07)"}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-semibold truncate">{l.full_name}</div>
-                    {l.international && <Globe2 className="w-3.5 h-3.5 shrink-0" style={{ color: "#D4AF37" }} />}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-1">
-                    <Phone className="w-3 h-3" /> {l.whatsapp}
-                  </div>
-                  {(l.procedure_interest || l.channel) && (
-                    <div className="text-[11px] mt-2 flex flex-wrap gap-1.5">
-                      {l.procedure_interest && <span className="px-1.5 py-0.5 rounded" style={{ background: "rgba(212,175,55,0.12)", color: "#D4AF37" }}>{l.procedure_interest}</span>}
-                      {l.channel && <span className="px-1.5 py-0.5 rounded bg-white/5 text-muted-foreground">{l.channel}</span>}
+                  {stalled && (
+                    <div
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-500 flex items-center justify-center border-2 border-[#0B1224]"
+                      title={`Parado há ${stageDays} dias neste estágio`}
+                    >
+                      <AlertTriangle className="w-3 h-3 text-white" />
                     </div>
                   )}
-                  <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground">
-                    <span>{l.first_contact_date ? new Date(l.first_contact_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</span>
-                    <div className="flex items-center gap-1.5">
-                      {daysIn(l.created_at) > 0 && (
-                        <span className="px-1.5 py-0.5 rounded bg-white/5">{daysIn(l.created_at)}d</span>
+                  <div className="flex items-start gap-2">
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                      style={{ background: `${col.accent}22`, color: col.accent }}
+                    >
+                      {initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <div className="text-sm font-semibold truncate flex-1">{l.full_name}</div>
+                        {l.international && <Globe2 className="w-3 h-3 shrink-0" style={{ color: "#D4AF37" }} />}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <Phone className="w-2.5 h-2.5" /> {l.whatsapp}
+                      </div>
+                    </div>
+                  </div>
+
+                  {(l.procedure_interest || l.channel || l.seller_name) && (
+                    <div className="text-[10px] mt-2 flex flex-wrap gap-1">
+                      {l.procedure_interest && (
+                        <span className="px-1.5 py-0.5 rounded truncate max-w-[130px]" style={{ background: "rgba(212,175,55,0.12)", color: "#D4AF37" }}>
+                          {l.procedure_interest}
+                        </span>
                       )}
+                      {l.channel && (
+                        <span className="px-1.5 py-0.5 rounded bg-white/5 text-muted-foreground flex items-center gap-1">
+                          {CIcon && <CIcon className="w-2.5 h-2.5" />}
+                          <span className="truncate max-w-[100px]">{l.channel}</span>
+                        </span>
+                      )}
+                      {l.seller_name && (
+                        <span className="px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 truncate max-w-[110px]">
+                          {l.seller_name}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5 text-[10px] text-muted-foreground">
+                    <span title="Último contato">
+                      {l.last_contact_at
+                        ? `📞 ${new Date(l.last_contact_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`
+                        : l.first_contact_date
+                          ? new Date(l.first_contact_date + "T00:00:00").toLocaleDateString("pt-BR")
+                          : "—"}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="px-1.5 py-0.5 rounded font-mono tabular-nums"
+                        style={{
+                          background: stalled ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.05)",
+                          color: stalled ? "#F87171" : undefined,
+                        }}
+                        title={`${stageDays} dias neste estágio`}
+                      >
+                        {stageDays}d
+                      </span>
                       {l.sale_amount ? <span className="font-semibold text-foreground">{BRL(Number(l.sale_amount))}</span> : null}
                     </div>
                   </div>
                 </Card>
-              ))}
+              );
+              })}
               {col.rows.length === 0 && (
                 <div className="text-[11px] text-muted-foreground text-center py-6 border border-dashed border-white/5 rounded-md">
                   Arraste aqui
