@@ -305,7 +305,7 @@ Deno.serve(async (req) => {
       p_ad_account_id: body.ad_account_id ?? null,
       p_page_id: body.page_id ?? null,
     });
-    const routedTenant = (rpc as string | null) ?? (cfg as any)?.default_tenant_id ?? null;
+    const routedTenant = (rpc as string | null) ?? null;
     if (!routedTenant) {
       const ur = await admin.from("unrouted_leads").insert({
         raw_payload: body,
