@@ -102,7 +102,7 @@ const AppSidebar = () => {
       <SidebarSeparator className="bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent" />
 
       <SidebarContent className="px-1">
-        {navGroups.map((group) => (
+        {visibleGroups.map((group) => (
           <SidebarGroup key={group.label}>
             {!collapsed && (
               <SidebarGroupLabel className="text-[9px] font-mono uppercase tracking-[0.22em] text-muted-foreground/50 px-3 mt-2 mb-1 flex items-center gap-2">
