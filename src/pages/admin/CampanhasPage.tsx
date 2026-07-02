@@ -140,6 +140,8 @@ export default function CampanhasPage() {
   // CRM wins keyed by normalized campaign name (utm_campaign === campaign.name)
   const [crmWinsByCampaign, setCrmWinsByCampaign] = useState<Record<string, number>>({});
   const [crmRevenueByCampaign, setCrmRevenueByCampaign] = useState<Record<string, number>>({});
+  const [wonLeadsByCampaign, setWonLeadsByCampaign] = useState<Record<string, { name: string; valor: number; source: string }[]>>({});
+
 
   const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
   const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
@@ -552,74 +554,97 @@ export default function CampanhasPage() {
       }
       if (data?.error) throw new Error(data.error);
       setMetaCampaigns((data?.data ?? []) as MetaCampaign[]);
-      // Load CRM wins (kanban) for these campaigns — mescla leads e agency_leads
+      // Load CRM wins (kanban) for these campaigns — mescla leads e agency_leads (fuzzy match por tokens)
       try {
-        const names = (data?.data ?? []).map((c: any) => c.name).filter(Boolean);
-        if (names.length) {
-          const nameKeys = names.map((n: string) => n.trim().toLowerCase());
-          const map: Record<string, number> = {};
+        const camps = (data?.data ?? []).map((c: any) => ({ id: c.id, name: c.name || "" })).filter((c: any) => c.name);
+        if (camps.length) {
+          // normaliza: minusculo, remove colchetes/pontuação, tokens de >=3 letras
+          const normalize = (s: string) =>
+            (s || "")
+              .toLowerCase()
+              .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+              .replace(/[\[\]\(\)\{\}\-\_\/\\\.,;:!\?]/g, " ")
+              .replace(/\s+/g, " ").trim();
+          const tokens = (s: string) => new Set(normalize(s).split(" ").filter((t) => t.length >= 3));
+          const campTokens = camps.map((c: any) => ({ key: c.name.trim().toLowerCase(), name: c.name, toks: tokens(c.name) }));
+
+          const wins: Record<string, number> = {};
           const rev: Record<string, number> = {};
+          const leadsMap: Record<string, { name: string; valor: number; source: string }[]> = {};
           const seenIds = new Set<string>();
 
-          const addWin = (rawName: string | null | undefined, valor: number | null, id: string) => {
-            const k = (rawName || "").trim().toLowerCase();
-            if (!k || !nameKeys.includes(k)) return;
-            if (seenIds.has(id)) return;
-            seenIds.add(id);
-            map[k] = (map[k] || 0) + 1;
-            rev[k] = (rev[k] || 0) + (Number(valor) || 0);
+          const attribute = (leadId: string, leadName: string, valor: number, ...candidates: (string | null | undefined)[]) => {
+            if (seenIds.has(leadId)) return;
+            let best: { key: string; name: string; score: number } | null = null;
+            for (const cand of candidates) {
+              if (!cand) continue;
+              const candNorm = cand.trim().toLowerCase();
+              const candToks = tokens(cand);
+              if (candToks.size === 0) continue;
+              for (const c of campTokens) {
+                // exato
+                if (c.key === candNorm) { best = { key: c.key, name: c.name, score: 1 }; break; }
+                // Jaccard
+                let inter = 0;
+                for (const t of candToks) if (c.toks.has(t)) inter++;
+                const union = candToks.size + c.toks.size - inter;
+                const score = union ? inter / union : 0;
+                if (score >= 0.4 && (!best || score > best.score)) best = { key: c.key, name: c.name, score };
+              }
+              if (best && best.score === 1) break;
+            }
+            if (!best) return;
+            seenIds.add(leadId);
+            wins[best.key] = (wins[best.key] || 0) + 1;
+            rev[best.key] = (rev[best.key] || 0) + (Number(valor) || 0);
+            (leadsMap[best.key] = leadsMap[best.key] || []).push({
+              name: leadName || "Lead",
+              valor: Number(valor) || 0,
+              source: best.score === 1 ? "utm" : "fuzzy",
+            });
           };
 
-          // 1) tabela leads (legado) — status ganho
+          // 1) leads (legado)
           let q1 = supabase
             .from("leads")
-            .select("id,utm_campaign,facebook_campaign,status,tenant_id,valor_proposta")
+            .select("id,nome_completo,utm_campaign,facebook_campaign,facebook_form_name,status,tenant_id,valor_proposta,campaign_id_manual")
             .eq("status", "ganho");
           if (selectedTenantId) q1 = q1.eq("tenant_id", selectedTenantId);
           const { data: wins1 } = await q1;
-          (wins1 ?? []).forEach((l: any) => {
-            addWin(l.utm_campaign, l.valor_proposta, l.id);
-            addWin(l.facebook_campaign, l.valor_proposta, l.id);
-          });
+          (wins1 ?? []).forEach((l: any) =>
+            attribute(l.id, l.nome_completo, l.valor_proposta, l.campaign_id_manual, l.utm_campaign, l.facebook_campaign, l.facebook_form_name)
+          );
 
-          // 2) tabela agency_leads (novo kanban) — stage ganho; casa pelo id ou utm_campaign
+          // 2) agency_leads (kanban novo)
           const { data: wins2 } = await supabase
             .from("agency_leads")
-            .select("id,utm_campaign,valor_proposta,stage")
+            .select("id,nome_clinica,responsavel,utm_campaign,valor_proposta,stage,campaign_id_manual")
             .eq("stage", "ganho");
-          if (wins2 && wins2.length) {
-            // busca origem no leads pelo mesmo id para pegar campanha se agency não tem utm
-            const idsSemUtm = wins2.filter((a: any) => !a.utm_campaign).map((a: any) => a.id);
-            let origem: Record<string, { utm: string | null; fb: string | null }> = {};
+          if (wins2?.length) {
+            const idsSemUtm = wins2.filter((a: any) => !a.utm_campaign && !a.campaign_id_manual).map((a: any) => a.id);
+            const origem: Record<string, { utm: string | null; fb: string | null; form: string | null }> = {};
             if (idsSemUtm.length) {
               const { data: origs } = await supabase
                 .from("leads")
-                .select("id,utm_campaign,facebook_campaign")
+                .select("id,utm_campaign,facebook_campaign,facebook_form_name")
                 .in("id", idsSemUtm);
-              (origs ?? []).forEach((o: any) => {
-                origem[o.id] = { utm: o.utm_campaign, fb: o.facebook_campaign };
-              });
+              (origs ?? []).forEach((o: any) => { origem[o.id] = { utm: o.utm_campaign, fb: o.facebook_campaign, form: o.facebook_form_name }; });
             }
             wins2.forEach((a: any) => {
-              if (a.utm_campaign) {
-                addWin(a.utm_campaign, a.valor_proposta, a.id);
-              } else {
-                const o = origem[a.id];
-                if (o) {
-                  addWin(o.utm, a.valor_proposta, a.id);
-                  addWin(o.fb, a.valor_proposta, a.id);
-                }
-              }
+              const o = origem[a.id] || { utm: null, fb: null, form: null };
+              const label = a.nome_clinica || a.responsavel || "Lead";
+              attribute(a.id, label, a.valor_proposta, a.campaign_id_manual, a.utm_campaign, o.utm, o.fb, o.form);
             });
           }
 
-          setCrmWinsByCampaign(map);
+          setCrmWinsByCampaign(wins);
           setCrmRevenueByCampaign(rev);
+          setWonLeadsByCampaign(leadsMap);
         } else {
-          setCrmWinsByCampaign({});
-          setCrmRevenueByCampaign({});
+          setCrmWinsByCampaign({}); setCrmRevenueByCampaign({}); setWonLeadsByCampaign({});
         }
       } catch { /* non-fatal */ }
+
 
     } catch (e: any) {
       toast({ title: "Falha ao carregar campanhas", description: e.message ?? "", variant: "destructive" });
@@ -1141,6 +1166,8 @@ export default function CampanhasPage() {
                         busy={busyObject === c.id}
                         crmWins={crmWinsByCampaign[(c.name || "").trim().toLowerCase()] || 0}
                         crmRevenue={crmRevenueByCampaign[(c.name || "").trim().toLowerCase()] || 0}
+                        wonLeads={wonLeadsByCampaign[(c.name || "").trim().toLowerCase()] || []}
+
                         onToggle={() => toggleCampaignStatus(c)}
                         onBudget={() => openBudgetDialog(c.id, c.name, c.daily_budget)}
                         onArchive={() => archiveObject(c.id, "campaign")}
@@ -1546,8 +1573,9 @@ export default function CampanhasPage() {
   );
 }
 
-function CampaignCard({ c, maxSpend, toggling, busy, crmWins = 0, crmRevenue = 0, onToggle, onBudget, onArchive, onOpen }: {
+function CampaignCard({ c, maxSpend, toggling, busy, crmWins = 0, crmRevenue = 0, wonLeads = [], onToggle, onBudget, onArchive, onOpen }: {
   c: any; maxSpend: number; toggling: boolean; busy: boolean; crmWins?: number; crmRevenue?: number;
+  wonLeads?: { name: string; valor: number; source: string }[];
   onToggle: () => void; onBudget: () => void; onArchive: () => void; onOpen: () => void;
 }) {
   const ins = c.insights;
@@ -1628,7 +1656,31 @@ function CampaignCard({ c, maxSpend, toggling, busy, crmWins = 0, crmRevenue = 0
         <div className="mt-3 text-xs text-muted-foreground italic">Sem insights no período.</div>
       )}
 
+      {/* Leads GANHOS vinculados (Kanban) */}
+      {wonLeads.length > 0 && (
+        <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-2">
+          <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-emerald-400 mb-1.5">
+            <span className="flex items-center gap-1"><Star className="w-3 h-3" /> Ganhos vinculados</span>
+            <span className="tabular-nums font-bold">{BRL(crmRevenue)}</span>
+          </div>
+          <div className="space-y-0.5 max-h-24 overflow-auto">
+            {wonLeads.slice(0, 6).map((l, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 text-[11px]">
+                <span className="truncate flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-emerald-400 shrink-0" />
+                  <span className="truncate" title={l.name}>{l.name}</span>
+                  {l.source === "fuzzy" && <span className="text-[9px] text-amber-400/80" title="Vínculo por similaridade">~</span>}
+                </span>
+                <span className="tabular-nums font-semibold text-emerald-400 shrink-0">{BRL(l.valor)}</span>
+              </div>
+            ))}
+            {wonLeads.length > 6 && <div className="text-[10px] text-muted-foreground pt-1">+{wonLeads.length - 6} mais…</div>}
+          </div>
+        </div>
+      )}
+
       {/* Footer actions */}
+
       <div className="mt-3 pt-3 border-t border-border/40 flex items-center gap-1">
         <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onToggle} disabled={toggling}>
           {toggling ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : isActive ? <Pause className="w-3 h-3 mr-1" /> : <Play className="w-3 h-3 mr-1 text-emerald-400" />}

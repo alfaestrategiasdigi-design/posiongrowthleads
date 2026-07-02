@@ -78,6 +78,7 @@ export type Database = {
         Row: {
           ad_id: string | null
           campaign_id: string | null
+          campaign_id_manual: string | null
           cidade: string | null
           created_at: string
           email: string | null
@@ -106,6 +107,7 @@ export type Database = {
         Insert: {
           ad_id?: string | null
           campaign_id?: string | null
+          campaign_id_manual?: string | null
           cidade?: string | null
           created_at?: string
           email?: string | null
@@ -134,6 +136,7 @@ export type Database = {
         Update: {
           ad_id?: string | null
           campaign_id?: string | null
+          campaign_id_manual?: string | null
           cidade?: string | null
           created_at?: string
           email?: string | null
@@ -310,6 +313,7 @@ export type Database = {
           leads: number | null
           level: string
           link_clicks: number | null
+          offline_events_sent: number
           purchase_value: number | null
           purchases: number | null
           raw: Json | null
@@ -341,6 +345,7 @@ export type Database = {
           leads?: number | null
           level: string
           link_clicks?: number | null
+          offline_events_sent?: number
           purchase_value?: number | null
           purchases?: number | null
           raw?: Json | null
@@ -372,6 +377,7 @@ export type Database = {
           leads?: number | null
           level?: string
           link_clicks?: number | null
+          offline_events_sent?: number
           purchase_value?: number | null
           purchases?: number | null
           raw?: Json | null
@@ -441,6 +447,69 @@ export type Database = {
             columns: ["insight_id"]
             isOneToOne: false
             referencedRelation: "campaign_insights"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_lead_links: {
+        Row: {
+          ad_account_id: string | null
+          agency_lead_id: string | null
+          campaign_id: string
+          campaign_name: string | null
+          confidence: number | null
+          created_at: string
+          ganho_at: string | null
+          id: string
+          lead_id: string | null
+          match_source: string
+          offline_sent_at: string | null
+          tenant_id: string | null
+          valor: number | null
+        }
+        Insert: {
+          ad_account_id?: string | null
+          agency_lead_id?: string | null
+          campaign_id: string
+          campaign_name?: string | null
+          confidence?: number | null
+          created_at?: string
+          ganho_at?: string | null
+          id?: string
+          lead_id?: string | null
+          match_source: string
+          offline_sent_at?: string | null
+          tenant_id?: string | null
+          valor?: number | null
+        }
+        Update: {
+          ad_account_id?: string | null
+          agency_lead_id?: string | null
+          campaign_id?: string
+          campaign_name?: string | null
+          confidence?: number | null
+          created_at?: string
+          ganho_at?: string | null
+          id?: string
+          lead_id?: string | null
+          match_source?: string
+          offline_sent_at?: string | null
+          tenant_id?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_lead_links_agency_lead_id_fkey"
+            columns: ["agency_lead_id"]
+            isOneToOne: false
+            referencedRelation: "agency_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_lead_links_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
             referencedColumns: ["id"]
           },
         ]
@@ -1078,6 +1147,7 @@ export type Database = {
       }
       leads: {
         Row: {
+          campaign_id_manual: string | null
           cidade_estado: string | null
           cnpj: string | null
           created_at: string | null
@@ -1123,6 +1193,7 @@ export type Database = {
           whatsapp: string
         }
         Insert: {
+          campaign_id_manual?: string | null
           cidade_estado?: string | null
           cnpj?: string | null
           created_at?: string | null
@@ -1168,6 +1239,7 @@ export type Database = {
           whatsapp: string
         }
         Update: {
+          campaign_id_manual?: string | null
           cidade_estado?: string | null
           cnpj?: string | null
           created_at?: string | null
@@ -2409,6 +2481,44 @@ export type Database = {
           },
         ]
       }
+      tenant_ad_accounts: {
+        Row: {
+          active: boolean
+          ad_account_id: string
+          created_at: string
+          id: string
+          label: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          ad_account_id: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          ad_account_id?: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_ad_accounts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_appointment_config: {
         Row: {
           appointment_types: string[]
@@ -3009,6 +3119,10 @@ export type Database = {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
       }
+      link_lead_to_campaigns: {
+        Args: { p_agency_lead_id?: string; p_lead_id?: string }
+        Returns: number
+      }
       promote_agency_lead_to_tenant: {
         Args: {
           p_lead_id: string
@@ -3026,6 +3140,8 @@ export type Database = {
         }
         Returns: string
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       app_role: "admin" | "user"
