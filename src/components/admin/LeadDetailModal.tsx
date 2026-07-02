@@ -161,6 +161,19 @@ const LeadDetailModal = ({ lead, open, onClose, onUpdated }: LeadDetailModalProp
           {(() => {
             const ff: any[] = ((lead as any).extras?.form_fields) ?? [];
             if (!Array.isArray(ff) || ff.length === 0) return null;
+            const prettifyLabel = (s: string) =>
+              String(s || "")
+                .replace(/_/g, " ")
+                .replace(/\?+$/g, "?")
+                .replace(/\s+/g, " ")
+                .trim()
+                .replace(/\b\w/g, (c) => c.toUpperCase());
+            const prettifyValue = (s: string) =>
+              String(s || "")
+                .replace(/^→[_\s]*/, "")
+                .replace(/_/g, " ")
+                .replace(/\s+/g, " ")
+                .trim();
             return (
               <div className="bg-muted/40 rounded-lg p-4 space-y-2">
                 <h4 className="text-xs font-semibold text-foreground flex items-center gap-2 mb-1">
@@ -168,12 +181,15 @@ const LeadDetailModal = ({ lead, open, onClose, onUpdated }: LeadDetailModalProp
                   <span className="ml-auto text-[10px] text-muted-foreground">{ff.length} campo(s)</span>
                 </h4>
                 <div className="grid md:grid-cols-2 gap-2">
-                  {ff.map((f, i) => (
-                    <div key={i} className="rounded-md border border-border/50 bg-background/40 p-2">
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{f.label || f.name}</p>
-                      <p className="text-sm text-foreground break-words">{f.value || "—"}</p>
-                    </div>
-                  ))}
+                  {ff.map((f, i) => {
+                    const value = prettifyValue(f.value);
+                    return (
+                      <div key={i} className="rounded-md border border-border/50 bg-background/40 p-2">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{prettifyLabel(f.label || f.name)}</p>
+                        <p className="text-sm text-foreground break-words">{value || "—"}</p>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
