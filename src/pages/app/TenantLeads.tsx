@@ -125,15 +125,63 @@ export default function TenantLeads() {
   async function loadAll() {
     if (!tenant?.id) return;
     setLoading(true);
+
+    // Extra guard: verify the current user has access to this tenant BEFORE loading rows.
+    const { data: userRes } = await supabase.auth.getUser();
+    const uid = userRes.user?.id;
+    if (!uid) { setAccessDenied(true); setLoading(false); return; }
+    const { data: canAccess, error: accErr } = await supabase.rpc("has_tenant_access", {
+      _user_id: uid, _tenant_id: tenant.id,
+    });
+    if (accErr || canAccess !== true) {
+      setAccessDenied(true); setLeads([]); setSellers([]); setLoading(false);
+      return;
+    }
+    setAccessDenied(false);
+
     const [{ data: l }, { data: s }] = await Promise.all([
       supabase.from("leads").select("*").eq("tenant_id", tenant.id).order("created_at", { ascending: false }),
       supabase.from("sellers").select("id,name").eq("tenant_id", tenant.id).order("name"),
     ]);
-    setLeads((l ?? []).map(mapRow));
+    // Defensive filter — never render a row from a different tenant even if the API leaks.
+    const clean = (l ?? []).filter((r: any) => r?.tenant_id === tenant.id);
+    setLeads(clean.map(mapRow));
     setSellers((s ?? []) as Seller[]);
     setLoading(false);
   }
   useEffect(() => { loadAll(); /* eslint-disable-next-line */ }, [tenant?.id]);
+
+  async function syncSources() {
+    if (!tenant?.id || syncing) return;
+    setSyncing(true);
+    try {
+      const [fb, wa] = await Promise.all([
+        supabase.functions.invoke("facebook-backfill-leads", {
+          body: { tenant_id: tenant.id, max_per_form: 500 },
+        }),
+        supabase.functions.invoke("evolution-sync-chats", {
+          body: { tenant_id: tenant.id, with_pictures: false },
+        }),
+      ]);
+      const fbErr = (fb as any)?.error?.message ?? (fb as any)?.data?.error;
+      const waErr = (wa as any)?.error?.message ?? (wa as any)?.data?.error;
+      if (fbErr || waErr) {
+        toast.warning("Sincronização parcial", {
+          description: [fbErr && `Meta: ${fbErr}`, waErr && `WhatsApp: ${waErr}`].filter(Boolean).join(" · "),
+        });
+      } else {
+        const t = (fb as any)?.data?.totals;
+        toast.success("Sincronização concluída", {
+          description: t ? `Meta: ${t.imported} novos, ${t.deduped} já existiam · WhatsApp atualizado` : "Fontes atualizadas",
+        });
+      }
+      await loadAll();
+    } catch (e: any) {
+      toast.error("Falha ao sincronizar", { description: e?.message ?? String(e) });
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   // Realtime updates
   useEffect(() => {
