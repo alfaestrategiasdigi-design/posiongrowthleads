@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Plus, Phone, Globe2, Search } from "lucide-react";
+import { Loader2, Plus, Phone, Globe2, Search, AlertTriangle, Facebook, Instagram, MessageCircle, Users2, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { PIPELINE_STAGES, type PipelineStage } from "@/types/admin";
@@ -23,9 +23,21 @@ const STAGES: { id: Stage; title: string; accent: string; bg: string }[] = PIPEL
   bg: `${s.hex}22`,
 }));
 
+const STALE_DAYS = 3;
+
 function daysIn(date: string | null) {
   if (!date) return 0;
   return Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
+}
+
+function channelIcon(ch: string | null) {
+  if (!ch) return null;
+  const s = ch.toLowerCase();
+  if (s.includes("facebook") || s.includes("meta") || s.includes("tráfego")) return Facebook;
+  if (s.includes("instagram") || s.includes("orgânico") || s.includes("organico")) return Instagram;
+  if (s.includes("whats")) return MessageCircle;
+  if (s.includes("indicação") || s.includes("paciente")) return Users2;
+  return null;
 }
 
 type Lead = {
@@ -33,6 +45,7 @@ type Lead = {
   seller_name: string | null; procedure_interest: string | null; stage: Stage;
   sale_amount: number | null; international: boolean; notes: string | null;
   first_contact_date: string | null; created_at: string;
+  updated_at: string | null; last_contact_at: string | null;
 };
 
 const BRL = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -54,7 +67,15 @@ export default function TenantKanban() {
   const [winLead, setWinLead] = useState<Lead | null>(null);
   const [filterProduct, setFilterProduct] = useState("all");
   const [filterChannel, setFilterChannel] = useState("all");
+  const [filterSeller, setFilterSeller] = useState("all");
   const [search, setSearch] = useState("");
+
+  // Estágios com automação configurada (mock — pode ser lido de tabela futuramente)
+  const AUTOMATED_STAGES: Partial<Record<Stage, string>> = {
+    lead: "WhatsApp de boas-vindas automático",
+    reuniao_agendada: "Lembrete 1h antes",
+    ganho: "Evento Purchase enviado ao Meta CAPI",
+  };
 
   async function loadAll() {
     if (!tenant) return;
@@ -94,14 +115,22 @@ export default function TenantKanban() {
     return leads.filter((l) =>
       (filterProduct === "all" || l.procedure_interest === filterProduct) &&
       (filterChannel === "all" || l.channel === filterChannel) &&
+      (filterSeller === "all" || l.seller_name === filterSeller) &&
       (!q || l.full_name.toLowerCase().includes(q) || l.whatsapp.includes(q))
     );
-  }, [leads, filterProduct, filterChannel, search]);
+  }, [leads, filterProduct, filterChannel, filterSeller, search]);
+
+  const sellerOptions = useMemo(() => {
+    const set = new Set<string>();
+    leads.forEach(l => l.seller_name && set.add(l.seller_name));
+    return Array.from(set).sort();
+  }, [leads]);
 
   const columns = useMemo(
     () => STAGES.map((s) => {
       const rows = filtered.filter((l) => l.stage === s.id);
-      return { ...s, rows, total: rows.reduce((a, b) => a + Number(b.sale_amount || 0), 0) };
+      const stale = rows.filter(l => daysIn(l.updated_at || l.created_at) >= STALE_DAYS && !["ganho","perdido","no_show"].includes(l.stage)).length;
+      return { ...s, rows, stale, total: rows.reduce((a, b) => a + Number(b.sale_amount || 0), 0) };
     }), [filtered]);
 
   if (!tenant || loading) return <div className="p-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
@@ -128,6 +157,13 @@ export default function TenantKanban() {
           <SelectTrigger className="w-[180px] h-9"><SelectValue placeholder="Canal" /></SelectTrigger>
           <SelectContent><SelectItem value="all">Todos os canais</SelectItem>{CHANNELS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
         </Select>
+        <Select value={filterSeller} onValueChange={setFilterSeller}>
+          <SelectTrigger className="w-[180px] h-9"><SelectValue placeholder="Vendedor" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os vendedores</SelectItem>
+            {sellerOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar nome ou telefone..." className="pl-9 h-9" />
@@ -144,48 +180,118 @@ export default function TenantKanban() {
             style={{ background: "#0B1224", border: "1px solid rgba(255,255,255,0.05)" }}
           >
             <div className="px-3 py-2.5 rounded-t-xl" style={{ background: col.bg, borderBottom: `2px solid ${col.accent}` }}>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: col.accent }}>{col.title}</span>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${col.accent}22`, color: col.accent }}>{col.rows.length}</span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-[11px] font-bold tracking-wider uppercase truncate" style={{ color: col.accent }}>{col.title}</span>
+                  {AUTOMATED_STAGES[col.id] && (
+                    <span title={`⚡ Automação ativa: ${AUTOMATED_STAGES[col.id]}`} className="shrink-0">
+                      <Zap className="w-3 h-3" style={{ color: col.accent }} />
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {col.stale > 0 && (
+                    <span
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-500/15 text-rose-400 flex items-center gap-0.5"
+                      title={`${col.stale} lead(s) parados há mais de ${STALE_DAYS} dias`}
+                    >
+                      <AlertTriangle className="w-2.5 h-2.5" /> {col.stale}
+                    </span>
+                  )}
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${col.accent}22`, color: col.accent }}>{col.rows.length}</span>
+                </div>
               </div>
               {col.total > 0 && <div className="text-[10px] text-muted-foreground mt-1 tabular-nums">{BRL(col.total)}</div>}
             </div>
             <div className="flex-1 p-2.5 space-y-2 overflow-y-auto max-h-[calc(100vh-280px)] min-h-[180px]">
-              {col.rows.map((l) => (
+              {col.rows.map((l) => {
+                const stageDays = daysIn(l.updated_at || l.created_at);
+                const stalled = stageDays >= STALE_DAYS && !["ganho", "perdido", "no_show"].includes(l.stage);
+                const CIcon = channelIcon(l.channel);
+                const initials = (l.full_name || "?").trim().slice(0, 2).toUpperCase();
+                return (
                 <Card
                   key={l.id}
                   draggable
                   onDragStart={() => setDragId(l.id)}
                   onDragEnd={() => setDragId(null)}
-                  className="p-3.5 cursor-grab active:cursor-grabbing transition border bg-[#0B1224]"
-                  style={{ borderColor: "rgba(255,255,255,0.07)" }}
-                  onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(212,175,55,0.3)"}
-                  onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)"}
+                  className="p-3 cursor-grab active:cursor-grabbing transition border bg-[#0B1224] relative"
+                  style={{ borderColor: stalled ? "rgba(239,68,68,0.35)" : "rgba(255,255,255,0.07)" }}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(212,175,55,0.4)"}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = stalled ? "rgba(239,68,68,0.35)" : "rgba(255,255,255,0.07)"}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-semibold truncate">{l.full_name}</div>
-                    {l.international && <Globe2 className="w-3.5 h-3.5 shrink-0" style={{ color: "#D4AF37" }} />}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-1">
-                    <Phone className="w-3 h-3" /> {l.whatsapp}
-                  </div>
-                  {(l.procedure_interest || l.channel) && (
-                    <div className="text-[11px] mt-2 flex flex-wrap gap-1.5">
-                      {l.procedure_interest && <span className="px-1.5 py-0.5 rounded" style={{ background: "rgba(212,175,55,0.12)", color: "#D4AF37" }}>{l.procedure_interest}</span>}
-                      {l.channel && <span className="px-1.5 py-0.5 rounded bg-white/5 text-muted-foreground">{l.channel}</span>}
+                  {stalled && (
+                    <div
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-500 flex items-center justify-center border-2 border-[#0B1224]"
+                      title={`Parado há ${stageDays} dias neste estágio`}
+                    >
+                      <AlertTriangle className="w-3 h-3 text-white" />
                     </div>
                   )}
-                  <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground">
-                    <span>{l.first_contact_date ? new Date(l.first_contact_date + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</span>
-                    <div className="flex items-center gap-1.5">
-                      {daysIn(l.created_at) > 0 && (
-                        <span className="px-1.5 py-0.5 rounded bg-white/5">{daysIn(l.created_at)}d</span>
+                  <div className="flex items-start gap-2">
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                      style={{ background: `${col.accent}22`, color: col.accent }}
+                    >
+                      {initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <div className="text-sm font-semibold truncate flex-1">{l.full_name}</div>
+                        {l.international && <Globe2 className="w-3 h-3 shrink-0" style={{ color: "#D4AF37" }} />}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <Phone className="w-2.5 h-2.5" /> {l.whatsapp}
+                      </div>
+                    </div>
+                  </div>
+
+                  {(l.procedure_interest || l.channel || l.seller_name) && (
+                    <div className="text-[10px] mt-2 flex flex-wrap gap-1">
+                      {l.procedure_interest && (
+                        <span className="px-1.5 py-0.5 rounded truncate max-w-[130px]" style={{ background: "rgba(212,175,55,0.12)", color: "#D4AF37" }}>
+                          {l.procedure_interest}
+                        </span>
                       )}
+                      {l.channel && (
+                        <span className="px-1.5 py-0.5 rounded bg-white/5 text-muted-foreground flex items-center gap-1">
+                          {CIcon && <CIcon className="w-2.5 h-2.5" />}
+                          <span className="truncate max-w-[100px]">{l.channel}</span>
+                        </span>
+                      )}
+                      {l.seller_name && (
+                        <span className="px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 truncate max-w-[110px]">
+                          {l.seller_name}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5 text-[10px] text-muted-foreground">
+                    <span title="Último contato">
+                      {l.last_contact_at
+                        ? `📞 ${new Date(l.last_contact_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`
+                        : l.first_contact_date
+                          ? new Date(l.first_contact_date + "T00:00:00").toLocaleDateString("pt-BR")
+                          : "—"}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="px-1.5 py-0.5 rounded font-mono tabular-nums"
+                        style={{
+                          background: stalled ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.05)",
+                          color: stalled ? "#F87171" : undefined,
+                        }}
+                        title={`${stageDays} dias neste estágio`}
+                      >
+                        {stageDays}d
+                      </span>
                       {l.sale_amount ? <span className="font-semibold text-foreground">{BRL(Number(l.sale_amount))}</span> : null}
                     </div>
                   </div>
                 </Card>
-              ))}
+              );
+              })}
               {col.rows.length === 0 && (
                 <div className="text-[11px] text-muted-foreground text-center py-6 border border-dashed border-white/5 rounded-md">
                   Arraste aqui
