@@ -385,8 +385,10 @@ export default function CampanhasPage() {
         supabase.functions.invoke("facebook-backfill-leads", {
           body: { form_ids: [formId], max_per_form: 2000 },
         }).then(({ data }) => {
-          const s = (data?.summary ?? [])[0] ?? {};
-          if (s.imported != null) {
+          const s = ((data?.by_form ?? data?.summary ?? [])[0]) ?? {};
+          if (s.error) {
+            toast({ title: `Falha ao importar histórico`, description: `${formName}: ${s.error}`, variant: "destructive" });
+          } else if (s.imported != null) {
             toast({ title: "Histórico importado", description: `${formName}: ${s.imported} novo(s), ${s.deduped ?? 0} já existentes.` });
             setLastLeadsSync(new Date().toISOString());
           }
@@ -409,11 +411,15 @@ export default function CampanhasPage() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      const s = (data?.summary ?? [])[0] ?? {};
-      toast({
-        title: "Sync concluído",
-        description: `${formName}: ${s.imported ?? 0} novo(s), ${s.deduped ?? 0} duplicado(s)`,
-      });
+      const s = (data?.by_form ?? data?.summary ?? [])[0] ?? {};
+      if (s.error) {
+        toast({ title: `Falha — ${formName}`, description: s.error, variant: "destructive" });
+      } else {
+        toast({
+          title: "Sync concluído",
+          description: `${formName}: ${s.imported ?? 0} novo(s), ${s.deduped ?? 0} duplicado(s), ${s.failed ?? 0} falha(s)`,
+        });
+      }
       setLastLeadsSync(new Date().toISOString());
     } catch (e: any) {
       toast({ title: "Falha no sync", description: e.message, variant: "destructive" });
@@ -430,9 +436,19 @@ export default function CampanhasPage() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      const total = (data?.summary ?? []).reduce((a: number, x: any) => a + (x.imported ?? 0), 0);
-      const dedup = (data?.summary ?? []).reduce((a: number, x: any) => a + (x.deduped ?? 0), 0);
-      toast({ title: `Histórico importado — ${pageName}`, description: `${total} novo(s), ${dedup} já existentes.` });
+      const rows = (data?.by_form ?? data?.summary ?? []) as any[];
+      const total = rows.reduce((a, x) => a + (x.imported ?? 0), 0);
+      const dedup = rows.reduce((a, x) => a + (x.deduped ?? 0), 0);
+      const errors = rows.filter((x) => x.error);
+      if (errors.length) {
+        toast({
+          title: `Import parcial — ${pageName}`,
+          description: `${total} novo(s), ${dedup} duplicado(s). ${errors.length} form(s) com erro: ${errors[0].error}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: `Histórico importado — ${pageName}`, description: `${total} novo(s), ${dedup} já existentes.` });
+      }
       setLastLeadsSync(new Date().toISOString());
     } catch (e: any) {
       toast({ title: "Falha no import", description: e.message, variant: "destructive" });

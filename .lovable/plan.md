@@ -1,48 +1,24 @@
-## Problema
+## Diagnóstico
+Os formulários que você mapeou (Página **Dr Matheus - Medico**, ex.: RMK-01 com 23 leads, FORM-01_GoldIncision_A com 32) pertencem a uma **Página diferente** da que está configurada no `facebook_webhook_config` (page_id `1032397629953696`). A edge function `facebook-backfill-leads` usa **apenas o Page Access Token dessa página configurada** — e o Graph API só devolve leads de um formulário se o token for da Página dona do formulário. Resultado: a chamada de backfill falha silenciosamente para os forms mapeados e nenhum lead entra no tenant (por isso o tenant do Alessandro só tem 9 leads Facebook, todos do form antigo `1858043458199562`).
 
-O botão "Sincronizar Formulários" hoje só lista formulários da Página configurada em `facebook_webhook_config.page_id`. Formulários criados em outras Páginas (Matheus Azevedo, etc.) ou dentro do Business Manager nunca aparecem — mesmo quando a Marketing API já vê as contas de anúncio dessas Páginas.
+Já temos `user_access_token` salvo — dá pra resolver o token da Página certa dinamicamente pra cada form.
 
-Motivo técnico: em `supabase/functions/facebook-ads-manage/index.ts`, a action `list_lead_forms` faz apenas:
-```
-GET /{cfg.page_id}/leadgen_forms
-```
-Formulários no Meta são de propriedade da **Página** (não da conta de anúncio), então precisamos varrer todas as Páginas visíveis pelo token de usuário — inclusive as owned/client pages dos Business Managers.
+## Correção
 
-## Escopo da mudança
+**1. `supabase/functions/facebook-backfill-leads/index.ts` — usar token da Página dona do form**
+- Carregar também `user_access_token` do `facebook_webhook_config`.
+- Buscar `/me/accounts?fields=id,name,access_token&limit=200` com o user token e montar cache `pageId → pageToken/pageName`.
+- Para cada `form_id` recebido:
+  - Chamar `GET /{form_id}?fields=name,page{id,name}` com user token pra descobrir a Página dona.
+  - Usar `pageTokenCache[form.page.id]` na hora de fazer `GET /{form_id}/leads?...`. Se não existir (usuário não é admin daquela Página), retornar erro claro no `summary` (`error: "sem token para a página X"`).
+- Manter fallback: se o form for da Página configurada, continuar usando `page_access_token`.
+- Ao inserir o lead, gravar também `facebook_page_id = form.page.id` para diagnóstico futuro (já existe coluna? se não, só logar).
 
-Backend (edge function) + UI da aba "Formulários Meta Vinculados" no `CampanhasPage`. Sem alterar schema.
+**2. UI `src/pages/admin/CampanhasPage.tsx`**
+- Nenhuma mudança de layout. Só melhorar o `toast` do `syncFormNow` / `syncPageForms` pra mostrar `imported / fetched / failed / error` vindo do `by_form` — assim, se um form ainda falhar (ex.: usuário sem permissão naquela Página), fica visível.
 
-### 1. `supabase/functions/facebook-ads-manage/index.ts` — action `list_lead_forms`
-
-Reescrever para agregar formulários de todas as Páginas acessíveis:
-
-1. `GET /me/accounts?fields=id,name,access_token&limit=200` → páginas pessoais.
-2. `GET /me/businesses?fields=id,name&limit=200` → para cada Business:
-   - `GET /{business_id}/owned_pages?fields=id,name,access_token&limit=200`
-   - `GET /{business_id}/client_pages?fields=id,name,access_token&limit=200`
-3. Deduplicar por `page.id`.
-4. Para cada página (com concorrência limitada — reutilizar `mapLimit(pages, 4, ...)`):
-   - `GET /{page.id}/leadgen_forms?fields=id,name,status,leads_count,created_time` usando o `page.access_token` retornado (fallback para o user token se ausente).
-5. Retornar `{ ok: true, data: [{ id, name, status, leads_count, created_time, page_id, page_name }], pages: [{ id, name, forms_count }] }`.
-6. Erros por página não devem quebrar a resposta — apenas incluir a página em `errors[]` com a mensagem do Graph (útil quando falta permissão em uma Página específica).
-
-Rate-limit: reusar `fbErr` e o helper de cache existente não é necessário aqui (chamada pontual). Manter `mapLimit` com concorrência 4.
-
-Sem novos escopos OAuth obrigatórios: `pages_show_list` + `leads_retrieval` + `business_management` (que já estão no fluxo de reconexão) cobrem a leitura. Se a Página não estiver conectada ao app, o Graph retorna erro específico — logamos em `errors[]` para a UI mostrar.
-
-### 2. `src/pages/admin/CampanhasPage.tsx`
-
-- Estender o tipo `LeadForm` com `page_id?: string; page_name?: string`.
-- Na seção "Formulários Meta Vinculados": agrupar os formulários por `page_name` (accordion/heading por Página) e exibir badge com quantidade de formulários por página.
-- Cabeçalho da seção: mostrar total geral e "X páginas verificadas".
-- Se `data.errors` vier populado, mostrar um `Alert` discreto listando as páginas com falha (nome + motivo) — sem bloquear a lista.
-- Manter o fluxo existente de vinculação `form_id → tenant_id` em `lead_routing_rules` (não muda).
+**3. Reprocessar histórico**
+- Após deploy: você clica em **IMPORTAR HISTÓRICO** no card da Página "Dr Matheus - Medico" (ou usa "Sincronizar Agora" em cada form). Os 23 + 32 leads dos forms mapeados vão pra tabela `leads` já com `tenant_id = bb96152a-…` (Alessandro), aparecendo na aba Leads do tenant.
 
 ## Fora do escopo
-
-- Não altero `facebook-backfill-leads` — ele já usa `page_access_token` por página quando disponível via `lead_routing_rules`; se algum tenant precisar backfill de uma Página nova, o vínculo continua sendo criado pela mesma UI.
-- Não mexo em campanhas, insights, cache ou routing rules.
-
-## Resultado esperado
-
-Após "Recarregar formulários", você verá formulários agrupados por Página (ex.: "Página Matheus Azevedo — 3 formulários", "Página Instituto Roar — 5 formulários"), independentemente da conta de anúncio, e poderá vincular cada um ao tenant correto.
+- Não muda schema, não mexe em roteamento (`resolve_tenant_for_lead` já resolve pelo `form_id` correto), não mexe em outras páginas.
