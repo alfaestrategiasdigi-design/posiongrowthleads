@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
           p_ad_account_id: adAccountId,
           p_page_id: pageId,
         });
-        const tenantId = (rpc as string | null) ?? defaultTenantId;
+        const tenantId = (rpc as string | null) ?? null;
 
         if (!tenantId) {
           await admin.from("unrouted_leads").insert({
