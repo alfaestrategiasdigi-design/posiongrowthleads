@@ -795,32 +795,6 @@ export default function CampanhasPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add form rule dialog */}
-      <Dialog open={addRuleOpen} onOpenChange={setAddRuleOpen}>
-        <DialogContent className="bg-[#0A0A0A] border-white/10 text-slate-200">
-          <DialogHeader><DialogTitle>Nova regra form_id → cliente</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Form ID (Facebook Lead Form)</Label>
-              <Input value={newRule.form_id} onChange={(e) => setNewRule({ ...newRule, form_id: e.target.value })}
-                placeholder="1234567890" className="bg-[#111] border-white/10 text-white font-mono" />
-            </div>
-            <div>
-              <Label>Cliente</Label>
-              <Select value={newRule.tenant_id} onValueChange={(v) => setNewRule({ ...newRule, tenant_id: v })}>
-                <SelectTrigger className="bg-[#111] border-white/10 text-white"><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                <SelectContent>
-                  {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setAddRuleOpen(false)}>Cancelar</Button>
-            <Button onClick={addFormRule} className="bg-[#C9A84C] hover:bg-[#F0D78C] text-[#050505] font-bold">Adicionar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
