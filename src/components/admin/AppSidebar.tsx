@@ -63,6 +63,18 @@ const AppSidebar = () => {
   const navigate = useNavigate();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
+  const { isMaster, isComercialMaster } = useUserRole();
+
+  // Comercial Admin Master só vê grupos/itens marcados como `comercial`
+  const visibleGroups = navGroups
+    .map((g) => {
+      if (isMaster) return g;
+      if (isComercialMaster && g.comercial) {
+        return { ...g, items: g.items.filter((i) => i.comercial) };
+      }
+      return null;
+    })
+    .filter((g): g is NavGroup => !!g && g.items.length > 0);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
