@@ -1,0 +1,1 @@
+ALTER TABLE public.invites ADD COLUMN IF NOT EXISTS used_by uuid REFERENCES auth.users(id) ON DELETE SET NULL;

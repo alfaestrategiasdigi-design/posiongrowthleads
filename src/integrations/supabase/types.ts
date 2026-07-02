@@ -1107,6 +1107,7 @@ export type Database = {
           tenant_role: string | null
           token: string
           used_at: string | null
+          used_by: string | null
         }
         Insert: {
           created_at?: string
@@ -1119,6 +1120,7 @@ export type Database = {
           tenant_role?: string | null
           token: string
           used_at?: string | null
+          used_by?: string | null
         }
         Update: {
           created_at?: string
@@ -1131,6 +1133,7 @@ export type Database = {
           tenant_role?: string | null
           token?: string
           used_at?: string | null
+          used_by?: string | null
         }
         Relationships: [
           {
