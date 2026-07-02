@@ -36,6 +36,7 @@ export default function TenantDashboard() {
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [waStatus, setWaStatus] = useState<{ connected: boolean; label: string } | null>(null);
   const now = new Date();
   const [range, setRange] = useState<DateRangeValue>(() => makeRange(30));
   const year = range.to.getFullYear();
