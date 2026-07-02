@@ -52,7 +52,7 @@ export default function Dashboard() {
       const toDate = range.to.toISOString().slice(0, 10);
       const [l, ac, sc, t, sales, clinic, spend] = await Promise.all([
         supabase.from("agency_leads").select("id,stage,valor_proposta,created_at,nome_clinica,plano_interesse"),
-        supabase.from("agency_contracts").select("id,tenant_id,cliente_nome,valor_total,data_assinatura,status"),
+        supabase.from("agency_contracts").select("id,agency_lead_id,tenant_id,cliente_nome,valor_total,data_assinatura,status"),
         supabase.from("saas_contracts").select("id,tenant_id,mrr,status,started_at"),
         supabase.from("tenants").select("id,name,status,created_at"),
         supabase.from("sales").select("tenant_id,amount,sale_date").gte("sale_date", fromDate).lte("sale_date", toDate),
