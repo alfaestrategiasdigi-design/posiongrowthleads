@@ -53,6 +53,8 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/obrigado" element={<Obrigado />} />
+          <Route path="/convite/:token" element={<AcceptInvitePage />} />
+
 
           {/* Tenant SaaS area */}
           <Route path="/app" element={<AppLayout><div /></AppLayout>} />
