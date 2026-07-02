@@ -1,51 +1,56 @@
 ## Objetivo
 
-Transformar **Campanhas Meta** num dashboard tipo UTM: cada card mostra os leads ganhos do Kanban vinculados por `utm_campaign`, `facebook_campaign` **ou nome do formulário** (fuzzy), inclusive quando a campanha está pausada. Permitir configurar uma **Ad Account por tenant** no Admin Master e espelhar essas campanhas dentro do painel de cada cliente. Disparar **Conversão Offline (CAPI)** automaticamente ao ganhar, com botão manual de reenvio.
+Reconstruir `/admin/campanhas` (arquivo `src/pages/admin/CampanhasPage.tsx`) seguindo o layout Lock Edition Admin, corrigindo os números inflados e adicionando o mapeamento por `form_id`.
 
-## Etapa 1 — Banco (migração única)
+## O que muda visualmente
 
-- Nova tabela `tenant_ad_accounts` (tenant_id, ad_account_id, label, active). Um tenant pode ter várias contas.
-- Nova tabela `campaign_lead_links` (campaign_id, agency_lead_id/lead_id, match_source: 'utm' | 'facebook_campaign' | 'form_name_fuzzy' | 'manual', confidence). Popular via job/RPC — evita recalcular fuzzy match a cada render.
-- Nova coluna `agency_leads.campaign_id_manual` para vínculo manual.
-- RPC `link_leads_to_campaigns(tenant_id uuid default null)` que roda o match (UTM > facebook_campaign > fuzzy do nome do formulário via `similarity()` do pg_trgm).
-- Trigger em `agency_leads` e `leads` que chama a RPC para o lead alterado.
-- Coluna `campaign_insights.offline_events_sent int default 0` para rastrear reenvios.
+Layout single-column, largura contida (`max-w-6xl`), fundo `#050505`, cards `#0A0A0A`, hairlines `border-white/5`, dourado `#C9A84C / #F0D78C`, títulos em Playfair Display.
 
-## Etapa 2 — Admin Master: página "Campanhas Meta" redesenhada
+Estrutura fixa da página, de cima para baixo:
 
-`src/pages/admin/CampanhasPage.tsx`:
-- Filtro global de **Ad Account** (todas / por conta) — lista extraída de `campaign_insights` + `tenant_ad_accounts`.
-- Cards agrupados: nome da campanha, status (ativa/pausada), gasto, leads Meta, **Leads ganhos (do Kanban)** com avatares (Alessandro, Cibele, Arielle…), receita, ROAS, badge "Tenant vinculado" se a ad_account estiver mapeada.
-- Clicar no card abre um drawer com:
-  - Lista de leads ganhos vinculados (com fonte do match).
-  - Botão **"Enviar Conversão Offline"** por lead + **"Reenviar todas"**.
-  - Ações: **Vincular a tenant** (cria/atualiza `tenant_ad_accounts`), **Vincular lead manual**.
+1. Header sticky em uma faixa só: selector de ad account + date range com dois inputs (de / até) + toggle "Apenas ativas" + botão Sincronizar (dourado).
+2. Faixa fina de status Marketing API (dot verde pulsante + última sync).
+3. Grid de 6 KPIs em display serif dourado: Investido, Leads, CPL, ROAS, Receita CRM, Ativas/Total.
+4. Bloco "Mapeamento de Campanhas & Regras" recolhível (fechado por padrão) com tabela editável.
+5. Lista de cards de campanha em coluna única — header com nome + ID/objetivo + gasto + ganhos CRM; rodapé com Leads, CPL, CTR e botão "Ver no Ads Manager".
 
-## Etapa 3 — Painel do cliente: nova aba "Campanhas Meta"
+Removidos definitivamente da página: grid de 10 KPIs antigos (ROI, CAC, Ticket, Tx Qualificação, Tx Conversão), card Funil, os dois gráficos de Trend, gráfico horizontal "Performance por Campanha", tabela "Investimentos registrados" e o dialog "Novo investimento".
 
-- Rota `/app/:slug/campanhas` (sidebar do tenant).
-- Só mostra campanhas das ad_accounts em `tenant_ad_accounts` daquele tenant.
-- Mesmo layout de cards (leitura), sem edição de mapeamento — só o cliente vê o próprio funil de origem.
-- Reaproveita `CampanhasPage` com prop `scope="tenant"`.
+## Fonte dos números (sem valores irreais)
 
-## Etapa 4 — Conversão Offline (CAPI)
+Toda métrica passa a vir de dois lugares:
 
-- Edge function `facebook-capi-event` já dispara Purchase ao ganhar. Adicionar:
-  - Envio para **offline_conversions** quando a campanha tem `ad_account_id` (usa `/act_XXX/events` do Marketing API com `upload_tag`).
-  - Botão manual chama a mesma função com `force_resend: true`.
-- Registrar em `facebook_capi_logs` + incrementar `offline_events_sent`.
+- Meta Marketing API (via `facebook-ads-manage` action `list_campaigns` com `with_insights: true`): gasto, impressões, cliques, CTR, CPL, leads reportados.
+- Kanban (tabela `agency_leads` + `leads` com stage/status = `ganho`) casado por `utm_campaign` / `facebook_campaign` / `campaign_id_manual` ao nome da campanha Meta com o mesmo algoritmo Jaccard que já existe: alimenta "Receita CRM" e "Ganhos CRM" por card.
 
-## Etapa 5 — Pipeline do cliente (labels de clínica)
+Tudo que vinha de `campaign_spend` e `sales` é ignorado no cálculo dos KPIs desta página (por isso Receita 1.185.190 e ROI 98.200% somem).
 
-- Já existe `agency_leads` para Posion. Criar `clinic_leads_pipeline` view / reutilizar `leads` do tenant com o **mesmo Kanban visual**, apenas trocando labels: `reuniao_agendada → consulta_agendada`, `compareceu → compareceu`, resto igual.
-- Componente `KanbanBoard` recebe `stageLabels` prop; usa labels de clínica quando `scope="tenant"`.
+ROAS = (Purchase value Meta + Receita CRM) / Gasto Meta.  
+Se não houver gasto no período, ROAS mostra `—`, não `∞`.
 
-## Técnico
+## Configurações refletidas / criadas no front
 
-- Match fuzzy: `pg_trgm` extension + `similarity(campaign_name, form_name) > 0.35`.
-- Realtime: canal `campaign_lead_links` para atualizar cards ao vivo quando lead vai para "ganho".
-- CAPI offline usa `MP_ACCESS_TOKEN`? Não — precisa do `FACEBOOK_PAGE_ACCESS_TOKEN` já existente + `ad_account_id`.
+- Date range real: dois `<input type="date">` controlados, default últimos 30 dias, dispara reload de insights ao mudar. Substitui o Select 30/60/90.
+- Ad account: mantém o Select atual, mas movido para dentro do header sticky.
+- Toggle "Apenas ativas": migra para o header (não fica dentro do card de listagem).
+- Mapeamento por linha (nova UI): dropdown de tenant para cada `ad_account_id` já persistido em `tenant_ad_accounts` (linkar/desvincular); e chips de regras `form_id → tenant` lidas de `lead_routing_rules` (match_type = 'form_id') com botão "+ Adicionar" que abre um mini-form (form_id + tenant) e "×" para remover cada chip. Persistência via inserts em `lead_routing_rules`.
 
-## Entrega
+Nenhuma tabela nova é necessária — `tenant_ad_accounts` e `lead_routing_rules` já existem.
 
-Migração → CampanhasPage redesenhado → rota tenant → CAPI offline → labels de clínica. Tudo num turno; se algo falhar validamos por partes.
+## Detalhes técnicos
+
+Arquivo único reescrito: `src/pages/admin/CampanhasPage.tsx` (hoje 1730 linhas → alvo ~700 linhas). Componentes internos novos: `PageHeader`, `KpiTile`, `MappingSection`, `CampaignRow`.
+
+Reaproveitados sem mudança: `syncFacebookAds`, `loadAdAccounts`, `loadMetaCampaigns`, `checkPermissions`, hook de tenants, algoritmo de attribution Jaccard.
+
+Removidos do arquivo: estado `spends`, `form`, `open`, `dailyTrend`, `perCampaign`, `funnel`, funções `submit`, `remove`, e imports do recharts/dialog de "Novo investimento".
+
+Novos handlers: `upsertFormIdRule(form_id, tenant_id)` e `deleteFormIdRule(rule_id)` chamando `supabase.from('lead_routing_rules')`.
+
+Semânticos usados via tokens: `hsl(var(--background))`, `hsl(var(--card))`, `hsl(var(--primary))` etc — o protótipo usa hex direto só como referência; na implementação uso os tokens Posion Black/Gold já definidos em `index.css`.
+
+## Fora de escopo desta rodada
+
+- Editar orçamento diário / status ACTIVE/PAUSED inline no card (permanece via dialog atual, só re-estilizado).
+- CAPI por conta (fica em `/admin/capi` como já está).
+- Página do tenant `/app/:slug/campanhas` (já entregue no turno anterior — nenhuma mudança).
