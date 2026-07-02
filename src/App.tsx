@@ -39,6 +39,7 @@ import TenantRecall from "./pages/app/TenantRecall";
 import TenantPlans from "./pages/app/TenantPlans";
 import TenantProductsConfig from "./pages/app/TenantProductsConfig";
 import TenantLeads from "./pages/app/TenantLeads";
+import TenantCampaigns from "./pages/app/TenantCampaigns";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +64,7 @@ const App = () => (
           <Route path="/app/:tenantSlug/whatsapp" element={<AppLayout><TenantWhatsApp /></AppLayout>} />
           <Route path="/app/:tenantSlug/kanban" element={<AppLayout><TenantKanban /></AppLayout>} />
           <Route path="/app/:tenantSlug/leads" element={<AppLayout><TenantLeads /></AppLayout>} />
+          <Route path="/app/:tenantSlug/campanhas" element={<AppLayout><TenantCampaigns /></AppLayout>} />
           <Route path="/app/:tenantSlug/pacientes" element={<AppLayout><TenantPatients /></AppLayout>} />
           <Route path="/app/:tenantSlug/financeiro" element={<AppLayout><TenantSales /></AppLayout>} />
           <Route path="/app/:tenantSlug/vendas" element={<Navigate to="../financeiro" replace />} />
