@@ -28,7 +28,7 @@ const STAGE_LABELS: Record<string, string> = {
 };
 
 interface AgencyLead { id: string; stage: string; valor_proposta: number | null; created_at: string; nome_clinica: string; plano_interesse: string | null }
-interface AgencyContract { id: string; tenant_id: string | null; cliente_nome: string; valor_total: number; data_assinatura: string; status: string }
+interface AgencyContract { id: string; agency_lead_id: string | null; tenant_id: string | null; cliente_nome: string; valor_total: number; data_assinatura: string; status: string }
 interface SaasContract { id: string; tenant_id: string | null; mrr: number; status: string; started_at: string }
 interface Tenant { id: string; name: string; status: string; created_at: string }
 
@@ -52,7 +52,7 @@ export default function Dashboard() {
       const toDate = range.to.toISOString().slice(0, 10);
       const [l, ac, sc, t, sales, clinic, spend] = await Promise.all([
         supabase.from("agency_leads").select("id,stage,valor_proposta,created_at,nome_clinica,plano_interesse"),
-        supabase.from("agency_contracts").select("id,tenant_id,cliente_nome,valor_total,data_assinatura,status"),
+        supabase.from("agency_contracts").select("id,agency_lead_id,tenant_id,cliente_nome,valor_total,data_assinatura,status"),
         supabase.from("saas_contracts").select("id,tenant_id,mrr,status,started_at"),
         supabase.from("tenants").select("id,name,status,created_at"),
         supabase.from("sales").select("tenant_id,amount,sale_date").gte("sale_date", fromDate).lte("sale_date", toDate),
@@ -152,10 +152,14 @@ export default function Dashboard() {
     const emNegociacao = leads.filter((l) => ["proposta", "negociacao"].includes(l.stage));
     const contratosPeriodo = agencyContracts.filter((c) => inRange(c.data_assinatura));
 
-    // Receita = contratos assinados no período + leads em GANHO no período (fallback quando ainda não há contrato)
+    // Receita = contratos assinados no período (cada lead em GANHO já gera contrato automaticamente).
+    // Fallback: soma leads em ganho que ainda não possuem contrato correspondente.
+    const contractLeadIds = new Set(agencyContracts.map((c: any) => c.agency_lead_id).filter(Boolean));
     const receitaContratos = contratosPeriodo.reduce((s, c) => s + Number(c.valor_total || 0), 0);
-    const receitaGanhos = ganhosPeriodo.reduce((s, l) => s + Number(l.valor_proposta || 0), 0);
-    const receitaAgencia = receitaContratos + receitaGanhos;
+    const receitaGanhosSemContrato = ganhosPeriodo
+      .filter((l) => !contractLeadIds.has(l.id))
+      .reduce((s, l) => s + Number(l.valor_proposta || 0), 0);
+    const receitaAgencia = receitaContratos + receitaGanhosSemContrato;
 
     const mrr = saasContracts.filter((s) => s.status === "active").reduce((s, c) => s + Number(c.mrr || 0), 0);
 
@@ -188,13 +192,14 @@ export default function Dashboard() {
   // Timeline de receita (agência + saas) por dia
   const timelineData = useMemo(() => {
     const days = eachDayOfInterval({ start: range.from, end: range.to });
+    const contractLeadIds = new Set(agencyContracts.map((c: any) => c.agency_lead_id).filter(Boolean));
     return days.map((d) => {
       const dayKey = format(d, "yyyy-MM-dd");
       const receitaContratos = agencyContracts
         .filter((c) => c.data_assinatura === dayKey)
         .reduce((s, c) => s + Number(c.valor_total || 0), 0);
       const receitaGanhos = leads
-        .filter((l) => l.stage === "ganho" && format(new Date((l as any).ganho_at || l.created_at), "yyyy-MM-dd") === dayKey)
+        .filter((l) => l.stage === "ganho" && !contractLeadIds.has(l.id) && format(new Date((l as any).ganho_at || l.created_at), "yyyy-MM-dd") === dayKey)
         .reduce((s, l) => s + Number(l.valor_proposta || 0), 0);
       const label = format(d, days.length > 45 ? "dd/MM" : "dd/MM", { locale: ptBR });
       return { day: label, receita: receitaContratos + receitaGanhos };
