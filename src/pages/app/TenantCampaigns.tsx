@@ -13,10 +13,14 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { ResponsiveContainer, AreaChart, Area, LineChart, Line, Tooltip as RTooltip } from "recharts";
 
 const BRL = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v || 0);
 const NUM = (v: number) => new Intl.NumberFormat("pt-BR").format(Math.round(v || 0));
+const daysAgoISO = (d: number) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
+interface DailyPoint { date: string; spend: number; leads: number; clicks: number; impressions: number }
 interface Campaign {
   id: string;
   name: string;
@@ -32,6 +36,7 @@ interface Campaign {
     leads: number; cpl: number;
     purchases: number; purchase_value: number; roas: number;
   };
+  daily?: DailyPoint[];
 }
 
 type LinkedForm = {
@@ -46,6 +51,7 @@ export default function TenantCampaigns() {
   const [loading, setLoading] = useState(false);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [activeOnly, setActiveOnly] = useState(true);
+  const [period, setPeriod] = useState<7 | 14 | 30 | 90>(30);
   const [reason, setReason] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [crmWins, setCrmWins] = useState<Record<string, { count: number; value: number }>>({});
@@ -59,7 +65,7 @@ export default function TenantCampaigns() {
     setLoading(true); setError(null); setReason(null);
     try {
       const { data, error: fnErr } = await supabase.functions.invoke("tenant-campaigns", {
-        body: { tenant_id: tenant.id, active_only: activeOnly },
+        body: { tenant_id: tenant.id, active_only: activeOnly, since: daysAgoISO(period), until: todayISO() },
       });
       if (fnErr) throw fnErr;
       if (!data?.ok) {
@@ -98,7 +104,7 @@ export default function TenantCampaigns() {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { if (tenant) { load(); loadLinkedForms(); } /* eslint-disable-next-line */ }, [tenant?.id, activeOnly]);
+  useEffect(() => { if (tenant) { load(); loadLinkedForms(); } /* eslint-disable-next-line */ }, [tenant?.id, activeOnly, period]);
 
   const loadLinkedForms = async () => {
     if (!tenant) return;
@@ -143,7 +149,6 @@ export default function TenantCampaigns() {
       acc.revenue += c.insights.purchase_value;
       return acc;
     }, { spend: 0, leads: 0, impressions: 0, clicks: 0, revenue: 0 });
-    // adiciona wins do CRM ao faturamento
     const crmTotal = Object.values(crmWins).reduce((sum, v) => sum + v.value, 0);
     const crmCount = Object.values(crmWins).reduce((sum, v) => sum + v.count, 0);
     const totalRev = s.revenue + crmTotal;
@@ -156,6 +161,23 @@ export default function TenantCampaigns() {
       ctr: s.impressions ? (s.clicks / s.impressions) * 100 : 0,
     };
   }, [campaigns, crmWins]);
+
+  // Agrega séries diárias de todas as campanhas para os sparklines dos KPIs
+  const dailyTotals = useMemo(() => {
+    const map = new Map<string, { date: string; spend: number; leads: number; clicks: number; impressions: number }>();
+    for (const c of campaigns) {
+      for (const d of c.daily ?? []) {
+        if (!d.date) continue;
+        const prev = map.get(d.date) ?? { date: d.date, spend: 0, leads: 0, clicks: 0, impressions: 0 };
+        prev.spend += d.spend || 0; prev.leads += d.leads || 0;
+        prev.clicks += d.clicks || 0; prev.impressions += d.impressions || 0;
+        map.set(d.date, prev);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }, [campaigns]);
+
+  const periodLabel = period === 7 ? "últimos 7 dias" : period === 14 ? "últimos 14 dias" : period === 30 ? "últimos 30 dias" : "últimos 90 dias";
 
   if (tLoading || !tenant) {
     return <div className="p-8 flex items-center gap-2 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
@@ -171,10 +193,24 @@ export default function TenantCampaigns() {
             <Megaphone className="w-6 h-6 text-primary" /> Campanhas
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {tenant.name} · últimos 30 dias {lastSync && <span className="text-xs opacity-60">· sync {lastSync.toLocaleTimeString("pt-BR")}</span>}
+            {tenant.name} · {periodLabel} {lastSync && <span className="text-xs opacity-60">· sync {lastSync.toLocaleTimeString("pt-BR")}</span>}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Period selector */}
+          <div className="inline-flex rounded-md border border-white/10 bg-background/40 p-0.5">
+            {[7, 14, 30, 90].map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p as any)}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-sm tabular-nums transition-colors ${
+                  period === p ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {p}d
+              </button>
+            ))}
+          </div>
           <label className="flex items-center gap-2 text-sm">
             <Switch checked={activeOnly} onCheckedChange={setActiveOnly} /> Apenas ativas
           </label>
@@ -188,15 +224,18 @@ export default function TenantCampaigns() {
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+      {/* KPIs com sparkline */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <Kpi icon={Activity} label="Ativas" value={`${kpis.active}/${kpis.total}`} tone="primary" />
-        <Kpi icon={DollarSign} label="Investido" value={BRL(kpis.spend)} tone="amber" />
-        <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan" />
+        <Kpi icon={DollarSign} label="Investido" value={BRL(kpis.spend)} tone="amber"
+             series={dailyTotals} dataKey="spend" formatter={(v) => BRL(v)} />
+        <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan"
+             series={dailyTotals} dataKey="leads" formatter={(v) => NUM(v)} />
         <Kpi icon={Target} label="CPL" value={BRL(kpis.cpl)} tone="violet" />
         <Kpi icon={TrendingUp} label="Faturamento" value={BRL(kpis.revenue)} tone="emerald" />
         <Kpi icon={Star} label="ROAS" value={`${kpis.roas.toFixed(2)}x`} tone="rose" />
       </div>
+
 
       {/* Linked Lead Forms */}
       <Card className="p-4 bg-gradient-to-br from-card to-background/60 border-primary/10">
@@ -307,6 +346,17 @@ export default function TenantCampaigns() {
                 <div className="text-[11px] text-muted-foreground italic pl-1">Sem dados no período.</div>
               )}
 
+              {c.daily && c.daily.length > 1 && (
+                <div className="pl-1">
+                  <div className="flex items-center justify-between text-[9px] uppercase tracking-wider text-muted-foreground mb-0.5">
+                    <span>Tendência de leads · {period}d</span>
+                    <span className="tabular-nums text-cyan-400">{NUM(c.daily.reduce((a, d) => a + (d.leads || 0), 0))}</span>
+                  </div>
+                  <Sparkline data={c.daily} dataKey="leads" color="#22d3ee" />
+                </div>
+              )}
+
+
               <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1.5 flex items-center justify-between ml-1">
                 <div className="text-[9px] uppercase tracking-wider text-emerald-400 flex items-center gap-1">
                   <Star className="w-3 h-3" /> Receita
@@ -387,7 +437,23 @@ export default function TenantCampaigns() {
   );
 }
 
-function Kpi({ icon: Icon, label, value, tone }: { icon: any; label: string; value: string; tone: string }) {
+const TONE_HSL: Record<string, string> = {
+  primary: "hsl(var(--primary))",
+  amber: "#f59e0b",
+  cyan: "#22d3ee",
+  violet: "#8b5cf6",
+  emerald: "#34d399",
+  rose: "#fb7185",
+};
+
+function Kpi({
+  icon: Icon, label, value, tone,
+  series, dataKey, formatter,
+}: {
+  icon: any; label: string; value: string; tone: string;
+  series?: Array<Record<string, any>>; dataKey?: string;
+  formatter?: (v: number) => string;
+}) {
   const toneMap: Record<string, string> = {
     primary: "text-primary border-primary/20 bg-primary/5",
     amber: "text-amber-400 border-amber-500/20 bg-amber-500/5",
@@ -396,13 +462,50 @@ function Kpi({ icon: Icon, label, value, tone }: { icon: any; label: string; val
     emerald: "text-emerald-400 border-emerald-500/20 bg-emerald-500/5",
     rose: "text-rose-400 border-rose-500/20 bg-rose-500/5",
   };
+  const showSpark = !!(series && series.length > 1 && dataKey);
+  const color = TONE_HSL[tone] ?? "currentColor";
+  const gid = `spark-${tone}-${label}`.replace(/\s+/g, "-");
   return (
-    <Card className={`p-3 border ${toneMap[tone]}`}>
+    <Card className={`p-3 border ${toneMap[tone]} relative overflow-hidden`}>
       <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider opacity-80">
         <Icon className="w-3.5 h-3.5" /> {label}
       </div>
       <div className="text-lg font-bold tabular-nums mt-1">{value}</div>
+      {showSpark && (
+        <div className="h-8 -mx-1 -mb-1 mt-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={series} margin={{ top: 2, right: 2, bottom: 0, left: 2 }}>
+              <defs>
+                <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={color} stopOpacity={0.4} />
+                  <stop offset="100%" stopColor={color} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <RTooltip
+                cursor={{ stroke: color, strokeOpacity: 0.3 }}
+                contentStyle={{ background: "hsl(var(--card))", border: `1px solid ${color}`, borderRadius: 6, fontSize: 11, padding: "4px 8px" }}
+                labelStyle={{ color: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                formatter={(v: any) => [formatter ? formatter(Number(v)) : v, label]}
+              />
+              <Area type="monotone" dataKey={dataKey!} stroke={color} strokeWidth={1.5} fill={`url(#${gid})`} isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </Card>
+  );
+}
+
+function Sparkline({ data, dataKey, color = "hsl(var(--primary))" }: { data: Array<Record<string, any>>; dataKey: string; color?: string }) {
+  if (!data || data.length < 2) return null;
+  return (
+    <div className="h-6 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 1, right: 1, bottom: 1, left: 1 }}>
+          <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={1.2} dot={false} isAnimationActive={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
