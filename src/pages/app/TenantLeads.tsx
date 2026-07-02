@@ -290,21 +290,38 @@ export default function TenantLeads() {
 
   if (!tenant) return null;
   if (loading) return <div className="p-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+  if (accessDenied) return (
+    <div className="p-8 max-w-lg mx-auto">
+      <Card className="card-elevated border-rose-500/30">
+        <CardContent className="p-6 text-center space-y-2">
+          <ShieldAlert className="w-10 h-10 text-rose-400 mx-auto" />
+          <h2 className="text-xl font-bold">Acesso negado</h2>
+          <p className="text-sm text-muted-foreground">
+            Você não tem permissão para visualizar os leads do tenant <b>{tenant.name}</b>.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
 
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-[1600px] mx-auto">
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.22em] text-primary/80 mb-1">CRM</p>
+          <p className="text-[11px] uppercase tracking-[0.22em] text-primary/80 mb-1">CRM · {tenant.name}</p>
           <h1 className="text-3xl font-bold tracking-tight font-display flex items-center gap-2">
             <UsersIcon className="w-7 h-7 text-primary" /> Leads
           </h1>
           <p className="text-muted-foreground text-sm">
-            {kpis.total} leads no período · filtros por vendedor, canal, etapa e produto
+            {kpis.total} leads no período · somente leads vinculados a este tenant
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={syncSources} disabled={syncing}>
+            {syncing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+            Sincronizar
+          </Button>
           <Button variant="outline" asChild>
             <Link to={`/app/${tenant.slug}/kanban`}><KanbanIcon className="w-4 h-4 mr-1" /> Ver Kanban</Link>
           </Button>
