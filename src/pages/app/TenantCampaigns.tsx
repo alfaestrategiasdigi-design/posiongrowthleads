@@ -20,6 +20,7 @@ const NUM = (v: number) => new Intl.NumberFormat("pt-BR").format(Math.round(v ||
 const daysAgoISO = (d: number) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+interface DailyPoint { date: string; spend: number; leads: number; clicks: number; impressions: number }
 interface Campaign {
   id: string;
   name: string;
@@ -35,6 +36,7 @@ interface Campaign {
     leads: number; cpl: number;
     purchases: number; purchase_value: number; roas: number;
   };
+  daily?: DailyPoint[];
 }
 
 type LinkedForm = {
