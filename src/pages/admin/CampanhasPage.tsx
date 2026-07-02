@@ -385,8 +385,10 @@ export default function CampanhasPage() {
         supabase.functions.invoke("facebook-backfill-leads", {
           body: { form_ids: [formId], max_per_form: 2000 },
         }).then(({ data }) => {
-          const s = (data?.summary ?? [])[0] ?? {};
-          if (s.imported != null) {
+          const s = ((data?.by_form ?? data?.summary ?? [])[0]) ?? {};
+          if (s.error) {
+            toast({ title: `Falha ao importar histórico`, description: `${formName}: ${s.error}`, variant: "destructive" });
+          } else if (s.imported != null) {
             toast({ title: "Histórico importado", description: `${formName}: ${s.imported} novo(s), ${s.deduped ?? 0} já existentes.` });
             setLastLeadsSync(new Date().toISOString());
           }
