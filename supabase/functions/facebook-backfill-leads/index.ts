@@ -255,6 +255,13 @@ Deno.serve(async (req) => {
         });
         const routedTenant = (rpc as string | null) ?? (cfg as any)?.default_tenant_id ?? null;
 
+        // Se estamos importando com escopo de tenant, ignore leads que não sejam
+        // roteados para ele — evita cross-tenant contamination.
+        if (scopeTenantId && routedTenant !== scopeTenantId) {
+          failed++;
+          continue;
+        }
+
         if (!routedTenant) {
           await admin.from("unrouted_leads").insert({
             raw_payload: lead,
