@@ -299,15 +299,62 @@ Deno.serve(async (req) => {
       }
 
       case "list_lead_forms": {
-        const pageId = String(cfg?.page_id ?? "").trim();
-        const pageToken = String(cfg?.page_access_token ?? "").trim() || token;
-        if (!pageId) return json({ ok: false, error: "page_id não configurado. Conecte a página Facebook em Configurações → Facebook.", need_page: true }, 200);
-        const r = await fbGet(`${pageId}/leadgen_forms`, pageToken, {
-          fields: "id,name,status,leads_count,created_time",
-          limit: "200",
+        // Agrega formulários de TODAS as Páginas acessíveis pelo user token:
+        // /me/accounts + owned_pages/client_pages de cada Business Manager.
+        const pagesMap = new Map<string, { id: string; name: string; access_token?: string }>();
+
+        const meAcc = await fbGet(`me/accounts`, token, {
+          fields: "id,name,access_token", limit: "200",
         });
-        if (!r.ok) return fbErr(r.body);
-        return json({ ok: true, data: r.body.data ?? [], page_id: pageId });
+        if (meAcc.ok) for (const p of meAcc.body?.data ?? []) pagesMap.set(p.id, p);
+
+        const biz = await fbGet(`me/businesses`, token, { fields: "id,name", limit: "200" });
+        if (biz.ok) {
+          for (const b of biz.body?.data ?? []) {
+            for (const edge of ["owned_pages", "client_pages"]) {
+              const r = await fbGet(`${b.id}/${edge}`, token, {
+                fields: "id,name,access_token", limit: "200",
+              });
+              if (r.ok) for (const p of r.body?.data ?? []) if (!pagesMap.has(p.id)) pagesMap.set(p.id, p);
+            }
+          }
+        }
+
+        // Fallback: página configurada (garante retro-compat)
+        const cfgPageId = String(cfg?.page_id ?? "").trim();
+        if (cfgPageId && !pagesMap.has(cfgPageId)) {
+          pagesMap.set(cfgPageId, {
+            id: cfgPageId,
+            name: String(cfg?.connected_page_name ?? cfgPageId),
+            access_token: String(cfg?.page_access_token ?? "").trim() || undefined,
+          });
+        }
+
+        const pages = [...pagesMap.values()];
+        if (pages.length === 0) {
+          return json({ ok: false, error: "Nenhuma Página acessível. Reconecte concedendo pages_show_list, leads_retrieval e business_management.", need_reconnect: true }, 200);
+        }
+
+        const forms: any[] = [];
+        const errors: any[] = [];
+        const pageSummary: any[] = [];
+
+        await mapLimit(pages, 4, async (p) => {
+          const pt = p.access_token || token;
+          const r = await fbGet(`${p.id}/leadgen_forms`, pt, {
+            fields: "id,name,status,leads_count,created_time", limit: "200",
+          });
+          if (!r.ok) {
+            errors.push({ page_id: p.id, page_name: p.name, error: r.body?.error?.message ?? "Erro Graph" });
+            pageSummary.push({ id: p.id, name: p.name, forms_count: 0, error: true });
+            return;
+          }
+          const data = r.body?.data ?? [];
+          for (const f of data) forms.push({ ...f, page_id: p.id, page_name: p.name });
+          pageSummary.push({ id: p.id, name: p.name, forms_count: data.length });
+        });
+
+        return json({ ok: true, data: forms, pages: pageSummary, errors });
       }
 
       default:
