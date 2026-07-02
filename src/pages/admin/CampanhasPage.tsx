@@ -846,3 +846,12 @@ function Metric({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+function MicroMetric({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className="py-2.5">
+      <div className="text-[9px] text-slate-600 uppercase tracking-widest font-bold">{label}</div>
+      <div className={`text-[13px] font-semibold tabular-nums mt-0.5 ${highlight ? "text-emerald-400" : "text-slate-200"}`}>{value}</div>
+    </div>
+  );
+}
