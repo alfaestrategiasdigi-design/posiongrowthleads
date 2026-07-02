@@ -329,6 +329,7 @@ Deno.serve(async (req) => {
           utm_content: lead.ad_name ?? null,
           utm_term: lead.adset_name ?? null,
           tenant_id: routedTenant,
+          extras: extrasPayload,
           created_at: lead.created_time ?? undefined,
         } as any);
         if (error) {
