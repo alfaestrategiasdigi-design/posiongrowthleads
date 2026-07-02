@@ -72,8 +72,11 @@ export default function CampanhasPage() {
   const [budgetValue, setBudgetValue] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
 
-  type LeadForm = { id: string; name: string; status?: string; leads_count?: number; created_time?: string };
+  type LeadForm = { id: string; name: string; status?: string; leads_count?: number; created_time?: string; page_id?: string; page_name?: string };
+  type PageSummary = { id: string; name: string; forms_count: number; error?: boolean };
   const [leadForms, setLeadForms] = useState<LeadForm[]>([]);
+  const [leadPages, setLeadPages] = useState<PageSummary[]>([]);
+  const [leadFormErrors, setLeadFormErrors] = useState<{ page_id: string; page_name: string; error: string }[]>([]);
   const [loadingForms, setLoadingForms] = useState(false);
   const [formsError, setFormsError] = useState<string | null>(null);
   const [syncingForm, setSyncingForm] = useState<string | null>(null);
