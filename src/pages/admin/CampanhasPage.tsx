@@ -358,12 +358,14 @@ export default function CampanhasPage() {
         body: { action: "list_lead_forms" },
       });
       if (error) throw error;
-      if (data?.need_page) { setFormsError(data.error); setLeadForms([]); return; }
+      if (data?.need_page || data?.need_reconnect) { setFormsError(data.error); setLeadForms([]); setLeadPages([]); setLeadFormErrors([]); return; }
       if (data?.error) throw new Error(data.error);
       setLeadForms((data?.data ?? []) as LeadForm[]);
+      setLeadPages((data?.pages ?? []) as PageSummary[]);
+      setLeadFormErrors((data?.errors ?? []) as any[]);
     } catch (e: any) {
       setFormsError(e.message ?? "Falha ao carregar formulários");
-      setLeadForms([]);
+      setLeadForms([]); setLeadPages([]); setLeadFormErrors([]);
     } finally { setLoadingForms(false); }
   };
 
