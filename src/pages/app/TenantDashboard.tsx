@@ -68,10 +68,18 @@ export default function TenantDashboard() {
       supabase.from("sales").select("*").eq("tenant_id", tenant.id).order("sale_date", { ascending: true }),
       supabase.from("monthly_goals").select("*").eq("tenant_id", tenant.id),
       supabase.from("clinic_leads").select("id,stage,created_at").eq("tenant_id", tenant.id),
-    ]).then(([s, g, l]) => {
+      supabase.from("whatsapp_connections").select("status,instance_name").eq("tenant_id", tenant.id).maybeSingle(),
+    ]).then(([s, g, l, wa]) => {
       setSales((s.data || []) as SaleRow[]);
       setGoals((g.data || []) as Goal[]);
       setLeads((l.data || []) as LeadRow[]);
+      const w: any = wa.data;
+      if (w) {
+        const connected = ["open", "connected", "CONNECTED"].includes(String(w.status || "").toLowerCase()) || w.status === "open";
+        setWaStatus({ connected, label: w.status ? `${w.instance_name || "instância"} · ${w.status}` : "Sem status" });
+      } else {
+        setWaStatus({ connected: false, label: "Nenhuma instância configurada" });
+      }
       setLoading(false);
     });
   }, [tenant]);
