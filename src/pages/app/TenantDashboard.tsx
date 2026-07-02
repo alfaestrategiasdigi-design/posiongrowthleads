@@ -693,6 +693,214 @@ export default function TenantDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ============= SEÇÕES NO PADRÃO ADMIN MASTER ============= */}
+
+      {/* HERO — Receita total + mini timeline */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.22em] text-primary/70 mb-2">Receita no período</div>
+              <div className="text-4xl font-bold">{BRL(total)}</div>
+              <div className="text-sm text-muted-foreground mt-1">
+                {count} vendas · Ticket médio {BRL(avg)} · {range.label}
+              </div>
+            </div>
+            <div className="w-14 h-14 rounded-2xl bg-primary/20 border border-primary/40 flex items-center justify-center">
+              <DollarSign className="w-7 h-7 text-primary" />
+            </div>
+          </div>
+          <div className="h-32 mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={heroTimeline}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" interval={3} />
+                <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <RTooltip
+                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                  formatter={(v: any) => BRL(Number(v))}
+                />
+                <Line type="monotone" dataKey="receita" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-4 flex items-center gap-3">
+            <GitBranch className="w-6 h-6 text-cyan-400" />
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] uppercase tracking-[0.18em] opacity-80 text-cyan-400">Leads (período)</div>
+              <div className="text-2xl font-bold text-foreground">{funnelRates.totals.totalLeads}</div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 flex items-center gap-3">
+            <Trophy className="w-6 h-6 text-emerald-400" />
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] uppercase tracking-[0.18em] opacity-80 text-emerald-400">Ganhos</div>
+              <div className="text-2xl font-bold text-foreground">{funnelRates.totals.ganhos}</div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-4 flex items-center gap-3">
+            <Target className="w-6 h-6 text-violet-400" />
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] uppercase tracking-[0.18em] opacity-80 text-violet-400">Conversão</div>
+              <div className="text-2xl font-bold text-foreground">{PCT(funnelRates.geral)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* FUNIL DE CONVERSÃO — recharts FunnelChart estilo admin master */}
+      <section>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center">
+            <Target className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold">Funil de conversão da clínica</h2>
+            <p className="text-xs text-muted-foreground">Leads {tenant?.name || ""} no período selecionado</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <FunnelChart>
+                  <RTooltip
+                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                    formatter={(v: any, _n: any, p: any) => [`${v} leads`, p.payload.stage]}
+                  />
+                  <Funnel dataKey="value" data={funnelChartData} isAnimationActive>
+                    <LabelList position="right" dataKey="name" stroke="none" fill="hsl(var(--foreground))" fontSize={11} />
+                    <LabelList position="center" dataKey="value" stroke="none" fill="#fff" fontSize={12} fontWeight={700} />
+                  </Funnel>
+                </FunnelChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+            <h3 className="text-sm font-semibold mb-3">Taxas entre etapas</h3>
+            <div className="overflow-hidden rounded-lg border border-border/40">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <tr><th className="text-left px-3 py-2">Etapa</th><th className="text-right px-3 py-2">Leads</th><th className="text-right px-3 py-2">Conv. vs anterior</th></tr>
+                </thead>
+                <tbody>
+                  {funnelChart.map((s, i) => {
+                    const prev = i > 0 ? funnelChart[i - 1].value : 0;
+                    const conv = prev > 0 ? (s.value / prev) * 100 : 0;
+                    return (
+                      <tr key={s.stage} className="odd:bg-transparent even:bg-muted/20 border-t border-border/30">
+                        <td className="px-3 py-2 text-foreground">{s.stage}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{s.value}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-primary">{i === 0 ? "—" : `${conv.toFixed(1)}%`}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ROI vs INVESTIMENTO — mensal (últimos 6 meses) */}
+      <section>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center">
+            <TrendingUp className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold">ROI vs investimento</h2>
+            <p className="text-xs text-muted-foreground">Receita vs tráfego pago · últimos 6 meses</p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-border/60 bg-card/40 p-4 h-80">
+          {roiMonthly.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">Sem dados no período.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={roiMonthly}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <RTooltip
+                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                  formatter={(v: any) => BRL(Number(v))}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="invest" stackId="a" name="Investimento" fill="#f43f5e" />
+                <Bar dataKey="lucro" stackId="a" name="Lucro (Rec-Inv)" fill="#10b981" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="receita" name="Receita total" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </section>
+
+      {/* TABELA ZEBRA — performance por vendedor */}
+      <section>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center">
+            <Building2 className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold">Performance consolidada por vendedor</h2>
+            <p className="text-xs text-muted-foreground">Busca e ranking · ordenado por faturamento</p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar vendedor…"
+                value={sellerSearch}
+                onChange={(e) => setSellerSearch(e.target.value)}
+                className="pl-8 h-9 bg-background/50"
+              />
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {ranking.filter((r) => r.seller.toLowerCase().includes(sellerSearch.toLowerCase())).length} resultados
+            </span>
+          </div>
+          <div className="overflow-x-auto rounded-lg border border-border/40">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-[10px] uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="text-left px-3 py-2">Vendedor</th>
+                  <th className="text-right px-3 py-2">Vendas</th>
+                  <th className="text-right px-3 py-2">Ticket médio</th>
+                  <th className="text-right px-3 py-2">Faturamento</th>
+                  <th className="text-right px-3 py-2">% do total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ranking
+                  .filter((r) => r.seller.toLowerCase().includes(sellerSearch.toLowerCase()))
+                  .map((r) => {
+                    const ticket = r.count > 0 ? r.total / r.count : 0;
+                    const share = total > 0 ? (r.total / total) * 100 : 0;
+                    return (
+                      <tr key={r.seller} className="odd:bg-transparent even:bg-muted/20 border-t border-border/30 hover:bg-muted/30">
+                        <td className="px-3 py-2 text-foreground truncate max-w-[220px]">{r.seller}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{r.count}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{BRL(ticket)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-primary font-semibold">{BRL(r.total)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{share.toFixed(1)}%</td>
+                      </tr>
+                    );
+                  })}
+                {ranking.length === 0 && (
+                  <tr><td colSpan={5} className="px-3 py-8 text-center text-xs text-muted-foreground">Sem vendas no período.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
