@@ -82,6 +82,8 @@ export default function TenantLeads() {
   const [productF, setProductF] = useState<string>("all");
   const [rangeId, setRangeId] = useState<string>("30");
   const [detail, setDetail] = useState<ClinicLead | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   function mapRow(r: any): ClinicLead {
     const ex = (r.extras ?? {}) as any;
