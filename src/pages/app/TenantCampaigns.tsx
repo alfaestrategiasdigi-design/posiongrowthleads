@@ -149,7 +149,6 @@ export default function TenantCampaigns() {
       acc.revenue += c.insights.purchase_value;
       return acc;
     }, { spend: 0, leads: 0, impressions: 0, clicks: 0, revenue: 0 });
-    // adiciona wins do CRM ao faturamento
     const crmTotal = Object.values(crmWins).reduce((sum, v) => sum + v.value, 0);
     const crmCount = Object.values(crmWins).reduce((sum, v) => sum + v.count, 0);
     const totalRev = s.revenue + crmTotal;
@@ -162,6 +161,23 @@ export default function TenantCampaigns() {
       ctr: s.impressions ? (s.clicks / s.impressions) * 100 : 0,
     };
   }, [campaigns, crmWins]);
+
+  // Agrega séries diárias de todas as campanhas para os sparklines dos KPIs
+  const dailyTotals = useMemo(() => {
+    const map = new Map<string, { date: string; spend: number; leads: number; clicks: number; impressions: number }>();
+    for (const c of campaigns) {
+      for (const d of c.daily ?? []) {
+        if (!d.date) continue;
+        const prev = map.get(d.date) ?? { date: d.date, spend: 0, leads: 0, clicks: 0, impressions: 0 };
+        prev.spend += d.spend || 0; prev.leads += d.leads || 0;
+        prev.clicks += d.clicks || 0; prev.impressions += d.impressions || 0;
+        map.set(d.date, prev);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }, [campaigns]);
+
+  const periodLabel = period === 7 ? "últimos 7 dias" : period === 14 ? "últimos 14 dias" : period === 30 ? "últimos 30 dias" : "últimos 90 dias";
 
   if (tLoading || !tenant) {
     return <div className="p-8 flex items-center gap-2 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
@@ -177,10 +193,24 @@ export default function TenantCampaigns() {
             <Megaphone className="w-6 h-6 text-primary" /> Campanhas
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {tenant.name} · últimos 30 dias {lastSync && <span className="text-xs opacity-60">· sync {lastSync.toLocaleTimeString("pt-BR")}</span>}
+            {tenant.name} · {periodLabel} {lastSync && <span className="text-xs opacity-60">· sync {lastSync.toLocaleTimeString("pt-BR")}</span>}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Period selector */}
+          <div className="inline-flex rounded-md border border-white/10 bg-background/40 p-0.5">
+            {[7, 14, 30, 90].map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p as any)}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-sm tabular-nums transition-colors ${
+                  period === p ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {p}d
+              </button>
+            ))}
+          </div>
           <label className="flex items-center gap-2 text-sm">
             <Switch checked={activeOnly} onCheckedChange={setActiveOnly} /> Apenas ativas
           </label>
@@ -194,15 +224,18 @@ export default function TenantCampaigns() {
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+      {/* KPIs com sparkline */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <Kpi icon={Activity} label="Ativas" value={`${kpis.active}/${kpis.total}`} tone="primary" />
-        <Kpi icon={DollarSign} label="Investido" value={BRL(kpis.spend)} tone="amber" />
-        <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan" />
+        <Kpi icon={DollarSign} label="Investido" value={BRL(kpis.spend)} tone="amber"
+             series={dailyTotals} dataKey="spend" formatter={(v) => BRL(v)} />
+        <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan"
+             series={dailyTotals} dataKey="leads" formatter={(v) => NUM(v)} />
         <Kpi icon={Target} label="CPL" value={BRL(kpis.cpl)} tone="violet" />
         <Kpi icon={TrendingUp} label="Faturamento" value={BRL(kpis.revenue)} tone="emerald" />
         <Kpi icon={Star} label="ROAS" value={`${kpis.roas.toFixed(2)}x`} tone="rose" />
       </div>
+
 
       {/* Linked Lead Forms */}
       <Card className="p-4 bg-gradient-to-br from-card to-background/60 border-primary/10">
