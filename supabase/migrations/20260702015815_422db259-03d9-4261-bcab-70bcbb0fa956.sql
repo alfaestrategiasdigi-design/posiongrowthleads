@@ -1,0 +1,1 @@
+UPDATE public.leads SET tenant_id = NULL WHERE facebook_form_id = '1858043458199562' AND tenant_id = 'bb96152a-ce55-4728-94e1-dc6e44356889'; DELETE FROM public.lead_routing_rules WHERE match_type='form_id' AND match_value='1858043458199562';
