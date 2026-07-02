@@ -127,9 +127,28 @@ Deno.serve(async (req) => {
     } catch (e) { loadPagesErrors.push(String(e)); }
   }
 
-  // Resolve list of forms — quando vazio, usa a página primária
+  // Resolve list of forms — quando vazio, usa a página primária.
+  // Se scopeTenantId estiver setado e nenhum form for enviado, usamos apenas os
+  // formulários vinculados àquele tenant em lead_routing_rules.
   let formIds: string[] = requestedForms.slice();
   const formsMeta: Record<string, { name?: string; page_id?: string; page_name?: string }> = {};
+
+  if (!formIds.length && scopeTenantId) {
+    const { data: routes } = await admin
+      .from("lead_routing_rules")
+      .select("match_value")
+      .eq("active", true)
+      .eq("match_type", "form_id")
+      .eq("tenant_id", scopeTenantId);
+    formIds = Array.from(new Set((routes ?? []).map((r: any) => String(r.match_value)).filter(Boolean)));
+    if (!formIds.length) {
+      return new Response(JSON.stringify({
+        ok: true, totals: { fetched: 0, imported: 0, deduped: 0, failed: 0 },
+        by_form: [], tenant_id: scopeTenantId,
+        message: "Nenhum formulário Meta está vinculado a este tenant.",
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+  }
 
   if (!formIds.length) {
     if (!primaryPageId) {
