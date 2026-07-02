@@ -390,11 +390,11 @@ export default function CampanhasPage() {
     } finally { setBusy(null); }
   };
 
-  const syncFormNow = async (formId: string, formName: string) => {
+  const syncFormNow = async (formId: string, formName: string, maxPerForm = 200) => {
     setSyncingForm(formId);
     try {
       const { data, error } = await supabase.functions.invoke("facebook-backfill-leads", {
-        body: { form_ids: [formId], max_per_form: 200 },
+        body: { form_ids: [formId], max_per_form: maxPerForm },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -408,6 +408,26 @@ export default function CampanhasPage() {
       toast({ title: "Falha no sync", description: e.message, variant: "destructive" });
     } finally { setSyncingForm(null); }
   };
+
+  const syncPageForms = async (pageName: string, formIds: string[]) => {
+    if (formIds.length === 0) return;
+    const key = `page:${pageName}`;
+    setSyncingForm(key);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-backfill-leads", {
+        body: { form_ids: formIds, max_per_form: 5000 },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const total = (data?.summary ?? []).reduce((a: number, x: any) => a + (x.imported ?? 0), 0);
+      const dedup = (data?.summary ?? []).reduce((a: number, x: any) => a + (x.deduped ?? 0), 0);
+      toast({ title: `Histórico importado — ${pageName}`, description: `${total} novo(s), ${dedup} já existentes.` });
+      setLastLeadsSync(new Date().toISOString());
+    } catch (e: any) {
+      toast({ title: "Falha no import", description: e.message, variant: "destructive" });
+    } finally { setSyncingForm(null); }
+  };
+
 
   const syncAllForms = async () => {
     setSyncingForm("__all__");
