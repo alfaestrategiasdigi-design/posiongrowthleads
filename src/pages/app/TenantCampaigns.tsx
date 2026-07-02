@@ -178,6 +178,9 @@ export default function TenantCampaigns() {
           <label className="flex items-center gap-2 text-sm">
             <Switch checked={activeOnly} onCheckedChange={setActiveOnly} /> Apenas ativas
           </label>
+          <Button variant="outline" size="sm" onClick={() => exportCsv(campaigns, crmWins)} disabled={!campaigns.length} className="gap-2" aria-label="Exportar CSV">
+            <Download className="w-4 h-4" /> CSV
+          </Button>
           <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-2">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             Atualizar
