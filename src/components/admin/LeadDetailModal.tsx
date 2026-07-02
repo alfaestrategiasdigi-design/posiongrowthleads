@@ -157,6 +157,28 @@ const LeadDetailModal = ({ lead, open, onClose, onUpdated }: LeadDetailModalProp
             )}
           </div>
 
+          {/* Respostas do formulário (Facebook Lead Ads) */}
+          {(() => {
+            const ff: any[] = ((lead as any).extras?.form_fields) ?? [];
+            if (!Array.isArray(ff) || ff.length === 0) return null;
+            return (
+              <div className="bg-muted/40 rounded-lg p-4 space-y-2">
+                <h4 className="text-xs font-semibold text-foreground flex items-center gap-2 mb-1">
+                  <FileText className="w-3.5 h-3.5 text-accent" /> Respostas do formulário
+                  <span className="ml-auto text-[10px] text-muted-foreground">{ff.length} campo(s)</span>
+                </h4>
+                <div className="grid md:grid-cols-2 gap-2">
+                  {ff.map((f, i) => (
+                    <div key={i} className="rounded-md border border-border/50 bg-background/40 p-2">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{f.label || f.name}</p>
+                      <p className="text-sm text-foreground break-words">{f.value || "—"}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Histórico do funil */}
           <div className="bg-muted/40 rounded-lg p-4 space-y-1.5 text-xs text-muted-foreground">
             <h4 className="text-xs font-semibold text-foreground flex items-center gap-2 mb-2">
