@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Loader2, Search, Filter, Download, MessageCircle, Phone, Globe2,
   Users as UsersIcon, Kanban as KanbanIcon, Calendar, Flame, Trophy, Sparkles, X,
+  ShieldAlert, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
