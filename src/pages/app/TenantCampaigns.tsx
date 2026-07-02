@@ -30,6 +30,13 @@ interface Campaign {
   };
 }
 
+type LinkedForm = {
+  form_id: string;
+  label: string;
+  total_leads: number;
+  last_lead_at: string | null;
+};
+
 export default function TenantCampaigns() {
   const { tenant, loading: tLoading } = useTenant();
   const [loading, setLoading] = useState(false);
@@ -39,6 +46,8 @@ export default function TenantCampaigns() {
   const [error, setError] = useState<string | null>(null);
   const [crmWins, setCrmWins] = useState<Record<string, { count: number; value: number }>>({});
   const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [linkedForms, setLinkedForms] = useState<LinkedForm[]>([]);
+  const [lastBackfill, setLastBackfill] = useState<Date | null>(null);
 
   const load = async () => {
     if (!tenant) return;
