@@ -371,6 +371,101 @@ export default function TenantDashboard() {
         <KpiPremium icon={Trophy} label="Maior Venda" value={loading ? null : BRL(maxSale?.amount ?? 0)} sub={maxSale?.patient_name || "—"} loading={loading} />
       </div>
 
+      {/* Métricas da Clínica — cards de destaque */}
+      <section>
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center">
+            <Activity className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold">Métricas da Clínica</h2>
+            <p className="text-xs text-muted-foreground">Comparecimento, faturamento e ticket médio · {range.label}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.22em] text-emerald-400/80 mb-2">Comparecimentos</div>
+                <div className="text-4xl font-bold">{funnelRates.totals.compareceram}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {funnelRates.totals.agendados} agendados · {PCT(funnelRates.comparecimento)} de presença
+                </div>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+                <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+              </div>
+            </div>
+            <div className="mt-3 h-1.5 bg-muted/40 rounded-full overflow-hidden">
+              <div className="h-full bg-emerald-400" style={{ width: `${Math.min(100, funnelRates.comparecimento * 100)}%` }} />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.22em] text-primary/80 mb-2">Faturamento</div>
+                <div className="text-4xl font-bold">{BRL(total)}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {count} vendas {typeof varTotal === "number" && Number.isFinite(varTotal) && (
+                    <span className={varTotal >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                      · {varTotal >= 0 ? "+" : ""}{(varTotal * 100).toFixed(1)}% vs período anterior
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-primary/20 border border-primary/40 flex items-center justify-center">
+                <DollarSign className="w-6 h-6 text-primary" />
+              </div>
+            </div>
+            <div className="mt-3 h-12">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={sparkRev}>
+                  <defs>
+                    <linearGradient id="cardRev" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.5} />
+                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area type="monotone" dataKey="v" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#cardRev)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-500/10 via-violet-500/5 to-transparent p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.22em] text-violet-400/80 mb-2">Ticket Médio</div>
+                <div className="text-4xl font-bold">{BRL(avg)}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Maior venda {BRL(maxSale?.amount ?? 0)}
+                  {maxSale?.patient_name ? ` · ${maxSale.patient_name}` : ""}
+                </div>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-violet-500/20 border border-violet-500/40 flex items-center justify-center">
+                <Receipt className="w-6 h-6 text-violet-400" />
+              </div>
+            </div>
+            <div className="mt-3 h-12">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={sparkTicket}>
+                  <defs>
+                    <linearGradient id="cardTicket" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#A78BFA" stopOpacity={0.5} />
+                      <stop offset="100%" stopColor="#A78BFA" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area type="monotone" dataKey="v" stroke="#A78BFA" strokeWidth={2} fill="url(#cardTicket)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+
 
       {/* Goals */}
       {goal && (
