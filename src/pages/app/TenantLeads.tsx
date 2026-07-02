@@ -391,7 +391,38 @@ function LeadDrawer({
         </SheetHeader>
 
         <div className="space-y-5 mt-5">
-          {/* Contato */}
+          {/* Mini funnel — jornada visual do lead */}
+          <section className="space-y-2">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Jornada no funil</div>
+            <div className="flex items-stretch gap-1">
+              {PIPELINE_STAGES.map((s, i) => {
+                const currentIdx = PIPELINE_STAGES.findIndex(x => x.id === lead.stage);
+                const isTerminal = ["perdido", "no_show"].includes(lead.stage);
+                const reached = !isTerminal && i <= currentIdx;
+                const isCurrent = s.id === lead.stage;
+                return (
+                  <div
+                    key={s.id}
+                    className="flex-1 h-8 rounded flex items-center justify-center text-[9px] font-bold uppercase tracking-wider transition-all relative"
+                    style={{
+                      background: reached ? `${s.hex}22` : "rgba(255,255,255,0.04)",
+                      color: reached ? s.hex : "hsl(var(--muted-foreground))",
+                      borderBottom: isCurrent ? `2px solid ${s.hex}` : "2px solid transparent",
+                      boxShadow: isCurrent ? `0 0 12px ${s.hex}66` : undefined,
+                    }}
+                    title={s.title}
+                  >
+                    {isCurrent ? "●" : reached ? "✓" : i + 1}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              Etapa atual: <span style={{ color: si.hex }} className="font-semibold">{si.title}</span>
+              {lead.contact_count ? ` · ${lead.contact_count} interação(ões)` : ""}
+            </div>
+          </section>
+
           <section className="space-y-2">
             <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Contato</div>
             <div className="grid grid-cols-2 gap-2 text-sm">
