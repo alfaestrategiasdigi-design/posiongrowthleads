@@ -415,13 +415,13 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function exportCsv(campaigns: any[], crmWins: Map<string, { count: number; revenue: number; names: string[] }>) {
+function exportCsv(campaigns: any[], crmWins: Record<string, { count: number; value: number }>) {
   const header = ["campaign_id","name","status","spend","leads","cpl","impressions","clicks","ctr","cpc","crm_wins","crm_revenue"];
   const rows = campaigns.map((c) => {
     const ins = c.insights || {};
     const spend = Number(ins.spend || 0);
     const leads = Number(ins.leads || 0);
-    const wins = crmWins.get(c.id) || { count: 0, revenue: 0, names: [] };
+    const wins = crmWins[c.id] || { count: 0, value: 0 };
     return [
       c.id,
       `"${String(c.name || "").replace(/"/g, '""')}"`,
