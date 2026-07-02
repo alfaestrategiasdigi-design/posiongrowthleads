@@ -380,7 +380,17 @@ export default function CampanhasPage() {
           match_label: formName, priority: 5, active: true,
         } as any);
         if (error) throw error;
-        toast({ title: "Formulário vinculado", description: formName });
+        toast({ title: "Formulário vinculado", description: `${formName} — importando histórico…` });
+        // Auto import historical leads for this form so they land on the tenant
+        supabase.functions.invoke("facebook-backfill-leads", {
+          body: { form_ids: [formId], max_per_form: 2000 },
+        }).then(({ data }) => {
+          const s = (data?.summary ?? [])[0] ?? {};
+          if (s.imported != null) {
+            toast({ title: "Histórico importado", description: `${formName}: ${s.imported} novo(s), ${s.deduped ?? 0} já existentes.` });
+            setLastLeadsSync(new Date().toISOString());
+          }
+        }).catch(() => {});
       } else {
         toast({ title: "Vínculo removido", description: formName });
       }
@@ -390,11 +400,12 @@ export default function CampanhasPage() {
     } finally { setBusy(null); }
   };
 
-  const syncFormNow = async (formId: string, formName: string) => {
+
+  const syncFormNow = async (formId: string, formName: string, maxPerForm = 200) => {
     setSyncingForm(formId);
     try {
       const { data, error } = await supabase.functions.invoke("facebook-backfill-leads", {
-        body: { form_ids: [formId], max_per_form: 200 },
+        body: { form_ids: [formId], max_per_form: maxPerForm },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -408,6 +419,26 @@ export default function CampanhasPage() {
       toast({ title: "Falha no sync", description: e.message, variant: "destructive" });
     } finally { setSyncingForm(null); }
   };
+
+  const syncPageForms = async (pageName: string, formIds: string[]) => {
+    if (formIds.length === 0) return;
+    const key = `page:${pageName}`;
+    setSyncingForm(key);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-backfill-leads", {
+        body: { form_ids: formIds, max_per_form: 5000 },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const total = (data?.summary ?? []).reduce((a: number, x: any) => a + (x.imported ?? 0), 0);
+      const dedup = (data?.summary ?? []).reduce((a: number, x: any) => a + (x.deduped ?? 0), 0);
+      toast({ title: `Histórico importado — ${pageName}`, description: `${total} novo(s), ${dedup} já existentes.` });
+      setLastLeadsSync(new Date().toISOString());
+    } catch (e: any) {
+      toast({ title: "Falha no import", description: e.message, variant: "destructive" });
+    } finally { setSyncingForm(null); }
+  };
+
 
   const syncAllForms = async () => {
     setSyncingForm("__all__");
@@ -647,76 +678,96 @@ export default function CampanhasPage() {
                 }
                 const sorted = [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
                 return (
-                  <div className="space-y-4">
-                    {sorted.map(([pageName, forms]) => (
-                      <div key={pageName} className="border border-white/5 rounded-lg overflow-hidden">
-                        <div className="flex items-center justify-between px-3 py-2 bg-white/[0.02] border-b border-white/5">
-                          <div className="text-[11px] font-semibold text-slate-300 tracking-wide">
-                            {pageName}
-                            <span className="ml-2 text-[10px] text-slate-500 font-normal">
-                              {forms.length} formulário(s) · {forms.filter((f) => formTenantMap.has(f.id)).length} vinculado(s)
-                            </span>
+                  <div className="space-y-3">
+                    {sorted.map(([pageName, forms]) => {
+                      const linkedCount = forms.filter((f) => formTenantMap.has(f.id)).length;
+                      const pageKey = `page:${pageName}`;
+                      const linkedFormIds = forms.filter((f) => formTenantMap.has(f.id)).map((f) => f.id);
+                      return (
+                        <details key={pageName} className="group/pg border border-white/5 rounded-lg overflow-hidden bg-white/[0.01]" open={linkedCount > 0}>
+                          <summary className="list-none cursor-pointer flex items-center justify-between px-3 py-2 bg-white/[0.02] border-b border-white/5 hover:bg-white/[0.04]">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <ChevronDown className="w-3.5 h-3.5 text-slate-500 shrink-0 -rotate-90 group-open/pg:rotate-0 transition-transform" />
+                              <div className="text-[11px] font-semibold text-slate-300 tracking-wide truncate">
+                                {pageName}
+                                <span className="ml-2 text-[10px] text-slate-500 font-normal">
+                                  {forms.length} formulário(s) · <span className={linkedCount > 0 ? "text-emerald-400" : ""}>{linkedCount} vinculado(s)</span>
+                                </span>
+                              </div>
+                            </div>
+                            {linkedFormIds.length > 0 && (
+                              <Button
+                                size="sm" variant="ghost"
+                                onClick={(e) => { e.preventDefault(); syncPageForms(pageName, linkedFormIds); }}
+                                disabled={syncingForm === pageKey}
+                                className="h-6 text-[10px] text-[#C9A84C] hover:bg-[#C9A84C]/10 shrink-0"
+                              >
+                                {syncingForm === pageKey ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                                IMPORTAR HISTÓRICO
+                              </Button>
+                            )}
+                          </summary>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="text-slate-500 border-b border-white/5 text-left">
+                                  <th className="py-2 pl-3 font-medium">FORMULÁRIO</th>
+                                  <th className="py-2 font-medium">ID</th>
+                                  <th className="py-2 font-medium text-right">LEADS</th>
+                                  <th className="py-2 font-medium">CLIENTE VINCULADO</th>
+                                  <th className="py-2 pr-3 font-medium text-right">AÇÃO</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5">
+                                {forms.map((f) => {
+                                  const linked = formTenantMap.get(f.id) ?? "__none__";
+                                  const linkedName = linked !== "__none__" ? tenants.find((t) => t.id === linked)?.name : null;
+                                  return (
+                                    <tr key={f.id}>
+                                      <td className="py-3 pl-3 text-white">
+                                        <div className="flex items-center gap-2">
+                                          <span className={`w-1.5 h-1.5 rounded-full ${linkedName ? "bg-emerald-500" : "bg-slate-600"}`} />
+                                          {f.name}
+                                        </div>
+                                      </td>
+                                      <td className="py-3 text-slate-500 font-mono text-[10px]">{f.id}</td>
+                                      <td className="py-3 text-slate-400 text-right tabular-nums">{f.leads_count ?? 0}</td>
+                                      <td className="py-3">
+                                        <Select
+                                          value={linked}
+                                          onValueChange={(v) => bindFormToTenant(f.id, f.name, v)}
+                                          disabled={busy === `form:${f.id}`}
+                                        >
+                                          <SelectTrigger className="bg-[#111] border-white/10 text-slate-300 h-8 w-[220px] text-xs">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="__none__">— Sem vínculo (vai para fallback) —</SelectItem>
+                                            {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                                          </SelectContent>
+                                        </Select>
+                                      </td>
+                                      <td className="py-3 pr-3 text-right">
+                                        <Button size="sm" variant="ghost" onClick={() => syncFormNow(f.id, f.name, 2000)}
+                                          disabled={syncingForm === f.id}
+                                          className="h-7 text-[10px] text-[#C9A84C] hover:bg-[#C9A84C]/10">
+                                          {syncingForm === f.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                                          SYNC AGORA
+                                        </Button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
                           </div>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr className="text-slate-500 border-b border-white/5 text-left">
-                                <th className="py-2 pl-3 font-medium">FORMULÁRIO</th>
-                                <th className="py-2 font-medium">ID</th>
-                                <th className="py-2 font-medium text-right">LEADS</th>
-                                <th className="py-2 font-medium">CLIENTE VINCULADO</th>
-                                <th className="py-2 pr-3 font-medium text-right">AÇÃO</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5">
-                              {forms.map((f) => {
-                                const linked = formTenantMap.get(f.id) ?? "__none__";
-                                const linkedName = linked !== "__none__" ? tenants.find((t) => t.id === linked)?.name : null;
-                                return (
-                                  <tr key={f.id}>
-                                    <td className="py-3 pl-3 text-white">
-                                      <div className="flex items-center gap-2">
-                                        <span className={`w-1.5 h-1.5 rounded-full ${linkedName ? "bg-emerald-500" : "bg-slate-600"}`} />
-                                        {f.name}
-                                      </div>
-                                    </td>
-                                    <td className="py-3 text-slate-500 font-mono text-[10px]">{f.id}</td>
-                                    <td className="py-3 text-slate-400 text-right tabular-nums">{f.leads_count ?? 0}</td>
-                                    <td className="py-3">
-                                      <Select
-                                        value={linked}
-                                        onValueChange={(v) => bindFormToTenant(f.id, f.name, v)}
-                                        disabled={busy === `form:${f.id}`}
-                                      >
-                                        <SelectTrigger className="bg-[#111] border-white/10 text-slate-300 h-8 w-[220px] text-xs">
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="__none__">— Sem vínculo (vai para fallback) —</SelectItem>
-                                          {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                                        </SelectContent>
-                                      </Select>
-                                    </td>
-                                    <td className="py-3 pr-3 text-right">
-                                      <Button size="sm" variant="ghost" onClick={() => syncFormNow(f.id, f.name)}
-                                        disabled={syncingForm === f.id}
-                                        className="h-7 text-[10px] text-[#C9A84C] hover:bg-[#C9A84C]/10">
-                                        {syncingForm === f.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
-                                        SYNC AGORA
-                                      </Button>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ))}
+                        </details>
+                      );
+                    })}
                   </div>
                 );
               })()}
+
             </div>
 
           </div>
