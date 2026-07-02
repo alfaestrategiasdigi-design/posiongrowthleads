@@ -214,9 +214,28 @@ export default function TenantLeads() {
     const prev = leads;
     setLeads((cur) => cur.map((l) => (l.id === id ? { ...l, ...patch } as ClinicLead : l)));
     if (detail?.id === id) setDetail((d) => (d ? { ...d, ...patch } as ClinicLead : d));
-    const { error } = await supabase.from("clinic_leads").update(patch).eq("id", id);
+
+    // Map ClinicLead patch → leads columns
+    const dbPatch: Record<string, any> = {};
+    if (patch.stage !== undefined) dbPatch.status = patch.stage;
+    if (patch.notes !== undefined) dbPatch.observacoes = patch.notes;
+    if (patch.negotiation_value !== undefined) dbPatch.valor_proposta = patch.negotiation_value;
+    if (patch.sale_amount !== undefined) dbPatch.valor_proposta = patch.sale_amount;
+    // extras-backed fields (seller_name, product)
+    const needsExtras = patch.seller_name !== undefined || patch.product !== undefined || patch.channel !== undefined;
+    if (needsExtras) {
+      const cur = leads.find(l => l.id === id);
+      const currentExtras = (cur?.metadata?.extras ?? {}) as Record<string, any>;
+      const nextExtras = { ...currentExtras };
+      if (patch.seller_name !== undefined) nextExtras.seller_name = patch.seller_name ?? null;
+      if (patch.product !== undefined) nextExtras.product = patch.product ?? null;
+      dbPatch.extras = nextExtras;
+    }
+
+    const { error } = await supabase.from("leads").update(dbPatch).eq("id", id);
     if (error) { setLeads(prev); toast.error("Não foi possível salvar", { description: error.message }); }
   }
+
 
   if (!tenant) return null;
   if (loading) return <div className="p-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
