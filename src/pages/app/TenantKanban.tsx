@@ -67,7 +67,15 @@ export default function TenantKanban() {
   const [winLead, setWinLead] = useState<Lead | null>(null);
   const [filterProduct, setFilterProduct] = useState("all");
   const [filterChannel, setFilterChannel] = useState("all");
+  const [filterSeller, setFilterSeller] = useState("all");
   const [search, setSearch] = useState("");
+
+  // Estágios com automação configurada (mock — pode ser lido de tabela futuramente)
+  const AUTOMATED_STAGES: Partial<Record<Stage, string>> = {
+    lead: "WhatsApp de boas-vindas automático",
+    reuniao_agendada: "Lembrete 1h antes",
+    ganho: "Evento Purchase enviado ao Meta CAPI",
+  };
 
   async function loadAll() {
     if (!tenant) return;
