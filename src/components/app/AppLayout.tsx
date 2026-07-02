@@ -107,7 +107,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
-        <TenantSidebar tenant={tenant} isSuperAdmin={isSuperAdmin} />
+        <TenantSidebar tenant={tenant} isSuperAdmin={isSuperAdmin} tenantRole={role} />
         <main className="flex-1 flex flex-col overflow-hidden">
           <header className="h-16 border-b border-border/60 flex items-center justify-between px-4 md:px-6 bg-card/40 backdrop-blur-md shrink-0">
             <div className="flex items-center gap-3 md:gap-4">

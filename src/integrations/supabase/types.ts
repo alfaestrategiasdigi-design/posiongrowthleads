@@ -1095,6 +1095,56 @@ export type Database = {
         }
         Relationships: []
       }
+      invites: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          email: string
+          expires_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          tenant_id: string | null
+          tenant_role: string | null
+          token: string
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          email: string
+          expires_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          tenant_id?: string | null
+          tenant_role?: string | null
+          token: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          tenant_id?: string | null
+          tenant_role?: string | null
+          token?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invites_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_routing_rules: {
         Row: {
           active: boolean
@@ -3103,6 +3153,10 @@ export type Database = {
           verify_token: string
         }[]
       }
+      get_tenant_role: {
+        Args: { _tenant_id: string; _user_id: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -3116,6 +3170,10 @@ export type Database = {
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       is_tenant_admin: {
+        Args: { _tenant_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_tenant_comercial: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
       }
@@ -3144,8 +3202,19 @@ export type Database = {
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
-      app_role: "admin" | "user"
-      tenant_role: "owner" | "admin" | "vendedor" | "recepcao" | "viewer"
+      app_role:
+        | "admin"
+        | "user"
+        | "comercial_admin_master"
+        | "admin_tenant"
+        | "comercial_tenant"
+      tenant_role:
+        | "owner"
+        | "admin"
+        | "vendedor"
+        | "recepcao"
+        | "viewer"
+        | "comercial_tenant"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3273,8 +3342,21 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user"],
-      tenant_role: ["owner", "admin", "vendedor", "recepcao", "viewer"],
+      app_role: [
+        "admin",
+        "user",
+        "comercial_admin_master",
+        "admin_tenant",
+        "comercial_tenant",
+      ],
+      tenant_role: [
+        "owner",
+        "admin",
+        "vendedor",
+        "recepcao",
+        "viewer",
+        "comercial_tenant",
+      ],
     },
   },
 } as const

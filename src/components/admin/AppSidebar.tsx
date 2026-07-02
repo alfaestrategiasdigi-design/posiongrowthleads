@@ -11,20 +11,29 @@ import {
 } from "@/components/ui/sidebar";
 import logoAsset from "@/assets/posion/logo-posion.png.asset.json";
 
-const navGroups = [
+import { useUserRole } from "@/hooks/useUserRole";
+
+type NavItem = { title: string; url: string; icon: any; live?: boolean; comercial?: boolean };
+type NavGroup = { label: string; comercial?: boolean; items: NavItem[] };
+
+// itens marcados `comercial: true` também aparecem para `comercial_admin_master`
+const navGroups: NavGroup[] = [
   {
     label: "Agência POSION",
+    comercial: true,
     items: [
-      { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
-      { title: "Pipeline Agência", url: "/admin/pipeline", icon: GitBranch },
+      { title: "Dashboard", url: "/admin", icon: LayoutDashboard, comercial: true },
+      { title: "Pipeline Agência", url: "/admin/pipeline", icon: GitBranch, comercial: true },
+      { title: "Agenda de Reunião", url: "/admin/agendamentos", icon: Activity, comercial: true },
       { title: "Contratos", url: "/admin/contratos-agencia", icon: FileText },
     ],
   },
   {
     label: "Marketing",
+    comercial: true,
     items: [
-      { title: "Campanhas Meta", url: "/admin/campanhas", icon: Megaphone },
-      { title: "Leads (formulário)", url: "/admin/leads", icon: Users },
+      { title: "Campanhas Meta", url: "/admin/campanhas", icon: Megaphone, comercial: true },
+      { title: "Leads (formulário)", url: "/admin/leads", icon: Users, comercial: true },
       { title: "Qualificação", url: "/admin/qualificacao", icon: ListChecks },
       { title: "Conexão Facebook", url: "/admin/facebook", icon: Facebook },
       { title: "Conversions API", url: "/admin/capi", icon: Target },
@@ -44,7 +53,7 @@ const navGroups = [
       { title: "WhatsApp Master", url: "/admin/whatsapp", icon: MessageCircle, live: true },
       { title: "Conexão WhatsApp", url: "/admin/conexao-whatsapp", icon: Plug },
       { title: "Status WhatsApp", url: "/admin/whatsapp-status", icon: Activity },
-      { title: "Usuários", url: "/admin/usuarios", icon: UserPlus },
+      { title: "Usuários & Convites", url: "/admin/usuarios", icon: UserPlus },
     ],
   },
 ];
@@ -54,6 +63,18 @@ const AppSidebar = () => {
   const navigate = useNavigate();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
+  const { isMaster, isComercialMaster } = useUserRole();
+
+  // Comercial Admin Master só vê grupos/itens marcados como `comercial`
+  const visibleGroups = navGroups
+    .map((g) => {
+      if (isMaster) return g;
+      if (isComercialMaster && g.comercial) {
+        return { ...g, items: g.items.filter((i) => i.comercial) };
+      }
+      return null;
+    })
+    .filter((g): g is NavGroup => !!g && g.items.length > 0);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -81,7 +102,7 @@ const AppSidebar = () => {
       <SidebarSeparator className="bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent" />
 
       <SidebarContent className="px-1">
-        {navGroups.map((group) => (
+        {visibleGroups.map((group) => (
           <SidebarGroup key={group.label}>
             {!collapsed && (
               <SidebarGroupLabel className="text-[9px] font-mono uppercase tracking-[0.22em] text-muted-foreground/50 px-3 mt-2 mb-1 flex items-center gap-2">
