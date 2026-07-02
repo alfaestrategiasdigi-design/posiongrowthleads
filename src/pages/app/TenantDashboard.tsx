@@ -268,6 +268,48 @@ export default function TenantDashboard() {
     return arr;
   }, [goal, total, funnelData, leadsPerDay, evolution30, monthSales]);
 
+  // ============ ADMIN MASTER STYLE — SEÇÕES EXTRAS =============
+  // Timeline de receita diária (para HERO)
+  const heroTimeline = useMemo(() => evolution30.map((d) => ({ day: d.label, receita: d.total })), [evolution30]);
+
+  // ROI mensal (últimos 6 meses) — investimento por mês vem do localStorage
+  const roiMonthly = useMemo(() => {
+    const map = new Map<string, { invest: number; receita: number }>();
+    sales.forEach((s) => {
+      const k = fmtD(startOfMonth(new Date(s.sale_date + "T12:00:00")), "yyyy-MM");
+      const cur = map.get(k) || { invest: 0, receita: 0 };
+      cur.receita += Number(s.amount || 0);
+      map.set(k, cur);
+    });
+    // aplicar investimentos armazenados por mês
+    if (tenant) {
+      Array.from(map.keys()).forEach((k) => {
+        const [y, m] = k.split("-").map(Number);
+        const v = Number(localStorage.getItem(`posion:invest:${tenant.id}:${y}-${m}`) || 0);
+        const cur = map.get(k)!;
+        cur.invest = isFinite(v) ? v : 0;
+      });
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-6)
+      .map(([k, v]) => ({
+        month: fmtD(new Date(k + "-01T12:00:00"), "MMM/yy", { locale: ptBR }),
+        invest: v.invest,
+        receita: v.receita,
+        lucro: Math.max(v.receita - v.invest, 0),
+      }));
+  }, [sales, tenant, investment]);
+
+  // Funil recharts (usa funnelChart existente)
+  const funnelChartData = useMemo(
+    () => funnelChart.map((s, i) => ({ ...s, name: s.stage, fill: FUNNEL_COLORS[i % FUNNEL_COLORS.length] })),
+    [funnelChart]
+  );
+
+  const [sellerSearch, setSellerSearch] = useState("");
+
+
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-[1600px] mx-auto">
