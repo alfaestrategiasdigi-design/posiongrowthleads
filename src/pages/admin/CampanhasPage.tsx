@@ -340,26 +340,83 @@ export default function CampanhasPage() {
     loadRules();
   };
 
-  const addFormRule = async () => {
-    if (!newRule.form_id || !newRule.tenant_id) {
-      toast({ title: "Preencha form_id e cliente", variant: "destructive" }); return;
-    }
-    const { error } = await supabase.from("lead_routing_rules").insert({
-      tenant_id: newRule.tenant_id, match_type: "form_id", match_value: newRule.form_id.trim(),
-      match_label: `Form ${newRule.form_id.trim()}`, priority: 5, active: true,
-    } as any);
-    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Regra criada" });
-    setAddRuleOpen(false);
-    setNewRule({ form_id: "", tenant_id: "" });
-    loadRules();
+  // ===== Lead Forms (Meta) =====
+  const loadLeadForms = async () => {
+    setLoadingForms(true); setFormsError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
+        body: { action: "list_lead_forms" },
+      });
+      if (error) throw error;
+      if (data?.need_page) { setFormsError(data.error); setLeadForms([]); return; }
+      if (data?.error) throw new Error(data.error);
+      setLeadForms((data?.data ?? []) as LeadForm[]);
+    } catch (e: any) {
+      setFormsError(e.message ?? "Falha ao carregar formulários");
+      setLeadForms([]);
+    } finally { setLoadingForms(false); }
   };
 
-  const removeRule = async (id: string) => {
-    const { error } = await supabase.from("lead_routing_rules").delete().eq("id", id);
-    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-    loadRules();
+  const bindFormToTenant = async (formId: string, formName: string, tenantId: string) => {
+    setBusy(`form:${formId}`);
+    try {
+      await supabase.from("lead_routing_rules")
+        .delete().eq("match_type", "form_id").eq("match_value", formId);
+      if (tenantId && tenantId !== "__none__") {
+        const { error } = await supabase.from("lead_routing_rules").insert({
+          tenant_id: tenantId, match_type: "form_id", match_value: formId,
+          match_label: formName, priority: 5, active: true,
+        } as any);
+        if (error) throw error;
+        toast({ title: "Formulário vinculado", description: formName });
+      } else {
+        toast({ title: "Vínculo removido", description: formName });
+      }
+      loadRules();
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    } finally { setBusy(null); }
   };
+
+  const syncFormNow = async (formId: string, formName: string) => {
+    setSyncingForm(formId);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-backfill-leads", {
+        body: { form_ids: [formId], max_per_form: 200 },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const s = (data?.summary ?? [])[0] ?? {};
+      toast({
+        title: "Sync concluído",
+        description: `${formName}: ${s.imported ?? 0} novo(s), ${s.deduped ?? 0} duplicado(s)`,
+      });
+      setLastLeadsSync(new Date().toISOString());
+    } catch (e: any) {
+      toast({ title: "Falha no sync", description: e.message, variant: "destructive" });
+    } finally { setSyncingForm(null); }
+  };
+
+  const syncAllForms = async () => {
+    setSyncingForm("__all__");
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-backfill-leads", { body: {} });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const total = (data?.summary ?? []).reduce((a: number, x: any) => a + (x.imported ?? 0), 0);
+      toast({ title: "Sync geral concluído", description: `${total} lead(s) importado(s).` });
+      setLastLeadsSync(new Date().toISOString());
+    } catch (e: any) {
+      toast({ title: "Falha no sync", description: e.message, variant: "destructive" });
+    } finally { setSyncingForm(null); }
+  };
+
+  const formTenantMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of rules) if (r.active && r.match_type === "form_id") m.set(r.match_value, r.tenant_id);
+    return m;
+  }, [rules]);
+
 
   // ===== KPIs =====
   const visibleCampaigns = useMemo(
