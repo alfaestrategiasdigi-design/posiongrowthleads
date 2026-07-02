@@ -434,7 +434,7 @@ function exportCsv(campaigns: any[], crmWins: Record<string, { count: number; va
       ins.ctr || "",
       ins.cpc || "",
       wins.count,
-      wins.revenue.toFixed(2),
+      wins.value.toFixed(2),
     ].join(",");
   });
   const csv = [header.join(","), ...rows].join("\n");
