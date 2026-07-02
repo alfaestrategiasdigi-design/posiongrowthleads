@@ -244,9 +244,35 @@ Deno.serve(async (req) => {
 
         if (!nome && !whatsapp && !email) { failed++; continue; }
 
+        // Monta pares [{name,label,value}] para exibir todos os campos do formulário no CRM
+        const formFields = Array.isArray(lead.field_data)
+          ? lead.field_data.map((f: any) => ({
+              name: String(f?.name ?? ""),
+              label: String(f?.name ?? "").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()),
+              value: Array.isArray(f?.values) ? f.values.join(", ") : (f?.value ?? ""),
+            }))
+          : [];
+        const extrasPayload = {
+          form_fields: formFields,
+          facebook: {
+            lead_id: lead.id, form_id: lead.form_id ?? formId, form_name: formName,
+            ad_id: lead.ad_id, ad_name: lead.ad_name,
+            adset_id: lead.adset_id, adset_name: lead.adset_name,
+            campaign_id: lead.campaign_id, campaign_name: lead.campaign_name,
+            created_time: lead.created_time,
+          },
+        };
+
         const { data: existing } = await admin
-          .from("leads").select("id").eq("facebook_lead_id", lead.id).maybeSingle();
-        if (existing) { deduped++; continue; }
+          .from("leads").select("id, extras").eq("facebook_lead_id", lead.id).maybeSingle();
+        if (existing) {
+          // Se lead antigo está sem os campos do form, backfill agora
+          const cur: any = (existing as any).extras ?? {};
+          if (!cur.form_fields || (Array.isArray(cur.form_fields) && cur.form_fields.length === 0)) {
+            await admin.from("leads").update({ extras: { ...cur, ...extrasPayload } } as any).eq("id", (existing as any).id);
+          }
+          deduped++; continue;
+        }
 
         const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
           p_form_id: lead.form_id ?? formId,
@@ -303,6 +329,7 @@ Deno.serve(async (req) => {
           utm_content: lead.ad_name ?? null,
           utm_term: lead.adset_name ?? null,
           tenant_id: routedTenant,
+          extras: extrasPayload,
           created_at: lead.created_time ?? undefined,
         } as any);
         if (error) {
