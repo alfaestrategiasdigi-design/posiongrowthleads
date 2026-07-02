@@ -71,8 +71,13 @@ export default function CampanhasPage() {
   const [budgetDialog, setBudgetDialog] = useState<{ open: boolean; id?: string; name?: string; current?: string }>({ open: false });
   const [budgetValue, setBudgetValue] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const [addRuleOpen, setAddRuleOpen] = useState(false);
-  const [newRule, setNewRule] = useState({ form_id: "", tenant_id: "" });
+
+  type LeadForm = { id: string; name: string; status?: string; leads_count?: number; created_time?: string };
+  const [leadForms, setLeadForms] = useState<LeadForm[]>([]);
+  const [loadingForms, setLoadingForms] = useState(false);
+  const [formsError, setFormsError] = useState<string | null>(null);
+  const [syncingForm, setSyncingForm] = useState<string | null>(null);
+  const [lastLeadsSync, setLastLeadsSync] = useState<string | null>(null);
 
   const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
   const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
