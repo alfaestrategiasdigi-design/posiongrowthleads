@@ -52,6 +52,7 @@ export default function TenantCampaigns() {
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [linkedForms, setLinkedForms] = useState<LinkedForm[]>([]);
   const [lastBackfill, setLastBackfill] = useState<Date | null>(null);
+  const [detail, setDetail] = useState<Campaign | null>(null);
 
   const load = async () => {
     if (!tenant) return;
