@@ -96,36 +96,53 @@ Deno.serve(async (req) => {
     if (!camps.length) continue;
 
     const withIns = await mapLimit(camps, 3, async (c) => {
-      const key = `${c.id}|${since}|${until}`;
+      const key = `${c.id}|${since}|${until}|daily`;
       const hit = cache.get(key);
-      let row: any = null;
-      if (hit && hit.exp > Date.now()) row = hit.v;
+      let rows: any[] | null = null;
+      if (hit && hit.exp > Date.now()) rows = hit.v;
       else {
         const ir = await fbGet(`${c.id}/insights`, token, {
           fields: "spend,impressions,clicks,ctr,cpc,cpm,reach,frequency,actions,action_values",
-          time_range: JSON.stringify({ since, until }), level: "campaign",
+          time_range: JSON.stringify({ since, until }),
+          level: "campaign",
+          time_increment: "1",
         });
-        if (ir.ok) { row = ir.body?.data?.[0] ?? null; cache.set(key, { v: row, exp: Date.now() + TTL }); }
+        if (ir.ok) { rows = ir.body?.data ?? []; cache.set(key, { v: rows, exp: Date.now() + TTL }); }
       }
-      let leads = 0, purchases = 0, purchase_value = 0;
-      for (const a of row?.actions ?? []) {
-        if (["lead", "leadgen.other", "onsite_conversion.lead_grouped"].includes(a.action_type)) leads += +a.value || 0;
-        if (["purchase", "offsite_conversion.fb_pixel_purchase"].includes(a.action_type)) purchases += +a.value || 0;
+      const agg = { spend: 0, impressions: 0, clicks: 0, reach: 0, leads: 0, purchases: 0, purchase_value: 0 };
+      const daily: Array<{ date: string; spend: number; leads: number; clicks: number; impressions: number }> = [];
+      for (const row of rows ?? []) {
+        let dLeads = 0, dPurch = 0, dPurchVal = 0;
+        for (const a of row?.actions ?? []) {
+          if (["lead", "leadgen.other", "onsite_conversion.lead_grouped"].includes(a.action_type)) dLeads += +a.value || 0;
+          if (["purchase", "offsite_conversion.fb_pixel_purchase"].includes(a.action_type)) dPurch += +a.value || 0;
+        }
+        for (const a of row?.action_values ?? []) {
+          if (["purchase", "offsite_conversion.fb_pixel_purchase"].includes(a.action_type)) dPurchVal += +a.value || 0;
+        }
+        const dSpend = +row?.spend || 0;
+        const dImpr = +row?.impressions || 0;
+        const dClicks = +row?.clicks || 0;
+        agg.spend += dSpend; agg.impressions += dImpr; agg.clicks += dClicks;
+        agg.reach += +row?.reach || 0;
+        agg.leads += dLeads; agg.purchases += dPurch; agg.purchase_value += dPurchVal;
+        daily.push({ date: row?.date_start ?? "", spend: dSpend, leads: dLeads, clicks: dClicks, impressions: dImpr });
       }
-      for (const a of row?.action_values ?? []) {
-        if (["purchase", "offsite_conversion.fb_pixel_purchase"].includes(a.action_type)) purchase_value += +a.value || 0;
-      }
-      const spend = +row?.spend || 0;
+      const spend = agg.spend;
       return {
         ...c,
         ad_account_id: acc.id,
         ad_account_label: acc.label,
-        insights: row ? {
-          spend, impressions: +row.impressions || 0, clicks: +row.clicks || 0,
-          ctr: +row.ctr || 0, cpc: +row.cpc || 0, cpm: +row.cpm || 0,
-          leads, cpl: leads > 0 ? spend / leads : 0,
-          purchases, purchase_value, roas: spend > 0 ? purchase_value / spend : 0,
+        insights: (rows && rows.length) ? {
+          spend, impressions: agg.impressions, clicks: agg.clicks,
+          ctr: agg.impressions ? (agg.clicks / agg.impressions) * 100 : 0,
+          cpc: agg.clicks ? spend / agg.clicks : 0,
+          cpm: agg.impressions ? (spend / agg.impressions) * 1000 : 0,
+          leads: agg.leads, cpl: agg.leads > 0 ? spend / agg.leads : 0,
+          purchases: agg.purchases, purchase_value: agg.purchase_value,
+          roas: spend > 0 ? agg.purchase_value / spend : 0,
         } : null,
+        daily,
       };
     });
     all.push(...withIns);
