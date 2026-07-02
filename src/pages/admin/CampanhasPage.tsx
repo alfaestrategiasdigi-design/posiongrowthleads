@@ -676,12 +676,15 @@ export default function CampanhasPage() {
           </div>
         </details>
 
-        {/* Campaigns */}
+        {/* Campaigns — Card Grid */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between px-2">
-            <h3 className="text-xs font-bold text-slate-500 tracking-widest uppercase">Performance de Campanhas</h3>
-            <span className="text-[10px] text-slate-600 uppercase">
-              {loadingCampaigns ? "Carregando…" : `${visibleCampaigns.length} campanha(s) · ordenado por gasto`}
+          <div className="flex items-center justify-between px-1">
+            <div>
+              <h3 className="text-xs font-bold text-slate-500 tracking-widest uppercase">Performance de Campanhas</h3>
+              <p className="text-[10px] text-slate-600 mt-0.5">Grid tecnológico · ordenado por investimento</p>
+            </div>
+            <span className="text-[10px] text-slate-600 uppercase tabular-nums">
+              {loadingCampaigns ? "Carregando…" : `${visibleCampaigns.length} campanha(s)`}
             </span>
           </div>
 
@@ -697,84 +700,110 @@ export default function CampanhasPage() {
             </div>
           )}
 
-          {[...visibleCampaigns].sort((a, b) => (b.insights?.spend || 0) - (a.insights?.spend || 0)).map((c) => {
-            const i = c.insights;
-            const key = c.name.trim().toLowerCase();
-            const crmWins = crmWinsByCampaign[key] || 0;
-            const crmRev = crmRevenueByCampaign[key] || 0;
-            const wonList = wonLeadsByCampaign[key] || [];
-            const isActive = c.effective_status === "ACTIVE";
-            const dailyBudgetR = c.daily_budget ? Number(c.daily_budget) / 100 : null;
-            return (
-              <div key={c.id}
-                className={`bg-[#0A0A0A] border border-white/5 rounded-2xl p-5 hover:border-[#C9A84C]/30 transition-all group ${!isActive ? "opacity-80" : ""}`}>
-                <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-1">
-                      <span className={`w-2 h-2 rounded-full ${isActive ? "bg-emerald-500" : "bg-slate-700"}`} />
-                      <h4 className={`text-lg font-serif ${isActive ? "text-white group-hover:text-[#F0D78C]" : "text-slate-400"} transition-colors truncate`}>
-                        {c.name}
-                      </h4>
+          <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+            {[...visibleCampaigns].sort((a, b) => (b.insights?.spend || 0) - (a.insights?.spend || 0)).map((c) => {
+              const i = c.insights;
+              const key = c.name.trim().toLowerCase();
+              const crmWins = crmWinsByCampaign[key] || 0;
+              const crmRev = crmRevenueByCampaign[key] || 0;
+              const wonList = wonLeadsByCampaign[key] || [];
+              const isActive = c.effective_status === "ACTIVE";
+              const dailyBudgetR = c.daily_budget ? Number(c.daily_budget) / 100 : null;
+              const roas = i && i.spend ? ((i.purchase_value + crmRev) / i.spend) : 0;
+              const cpl = i && i.leads ? i.spend / i.leads : 0;
+
+              return (
+                <div key={c.id}
+                  className={`relative bg-gradient-to-br from-[#0B0B0B] to-[#080808] border rounded-2xl overflow-hidden transition-all group
+                    ${isActive ? "border-white/5 hover:border-[#C9A84C]/40 hover:shadow-[0_0_40px_-10px_rgba(201,168,76,0.35)]" : "border-white/[0.03] opacity-70 hover:opacity-100"}`}>
+                  {/* Status strip */}
+                  <div className={`absolute top-0 left-0 right-0 h-[2px] ${isActive ? "bg-gradient-to-r from-emerald-500/0 via-emerald-500 to-emerald-500/0" : "bg-slate-800"}`} />
+
+                  {/* Header */}
+                  <div className="p-4 pb-3">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" : "bg-slate-700"}`} />
+                        <span className={`text-[9px] uppercase tracking-widest font-bold ${isActive ? "text-emerald-500" : "text-slate-600"}`}>
+                          {isActive ? "AO VIVO" : (c.effective_status || c.status)}
+                        </span>
+                      </div>
+                      <span className="text-[9px] font-mono text-slate-600 truncate max-w-[110px]" title={c.id}>{c.id}</span>
                     </div>
-                    <p className="text-xs text-slate-500 font-mono">
-                      {c.id} · {c.objective || "—"}{dailyBudgetR ? ` · orç. ${BRL(dailyBudgetR)}/dia` : ""}
+                    <h4 className={`font-serif text-[15px] leading-tight ${isActive ? "text-white group-hover:text-[#F0D78C]" : "text-slate-400"} transition-colors line-clamp-2`}
+                      title={c.name}>
+                      {c.name}
+                    </h4>
+                    <p className="text-[10px] text-slate-600 mt-1 truncate">
+                      {c.objective || "—"}{dailyBudgetR ? ` · ${BRL(dailyBudgetR)}/dia` : ""}
                     </p>
                   </div>
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
-                      <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Gasto</p>
-                      <p className="text-md font-semibold text-white">{BRL(i?.spend || 0)}</p>
+
+                  {/* Big numbers strip */}
+                  <div className="grid grid-cols-2 border-y border-white/5 divide-x divide-white/5">
+                    <div className="p-3">
+                      <div className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Investido</div>
+                      <div className="text-lg font-serif text-white tabular-nums mt-0.5">{BRL(i?.spend || 0)}</div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Ganhos CRM</p>
-                      <p className="text-md font-semibold text-[#C9A84C]">{BRL(crmRev)}</p>
-                      {crmWins > 0 && <p className="text-[9px] text-slate-600">{crmWins} venda(s)</p>}
+                    <div className="p-3">
+                      <div className="text-[9px] text-[#C9A84C] uppercase tracking-widest font-bold flex items-center gap-1">
+                        <Crown className="w-2.5 h-2.5" /> Ganhos CRM
+                      </div>
+                      <div className="text-lg font-serif text-[#C9A84C] tabular-nums mt-0.5">{BRL(crmRev)}</div>
                     </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 border-t border-white/5 pt-4 items-center">
-                  <Metric label="Leads" value={NUM(i?.leads || 0)} />
-                  <Metric label="CPL" value={i && i.leads ? BRL(i.spend / i.leads) : "—"} />
-                  <Metric label="CTR" value={i ? `${(i.ctr || 0).toFixed(2)}%` : "—"} />
-                  <Metric label="ROAS" value={i && i.spend ? `${((i.purchase_value + crmRev) / i.spend).toFixed(2)}x` : "—"} />
-                  <div className="flex items-center justify-end gap-2 flex-wrap">
-                    <Button size="sm" variant="ghost"
-                      onClick={() => setBudgetDialog({ open: true, id: c.id, name: c.name, current: c.daily_budget })}
-                      className="h-7 text-[10px] text-slate-400 hover:text-white">
-                      <Wallet className="w-3 h-3 mr-1" /> ORÇAMENTO
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => toggleCampaignStatus(c)} disabled={togglingCampaign === c.id}
-                      className="h-7 text-[10px] text-slate-400 hover:text-white">
-                      {togglingCampaign === c.id ? <Loader2 className="w-3 h-3 animate-spin" /> :
-                        isActive ? <Pause className="w-3 h-3 mr-1" /> : <Play className="w-3 h-3 mr-1" />}
-                      {isActive ? "PAUSAR" : "ATIVAR"}
-                    </Button>
+                  {/* Micro metrics */}
+                  <div className="grid grid-cols-4 divide-x divide-white/5 border-b border-white/5 text-center">
+                    <MicroMetric label="Leads" value={NUM(i?.leads || 0)} />
+                    <MicroMetric label="CPL" value={cpl ? BRL(cpl) : "—"} />
+                    <MicroMetric label="CTR" value={i ? `${(i.ctr || 0).toFixed(1)}%` : "—"} />
+                    <MicroMetric label="ROAS" value={roas ? `${roas.toFixed(1)}x` : "—"}
+                      highlight={roas >= 2} />
+                  </div>
+
+                  {/* Wins pills */}
+                  {wonList.length > 0 && (
+                    <div className="px-4 py-2.5 flex flex-wrap gap-1 border-b border-white/5 bg-[#C9A84C]/[0.02]">
+                      {wonList.slice(0, 3).map((w, idx) => (
+                        <span key={idx} className="text-[9px] px-1.5 py-0.5 rounded bg-[#C9A84C]/10 text-[#F0D78C] border border-[#C9A84C]/20 truncate max-w-[140px]">
+                          {w.name} · {BRL(w.valor)}
+                        </span>
+                      ))}
+                      {wonList.length > 3 && (
+                        <span className="text-[9px] px-1.5 py-0.5 text-slate-500">+{wonList.length - 3}</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="p-3 flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-1">
+                      <Button size="sm" variant="ghost"
+                        onClick={() => setBudgetDialog({ open: true, id: c.id, name: c.name, current: c.daily_budget })}
+                        className="h-6 px-2 text-[9px] text-slate-400 hover:text-white hover:bg-white/5">
+                        <Wallet className="w-3 h-3 mr-1" /> ORÇ.
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => toggleCampaignStatus(c)} disabled={togglingCampaign === c.id}
+                        className="h-6 px-2 text-[9px] text-slate-400 hover:text-white hover:bg-white/5">
+                        {togglingCampaign === c.id ? <Loader2 className="w-3 h-3 animate-spin" /> :
+                          isActive ? <Pause className="w-3 h-3 mr-1" /> : <Play className="w-3 h-3 mr-1" />}
+                        {isActive ? "PAUSAR" : "ATIVAR"}
+                      </Button>
+                    </div>
                     <a href={`https://www.facebook.com/adsmanager/manage/campaigns?act=${(c as any).account_id || (adAccountFilter !== "all" ? adAccountFilter : adAccountId || "").replace("act_", "")}&selected_campaign_ids=${c.id}`}
                       target="_blank" rel="noopener noreferrer"
-                      className="text-[10px] font-bold text-[#C9A84C] uppercase tracking-widest border border-[#C9A84C]/20 px-3 py-1.5 rounded hover:bg-[#C9A84C] hover:text-[#050505] transition-all flex items-center gap-1">
-                      <ExternalLink className="w-3 h-3" /> Ads Manager
+                      className="text-[9px] font-bold text-[#C9A84C] uppercase tracking-widest border border-[#C9A84C]/20 px-2 py-1 rounded hover:bg-[#C9A84C] hover:text-[#050505] transition-all flex items-center gap-1">
+                      <ExternalLink className="w-2.5 h-2.5" /> Meta
                     </a>
                   </div>
                 </div>
-
-                {wonList.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-white/5 flex flex-wrap gap-1.5">
-                    {wonList.slice(0, 6).map((w, idx) => (
-                      <span key={idx} className="text-[10px] px-2 py-0.5 rounded bg-[#C9A84C]/10 text-[#F0D78C] border border-[#C9A84C]/20">
-                        {w.name} · {BRL(w.valor)}
-                      </span>
-                    ))}
-                    {wonList.length > 6 && (
-                      <span className="text-[10px] px-2 py-0.5 text-slate-500">+{wonList.length - 6}</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
+
 
       {/* Budget dialog */}
       <Dialog open={budgetDialog.open} onOpenChange={(o) => !o && setBudgetDialog({ open: false })}>
@@ -814,6 +843,15 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-[10px] text-slate-600 uppercase mb-0.5">{label}</p>
       <p className="text-sm font-medium text-slate-300">{value}</p>
+    </div>
+  );
+}
+
+function MicroMetric({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className="py-2.5">
+      <div className="text-[9px] text-slate-600 uppercase tracking-widest font-bold">{label}</div>
+      <div className={`text-[13px] font-semibold tabular-nums mt-0.5 ${highlight ? "text-emerald-400" : "text-slate-200"}`}>{value}</div>
     </div>
   );
 }

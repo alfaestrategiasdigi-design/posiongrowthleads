@@ -30,6 +30,13 @@ interface Campaign {
   };
 }
 
+type LinkedForm = {
+  form_id: string;
+  label: string;
+  total_leads: number;
+  last_lead_at: string | null;
+};
+
 export default function TenantCampaigns() {
   const { tenant, loading: tLoading } = useTenant();
   const [loading, setLoading] = useState(false);
@@ -39,6 +46,8 @@ export default function TenantCampaigns() {
   const [error, setError] = useState<string | null>(null);
   const [crmWins, setCrmWins] = useState<Record<string, { count: number; value: number }>>({});
   const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [linkedForms, setLinkedForms] = useState<LinkedForm[]>([]);
+  const [lastBackfill, setLastBackfill] = useState<Date | null>(null);
 
   const load = async () => {
     if (!tenant) return;
@@ -84,7 +93,40 @@ export default function TenantCampaigns() {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { if (tenant) load(); /* eslint-disable-next-line */ }, [tenant?.id, activeOnly]);
+  useEffect(() => { if (tenant) { load(); loadLinkedForms(); } /* eslint-disable-next-line */ }, [tenant?.id, activeOnly]);
+
+  const loadLinkedForms = async () => {
+    if (!tenant) return;
+    const { data: rules } = await supabase
+      .from("lead_routing_rules")
+      .select("match_value,match_label")
+      .eq("tenant_id", tenant.id).eq("match_type", "form_id").eq("active", true);
+    const ruleList = (rules ?? []) as Array<{ match_value: string; match_label: string | null }>;
+    if (ruleList.length === 0) { setLinkedForms([]); setLastBackfill(null); return; }
+    const ids = ruleList.map((r) => r.match_value);
+    const { data: leads } = await supabase
+      .from("agency_leads")
+      .select("form_id,created_at")
+      .eq("tenant_id_criado", tenant.id)
+      .in("form_id", ids);
+    const rows = ((leads ?? []) as unknown) as Array<{ form_id: string; created_at: string }>;
+    const byForm: Record<string, { total: number; last: string | null }> = {};
+    let globalLast: string | null = null;
+    for (const l of rows) {
+      const k = l.form_id;
+      byForm[k] = byForm[k] || { total: 0, last: null };
+      byForm[k].total += 1;
+      if (!byForm[k].last || l.created_at > byForm[k].last!) byForm[k].last = l.created_at;
+      if (!globalLast || l.created_at > globalLast) globalLast = l.created_at;
+    }
+    setLinkedForms(ruleList.map((r) => ({
+      form_id: r.match_value,
+      label: r.match_label || `Form ${r.match_value}`,
+      total_leads: byForm[r.match_value]?.total ?? 0,
+      last_lead_at: byForm[r.match_value]?.last ?? null,
+    })));
+    setLastBackfill(globalLast ? new Date(globalLast) : null);
+  };
 
   const kpis = useMemo(() => {
     const s = campaigns.reduce((acc, c) => {
@@ -147,6 +189,50 @@ export default function TenantCampaigns() {
         <Kpi icon={TrendingUp} label="Faturamento" value={BRL(kpis.revenue)} tone="emerald" />
         <Kpi icon={Star} label="ROAS" value={`${kpis.roas.toFixed(2)}x`} tone="rose" />
       </div>
+
+      {/* Linked Lead Forms */}
+      <Card className="p-4 bg-gradient-to-br from-card to-background/60 border-primary/10">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-primary/80 flex items-center gap-1.5">
+              <Target className="w-3 h-3" /> Formulários Meta vinculados
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {linkedForms.length === 0
+                ? "Nenhum formulário Meta Lead Ads vinculado a esta clínica ainda. Peça à Posion para conectar."
+                : `${linkedForms.length} formulário(s) puxando leads automaticamente a cada 15 min.`}
+            </div>
+          </div>
+          <div className="text-right shrink-0">
+            <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Último lead recebido</div>
+            <div className="text-sm font-mono tabular-nums text-emerald-400 mt-0.5">
+              {lastBackfill
+                ? lastBackfill.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+                : "—"}
+            </div>
+          </div>
+        </div>
+        {linkedForms.length > 0 && (
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {linkedForms.map((f) => (
+              <div key={f.form_id} className="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-background/40 px-3 py-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-medium truncate" title={f.label}>{f.label}</div>
+                  <div className="text-[10px] font-mono text-muted-foreground truncate">{f.form_id}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-bold tabular-nums text-primary">{NUM(f.total_leads)}</div>
+                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                    {f.last_lead_at ? new Date(f.last_lead_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "sem leads"}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+
 
       {/* States */}
       {error && (
