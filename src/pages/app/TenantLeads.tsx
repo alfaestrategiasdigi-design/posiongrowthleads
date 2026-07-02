@@ -99,7 +99,7 @@ export default function TenantLeads() {
       channel,
       seller_name: ex.seller_name ?? null,
       procedure_interest: r.especialidade ?? null,
-      product: ex.product ?? r.facebook_form_name ?? null,
+      product: ex.product ?? null,
       stage: (r.status ?? "lead") as PipelineStage,
       sale_amount: r.status === "ganho" ? Number(r.valor_proposta ?? 0) : null,
       negotiation_value: r.valor_proposta != null ? Number(r.valor_proposta) : null,
