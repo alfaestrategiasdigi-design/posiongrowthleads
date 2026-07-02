@@ -346,6 +346,17 @@ export default function TenantCampaigns() {
                 <div className="text-[11px] text-muted-foreground italic pl-1">Sem dados no período.</div>
               )}
 
+              {c.daily && c.daily.length > 1 && (
+                <div className="pl-1">
+                  <div className="flex items-center justify-between text-[9px] uppercase tracking-wider text-muted-foreground mb-0.5">
+                    <span>Tendência de leads · {period}d</span>
+                    <span className="tabular-nums text-cyan-400">{NUM(c.daily.reduce((a, d) => a + (d.leads || 0), 0))}</span>
+                  </div>
+                  <Sparkline data={c.daily} dataKey="leads" color="#22d3ee" />
+                </div>
+              )}
+
+
               <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1.5 flex items-center justify-between ml-1">
                 <div className="text-[9px] uppercase tracking-wider text-emerald-400 flex items-center gap-1">
                   <Star className="w-3 h-3" /> Receita
