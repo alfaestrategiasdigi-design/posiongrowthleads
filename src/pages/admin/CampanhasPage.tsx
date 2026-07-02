@@ -71,8 +71,13 @@ export default function CampanhasPage() {
   const [budgetDialog, setBudgetDialog] = useState<{ open: boolean; id?: string; name?: string; current?: string }>({ open: false });
   const [budgetValue, setBudgetValue] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const [addRuleOpen, setAddRuleOpen] = useState(false);
-  const [newRule, setNewRule] = useState({ form_id: "", tenant_id: "" });
+
+  type LeadForm = { id: string; name: string; status?: string; leads_count?: number; created_time?: string };
+  const [leadForms, setLeadForms] = useState<LeadForm[]>([]);
+  const [loadingForms, setLoadingForms] = useState(false);
+  const [formsError, setFormsError] = useState<string | null>(null);
+  const [syncingForm, setSyncingForm] = useState<string | null>(null);
+  const [lastLeadsSync, setLastLeadsSync] = useState<string | null>(null);
 
   const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
   const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
@@ -335,26 +340,83 @@ export default function CampanhasPage() {
     loadRules();
   };
 
-  const addFormRule = async () => {
-    if (!newRule.form_id || !newRule.tenant_id) {
-      toast({ title: "Preencha form_id e cliente", variant: "destructive" }); return;
-    }
-    const { error } = await supabase.from("lead_routing_rules").insert({
-      tenant_id: newRule.tenant_id, match_type: "form_id", match_value: newRule.form_id.trim(),
-      match_label: `Form ${newRule.form_id.trim()}`, priority: 5, active: true,
-    } as any);
-    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Regra criada" });
-    setAddRuleOpen(false);
-    setNewRule({ form_id: "", tenant_id: "" });
-    loadRules();
+  // ===== Lead Forms (Meta) =====
+  const loadLeadForms = async () => {
+    setLoadingForms(true); setFormsError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
+        body: { action: "list_lead_forms" },
+      });
+      if (error) throw error;
+      if (data?.need_page) { setFormsError(data.error); setLeadForms([]); return; }
+      if (data?.error) throw new Error(data.error);
+      setLeadForms((data?.data ?? []) as LeadForm[]);
+    } catch (e: any) {
+      setFormsError(e.message ?? "Falha ao carregar formulários");
+      setLeadForms([]);
+    } finally { setLoadingForms(false); }
   };
 
-  const removeRule = async (id: string) => {
-    const { error } = await supabase.from("lead_routing_rules").delete().eq("id", id);
-    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-    loadRules();
+  const bindFormToTenant = async (formId: string, formName: string, tenantId: string) => {
+    setBusy(`form:${formId}`);
+    try {
+      await supabase.from("lead_routing_rules")
+        .delete().eq("match_type", "form_id").eq("match_value", formId);
+      if (tenantId && tenantId !== "__none__") {
+        const { error } = await supabase.from("lead_routing_rules").insert({
+          tenant_id: tenantId, match_type: "form_id", match_value: formId,
+          match_label: formName, priority: 5, active: true,
+        } as any);
+        if (error) throw error;
+        toast({ title: "Formulário vinculado", description: formName });
+      } else {
+        toast({ title: "Vínculo removido", description: formName });
+      }
+      loadRules();
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    } finally { setBusy(null); }
   };
+
+  const syncFormNow = async (formId: string, formName: string) => {
+    setSyncingForm(formId);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-backfill-leads", {
+        body: { form_ids: [formId], max_per_form: 200 },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const s = (data?.summary ?? [])[0] ?? {};
+      toast({
+        title: "Sync concluído",
+        description: `${formName}: ${s.imported ?? 0} novo(s), ${s.deduped ?? 0} duplicado(s)`,
+      });
+      setLastLeadsSync(new Date().toISOString());
+    } catch (e: any) {
+      toast({ title: "Falha no sync", description: e.message, variant: "destructive" });
+    } finally { setSyncingForm(null); }
+  };
+
+  const syncAllForms = async () => {
+    setSyncingForm("__all__");
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-backfill-leads", { body: {} });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const total = (data?.summary ?? []).reduce((a: number, x: any) => a + (x.imported ?? 0), 0);
+      toast({ title: "Sync geral concluído", description: `${total} lead(s) importado(s).` });
+      setLastLeadsSync(new Date().toISOString());
+    } catch (e: any) {
+      toast({ title: "Falha no sync", description: e.message, variant: "destructive" });
+    } finally { setSyncingForm(null); }
+  };
+
+  const formTenantMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of rules) if (r.active && r.match_type === "form_id") m.set(r.match_value, r.tenant_id);
+    return m;
+  }, [rules]);
+
 
   // ===== KPIs =====
   const visibleCampaigns = useMemo(
@@ -516,33 +578,101 @@ export default function CampanhasPage() {
               </div>
             </div>
 
-            {/* Form_id rules */}
+            {/* Lead Forms (Meta) → Cliente */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Regras form_id → Cliente</div>
-                <Button size="sm" variant="ghost" onClick={() => setAddRuleOpen(true)}
-                  className="h-7 text-[10px] text-[#C9A84C] hover:text-[#F0D78C] hover:bg-[#C9A84C]/10">
-                  <Plus className="w-3 h-3 mr-1" /> ADICIONAR
-                </Button>
+                <div>
+                  <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Formulários de Lead Ads → Cliente</div>
+                  <div className="text-[10px] text-slate-600 mt-0.5">
+                    {leadForms.length > 0
+                      ? `${leadForms.filter((f) => formTenantMap.has(f.id)).length} de ${leadForms.length} vinculado(s)${lastLeadsSync ? ` · última sync ${new Date(lastLeadsSync).toLocaleTimeString("pt-BR")}` : ""}`
+                      : "Puxa direto da página Facebook conectada"}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="ghost" onClick={loadLeadForms} disabled={loadingForms}
+                    className="h-7 text-[10px] text-slate-400 hover:text-white">
+                    {loadingForms ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                    ATUALIZAR LISTA
+                  </Button>
+                  <Button size="sm" onClick={syncAllForms} disabled={syncingForm === "__all__" || leadForms.length === 0}
+                    className="h-7 text-[10px] bg-[#C9A84C]/10 text-[#C9A84C] hover:bg-[#C9A84C] hover:text-[#050505] border border-[#C9A84C]/20">
+                    {syncingForm === "__all__" ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                    SYNC TODOS
+                  </Button>
+                </div>
               </div>
-              {formIdRules.length === 0 ? (
-                <div className="text-[11px] text-slate-500 italic">Nenhuma regra específica de formulário. Leads caem pelo vínculo da conta de anúncio.</div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {formIdRules.map((r) => {
-                    const tname = tenants.find((t) => t.id === r.tenant_id)?.name ?? "?";
-                    return (
-                      <div key={r.id} className="flex items-center gap-2 px-2.5 py-1 rounded bg-white/5 border border-white/10 text-[11px]">
-                        <span className="text-slate-300 font-mono">{r.match_value}</span>
-                        <span className="text-slate-600">→</span>
-                        <span className="text-[#C9A84C]">{tname}</span>
-                        <button onClick={() => removeRule(r.id)} className="text-slate-500 hover:text-red-400"><X className="w-3 h-3" /></button>
-                      </div>
-                    );
-                  })}
+
+              {formsError && (
+                <div className="text-[11px] text-amber-500 bg-amber-500/5 border border-amber-500/20 rounded px-3 py-2 mb-2">
+                  {formsError}
+                </div>
+              )}
+
+              {!formsError && leadForms.length === 0 && !loadingForms && (
+                <div className="text-[11px] text-slate-500 italic px-2 py-3">
+                  Clique em "Atualizar lista" para carregar os formulários da página Facebook conectada.
+                </div>
+              )}
+
+              {leadForms.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-slate-500 border-b border-white/5 text-left">
+                        <th className="py-2 font-medium">FORMULÁRIO</th>
+                        <th className="py-2 font-medium">ID</th>
+                        <th className="py-2 font-medium text-right">LEADS</th>
+                        <th className="py-2 font-medium">CLIENTE VINCULADO</th>
+                        <th className="py-2 font-medium text-right">AÇÃO</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {leadForms.map((f) => {
+                        const linked = formTenantMap.get(f.id) ?? "__none__";
+                        const linkedName = linked !== "__none__" ? tenants.find((t) => t.id === linked)?.name : null;
+                        return (
+                          <tr key={f.id}>
+                            <td className="py-3 text-white">
+                              <div className="flex items-center gap-2">
+                                <span className={`w-1.5 h-1.5 rounded-full ${linkedName ? "bg-emerald-500" : "bg-slate-600"}`} />
+                                {f.name}
+                              </div>
+                            </td>
+                            <td className="py-3 text-slate-500 font-mono text-[10px]">{f.id}</td>
+                            <td className="py-3 text-slate-400 text-right tabular-nums">{f.leads_count ?? 0}</td>
+                            <td className="py-3">
+                              <Select
+                                value={linked}
+                                onValueChange={(v) => bindFormToTenant(f.id, f.name, v)}
+                                disabled={busy === `form:${f.id}`}
+                              >
+                                <SelectTrigger className="bg-[#111] border-white/10 text-slate-300 h-8 w-[220px] text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__">— Sem vínculo (vai para fallback) —</SelectItem>
+                                  {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="py-3 text-right">
+                              <Button size="sm" variant="ghost" onClick={() => syncFormNow(f.id, f.name)}
+                                disabled={syncingForm === f.id}
+                                className="h-7 text-[10px] text-[#C9A84C] hover:bg-[#C9A84C]/10">
+                                {syncingForm === f.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                                SYNC AGORA
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
+
           </div>
         </details>
 
@@ -665,32 +795,6 @@ export default function CampanhasPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add form rule dialog */}
-      <Dialog open={addRuleOpen} onOpenChange={setAddRuleOpen}>
-        <DialogContent className="bg-[#0A0A0A] border-white/10 text-slate-200">
-          <DialogHeader><DialogTitle>Nova regra form_id → cliente</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Form ID (Facebook Lead Form)</Label>
-              <Input value={newRule.form_id} onChange={(e) => setNewRule({ ...newRule, form_id: e.target.value })}
-                placeholder="1234567890" className="bg-[#111] border-white/10 text-white font-mono" />
-            </div>
-            <div>
-              <Label>Cliente</Label>
-              <Select value={newRule.tenant_id} onValueChange={(v) => setNewRule({ ...newRule, tenant_id: v })}>
-                <SelectTrigger className="bg-[#111] border-white/10 text-white"><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                <SelectContent>
-                  {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setAddRuleOpen(false)}>Cancelar</Button>
-            <Button onClick={addFormRule} className="bg-[#C9A84C] hover:bg-[#F0D78C] text-[#050505] font-bold">Adicionar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

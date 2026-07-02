@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
 
   const { data: cfg } = await admin
     .from("facebook_webhook_config")
-    .select("page_access_token, user_access_token, ad_account_id")
+    .select("page_access_token, user_access_token, ad_account_id, page_id")
     .limit(1).maybeSingle();
 
   // Marketing API (ad accounts, campaigns, insights) requires a USER token with ads_read/ads_management.
@@ -296,6 +296,18 @@ Deno.serve(async (req) => {
         const row = r.body.data?.[0] ?? null;
         cacheSet(cacheKey, row);
         return json({ ok: true, data: r.body.data ?? [], cache: "miss" });
+      }
+
+      case "list_lead_forms": {
+        const pageId = String(cfg?.page_id ?? "").trim();
+        const pageToken = String(cfg?.page_access_token ?? "").trim() || token;
+        if (!pageId) return json({ ok: false, error: "page_id não configurado. Conecte a página Facebook em Configurações → Facebook.", need_page: true }, 200);
+        const r = await fbGet(`${pageId}/leadgen_forms`, pageToken, {
+          fields: "id,name,status,leads_count,created_time",
+          limit: "200",
+        });
+        if (!r.ok) return fbErr(r.body);
+        return json({ ok: true, data: r.body.data ?? [], page_id: pageId });
       }
 
       default:
