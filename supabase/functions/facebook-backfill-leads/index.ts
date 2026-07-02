@@ -1,6 +1,9 @@
 // Importação retroativa de leads do Facebook Lead Ads.
 // POST body: { form_ids?: string[], max_per_form?: number }
-// Se form_ids estiver vazio, busca todos os formulários da página.
+// Se form_ids estiver vazio, busca todos os formulários da página configurada.
+// IMPORTANTE: descobre a Página dona de cada form via user_access_token e usa o
+// page_access_token correto de /me/accounts — assim funciona para forms de
+// qualquer Página que o usuário administre, não apenas da página "principal".
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -13,6 +16,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY     = Deno.env.get("SUPABASE_ANON_KEY")!;
 const FB_TOKEN_ENV = Deno.env.get("FACEBOOK_PAGE_ACCESS_TOKEN") ?? "";
+const GRAPH = "https://graph.facebook.com/v21.0";
 
 const pick = (obj: Record<string, any>, keys: string[]): string | null => {
   for (const k of keys) {
@@ -44,7 +48,6 @@ Deno.serve(async (req) => {
   const bearer = authHeader.replace("Bearer ", "").trim();
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-  // Cron / service-role bypass: allow invocations using the service role key
   const isService = bearer === SERVICE_KEY;
   if (!isService) {
     const userClient = createClient(SUPABASE_URL, ANON_KEY, {
@@ -66,31 +69,58 @@ Deno.serve(async (req) => {
     }
   }
 
-
   let payload: any = {};
   try { payload = await req.json(); } catch { /* no body */ }
   const requestedForms: string[] = Array.isArray(payload.form_ids) ? payload.form_ids : [];
   const maxPerForm: number = Number(payload.max_per_form ?? 200);
 
   const { data: cfg } = await admin
-    .from("facebook_webhook_config").select("page_access_token, page_id, ad_account_id, default_tenant_id").limit(1).maybeSingle();
-  const token = cfg?.page_access_token || FB_TOKEN_ENV;
-  if (!token) {
-    return new Response(JSON.stringify({ error: "Token do Facebook não configurado (banco e secret vazios)" }), {
+    .from("facebook_webhook_config")
+    .select("page_access_token, user_access_token, page_id, ad_account_id, default_tenant_id")
+    .limit(1).maybeSingle();
+  const pagePrimaryToken = (cfg as any)?.page_access_token || FB_TOKEN_ENV;
+  const userToken = (cfg as any)?.user_access_token || "";
+  const primaryPageId = (cfg as any)?.page_id || null;
+
+  if (!pagePrimaryToken && !userToken) {
+    return new Response(JSON.stringify({ error: "Nenhum token do Facebook configurado" }), {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  // Resolve list of forms to import
+  // Cache de tokens por Página, montado a partir de /me/accounts (user token)
+  const pageTokenCache: Record<string, { token: string; name?: string }> = {};
+  if (primaryPageId && pagePrimaryToken) {
+    pageTokenCache[primaryPageId] = { token: pagePrimaryToken };
+  }
+  const loadPagesErrors: any[] = [];
+  if (userToken) {
+    try {
+      let url: string | null = `${GRAPH}/me/accounts?fields=id,name,access_token&limit=200&access_token=${encodeURIComponent(userToken)}`;
+      while (url) {
+        const r = await fetch(url);
+        const j: any = await r.json();
+        if (!r.ok) { loadPagesErrors.push(j?.error ?? j); break; }
+        for (const p of j.data ?? []) {
+          if (p?.id && p?.access_token) pageTokenCache[p.id] = { token: p.access_token, name: p.name };
+        }
+        url = j.paging?.next ?? null;
+      }
+    } catch (e) { loadPagesErrors.push(String(e)); }
+  }
+
+  // Resolve list of forms — quando vazio, usa a página primária
   let formIds: string[] = requestedForms.slice();
-  let formsMeta: Record<string, { name?: string }> = {};
+  const formsMeta: Record<string, { name?: string; page_id?: string; page_name?: string }> = {};
+
   if (!formIds.length) {
-    if (!cfg?.page_id) {
+    if (!primaryPageId) {
       return new Response(JSON.stringify({ error: "page_id não configurado e nenhum form_ids enviado" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const r = await fetch(`https://graph.facebook.com/v21.0/${cfg.page_id}/leadgen_forms?fields=id,name&limit=100&access_token=${encodeURIComponent(token)}`);
+    const tok = pageTokenCache[primaryPageId]?.token || pagePrimaryToken;
+    const r = await fetch(`${GRAPH}/${primaryPageId}/leadgen_forms?fields=id,name&limit=100&access_token=${encodeURIComponent(tok)}`);
     const j = await r.json();
     if (!r.ok) {
       return new Response(JSON.stringify({ error: "Falha listando forms", detail: j }), {
@@ -99,32 +129,65 @@ Deno.serve(async (req) => {
     }
     for (const f of j.data ?? []) {
       formIds.push(f.id);
-      formsMeta[f.id] = { name: f.name };
+      formsMeta[f.id] = { name: f.name, page_id: primaryPageId };
     }
   }
 
-  const summary: any[] = [];
+  // Descobre Página dona de cada form usando user token (ou page primary token)
+  const discoverToken = userToken || pagePrimaryToken;
+  for (const formId of formIds) {
+    if (formsMeta[formId]?.page_id) continue;
+    try {
+      const r = await fetch(`${GRAPH}/${formId}?fields=name,page{id,name}&access_token=${encodeURIComponent(discoverToken)}`);
+      const j: any = await r.json();
+      if (r.ok) {
+        formsMeta[formId] = {
+          name: j.name,
+          page_id: j.page?.id,
+          page_name: j.page?.name,
+        };
+        if (j.page?.id && !pageTokenCache[j.page.id]?.name && j.page?.name) {
+          pageTokenCache[j.page.id] = { ...(pageTokenCache[j.page.id] ?? { token: "" }), name: j.page.name };
+        }
+      } else {
+        formsMeta[formId] = { name: undefined };
+      }
+    } catch { formsMeta[formId] = {}; }
+  }
+
+  const by_form: any[] = [];
 
   for (const formId of formIds) {
-    // pega metadata do form (nome) se ainda não temos
-    if (!formsMeta[formId]) {
-      try {
-        const r = await fetch(`https://graph.facebook.com/v21.0/${formId}?fields=name&access_token=${encodeURIComponent(token)}`);
-        const j = await r.json();
-        if (r.ok) formsMeta[formId] = { name: j.name };
-      } catch { /* ignore */ }
+    const meta = formsMeta[formId] ?? {};
+    const pageId = meta.page_id;
+    const formName = meta.name ?? null;
+    const pageName = meta.page_name ?? (pageId ? pageTokenCache[pageId]?.name : undefined) ?? null;
+
+    // Escolhe token da Página dona (necessário para /leads)
+    const pageToken = pageId ? pageTokenCache[pageId]?.token : undefined;
+    const fetchToken = pageToken || (pageId === primaryPageId ? pagePrimaryToken : "");
+
+    if (!fetchToken) {
+      by_form.push({
+        form_id: formId, form_name: formName, page_id: pageId, page_name: pageName,
+        error: pageId
+          ? `Sem Page Access Token para a Página ${pageName ?? pageId}. Faça login no Facebook como admin dessa Página no fluxo de conexão.`
+          : "Não foi possível identificar a Página dona do formulário.",
+        imported: 0, deduped: 0, failed: 0, fetched: 0,
+      });
+      continue;
     }
-    const formName = formsMeta[formId]?.name ?? null;
 
     let imported = 0, deduped = 0, failed = 0, fetched = 0;
     let url: string | null =
-      `https://graph.facebook.com/v21.0/${formId}/leads?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id&limit=50&access_token=${encodeURIComponent(token)}`;
+      `${GRAPH}/${formId}/leads?fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id&limit=50&access_token=${encodeURIComponent(fetchToken)}`;
+    let errMsg: string | null = null;
 
     while (url && fetched < maxPerForm) {
       const r = await fetch(url);
       const j: any = await r.json();
       if (!r.ok) {
-        summary.push({ form_id: formId, form_name: formName, error: j?.error?.message ?? `HTTP ${r.status}`, imported, deduped, failed, fetched });
+        errMsg = j?.error?.message ?? `HTTP ${r.status}`;
         url = null;
         break;
       }
@@ -148,11 +211,10 @@ Deno.serve(async (req) => {
           .from("leads").select("id").eq("facebook_lead_id", lead.id).maybeSingle();
         if (existing) { deduped++; continue; }
 
-        // Fase 2 — roteamento por mapeamento
         const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
           p_form_id: lead.form_id ?? formId,
           p_ad_account_id: (cfg as any)?.ad_account_id ?? null,
-          p_page_id: (cfg as any)?.page_id ?? null,
+          p_page_id: pageId ?? primaryPageId ?? null,
         });
         const routedTenant = (rpc as string | null) ?? (cfg as any)?.default_tenant_id ?? null;
 
@@ -160,7 +222,7 @@ Deno.serve(async (req) => {
           await admin.from("unrouted_leads").insert({
             raw_payload: lead,
             form_id: lead.form_id ?? formId,
-            page_id: (cfg as any)?.page_id ?? null,
+            page_id: pageId ?? primaryPageId ?? null,
             ad_account_id: (cfg as any)?.ad_account_id ?? null,
             facebook_lead_id: lead.id,
             nome, whatsapp, email,
@@ -205,22 +267,31 @@ Deno.serve(async (req) => {
         } else {
           imported++;
         }
-
       }
       url = j.paging?.next ?? null;
     }
 
-    summary.push({ form_id: formId, form_name: formName, fetched, imported, deduped, failed });
+    by_form.push({
+      form_id: formId, form_name: formName, page_id: pageId, page_name: pageName,
+      fetched, imported, deduped, failed, ...(errMsg ? { error: errMsg } : {}),
+    });
   }
 
-  const totals = summary.reduce((acc, s) => ({
+  const totals = by_form.reduce((acc, s) => ({
     fetched: acc.fetched + (s.fetched ?? 0),
     imported: acc.imported + (s.imported ?? 0),
     deduped: acc.deduped + (s.deduped ?? 0),
     failed: acc.failed + (s.failed ?? 0),
   }), { fetched: 0, imported: 0, deduped: 0, failed: 0 });
 
-  return new Response(JSON.stringify({ ok: true, totals, by_form: summary }, null, 2), {
+  return new Response(JSON.stringify({
+    ok: true,
+    totals,
+    by_form,
+    summary: by_form, // compat com UI antiga
+    pages_loaded: Object.keys(pageTokenCache).length,
+    pages_errors: loadPagesErrors,
+  }, null, 2), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });
