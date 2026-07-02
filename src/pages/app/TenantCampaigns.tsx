@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
-  Loader2, RefreshCw, TrendingUp, Users, DollarSign, Target,
+  Loader2, RefreshCw, TrendingUp, Users, DollarSign, Target, Download,
   Activity, AlertCircle, Megaphone, Star, ExternalLink, Copy, Eye, MousePointerClick,
 } from "lucide-react";
 import {
@@ -178,6 +178,9 @@ export default function TenantCampaigns() {
           <label className="flex items-center gap-2 text-sm">
             <Switch checked={activeOnly} onCheckedChange={setActiveOnly} /> Apenas ativas
           </label>
+          <Button variant="outline" size="sm" onClick={() => exportCsv(campaigns, crmWins)} disabled={!campaigns.length} className="gap-2" aria-label="Exportar CSV">
+            <Download className="w-4 h-4" /> CSV
+          </Button>
           <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-2">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             Atualizar
@@ -410,4 +413,35 @@ function Metric({ label, value }: { label: string; value: string }) {
       <div className="font-semibold tabular-nums text-[11px] mt-0.5">{value}</div>
     </div>
   );
+}
+
+function exportCsv(campaigns: any[], crmWins: Record<string, { count: number; value: number }>) {
+  const header = ["campaign_id","name","status","spend","leads","cpl","impressions","clicks","ctr","cpc","crm_wins","crm_revenue"];
+  const rows = campaigns.map((c) => {
+    const ins = c.insights || {};
+    const spend = Number(ins.spend || 0);
+    const leads = Number(ins.leads || 0);
+    const wins = crmWins[c.id] || { count: 0, value: 0 };
+    return [
+      c.id,
+      `"${String(c.name || "").replace(/"/g, '""')}"`,
+      c.effective_status || c.status || "",
+      spend.toFixed(2),
+      leads,
+      leads > 0 ? (spend / leads).toFixed(2) : "",
+      ins.impressions || 0,
+      ins.clicks || 0,
+      ins.ctr || "",
+      ins.cpc || "",
+      wins.count,
+      wins.value.toFixed(2),
+    ].join(",");
+  });
+  const csv = [header.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `campanhas_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
 }
