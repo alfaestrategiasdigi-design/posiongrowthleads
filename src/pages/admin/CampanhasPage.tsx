@@ -1166,6 +1166,8 @@ export default function CampanhasPage() {
                         busy={busyObject === c.id}
                         crmWins={crmWinsByCampaign[(c.name || "").trim().toLowerCase()] || 0}
                         crmRevenue={crmRevenueByCampaign[(c.name || "").trim().toLowerCase()] || 0}
+                        wonLeads={wonLeadsByCampaign[(c.name || "").trim().toLowerCase()] || []}
+
                         onToggle={() => toggleCampaignStatus(c)}
                         onBudget={() => openBudgetDialog(c.id, c.name, c.daily_budget)}
                         onArchive={() => archiveObject(c.id, "campaign")}
