@@ -319,10 +319,10 @@ export default function TenantDashboard() {
 
       {/* Headline KPIs — Premium Flat */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiPremium icon={DollarSign} label="Faturamento" value={total ? BRL(total) : null} delta={varTotal} loading={loading} prevLabel={prevMonthLabel} spark={sparkRev} />
-        <KpiPremium icon={ShoppingBag} label="Nº de Vendas" value={count ? count.toString() : null} delta={varCount} loading={loading} prevLabel={prevMonthLabel} spark={sparkCount} />
-        <KpiPremium icon={Receipt} label="Ticket Médio" value={avg ? BRL(avg) : null} delta={varTicket} loading={loading} prevLabel={prevMonthLabel} spark={sparkTicket} />
-        <KpiPremium icon={Trophy} label="Maior Venda" value={maxSale ? BRL(maxSale.amount) : null} sub={maxSale?.patient_name} loading={loading} />
+        <KpiPremium icon={DollarSign} label="Faturamento" value={loading ? null : BRL(total)} delta={varTotal} loading={loading} prevLabel={prevMonthLabel} spark={sparkRev} />
+        <KpiPremium icon={ShoppingBag} label="Nº de Vendas" value={loading ? null : String(count)} delta={varCount} loading={loading} prevLabel={prevMonthLabel} spark={sparkCount} />
+        <KpiPremium icon={Receipt} label="Ticket Médio" value={loading ? null : BRL(avg)} delta={varTicket} loading={loading} prevLabel={prevMonthLabel} spark={sparkTicket} />
+        <KpiPremium icon={Trophy} label="Maior Venda" value={loading ? null : BRL(maxSale?.amount ?? 0)} sub={maxSale?.patient_name || "—"} loading={loading} />
       </div>
 
 
