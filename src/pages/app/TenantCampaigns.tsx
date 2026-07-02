@@ -7,8 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
   Loader2, RefreshCw, TrendingUp, Users, DollarSign, Target,
-  Activity, AlertCircle, Megaphone, Star,
+  Activity, AlertCircle, Megaphone, Star, ExternalLink, Copy, Eye, MousePointerClick,
 } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 const BRL = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v || 0);
 const NUM = (v: number) => new Intl.NumberFormat("pt-BR").format(Math.round(v || 0));
