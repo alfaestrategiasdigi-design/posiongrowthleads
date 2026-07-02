@@ -171,7 +171,7 @@ const LeadDetailModal = ({ lead, open, onClose, onUpdated }: LeadDetailModalProp
             const formTag = findVal(["formulario", "formulário"]);
             const submittedAt = fb.created_time ?? null;
             const formId = fb.form_id ?? lead.facebook_form_id ?? null;
-            const formName = fb.form_name ?? lead.facebook_form_name ?? null;
+            const formName = fb.form_name ?? null;
             const campaignName = fb.campaign_name ?? lead.facebook_campaign ?? null;
             if (!formId && !submittedAt && !campaignName && !inboxUrl) return null;
             return (
