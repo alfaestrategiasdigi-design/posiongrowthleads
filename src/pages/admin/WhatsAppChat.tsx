@@ -4,9 +4,11 @@ import {
   Search, Send, Paperclip, Phone, MoreVertical, MessageCircle, Smile,
   Settings, QrCode, Copy, CheckCircle2, Loader2, Wifi, WifiOff, RefreshCw,
   Tag as TagIcon, Sparkles, Filter, FileText, Check, CheckCheck, AlertTriangle,
-  Plus, X, Trash2, Reply, MapPin, User as UserIcon, Mic, StopCircle, CornerDownRight,
+  Plus, X, Trash2, Reply, MapPin, User as UserIcon, Mic, StopCircle, CornerDownRight, Target, ExternalLink,
 } from "lucide-react";
 import type { MessageReaction } from "@/types/admin";
+import UnifiedLeadPanel from "@/components/leads/UnifiedLeadPanel";
+
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -67,7 +69,10 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const [convTags, setConvTags] = useState<Record<string, TagRow[]>>({});
   const [allTags, setAllTags] = useState<TagRow[]>([]);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [onlyWithLead, setOnlyWithLead] = useState(false);
+  const [leadPanelId, setLeadPanelId] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -554,8 +559,12 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       if (!hay.includes(q)) return false;
     }
     if (tagFilter && !(convTags[c.id] || []).some(t => t.id === tagFilter)) return false;
+    if (onlyWithLead && !c.lead_id) return false;
     return true;
-  }), [conversations, q, tagFilter, convTags]);
+  }), [conversations, q, tagFilter, convTags, onlyWithLead]);
+
+  const linkedCount = useMemo(() => conversations.filter(c => c.lead_id).length, [conversations]);
+
 
   const formatListTime = (dateStr: string | null) => {
     if (!dateStr) return "";
