@@ -106,15 +106,17 @@ Deno.serve(async (req) => {
         const email = pick(fields, ["email", "e-mail", "email_address"]);
         const whatsapp = normPhone(pick(fields, ["phone_number", "phone", "telefone", "whatsapp"]) ?? "");
 
-        // Fase 2 — roteamento por mapeamento
-        const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
+        // Roteamento STRICT por form_id (nada de bleed via ad_account/page).
+        // Rules com is_admin_master=true => lead atribuído ao POSION (tenant_id=NULL).
+        const { data: routing } = await admin.rpc("resolve_form_routing", {
           p_form_id: lead.form_id ?? f.id,
-          p_ad_account_id: adAccountId,
-          p_page_id: pageId,
         });
-        const tenantId = (rpc as string | null) ?? null;
+        const route: any = Array.isArray(routing) ? routing[0] : routing;
+        const matched = !!route?.matched;
+        const isMaster = !!route?.is_admin_master;
+        const tenantId = (route?.tenant_id as string | null) ?? null;
 
-        if (!tenantId) {
+        if (!matched) {
           await admin.from("unrouted_leads").insert({
             raw_payload: lead,
             form_id: lead.form_id ?? f.id,
@@ -126,6 +128,8 @@ Deno.serve(async (req) => {
           fUnr++; unrouted++;
           continue;
         }
+        // matched: pode ser tenant OU admin_master (tenantId=null)
+
 
         const insLead = await admin.from("leads").insert({
           nome_completo: nome,
