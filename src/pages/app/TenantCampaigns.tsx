@@ -20,6 +20,36 @@ const NUM = (v: number) => new Intl.NumberFormat("pt-BR").format(Math.round(v ||
 const daysAgoISO = (d: number) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+const OBJECTIVE_LABELS: Record<string, string> = {
+  OUTCOME_LEADS: "Cadastros",
+  LEAD_GENERATION: "Cadastros",
+  OUTCOME_ENGAGEMENT: "Engajamento",
+  MESSAGES: "Conversas",
+  OUTCOME_SALES: "Vendas",
+  CONVERSIONS: "Conversões",
+  OUTCOME_TRAFFIC: "Tráfego",
+  LINK_CLICKS: "Cliques",
+  OUTCOME_AWARENESS: "Reconhecimento",
+  BRAND_AWARENESS: "Reconhecimento",
+  REACH: "Alcance",
+  VIDEO_VIEWS: "Vídeo",
+  OUTCOME_APP_PROMOTION: "App",
+};
+const formatObjective = (obj?: string) => {
+  if (!obj) return "";
+  const key = obj.toUpperCase();
+  return OBJECTIVE_LABELS[key] || key.replace(/^OUTCOME_/, "").replace(/_/g, " ").toLowerCase();
+};
+const cprLabel = (kind?: "messaging" | "leads" | "purchases" | "link_clicks") => {
+  switch (kind) {
+    case "messaging": return "Custo/Conv";
+    case "purchases": return "CPA";
+    case "link_clicks": return "CPC";
+    default: return "CPL";
+  }
+};
+
+
 interface DailyPoint { date: string; spend: number; leads: number; clicks: number; impressions: number }
 interface Campaign {
   id: string;
