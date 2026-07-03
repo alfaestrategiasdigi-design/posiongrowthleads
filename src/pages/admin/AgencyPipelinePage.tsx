@@ -282,6 +282,14 @@ export default function AgencyPipelinePage() {
         onDelete={editing ? () => { removeLead(editing.id); setEditing(null); } : undefined}
       />
 
+      <UnifiedLeadPanel
+        source="agency_lead"
+        leadId={panelLeadId}
+        open={!!panelLeadId}
+        onClose={() => setPanelLeadId(null)}
+        onUpdated={load}
+      />
+
       <Dialog open={!!promoteOpen} onOpenChange={(o) => !o && setPromoteOpen(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Promover para Clínica Cliente</DialogTitle></DialogHeader>
