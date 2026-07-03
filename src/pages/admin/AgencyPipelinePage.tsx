@@ -235,6 +235,11 @@ export default function AgencyPipelinePage() {
                         {l.cidade && <span className="flex items-center gap-0.5"><MapPin className="w-3 h-3" />{l.cidade}</span>}
                         {l.valor_proposta ? <span className="ml-auto font-semibold text-primary">{fmt(l.valor_proposta)}</span> : null}
                       </div>
+                      {stage.id === "ganho" && !l.campaign_id_manual && !l.utm_campaign && (
+                        <div className="mt-2 text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-1.5 py-1">
+                          ⚠ Sem campanha vinculada — clique para editar e escolha uma no combo.
+                        </div>
+                      )}
                       {stage.id === "ganho" && !l.tenant_id_criado && (
                         <Button
                           size="sm"
