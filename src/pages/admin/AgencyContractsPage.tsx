@@ -98,7 +98,6 @@ export default function AgencyContractsPage() {
                 <thead className="bg-muted/40">
                   <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
                     <th className="p-3">Cliente</th>
-                    <th className="p-3">Tenant</th>
                     <th className="p-3">Valor</th>
                     <th className="p-3">Comissão</th>
                     <th className="p-3">Duração</th>
@@ -109,20 +108,11 @@ export default function AgencyContractsPage() {
                 </thead>
                 <tbody>
                   {agency.length === 0 && (
-                    <tr><td colSpan={8} className="p-6 text-center text-muted-foreground text-sm">Nenhum contrato ainda.</td></tr>
+                    <tr><td colSpan={7} className="p-6 text-center text-muted-foreground text-sm">Nenhum contrato ainda.</td></tr>
                   )}
-                  {agency.map((c) => {
-                    const tenantName = c.tenant_id ? (tenants.find((t) => t.id === c.tenant_id)?.name || "—") : null;
-                    return (
+                  {agency.map((c) => (
                     <tr key={c.id} className="border-t border-border/40 hover:bg-muted/20 cursor-pointer" onClick={() => setDialog(c)}>
                       <td className="p-3 font-medium">{c.cliente_nome}</td>
-                      <td className="p-3">
-                        {tenantName ? (
-                          <Badge variant="outline" className="text-xs">{tenantName}</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-400 border-amber-500/30">Sem clínica</Badge>
-                        )}
-                      </td>
                       <td className="p-3">{fmt(c.valor_total)}</td>
                       <td className="p-3">{fmt(c.valor_comissao)}</td>
                       <td className="p-3">{c.duracao_meses || 12}m</td>
@@ -134,12 +124,12 @@ export default function AgencyContractsPage() {
                         </button>
                       </td>
                     </tr>
-                    );
-                  })}
+                  ))}
                 </tbody>
               </table>
             </div>
           )}
+
         </TabsContent>
         <TabsContent value="saas" className="mt-4">
           <div className="rounded-xl border border-border/60 bg-card/40 overflow-hidden">
