@@ -41,6 +41,21 @@ async function verifyHubSignature(secret: string, rawBody: string, header: strin
   return diff === 0;
 }
 
+// Roteamento STRICT por form_id. Retorna { matched, tenantId, isMaster }.
+// - matched=false  → nenhum tenant nem admin_master mapeou o form → unrouted_leads.
+// - matched=true, isMaster=true → lead do POSION (tenantId=null).
+// - matched=true, tenantId=uuid → lead da clínica.
+async function resolveRoute(formId: string | null): Promise<{ matched: boolean; tenantId: string | null; isMaster: boolean }> {
+  if (!formId) return { matched: false, tenantId: null, isMaster: false };
+  const { data } = await admin.rpc("resolve_form_routing", { p_form_id: formId });
+  const row: any = Array.isArray(data) ? data[0] : data;
+  return {
+    matched: !!row?.matched,
+    tenantId: (row?.tenant_id as string | null) ?? null,
+    isMaster: !!row?.is_admin_master,
+  };
+}
+
 async function fetchLeadFromGraph(leadgenId: string, token: string) {
   try {
     const fields = "id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id";
