@@ -1,51 +1,72 @@
-import { useEffect } from "react";
-import Header from "@/components/ui/Header";
-import HeroSection from "@/components/ui/HeroSection";
-import CasesSection from "@/components/ui/CasesSection";
-import BenefitsSection from "@/components/ui/BenefitsSection";
-import FinalCTASection from "@/components/ui/FinalCTASection";
-import FloatingCTAs from "@/components/ui/FloatingCTAs";
-import Footer from "@/components/ui/Footer";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useScrollReveal } from "@/hooks/useScrollReveal";
+import { Button } from "@/components/ui/button";
+import { Loader2, Lock, ShieldCheck } from "lucide-react";
+import { getPostLoginRedirect } from "@/lib/auth/post-login-redirect";
+import logoAsset from "@/assets/posion/logo-posion.png.asset.json";
 
-const Index = () => {
-  useScrollReveal();
+export default function Index() {
+  const navigate = useNavigate();
+  const [checking, setChecking] = useState(true);
+
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const utm_source = params.get("utm_source");
-    const utm_medium = params.get("utm_medium");
-    const utm_campaign = params.get("utm_campaign");
+    let alive = true;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!alive) return;
+      if (session?.user) {
+        const target = await getPostLoginRedirect();
+        navigate(target, { replace: true });
+        return;
+      }
+      setChecking(false);
+    })();
+    return () => { alive = false; };
+  }, [navigate]);
 
-    if (utm_source) {
-      try {
-        localStorage.setItem("posion_utms", JSON.stringify({
-          utm_source, utm_medium, utm_campaign, savedAt: Date.now(),
-        }));
-      } catch {}
-    }
-
-    supabase.from("page_views").insert({
-      path: window.location.pathname,
-      referrer: document.referrer || null,
-      utm_source, utm_medium, utm_campaign,
-      user_agent: navigator.userAgent.slice(0, 280),
-    } as any).then(() => {});
-  }, []);
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-white/60" />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex flex-col tech-bg geo-pattern">
-      <Header />
-      <main className="flex-1">
-        <HeroSection />
-        <CasesSection />
-        <BenefitsSection />
-        <FinalCTASection />
-      </main>
-      <Footer />
-      <FloatingCTAs />
+    <div className="min-h-screen bg-black flex items-center justify-center px-4">
+      <div className="w-full max-w-md">
+        <div className="flex flex-col items-center mb-8">
+          <img src={logoAsset.url} alt="Posion" className="h-12 w-auto mb-3" />
+          <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-white/50">
+            Posion OS · Área Restrita
+          </span>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-black p-8 shadow-2xl">
+          <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-5">
+            <Lock className="w-5 h-5 text-white/80" />
+          </div>
+          <h1 className="text-center text-2xl font-semibold text-white mb-2">
+            Central do Cliente
+          </h1>
+          <p className="text-center text-sm text-white/50 mb-7 leading-relaxed">
+            Acesso exclusivo para clínicas parceiras, equipe comercial e administradores Posion.
+          </p>
+
+          <Button
+            onClick={() => navigate("/login")}
+            className="w-full h-11 bg-white text-black hover:bg-white/90 font-semibold"
+          >
+            <ShieldCheck className="w-4 h-4 mr-2" />
+            Entrar na plataforma
+          </Button>
+        </div>
+
+        <p className="mt-6 text-center text-[10px] font-mono uppercase tracking-[0.25em] text-white/30">
+          Sessão criptografada · TLS 1.3
+        </p>
+      </div>
     </div>
   );
-};
-
-export default Index;
+}
