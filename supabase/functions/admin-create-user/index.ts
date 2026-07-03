@@ -51,13 +51,10 @@ Deno.serve(async (req) => {
       created = true;
     }
 
-    // Global role (upsert)
-    if (globalRole) {
-      const { error: rErr } = await admin
-        .from("user_roles")
-        .upsert({ user_id: userId, role: globalRole as any }, { onConflict: "user_id,role" });
-      if (rErr) return json({ error: `user_roles: ${rErr.message}` }, 400);
-    }
+    // Papel global exato: um usuário fica em uma categoria por vez.
+    await admin.from("user_roles").delete().eq("user_id", userId);
+    const { error: rErr } = await admin.from("user_roles").insert({ user_id: userId, role: globalRole as any });
+    if (rErr) return json({ error: `user_roles: ${rErr.message}` }, 400);
 
     // Conta Admin Master: fica somente no tenant master, nunca em clínica.
     if (MASTER_GLOBAL_ROLES.has(globalRole)) {

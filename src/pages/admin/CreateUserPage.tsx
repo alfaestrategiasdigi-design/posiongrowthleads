@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import {
-  Copy, Loader2, ShieldCheck, RefreshCw, Trash2, KeyRound, Plus, UserPlus, Search, X,
+  Building2, Copy, Loader2, ShieldCheck, RefreshCw, Trash2, KeyRound, Plus, UserPlus, Search, X,
 } from "lucide-react";
 
 type Tenant = { id: string; name: string };
