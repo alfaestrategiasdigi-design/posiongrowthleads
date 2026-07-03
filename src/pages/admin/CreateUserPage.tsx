@@ -86,14 +86,18 @@ export default function CreateUserPage() {
   const [submitting, setSubmitting] = useState(false);
   const isMasterAccount = globalRole === "admin" || globalRole === "comercial_admin_master";
   const tenantBound = globalRole === "admin_tenant" || globalRole === "comercial_tenant";
-  const agencyUsers = useMemo(
-    () => users.filter((u) => u.global_roles.includes("admin") || u.global_roles.includes("comercial_admin_master")),
-    [users],
-  );
-  const clinicUsers = useMemo(
-    () => users.filter((u) => !u.global_roles.includes("admin") && !u.global_roles.includes("comercial_admin_master")),
-    [users],
-  );
+  // Classificação EXATA:
+  // - Agência/Admin Master: possui papel global master OU está vinculado ao tenant Master
+  // - Clínica: possui vínculo com algum tenant que NÃO seja o Master e não é conta master
+  const isAgency = (u: ManagedUser) =>
+    u.global_roles.includes("admin") ||
+    u.global_roles.includes("comercial_admin_master") ||
+    u.tenants.some((t) => t.tenant_id === MASTER_TENANT_ID);
+  const isClinic = (u: ManagedUser) =>
+    !isAgency(u) && u.tenants.some((t) => t.tenant_id && t.tenant_id !== MASTER_TENANT_ID);
+  const agencyUsers = useMemo(() => users.filter(isAgency), [users]);
+  const clinicUsers = useMemo(() => users.filter(isClinic), [users]);
+
 
   const loadTenants = async () => {
     const { data } = await supabase.from("tenants").select("id,name").order("name");
