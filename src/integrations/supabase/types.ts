@@ -94,6 +94,7 @@ export type Database = {
           plano_interesse: string | null
           proximo_followup: string | null
           responsavel: string | null
+          sdr_qualification: Json | null
           source_lead_id: string | null
           stage: string
           tags: string[] | null
@@ -124,6 +125,7 @@ export type Database = {
           plano_interesse?: string | null
           proximo_followup?: string | null
           responsavel?: string | null
+          sdr_qualification?: Json | null
           source_lead_id?: string | null
           stage?: string
           tags?: string[] | null
@@ -154,6 +156,7 @@ export type Database = {
           plano_interesse?: string | null
           proximo_followup?: string | null
           responsavel?: string | null
+          sdr_qualification?: Json | null
           source_lead_id?: string | null
           stage?: string
           tags?: string[] | null
@@ -222,6 +225,7 @@ export type Database = {
       }
       appointments: {
         Row: {
+          agency_lead_id: string | null
           appointment_type: string
           channel: string | null
           client_name: string
@@ -243,6 +247,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          agency_lead_id?: string | null
           appointment_type?: string
           channel?: string | null
           client_name: string
@@ -264,6 +269,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          agency_lead_id?: string | null
           appointment_type?: string
           channel?: string | null
           client_name?: string
@@ -285,6 +291,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "appointments_agency_lead_id_fkey"
+            columns: ["agency_lead_id"]
+            isOneToOne: false
+            referencedRelation: "agency_leads"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "appointments_lead_id_fkey"
             columns: ["lead_id"]
@@ -1208,6 +1221,118 @@ export type Database = {
           },
         ]
       }
+      lead_task_comments: {
+        Row: {
+          author_name: string | null
+          author_user_id: string | null
+          body: string
+          created_at: string
+          id: string
+          task_id: string
+        }
+        Insert: {
+          author_name?: string | null
+          author_user_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          task_id: string
+        }
+        Update: {
+          author_name?: string | null
+          author_user_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "lead_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_tasks: {
+        Row: {
+          agency_lead_id: string | null
+          assignee_user_id: string | null
+          created_at: string
+          created_by: string | null
+          done: boolean
+          due_date: string | null
+          id: string
+          lead_id: string | null
+          parent_task_id: string | null
+          position: number
+          tenant_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          agency_lead_id?: string | null
+          assignee_user_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          done?: boolean
+          due_date?: string | null
+          id?: string
+          lead_id?: string | null
+          parent_task_id?: string | null
+          position?: number
+          tenant_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          agency_lead_id?: string | null
+          assignee_user_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          done?: boolean
+          due_date?: string | null
+          id?: string
+          lead_id?: string | null
+          parent_task_id?: string | null
+          position?: number
+          tenant_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_tasks_agency_lead_id_fkey"
+            columns: ["agency_lead_id"]
+            isOneToOne: false
+            referencedRelation: "agency_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_tasks_parent_task_id_fkey"
+            columns: ["parent_task_id"]
+            isOneToOne: false
+            referencedRelation: "lead_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_tasks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           campaign_id_manual: string | null
@@ -1243,6 +1368,7 @@ export type Database = {
           reuniao_agendada_em: string | null
           reuniao_realizada_em: string | null
           revendedor_iniciante: boolean
+          sdr_qualification: Json | null
           sql_qualified: boolean | null
           status: string
           tenant_id: string | null
@@ -1289,6 +1415,7 @@ export type Database = {
           reuniao_agendada_em?: string | null
           reuniao_realizada_em?: string | null
           revendedor_iniciante?: boolean
+          sdr_qualification?: Json | null
           sql_qualified?: boolean | null
           status?: string
           tenant_id?: string | null
@@ -1335,6 +1462,7 @@ export type Database = {
           reuniao_agendada_em?: string | null
           reuniao_realizada_em?: string | null
           revendedor_iniciante?: boolean
+          sdr_qualification?: Json | null
           sql_qualified?: boolean | null
           status?: string
           tenant_id?: string | null
