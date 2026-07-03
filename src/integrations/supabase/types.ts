@@ -314,6 +314,271 @@ export type Database = {
           },
         ]
       }
+      automation_executions: {
+        Row: {
+          agency_lead_id: string | null
+          completed_at: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          current_node: string | null
+          flow_id: string
+          id: string
+          is_admin_master: boolean
+          last_error: string | null
+          lead_id: string | null
+          started_at: string
+          status: string
+          tenant_id: string | null
+          updated_at: string
+          variables: Json
+          wait_until: string | null
+        }
+        Insert: {
+          agency_lead_id?: string | null
+          completed_at?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          current_node?: string | null
+          flow_id: string
+          id?: string
+          is_admin_master?: boolean
+          last_error?: string | null
+          lead_id?: string | null
+          started_at?: string
+          status?: string
+          tenant_id?: string | null
+          updated_at?: string
+          variables?: Json
+          wait_until?: string | null
+        }
+        Update: {
+          agency_lead_id?: string | null
+          completed_at?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          current_node?: string | null
+          flow_id?: string
+          id?: string
+          is_admin_master?: boolean
+          last_error?: string | null
+          lead_id?: string | null
+          started_at?: string
+          status?: string
+          tenant_id?: string | null
+          updated_at?: string
+          variables?: Json
+          wait_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_executions_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "automation_flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_executions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_flows: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          edges: Json
+          id: string
+          is_admin_master: boolean
+          name: string
+          nodes: Json
+          status: string
+          tenant_id: string | null
+          trigger_config: Json
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          edges?: Json
+          id?: string
+          is_admin_master?: boolean
+          name: string
+          nodes?: Json
+          status?: string
+          tenant_id?: string | null
+          trigger_config?: Json
+          trigger_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          edges?: Json
+          id?: string
+          is_admin_master?: boolean
+          name?: string
+          nodes?: Json
+          status?: string
+          tenant_id?: string | null
+          trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_flows_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_tasks: {
+        Row: {
+          agency_lead_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          contact_name: string | null
+          contact_phone: string
+          created_at: string
+          created_by: string | null
+          flow_execution_id: string | null
+          id: string
+          is_admin_master: boolean
+          lead_id: string | null
+          message_content: string
+          requires_approval: boolean
+          scheduled_for: string
+          send_error: string | null
+          sent_at: string | null
+          status: string
+          tenant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          agency_lead_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          contact_name?: string | null
+          contact_phone: string
+          created_at?: string
+          created_by?: string | null
+          flow_execution_id?: string | null
+          id?: string
+          is_admin_master?: boolean
+          lead_id?: string | null
+          message_content: string
+          requires_approval?: boolean
+          scheduled_for?: string
+          send_error?: string | null
+          sent_at?: string | null
+          status?: string
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agency_lead_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          contact_name?: string | null
+          contact_phone?: string
+          created_at?: string
+          created_by?: string | null
+          flow_execution_id?: string | null
+          id?: string
+          is_admin_master?: boolean
+          lead_id?: string | null
+          message_content?: string
+          requires_approval?: boolean
+          scheduled_for?: string
+          send_error?: string | null
+          sent_at?: string | null
+          status?: string
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_tasks_flow_execution_id_fkey"
+            columns: ["flow_execution_id"]
+            isOneToOne: false
+            referencedRelation: "automation_executions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_tasks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_templates: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          edges: Json
+          icon: string | null
+          id: string
+          is_global: boolean
+          name: string
+          nodes: Json
+          tenant_id: string | null
+          trigger_config: Json
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          edges?: Json
+          icon?: string | null
+          id?: string
+          is_global?: boolean
+          name: string
+          nodes?: Json
+          tenant_id?: string | null
+          trigger_config?: Json
+          trigger_type: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          edges?: Json
+          icon?: string | null
+          id?: string
+          is_global?: boolean
+          name?: string
+          nodes?: Json
+          tenant_id?: string | null
+          trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_templates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_insights: {
         Row: {
           ad_account_id: string
