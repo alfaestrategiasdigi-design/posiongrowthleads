@@ -76,12 +76,15 @@ export default function TenantCampaigns() {
         setCampaigns(data.data ?? []);
         setReason((data.data ?? []).length === 0 ? "no_campaigns" : null);
       }
-      // CRM wins do próprio tenant, casados por utm_campaign ao nome
+      // CRM wins do próprio tenant (agency_leads promovidos para este tenant).
+      // RLS já bloqueia leitura cross-tenant, mas filtramos explicitamente por segurança.
       const { data: wins } = await supabase
         .from("agency_leads")
         .select("nome_clinica,utm_campaign,valor_proposta,tenant_id_criado,stage")
-        .eq("stage", "ganho");
-      const winsL = (wins ?? []).filter((w: any) => w.tenant_id_criado === tenant.id);
+        .eq("stage", "ganho")
+        .eq("tenant_id_criado", tenant.id);
+      const winsL = wins ?? [];
+
       const { data: winsLeads } = await supabase
         .from("leads")
         .select("utm_campaign,facebook_campaign,valor_proposta")
