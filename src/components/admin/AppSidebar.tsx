@@ -25,7 +25,7 @@ const navGroups: NavGroup[] = [
       { title: "Dashboard", url: "/admin", icon: LayoutDashboard, comercial: true },
       { title: "Pipeline Agência", url: "/admin/pipeline", icon: GitBranch, comercial: true },
       { title: "Leads (formulário)", url: "/admin/leads", icon: Users, comercial: true },
-      { title: "Qualificação", url: "/admin/qualificacao", icon: ListChecks },
+      { title: "Automações", url: "/admin/automacoes", icon: Zap, comercial: true },
       { title: "Agenda de Reunião", url: "/admin/agendamentos", icon: Activity, comercial: true },
       { title: "WhatsApp Master", url: "/admin/whatsapp", icon: MessageCircle, live: true, comercial: true },
       { title: "Contratos", url: "/admin/contratos-agencia", icon: FileText },
