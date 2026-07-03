@@ -28,6 +28,8 @@ export interface UnifiedLeadView {
   volume: string | null; // faturamento_mensal (leads) ou plano_interesse (agency_leads)
   volumeLabel: string;
   proposalValue: number | null;
+  tipoPurchase: string | null;
+
   stage: string;
   origem: string | null;
   createdAt: string;
@@ -53,6 +55,8 @@ function normalize(source: LeadSource, r: any): UnifiedLeadView {
       volume: r.faturamento_mensal || null,
       volumeLabel: "Faturamento mensal",
       proposalValue: r.valor_proposta ?? null,
+      tipoPurchase: r.tipo_purchase ?? null,
+
       stage: r.status || "lead",
       origem: r.origem || null,
       createdAt: r.created_at,
@@ -76,6 +80,8 @@ function normalize(source: LeadSource, r: any): UnifiedLeadView {
     volume: r.plano_interesse || null,
     volumeLabel: "Plano de interesse",
     proposalValue: r.valor_proposta ?? null,
+    tipoPurchase: r.plano_interesse ?? null,
+
     stage: r.stage || "lead",
     origem: r.origem || null,
     createdAt: r.created_at,

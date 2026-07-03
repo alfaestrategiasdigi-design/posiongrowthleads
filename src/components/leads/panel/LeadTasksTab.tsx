@@ -1,18 +1,53 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, Trash2, MessageSquare, ChevronDown, ChevronRight, Send, Loader2, CheckCircle2 } from "lucide-react";
-import { format, formatDistanceToNow } from "date-fns";
+import { Plus, Trash2, MessageSquare, ChevronDown, ChevronRight, Send, Loader2, CheckCircle2, Sparkles } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useLeadTasks, useTaskComments, type LeadTask } from "@/hooks/useLeadTasks";
 import type { UnifiedLeadView } from "@/hooks/useUnifiedLead";
+import { getSuggestedTasks, type SuggestedTask } from "@/lib/lead-task-templates";
+import { toast } from "sonner";
 
 export default function LeadTasksTab({ lead }: { lead: UnifiedLeadView }) {
-  const { tasks, loading, addTask, updateTask, removeTask } = useLeadTasks(lead.source, lead.id, lead.tenantId);
+  const { tasks, loading, addTask, updateTask, removeTask, bulkInsert } = useLeadTasks(lead.source, lead.id, lead.tenantId);
   const [newTitle, setNewTitle] = useState("");
+
+  const suggestions = useMemo(
+    () => getSuggestedTasks({ tipoPurchase: lead.tipoPurchase, sdrScore: lead.sdr?.score ?? null }),
+    [lead.tipoPurchase, lead.sdr?.score]
+  );
+  const existingKeys = useMemo(() => new Set(tasks.map((t) => t.template_key).filter(Boolean) as string[]), [tasks]);
+  const pendingSuggestions = suggestions.filter((s) => !existingKeys.has(s.key));
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [applying, setApplying] = useState(false);
+
+  const toggleSel = (k: string) => setSelected((s) => ({ ...s, [k]: !s[k] }));
+  const allSelected = pendingSuggestions.every((s) => selected[s.key]);
+  const toggleAll = () => {
+    const next: Record<string, boolean> = {};
+    if (!allSelected) pendingSuggestions.forEach((s) => (next[s.key] = true));
+    setSelected(next);
+  };
+
+  const applySelected = async () => {
+    const chosen: SuggestedTask[] = pendingSuggestions.filter((s) => selected[s.key]);
+    const items = (chosen.length ? chosen : pendingSuggestions).map((s) => ({
+      title: s.title,
+      template_key: s.key,
+      subtasks: s.subtasks,
+    }));
+    if (!items.length) return;
+    setApplying(true);
+    await bulkInsert(items);
+    toast.success(`${items.length} tarefa(s) adicionada(s)`);
+    setSelected({});
+    setApplying(false);
+  };
+
 
   const roots = tasks.filter((t) => !t.parent_task_id);
   const childrenOf = (id: string) => tasks.filter((t) => t.parent_task_id === id);
@@ -46,7 +81,44 @@ export default function LeadTasksTab({ lead }: { lead: UnifiedLeadView }) {
         <Button size="sm" onClick={submit} className="gap-1"><Plus className="w-3.5 h-3.5" /> Adicionar</Button>
       </div>
 
+      {pendingSuggestions.length > 0 && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-semibold text-primary flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" /> Sugestões para este lead
+            </div>
+            <Button size="sm" variant="ghost" onClick={toggleAll} className="h-6 text-[10px]">
+              {allSelected ? "Limpar" : "Selecionar tudo"}
+            </Button>
+          </div>
+          <div className="text-[10px] text-muted-foreground">
+            Baseado em <span className="font-medium">{lead.tipoPurchase || "perfil não informado"}</span>
+            {lead.sdr?.score != null && <> · score {lead.sdr.score}</>}
+          </div>
+          <div className="space-y-1">
+            {pendingSuggestions.map((s) => (
+              <label key={s.key} className="flex items-start gap-2 text-xs cursor-pointer hover:bg-primary/5 rounded p-1">
+                <Checkbox checked={!!selected[s.key]} onCheckedChange={() => toggleSel(s.key)} className="mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium">{s.title}</div>
+                  {s.subtasks && s.subtasks.length > 0 && (
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      + {s.subtasks.length} sub-tarefa(s): {s.subtasks.join(" · ")}
+                    </div>
+                  )}
+                </div>
+              </label>
+            ))}
+          </div>
+          <Button size="sm" onClick={applySelected} disabled={applying} className="w-full gap-1 h-8">
+            {applying ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+            Aplicar {Object.values(selected).filter(Boolean).length || "todas"}
+          </Button>
+        </div>
+      )}
+
       <div className="space-y-2">
+
         {roots.length === 0 && !loading && (
           <div className="text-center py-8 text-xs text-muted-foreground">
             <CheckCircle2 className="w-8 h-8 mx-auto mb-2 opacity-40" />

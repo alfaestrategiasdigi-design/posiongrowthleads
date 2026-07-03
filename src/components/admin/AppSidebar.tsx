@@ -24,7 +24,10 @@ const navGroups: NavGroup[] = [
     items: [
       { title: "Dashboard", url: "/admin", icon: LayoutDashboard, comercial: true },
       { title: "Pipeline Agência", url: "/admin/pipeline", icon: GitBranch, comercial: true },
+      { title: "Leads (formulário)", url: "/admin/leads", icon: Users, comercial: true },
+      { title: "Qualificação", url: "/admin/qualificacao", icon: ListChecks },
       { title: "Agenda de Reunião", url: "/admin/agendamentos", icon: Activity, comercial: true },
+      { title: "WhatsApp Master", url: "/admin/whatsapp", icon: MessageCircle, live: true, comercial: true },
       { title: "Contratos", url: "/admin/contratos-agencia", icon: FileText },
     ],
   },
@@ -33,8 +36,6 @@ const navGroups: NavGroup[] = [
     comercial: true,
     items: [
       { title: "Campanhas Meta", url: "/admin/campanhas", icon: Megaphone, comercial: true },
-      { title: "Leads (formulário)", url: "/admin/leads", icon: Users, comercial: true },
-      { title: "Qualificação", url: "/admin/qualificacao", icon: ListChecks },
       { title: "Conexão Facebook", url: "/admin/facebook", icon: Facebook },
       { title: "Conversions API", url: "/admin/capi", icon: Target },
     ],
@@ -50,13 +51,13 @@ const navGroups: NavGroup[] = [
   {
     label: "Operação Master",
     items: [
-      { title: "WhatsApp Master", url: "/admin/whatsapp", icon: MessageCircle, live: true },
       { title: "Conexão WhatsApp", url: "/admin/conexao-whatsapp", icon: Plug },
       { title: "Status WhatsApp", url: "/admin/whatsapp-status", icon: Activity },
       { title: "Usuários & Convites", url: "/admin/usuarios", icon: UserPlus },
     ],
   },
 ];
+
 
 const AppSidebar = () => {
   const location = useLocation();
