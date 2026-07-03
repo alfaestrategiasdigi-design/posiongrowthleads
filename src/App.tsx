@@ -55,6 +55,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/obrigado" element={<Obrigado />} />
           <Route path="/convite/:token" element={<AcceptInvitePage />} />
+          <Route path="/login" element={<LoginPage />} />
 
 
           {/* Tenant SaaS area */}
