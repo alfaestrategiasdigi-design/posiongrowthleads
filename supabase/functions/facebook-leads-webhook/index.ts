@@ -258,27 +258,17 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Fase 2 — resolve tenant via mapeamento; fallback para default_tenant_id; senão, fila de não-roteados
+        // Roteamento STRICT por form_id (sem fallback via ad_account/page).
         const pageIdForRoute = v.page_id ? String(v.page_id) : (entry.id ? String(entry.id) : null);
         const formIdForRoute = v.form_id ? String(v.form_id) : null;
-        const adAccountForRoute = null; // webhook não recebe ad_account_id
-        let routedTenant: string | null = null;
-        {
-          // ISOLAMENTO ESTRITO: só roteia com regra explícita. Sem default_tenant_id.
-          const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
-            p_form_id: formIdForRoute,
-            p_ad_account_id: adAccountForRoute,
-            p_page_id: pageIdForRoute,
-          });
-          routedTenant = (rpc as string | null) ?? null;
-        }
+        const route = await resolveRoute(formIdForRoute);
 
-        if (!routedTenant) {
+        if (!route.matched) {
           const ur = await admin.from("unrouted_leads").insert({
             raw_payload: { entry_id: entry.id, change, graph_field_data: flat },
             form_id: formIdForRoute,
             page_id: pageIdForRoute,
-            ad_account_id: adAccountForRoute,
+            ad_account_id: null,
             facebook_lead_id: leadgenId ? String(leadgenId) : null,
             nome: flat["full_name"] ?? flat["nome"] ?? null,
             whatsapp: flat["phone_number"] ?? flat["phone"] ?? null,
@@ -287,11 +277,14 @@ Deno.serve(async (req) => {
           results.push({ ok: true, unrouted: true, id: ur.data?.id ?? null });
           if (evtId) {
             await admin.from("facebook_webhook_events").update({
-              processed: false, error: "no tenant mapping",
+              processed: false, error: "no form mapping",
             }).eq("id", evtId);
           }
           continue;
         }
+        // matched: pode ser tenant (route.tenantId) OU admin_master (tenantId=null)
+        const routedTenant = route.tenantId;
+
 
         const r = await insertLead(flat, {
           facebook_lead_id: leadgenId,
