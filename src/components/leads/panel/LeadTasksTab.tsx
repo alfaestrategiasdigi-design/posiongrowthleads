@@ -1,18 +1,53 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, Trash2, MessageSquare, ChevronDown, ChevronRight, Send, Loader2, CheckCircle2 } from "lucide-react";
-import { format, formatDistanceToNow } from "date-fns";
+import { Plus, Trash2, MessageSquare, ChevronDown, ChevronRight, Send, Loader2, CheckCircle2, Sparkles } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useLeadTasks, useTaskComments, type LeadTask } from "@/hooks/useLeadTasks";
 import type { UnifiedLeadView } from "@/hooks/useUnifiedLead";
+import { getSuggestedTasks, type SuggestedTask } from "@/lib/lead-task-templates";
+import { toast } from "sonner";
 
 export default function LeadTasksTab({ lead }: { lead: UnifiedLeadView }) {
-  const { tasks, loading, addTask, updateTask, removeTask } = useLeadTasks(lead.source, lead.id, lead.tenantId);
+  const { tasks, loading, addTask, updateTask, removeTask, bulkInsert } = useLeadTasks(lead.source, lead.id, lead.tenantId);
   const [newTitle, setNewTitle] = useState("");
+
+  const suggestions = useMemo(
+    () => getSuggestedTasks({ tipoPurchase: lead.tipoPurchase, sdrScore: lead.sdr?.score ?? null }),
+    [lead.tipoPurchase, lead.sdr?.score]
+  );
+  const existingKeys = useMemo(() => new Set(tasks.map((t) => t.template_key).filter(Boolean) as string[]), [tasks]);
+  const pendingSuggestions = suggestions.filter((s) => !existingKeys.has(s.key));
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [applying, setApplying] = useState(false);
+
+  const toggleSel = (k: string) => setSelected((s) => ({ ...s, [k]: !s[k] }));
+  const allSelected = pendingSuggestions.every((s) => selected[s.key]);
+  const toggleAll = () => {
+    const next: Record<string, boolean> = {};
+    if (!allSelected) pendingSuggestions.forEach((s) => (next[s.key] = true));
+    setSelected(next);
+  };
+
+  const applySelected = async () => {
+    const chosen: SuggestedTask[] = pendingSuggestions.filter((s) => selected[s.key]);
+    const items = (chosen.length ? chosen : pendingSuggestions).map((s) => ({
+      title: s.title,
+      template_key: s.key,
+      subtasks: s.subtasks,
+    }));
+    if (!items.length) return;
+    setApplying(true);
+    await bulkInsert(items);
+    toast.success(`${items.length} tarefa(s) adicionada(s)`);
+    setSelected({});
+    setApplying(false);
+  };
+
 
   const roots = tasks.filter((t) => !t.parent_task_id);
   const childrenOf = (id: string) => tasks.filter((t) => t.parent_task_id === id);
