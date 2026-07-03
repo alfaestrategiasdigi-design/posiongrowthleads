@@ -308,13 +308,8 @@ Deno.serve(async (req) => {
     }
   } else if (Array.isArray(body?.field_data)) {
     const flat = flattenFieldData(body.field_data);
-    const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
-      p_form_id: body.form_id ?? null,
-      p_ad_account_id: body.ad_account_id ?? null,
-      p_page_id: body.page_id ?? null,
-    });
-    const routedTenant = (rpc as string | null) ?? null;
-    if (!routedTenant) {
+    const route = await resolveRoute(body.form_id ? String(body.form_id) : null);
+    if (!route.matched) {
       const ur = await admin.from("unrouted_leads").insert({
         raw_payload: body,
         form_id: body.form_id ?? null,
@@ -334,18 +329,13 @@ Deno.serve(async (req) => {
         facebook_form_name: body.form_name ?? null,
         facebook_ad_name: body.ad_name ?? null,
         facebook_adset_name: body.adset_name ?? null,
-        tenant_id: routedTenant,
+        tenant_id: route.tenantId,
       });
       results.push(r);
     }
   } else {
-    const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
-      p_form_id: body.form_id ?? null,
-      p_ad_account_id: body.ad_account_id ?? null,
-      p_page_id: body.page_id ?? null,
-    });
-    const routedTenant = (rpc as string | null) ?? null;
-    if (!routedTenant) {
+    const route = await resolveRoute(body.form_id ? String(body.form_id) : null);
+    if (!route.matched) {
       const ur = await admin.from("unrouted_leads").insert({
         raw_payload: body,
         form_id: body.form_id ?? null,
@@ -365,7 +355,8 @@ Deno.serve(async (req) => {
         facebook_form_name: body.form_name ?? null,
         facebook_ad_name: body.ad_name ?? null,
         facebook_adset_name: body.adset_name ?? null,
-        tenant_id: routedTenant,
+        tenant_id: route.tenantId,
+
       });
       results.push(r);
     }
