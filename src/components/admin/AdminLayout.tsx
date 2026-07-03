@@ -27,14 +27,21 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const MASTER_TENANT_ID = "00000000-0000-0000-0000-000000000001";
     const resolve = async (sessionUser: User | null) => {
       setUser(sessionUser);
       if (!sessionUser) { setIsAdmin(false); setIsLoading(false); return; }
-      const { data: roles } = await supabase
-        .from("user_roles").select("role")
-        .eq("user_id", sessionUser.id)
-        .in("role", ["admin", "comercial_admin_master"]);
-      const admin = !!(roles && roles.length > 0);
+      const [{ data: roles }, { data: link }] = await Promise.all([
+        supabase.from("user_roles").select("role")
+          .eq("user_id", sessionUser.id)
+          .in("role", ["admin", "comercial_admin_master"]),
+        supabase.from("tenant_users").select("tenant_id,active")
+          .eq("user_id", sessionUser.id)
+          .eq("tenant_id", MASTER_TENANT_ID)
+          .eq("active", true)
+          .maybeSingle(),
+      ]);
+      const admin = !!((roles && roles.length > 0) || link);
 
       setIsAdmin(admin);
       setIsLoading(false);
@@ -44,6 +51,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
         if (target.startsWith("/app/")) navigate(target, { replace: true });
       }
     };
+
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       resolve(session?.user ?? null);
