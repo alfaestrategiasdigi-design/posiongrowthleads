@@ -28,6 +28,8 @@ export interface UnifiedLeadView {
   volume: string | null; // faturamento_mensal (leads) ou plano_interesse (agency_leads)
   volumeLabel: string;
   proposalValue: number | null;
+  tipoPurchase: string | null;
+
   stage: string;
   origem: string | null;
   createdAt: string;

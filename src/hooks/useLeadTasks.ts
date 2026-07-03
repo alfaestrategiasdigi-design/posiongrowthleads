@@ -13,9 +13,11 @@ export interface LeadTask {
   due_date: string | null;
   assignee_user_id: string | null;
   position: number;
+  template_key: string | null;
   created_at: string;
   updated_at: string;
 }
+
 
 export interface TaskComment {
   id: string;
@@ -87,8 +89,54 @@ export function useLeadTasks(source: LeadSource | null, leadId: string | null, t
     [load]
   );
 
-  return { tasks, loading, reload: load, addTask, updateTask, removeTask };
+  const bulkInsert = useCallback(
+    async (items: { title: string; template_key?: string; subtasks?: string[] }[]) => {
+      if (!source || !leadId || items.length === 0) return;
+      const user = (await supabase.auth.getUser()).data.user;
+      const owner = ownerColumn(source);
+      const basePos = tasks.filter((t) => !t.parent_task_id).length;
+      // Insere pais um a um para poder capturar os ids e criar subtarefas
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        const parentPayload: any = {
+          title: it.title.trim(),
+          parent_task_id: null,
+          tenant_id: tenantId ?? null,
+          created_by: user?.id ?? null,
+          position: basePos + i,
+          template_key: it.template_key ?? null,
+        };
+        parentPayload[owner] = leadId;
+        const { data: parent, error } = await supabase
+          .from("lead_tasks")
+          .insert(parentPayload)
+          .select("id")
+          .maybeSingle();
+        if (error || !parent) continue;
+        if (it.subtasks && it.subtasks.length) {
+          const subs = it.subtasks.map((title, idx) => {
+            const p: any = {
+              title,
+              parent_task_id: parent.id,
+              tenant_id: tenantId ?? null,
+              created_by: user?.id ?? null,
+              position: idx,
+              template_key: it.template_key ? `${it.template_key}.${idx}` : null,
+            };
+            p[owner] = leadId;
+            return p;
+          });
+          await supabase.from("lead_tasks").insert(subs);
+        }
+      }
+      await load();
+    },
+    [source, leadId, tenantId, tasks, load]
+  );
+
+  return { tasks, loading, reload: load, addTask, updateTask, removeTask, bulkInsert };
 }
+
 
 export function useTaskComments(taskId: string | null) {
   const [comments, setComments] = useState<TaskComment[]>([]);
