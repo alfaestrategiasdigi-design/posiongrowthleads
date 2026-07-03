@@ -34,20 +34,82 @@ const LeadsPage = () => {
   const [originFilter, setOriginFilter] = useState<string>("all");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [lastLeadsSync, setLastLeadsSync] = useState<string | null>(null);
+  const [masterForms, setMasterForms] = useState<Array<{ id: string; form_id: string; label: string | null; active: boolean }>>([]);
+  const [availableForms, setAvailableForms] = useState<Array<{ form_id: string; form_name: string | null }>>([]);
+  const [showFormManager, setShowFormManager] = useState(false);
+
+  const loadMasterForms = async () => {
+    const { data } = await (supabase as any)
+      .from("lead_routing_rules")
+      .select("id, match_value, match_label, active")
+      .eq("match_type", "form_id")
+      .eq("is_admin_master", true);
+    setMasterForms((data ?? []).map((r: any) => ({
+      id: r.id, form_id: String(r.match_value), label: r.match_label, active: !!r.active,
+    })));
+  };
 
   useEffect(() => {
     const load = async () => {
-      const [{ data }, { data: cfg }] = await Promise.all([
-        supabase.from("leads").select("*").eq("origem", "facebook_ads").order("created_at", { ascending: false }),
+      await loadMasterForms();
+      const [{ data: cfg }, { data: allFbLeads }] = await Promise.all([
         supabase.rpc("get_facebook_config_meta" as any),
+        // Descobre todos os form_ids/nomes vistos para permitir cadastrar novos como POSION
+        supabase.from("leads")
+          .select("facebook_form_id, facebook_form_name")
+          .eq("origem", "facebook_ads")
+          .not("facebook_form_id", "is", null)
+          .limit(1000),
       ]);
-      setLeads(data || []);
       const row: any = Array.isArray(cfg) ? cfg[0] : cfg;
       setLastLeadsSync(row?.last_leads_sync_at ?? null);
+      const seen = new Map<string, string | null>();
+      for (const l of (allFbLeads ?? []) as any[]) {
+        const fid = l.facebook_form_id ? String(l.facebook_form_id) : null;
+        if (fid && !seen.has(fid)) seen.set(fid, l.facebook_form_name ?? null);
+      }
+      setAvailableForms(Array.from(seen.entries()).map(([form_id, form_name]) => ({ form_id, form_name })));
       setLoading(false);
     };
     load();
   }, []);
+
+  // Recarrega leads sempre que os forms do master mudam (para aplicar o filtro)
+  useEffect(() => {
+    const masterFormIds = masterForms.filter(f => f.active).map(f => f.form_id);
+    if (masterFormIds.length === 0) { setLeads([]); return; }
+    (async () => {
+      const { data } = await supabase
+        .from("leads")
+        .select("*")
+        .eq("origem", "facebook_ads")
+        .is("tenant_id", null)
+        .in("facebook_form_id", masterFormIds)
+        .order("created_at", { ascending: false });
+      setLeads(data || []);
+    })();
+  }, [masterForms]);
+
+  const toggleMasterForm = async (formId: string, active: boolean) => {
+    await (supabase as any).from("lead_routing_rules")
+      .update({ active }).eq("match_value", formId).eq("match_type", "form_id").eq("is_admin_master", true);
+    await loadMasterForms();
+  };
+  const removeMasterForm = async (formId: string) => {
+    await (supabase as any).from("lead_routing_rules")
+      .delete().eq("match_value", formId).eq("match_type", "form_id").eq("is_admin_master", true);
+    await loadMasterForms();
+  };
+  const addMasterForm = async (formId: string, label: string | null) => {
+    const clean = String(formId).trim();
+    if (!clean) return;
+    await (supabase as any).from("lead_routing_rules").insert({
+      tenant_id: null, match_type: "form_id", match_value: clean,
+      match_label: label || `Formulário ${clean}`, priority: 5, active: true, is_admin_master: true,
+    });
+    await loadMasterForms();
+  };
+
 
   const fbSummary = useMemo(() => {
     const fb = leads.filter(l => l.origem === "facebook_ads");
