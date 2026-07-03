@@ -158,7 +158,7 @@ export default function AgencyContractsPage() {
         </TabsContent>
       </Tabs>
 
-      <ContractDialog contract={dialog} tenants={tenants} onOpenChange={(o) => !o && setDialog(null)} onSaved={() => { setDialog(null); load(); }} />
+      <ContractDialog contract={dialog} onOpenChange={(o) => !o && setDialog(null)} onSaved={() => { setDialog(null); load(); }} />
     </div>
   );
 }
