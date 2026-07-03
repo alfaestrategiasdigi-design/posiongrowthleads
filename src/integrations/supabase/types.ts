@@ -94,6 +94,7 @@ export type Database = {
           plano_interesse: string | null
           proximo_followup: string | null
           responsavel: string | null
+          source_lead_id: string | null
           stage: string
           tags: string[] | null
           tenant_id_criado: string | null
@@ -123,6 +124,7 @@ export type Database = {
           plano_interesse?: string | null
           proximo_followup?: string | null
           responsavel?: string | null
+          source_lead_id?: string | null
           stage?: string
           tags?: string[] | null
           tenant_id_criado?: string | null
@@ -152,6 +154,7 @@ export type Database = {
           plano_interesse?: string | null
           proximo_followup?: string | null
           responsavel?: string | null
+          source_lead_id?: string | null
           stage?: string
           tags?: string[] | null
           tenant_id_criado?: string | null
@@ -163,6 +166,13 @@ export type Database = {
           whatsapp?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "agency_leads_source_lead_id_fkey"
+            columns: ["source_lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "agency_leads_tenant_id_criado_fkey"
             columns: ["tenant_id_criado"]
@@ -3181,6 +3191,7 @@ export type Database = {
         Args: { p_agency_lead_id?: string; p_lead_id?: string }
         Returns: number
       }
+      map_lead_status_to_stage: { Args: { _status: string }; Returns: string }
       promote_agency_lead_to_tenant: {
         Args: {
           p_lead_id: string
