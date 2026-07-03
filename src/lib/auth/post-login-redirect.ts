@@ -10,9 +10,9 @@ const MASTER_TENANT_ID = "00000000-0000-0000-0000-000000000001";
  */
 export async function getPostLoginRedirect(): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return "/";
+  if (!user) return "/login";
 
-  // Conta Agência/Admin Master tem prioridade absoluta → painel /admin
+  // 1) Conta Agência/Admin Master (papel global) → /admin
   const { data: masterRoles } = await supabase
     .from("user_roles")
     .select("role")
@@ -20,7 +20,17 @@ export async function getPostLoginRedirect(): Promise<string> {
     .in("role", ["admin", "comercial_admin_master"]);
   if (masterRoles && masterRoles.length > 0) return "/admin";
 
-  // Buscar clínica vinculada e ativa (ignorando sempre o tenant master)
+  // 2) Vínculo com o tenant Master (qualquer papel) → /admin
+  const { data: masterLink } = await supabase
+    .from("tenant_users")
+    .select("tenant_id")
+    .eq("user_id", user.id)
+    .eq("tenant_id", MASTER_TENANT_ID)
+    .eq("active", true)
+    .maybeSingle();
+  if (masterLink) return "/admin";
+
+  // 3) Vínculo com clínica ativa → /app/{slug}/dashboard
   const { data: membership } = await supabase
     .from("tenant_users")
     .select("tenant_id, active, tenants(slug)")
@@ -33,6 +43,6 @@ export async function getPostLoginRedirect(): Promise<string> {
   const slug = (membership as any)?.tenants?.slug;
   if (slug) return `/app/${slug}/dashboard`;
 
-
-  return "/";
+  return "/login";
 }
+
