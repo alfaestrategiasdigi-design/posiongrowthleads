@@ -126,6 +126,7 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
     setSaving(true);
     const payload = {
       lead_id: form.lead_id,
+      agency_lead_id: form.agency_lead_id,
       tenant_id: null, // Agenda do Admin Master (POSION) — nunca associada a tenant
       client_name: form.client_name.trim(),
       client_phone: unmask(form.client_phone),
@@ -173,6 +174,16 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+          {form.agency_lead_id && (
+            <div className="md:col-span-2">
+              <LeadContextCard
+                source="agency_lead"
+                leadId={form.agency_lead_id}
+                onOpenPanel={() => setShowLeadPanel(true)}
+              />
+            </div>
+          )}
+
           <div className="md:col-span-2">
             <Label>Cliente *</Label>
             <Input
@@ -201,6 +212,15 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
                     </button>
                   ))}
                 </div>
+              )}
+              {form.agency_lead_id && (
+                <button
+                  type="button"
+                  className="text-[10px] text-muted-foreground hover:text-destructive mt-1"
+                  onClick={() => setForm((f) => ({ ...f, agency_lead_id: null }))}
+                >
+                  Desvincular lead
+                </button>
               )}
             </div>
           </div>
