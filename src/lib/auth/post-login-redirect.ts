@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
+const MASTER_TENANT_ID = "00000000-0000-0000-0000-000000000001";
+
 /**
  * Decide para onde mandar o usuário logo após login:
  * - Se for super admin → /admin
@@ -10,7 +12,7 @@ export async function getPostLoginRedirect(): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return "/";
 
-  // Super admin / comercial master têm prioridade → painel /admin
+  // Conta Agência/Admin Master tem prioridade absoluta → painel /admin
   const { data: masterRoles } = await supabase
     .from("user_roles")
     .select("role")
@@ -18,12 +20,12 @@ export async function getPostLoginRedirect(): Promise<string> {
     .in("role", ["admin", "comercial_admin_master"]);
   if (masterRoles && masterRoles.length > 0) return "/admin";
 
-  // Buscar tenant vinculado (ignorando o tenant master)
-  const MASTER_TENANT_ID = "00000000-0000-0000-0000-000000000001";
+  // Buscar clínica vinculada e ativa (ignorando sempre o tenant master)
   const { data: membership } = await supabase
     .from("tenant_users")
-    .select("tenant_id, tenants(slug)")
+    .select("tenant_id, active, tenants(slug)")
     .eq("user_id", user.id)
+    .eq("active", true)
     .neq("tenant_id", MASTER_TENANT_ID)
     .limit(1)
     .maybeSingle();

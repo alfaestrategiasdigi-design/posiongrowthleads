@@ -12,16 +12,19 @@ import posionLogo from "@/assets/posion/logo-posion.png.asset.json";
 export default function AppLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { loading, user, tenant, role, error } = useTenant();
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isAdminMaster, setIsAdminMaster] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loginError, setLoginError] = useState("");
 
   useEffect(() => {
-    if (!user) { setIsSuperAdmin(false); return; }
-    supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle()
-      .then(({ data }) => setIsSuperAdmin(!!data));
+    if (!user) { setIsAdminMaster(false); return; }
+    supabase.from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .in("role", ["admin", "comercial_admin_master"])
+      .then(({ data }) => setIsAdminMaster(!!data?.length));
   }, [user]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -89,7 +92,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!role && !isSuperAdmin) {
+  if (!role && !isAdminMaster) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
         <div className="bg-card rounded-2xl shadow-2xl p-8 max-w-md w-full text-center border border-border/50">
@@ -107,7 +110,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
-        <TenantSidebar tenant={tenant} isSuperAdmin={isSuperAdmin} tenantRole={role} />
+        <TenantSidebar tenant={tenant} isSuperAdmin={isAdminMaster} tenantRole={role} />
         <main className="flex-1 flex flex-col overflow-hidden">
           <header className="h-16 border-b border-border/60 flex items-center justify-between px-4 md:px-6 bg-card/40 backdrop-blur-md shrink-0">
             <div className="flex items-center gap-3 md:gap-4">

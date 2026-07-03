@@ -84,7 +84,16 @@ export default function CreateUserPage() {
   const [tenantId, setTenantId] = useState<string>("");
   const [tenantRole, setTenantRole] = useState("admin");
   const [submitting, setSubmitting] = useState(false);
+  const isMasterAccount = globalRole === "admin" || globalRole === "comercial_admin_master";
   const tenantBound = globalRole === "admin_tenant" || globalRole === "comercial_tenant";
+  const agencyUsers = useMemo(
+    () => users.filter((u) => u.global_roles.includes("admin") || u.global_roles.includes("comercial_admin_master")),
+    [users],
+  );
+  const clinicUsers = useMemo(
+    () => users.filter((u) => !u.global_roles.includes("admin") && !u.global_roles.includes("comercial_admin_master")),
+    [users],
+  );
 
   const loadTenants = async () => {
     const { data } = await supabase.from("tenants").select("id,name").order("name");
@@ -105,6 +114,7 @@ export default function CreateUserPage() {
 
   const submitCreate = async () => {
     if (!email) return toast.error("Informe o e-mail");
+    if (isMasterAccount && tenantId) return toast.error("Conta Admin Master não deve selecionar clínica");
     if (tenantBound && !tenantId) return toast.error("Selecione a clínica");
     setSubmitting(true);
     const { data, error } = await supabase.functions.invoke("admin-create-user", {
@@ -179,6 +189,9 @@ export default function CreateUserPage() {
     });
   }, [users, search, filterRole]);
 
+  const agencyFiltered = useMemo(() => filtered.filter((u) => agencyUsers.some((a) => a.id === u.id)), [filtered, agencyUsers]);
+  const clinicFiltered = useMemo(() => filtered.filter((u) => clinicUsers.some((c) => c.id === u.id)), [filtered, clinicUsers]);
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
@@ -193,7 +206,8 @@ export default function CreateUserPage() {
       <Tabs defaultValue="create">
         <TabsList>
           <TabsTrigger value="create"><UserPlus className="w-4 h-4 mr-2" /> Criar usuário</TabsTrigger>
-          <TabsTrigger value="manage"><ShieldCheck className="w-4 h-4 mr-2" /> Gerenciar ({users.length})</TabsTrigger>
+          <TabsTrigger value="agency"><ShieldCheck className="w-4 h-4 mr-2" /> Contas Admin Master ({agencyUsers.length})</TabsTrigger>
+          <TabsTrigger value="clinics"><Building2 className="w-4 h-4 mr-2" /> Usuários das Clínicas ({clinicUsers.length})</TabsTrigger>
         </TabsList>
 
         {/* CREATE */}
@@ -219,6 +233,9 @@ export default function CreateUserPage() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{GLOBAL_ROLES.map((r) => <SelectItem key={r.v} value={r.v}>{r.l}</SelectItem>)}</SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  {isMasterAccount ? "Conta vinculada somente à Agência POSION / Admin Master." : "Usuários de clínica precisam selecionar uma clínica abaixo."}
+                </p>
               </div>
               {tenantBound && (
                 <>
@@ -250,8 +267,8 @@ export default function CreateUserPage() {
           </Card>
         </TabsContent>
 
-        {/* MANAGE */}
-        <TabsContent value="manage">
+        {/* AGENCY */}
+        <TabsContent value="agency">
           <Card>
             <CardHeader className="flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-2 flex-1 max-w-2xl">
@@ -285,10 +302,10 @@ export default function CreateUserPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtered.length === 0 && (
+                    {agencyFiltered.length === 0 && (
                       <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Nenhum usuário</TableCell></TableRow>
                     )}
-                    {filtered.map((u) => {
+                    {agencyFiltered.map((u) => {
                       const primaryRole = u.global_roles[0] || "user";
                       return (
                         <TableRow key={u.id}>
@@ -304,11 +321,90 @@ export default function CreateUserPage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-wrap gap-1.5 items-center">
-                              {(primaryRole === "admin" || primaryRole === "comercial_admin_master") && (
-                                <Badge className="bg-primary/15 text-primary border-primary/30 gap-1">
-                                  <ShieldCheck className="w-3 h-3" /> Conta Admin (Master)
+                              <Badge className="bg-primary/15 text-primary border-primary/30 gap-1">
+                                <ShieldCheck className="w-3 h-3" /> Conta Admin (Master)
+                              </Badge>
+                              {u.tenants.filter((t) => t.tenant_id === MASTER_TENANT_ID).map((t) => (
+                                <Badge key={t.tenant_id} variant="outline" className="text-[10px] px-2 py-0.5">
+                                  {t.role} · {t.active ? "ativo" : "inativo"}
                                 </Badge>
-                              )}
+                              ))}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button size="sm" variant="outline" className="gap-1" onClick={() => resetPassword(u)} title="Redefinir senha">
+                                <KeyRound className="w-3 h-3" />
+                              </Button>
+                              <Button size="sm" variant="outline" className="gap-1 text-destructive" onClick={() => deleteUser(u)} title="Excluir">
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* CLINICS */}
+        <TabsContent value="clinics">
+          <Card>
+            <CardHeader className="flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-1 max-w-2xl">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input className="pl-8" placeholder="Buscar por e-mail…" value={search} onChange={(e) => setSearch(e.target.value)} />
+                </div>
+                <Select value={filterRole} onValueChange={setFilterRole}>
+                  <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os papéis</SelectItem>
+                    {GLOBAL_ROLES.filter((r) => r.v !== "admin" && r.v !== "comercial_admin_master").map((r) => <SelectItem key={r.v} value={r.v}>{r.l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button variant="ghost" size="sm" onClick={loadUsers} className="gap-2">
+                <RefreshCw className="w-4 h-4" /> Atualizar
+              </Button>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loading ? (
+                <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>E-mail</TableHead>
+                      <TableHead className="w-56">Papel global</TableHead>
+                      <TableHead>Clínicas vinculadas</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clinicFiltered.length === 0 && (
+                      <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Nenhum usuário</TableCell></TableRow>
+                    )}
+                    {clinicFiltered.map((u) => {
+                      const primaryRole = u.global_roles[0] || "user";
+                      return (
+                        <TableRow key={u.id}>
+                          <TableCell>
+                            <div className="font-medium">{u.email}</div>
+                            <div className="text-xs text-muted-foreground font-mono">{u.id.slice(0, 8)}…</div>
+                          </TableCell>
+                          <TableCell>
+                            <Select value={primaryRole} onValueChange={(v) => setGlobalRoleFor(u, v)}>
+                              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                              <SelectContent>{GLOBAL_ROLES.filter((r) => r.v !== "admin" && r.v !== "comercial_admin_master").map((r) => <SelectItem key={r.v} value={r.v}>{r.l}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1.5 items-center">
                               {u.tenants.filter((t) => t.tenant_id !== MASTER_TENANT_ID).map((t) => (
                                 <div key={t.tenant_id} className="flex items-center gap-1 rounded-md border border-border bg-muted/40 pl-2 pr-1 py-0.5">
                                   <span className="text-xs font-medium">{t.tenant_name || t.tenant_slug}</span>
