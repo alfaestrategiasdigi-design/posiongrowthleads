@@ -175,13 +175,12 @@ function KPI({ icon: Icon, label, value }: { icon: any; label: string; value: st
   );
 }
 
-function ContractDialog({ contract, tenants, onOpenChange, onSaved }: { contract: AgencyContract | "new" | null; tenants: TenantOpt[]; onOpenChange: (o: boolean) => void; onSaved: () => void }) {
+function ContractDialog({ contract, onOpenChange, onSaved }: { contract: AgencyContract | "new" | null; onOpenChange: (o: boolean) => void; onSaved: () => void }) {
   const open = !!contract;
   const isNew = contract === "new";
   const c = isNew ? null : (contract as AgencyContract | null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    tenant_id: "" as string,
     cliente_nome: "", valor_total: 0, valor_comissao: 0, duracao_meses: 12,
     data_assinatura: new Date().toISOString().slice(0, 10),
     status: "ativo" as AgencyContract["status"], observacoes: "",
@@ -189,7 +188,6 @@ function ContractDialog({ contract, tenants, onOpenChange, onSaved }: { contract
 
   useEffect(() => {
     if (c) setForm({
-      tenant_id: c.tenant_id || "",
       cliente_nome: c.cliente_nome,
       valor_total: Number(c.valor_total),
       valor_comissao: Number(c.valor_comissao),
@@ -198,13 +196,14 @@ function ContractDialog({ contract, tenants, onOpenChange, onSaved }: { contract
       status: c.status,
       observacoes: c.observacoes || "",
     });
-    else setForm({ tenant_id: "", cliente_nome: "", valor_total: 0, valor_comissao: 0, duracao_meses: 12, data_assinatura: new Date().toISOString().slice(0, 10), status: "ativo", observacoes: "" });
+    else setForm({ cliente_nome: "", valor_total: 0, valor_comissao: 0, duracao_meses: 12, data_assinatura: new Date().toISOString().slice(0, 10), status: "ativo", observacoes: "" });
   }, [contract]);
 
   const save = async () => {
     if (!form.cliente_nome.trim()) { toast.error("Cliente obrigatório"); return; }
     setSaving(true);
-    const payload = { ...form, tenant_id: form.tenant_id || null };
+    // agency_contracts pertencem à POSION (admin master) — NUNCA vinculados a tenant.
+    const payload = { ...form, tenant_id: null as string | null };
     const { error } = c
       ? await supabase.from("agency_contracts").update(payload).eq("id", c.id)
       : await supabase.from("agency_contracts").insert(payload);
@@ -218,18 +217,8 @@ function ContractDialog({ contract, tenants, onOpenChange, onSaved }: { contract
       <DialogContent className="max-w-lg">
         <DialogHeader><DialogTitle>{c ? "Editar Contrato" : "Novo Contrato"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <div>
-            <Label>Clínica (tenant)</Label>
-            <Select value={form.tenant_id || "__none"} onValueChange={(v) => setForm({ ...form, tenant_id: v === "__none" ? "" : v })}>
-              <SelectTrigger><SelectValue placeholder="Sem clínica vinculada" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none">— Sem clínica —</SelectItem>
-                {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <p className="text-[11px] text-muted-foreground mt-1">Vincule o contrato a uma clínica específica para não contar em todos os tenants.</p>
-          </div>
           <div><Label>Cliente *</Label><Input value={form.cliente_nome} onChange={(e) => setForm({ ...form, cliente_nome: e.target.value })} /></div>
+
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Valor total (R$)</Label><Input type="number" value={form.valor_total} onChange={(e) => setForm({ ...form, valor_total: Number(e.target.value) })} /></div>
             <div><Label>Comissão (R$)</Label><Input type="number" value={form.valor_comissao} onChange={(e) => setForm({ ...form, valor_comissao: Number(e.target.value) })} /></div>
