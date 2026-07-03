@@ -304,7 +304,12 @@ export default function CreateUserPage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-wrap gap-1.5 items-center">
-                              {u.tenants.map((t) => (
+                              {(primaryRole === "admin" || primaryRole === "comercial_admin_master") && (
+                                <Badge className="bg-primary/15 text-primary border-primary/30 gap-1">
+                                  <ShieldCheck className="w-3 h-3" /> Conta Admin (Master)
+                                </Badge>
+                              )}
+                              {u.tenants.filter((t) => t.tenant_id !== MASTER_TENANT_ID).map((t) => (
                                 <div key={t.tenant_id} className="flex items-center gap-1 rounded-md border border-border bg-muted/40 pl-2 pr-1 py-0.5">
                                   <span className="text-xs font-medium">{t.tenant_name || t.tenant_slug}</span>
                                   <Badge variant="outline" className="text-[10px] px-1 py-0">{t.role}</Badge>
