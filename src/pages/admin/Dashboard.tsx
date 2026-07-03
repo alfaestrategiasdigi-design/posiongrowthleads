@@ -125,7 +125,7 @@ export default function Dashboard() {
       });
       const tenantsList = (t.data || []) as Tenant[];
       const perf = tenantsList.map((tn) => {
-        const gmv = byTenant.get(tn.id) || 0;
+        const gmv = 0; // sales por tenant não fazem parte da visão POSION
         const invest = spendByT.get(tn.id) || 0;
         const ld = leadsByT.get(tn.id) || { total: 0, ganhos: 0 };
         return {
@@ -135,9 +135,10 @@ export default function Dashboard() {
           ganhos: ld.ganhos,
           gmv,
           invest,
-          roas: invest > 0 ? gmv / invest : 0,
+          roas: 0,
         };
-      }).sort((a, b) => b.gmv - a.gmv);
+      }).sort((a, b) => b.invest - a.invest);
+
       setTenantsPerf(perf);
 
       setLoading(false);
