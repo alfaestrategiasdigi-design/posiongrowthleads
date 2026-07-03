@@ -40,7 +40,11 @@ interface AgencyLead {
   notas: string | null;
   created_at: string;
   tenant_id_criado: string | null;
+  utm_campaign: string | null;
+  campaign_id_manual: string | null;
 }
+
+interface CampaignOption { id: string; name: string; }
 
 const fmt = (v: number | null) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v || 0);
