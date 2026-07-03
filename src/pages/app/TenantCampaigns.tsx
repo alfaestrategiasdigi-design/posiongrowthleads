@@ -337,6 +337,11 @@ export default function TenantCampaigns() {
                     {c.ad_account_label || c.ad_account_id}
                   </div>
                   <div className="text-sm font-medium truncate leading-tight mt-0.5" title={c.name}>{c.name}</div>
+                  {c.objective && (
+                    <div className="text-[9px] uppercase tracking-wider text-primary/70 truncate mt-0.5" title={c.objective}>
+                      {formatObjective(c.objective)}
+                    </div>
+                  )}
                 </div>
                 <Badge variant={isActive ? "default" : "secondary"} className="shrink-0 text-[9px] px-1.5 py-0 h-4">
                   {isActive ? "ATIVA" : (c.effective_status || c.status || "").slice(0, 8)}
@@ -346,13 +351,20 @@ export default function TenantCampaigns() {
               {c.insights ? (
                 <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
                   <Metric label="Gasto" value={BRL(c.insights.spend)} />
-                  <Metric label="Leads" value={NUM(c.insights.leads)} />
-                  <Metric label="CPL" value={BRL(c.insights.cpl)} />
+                  <Metric
+                    label={c.insights.result_label || "Leads"}
+                    value={NUM(c.insights.result_value ?? c.insights.leads)}
+                  />
+                  <Metric
+                    label={cprLabel(c.insights.result_kind)}
+                    value={BRL(c.insights.cost_per_result ?? c.insights.cpl)}
+                  />
                   <Metric label="CTR" value={`${c.insights.ctr.toFixed(1)}%`} />
                 </div>
               ) : (
                 <div className="text-[11px] text-muted-foreground italic pl-1">Sem dados no período.</div>
               )}
+
 
               {c.daily && c.daily.length > 1 && (
                 <div className="pl-1">
