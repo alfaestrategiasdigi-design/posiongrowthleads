@@ -1268,6 +1268,7 @@ export type Database = {
           lead_id: string | null
           parent_task_id: string | null
           position: number
+          template_key: string | null
           tenant_id: string | null
           title: string
           updated_at: string
@@ -1283,6 +1284,7 @@ export type Database = {
           lead_id?: string | null
           parent_task_id?: string | null
           position?: number
+          template_key?: string | null
           tenant_id?: string | null
           title: string
           updated_at?: string
@@ -1298,6 +1300,7 @@ export type Database = {
           lead_id?: string | null
           parent_task_id?: string | null
           position?: number
+          template_key?: string | null
           tenant_id?: string | null
           title?: string
           updated_at?: string
