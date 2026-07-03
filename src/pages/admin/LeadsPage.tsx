@@ -194,11 +194,74 @@ const LeadsPage = () => {
           </p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
+          <Button variant="outline" onClick={() => setShowFormManager(v => !v)} className="gap-2 text-sm rounded-full">
+            <Filter className="w-4 h-4" /> Formulários POSION ({masterForms.filter(f => f.active).length})
+          </Button>
           <Button variant="outline" onClick={handleExportCSV} disabled={filtered.length === 0} className="gap-2 text-sm rounded-full">
             <Download className="w-4 h-4" /> Exportar CSV
           </Button>
         </div>
       </div>
+
+      {/* Gerenciador de formulários do Admin Master (POSION) */}
+      {showFormManager && (
+        <div className="card-elevated p-6 space-y-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Admin Master</p>
+            <h3 className="font-display text-lg text-foreground normal-case tracking-normal">Formulários atribuídos ao POSION</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Somente leads dos formulários selecionados aqui aparecem nesta tela. Tudo que não estiver mapeado (nem aqui, nem em uma clínica) vai para "leads não roteados".
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            {masterForms.length === 0 && (
+              <p className="text-xs text-muted-foreground italic">Nenhum formulário POSION cadastrado.</p>
+            )}
+            {masterForms.map(f => (
+              <div key={f.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-card/40 p-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-foreground truncate">{f.label || `Formulário ${f.form_id}`}</p>
+                  <p className="text-[10px] text-muted-foreground font-mono">{f.form_id}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant={f.active ? "default" : "outline"} className="rounded-full text-xs"
+                    onClick={() => toggleMasterForm(f.form_id, !f.active)}>
+                    {f.active ? "Ativo" : "Inativo"}
+                  </Button>
+                  <Button size="sm" variant="outline" className="rounded-full text-xs text-rose-400 border-rose-400/40 hover:bg-rose-500/10"
+                    onClick={() => removeMasterForm(f.form_id)}>
+                    Remover
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="pt-3 border-t border-border/60 space-y-2">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Adicionar formulário POSION</p>
+            {availableForms.filter(af => !masterForms.some(mf => mf.form_id === af.form_id)).length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {availableForms
+                  .filter(af => !masterForms.some(mf => mf.form_id === af.form_id))
+                  .map(af => (
+                    <button
+                      key={af.form_id}
+                      onClick={() => addMasterForm(af.form_id, af.form_name)}
+                      className="text-xs px-3 py-1.5 rounded-full border border-accent/30 bg-accent/5 text-accent hover:bg-accent/15 transition"
+                      title={af.form_id}
+                    >
+                      + {af.form_name || af.form_id}
+                    </button>
+                  ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">Nenhum novo formulário disponível.</p>
+            )}
+          </div>
+        </div>
+      )}
+
 
       {/* KPI Tiles */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
