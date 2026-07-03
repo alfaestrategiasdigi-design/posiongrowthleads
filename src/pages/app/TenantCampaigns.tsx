@@ -34,6 +34,11 @@ interface Campaign {
     spend: number; impressions: number; clicks: number;
     ctr: number; cpc: number; cpm: number;
     leads: number; cpl: number;
+    messaging?: number; link_clicks?: number;
+    result_kind?: "messaging" | "leads" | "purchases" | "link_clicks";
+    result_label?: string;
+    result_value?: number;
+    cost_per_result?: number;
     purchases: number; purchase_value: number; roas: number;
   };
   daily?: DailyPoint[];
