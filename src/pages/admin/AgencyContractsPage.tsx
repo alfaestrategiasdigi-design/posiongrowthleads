@@ -232,6 +232,17 @@ function ContractDialog({ contract, tenants, onOpenChange, onSaved }: { contract
       <DialogContent className="max-w-lg">
         <DialogHeader><DialogTitle>{c ? "Editar Contrato" : "Novo Contrato"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
+          <div>
+            <Label>Clínica (tenant)</Label>
+            <Select value={form.tenant_id || "__none"} onValueChange={(v) => setForm({ ...form, tenant_id: v === "__none" ? "" : v })}>
+              <SelectTrigger><SelectValue placeholder="Sem clínica vinculada" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">— Sem clínica —</SelectItem>
+                {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground mt-1">Vincule o contrato a uma clínica específica para não contar em todos os tenants.</p>
+          </div>
           <div><Label>Cliente *</Label><Input value={form.cliente_nome} onChange={(e) => setForm({ ...form, cliente_nome: e.target.value })} /></div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Valor total (R$)</Label><Input type="number" value={form.valor_total} onChange={(e) => setForm({ ...form, valor_total: Number(e.target.value) })} /></div>
