@@ -88,7 +88,7 @@ export default function CreateUserPage() {
 
   const loadTenants = async () => {
     const { data } = await supabase.from("tenants").select("id,name").order("name");
-    setTenants((data as any) || []);
+    setTenants(((data as any) || []).filter((t: Tenant) => t.id !== MASTER_TENANT_ID));
   };
   const loadUsers = async () => {
     setLoading(true);
