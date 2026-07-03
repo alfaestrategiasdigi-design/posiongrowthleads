@@ -47,6 +47,20 @@ Deno.serve(async (req) => {
           const { error } = await admin.from("user_roles").delete().eq("user_id", userId).eq("role", role as any);
           if (error) return json({ error: error.message }, 400);
         }
+
+        // Auto-link master roles to the master tenant so they always show a binding
+        if (action !== "remove_global_role" && (role === "admin" || role === "comercial_admin_master")) {
+          const masterRole = role === "admin" ? "owner" : "admin";
+          await admin.from("tenant_users").upsert(
+            {
+              user_id: userId,
+              tenant_id: "00000000-0000-0000-0000-000000000001",
+              role: masterRole as any,
+              active: true,
+            },
+            { onConflict: "user_id,tenant_id" },
+          );
+        }
         return json({ ok: true });
       }
       case "upsert_tenant": {
