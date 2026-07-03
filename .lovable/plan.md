@@ -1,75 +1,85 @@
 ## Objetivo
 
-Criar um **painel de detalhes do lead unificado**, usado igual em Lista de Leads, Kanban, Pipeline Agência e Agenda. O painel mostra o contexto do lead, permite qualificação SDR no formato GPCT, guarda respostas do formulário, e adiciona uma aba de Tarefas com sub-tarefas e comentários.
+1. Ao abrir um lead no `UnifiedLeadPanel`, quando ainda não houver tarefas cadastradas, semear automaticamente um **checklist sugerido** baseado no valor do campo **"Você compra para"** (`leads.tipo_purchase` / `agency_leads`) combinado com a faixa do **Score SDR** (frio / morno / quente).
+2. Reorganizar a sidebar do admin master: mover **WhatsApp Master**, **Leads (formulário)** e **Qualificação** para dentro do grupo **Agência POSION**.
 
-## Estrutura do painel
+---
 
-Um único componente `UnifiedLeadPanel` (drawer/lateral em telas grandes, dialog em mobile) com 4 abas:
+## 1. Template de tarefas sugeridas
 
-1. **Resumo** — nome, WhatsApp (com botão de conversa), empresa, cidade, volume/faturamento, valor da proposta, etapa do pipeline, origem, botão de editar etapa e valor, notas comerciais.
-2. **Formulário** — campos capturados do Meta Lead Ads / formulário de captação (respostas originais, campanha, UTM). Somente leitura.
-3. **Qualificação SDR (GPCT)** — 4 campos textuais + score 0-100 + observações do SDR.
-4. **Tarefas** — checklist livre com sub-tarefas e comentários por tarefa.
+### Onde acontece
+- Novo helper `src/lib/lead-task-templates.ts` com:
+  - `getSuggestedTasks({ tipoPurchase, sdrScore, source }) → { key: string; title: string; subtasks?: string[] }[]`
+  - Constante `TEMPLATE_VERSION = 1` — cada tarefa criada guarda `template_key` para não duplicar caso o painel reabra.
+- `LeadTasksTab` recebe `lead` (não só id) e, no primeiro load, se `tasks.length === 0`, mostra um bloco **"Sugestões de tarefas para este lead"** com as sugestões do template + botão **"Aplicar todas"** e checkbox por item para aplicar seletivamente.
+  - Nada é criado silenciosamente — o SDR clica para aplicar, evitando poluir leads antigos.
+  - Após aplicar, as tarefas viram `lead_tasks` normais (com sub-tarefas conforme template), e o bloco de sugestões some.
 
-O painel funciona em modo polimórfico: recebe `{ source: "lead" | "agency_lead", id }` e resolve internamente qual tabela consultar/atualizar. Um adaptador normaliza os dois schemas em um "view model" único (nome, contato, empresa, volume, etc.).
+### Regras de sugestão
 
-## Mudanças no banco
+Base por **`tipo_purchase`** (fallback "outro" quando nulo). Como os rótulos exatos vinculados a esse campo no formulário não são conhecidos em código, o helper normaliza por palavras-chave (`clinica|proprio|uso` → uso próprio, `revenda|distribui` → revenda, `iniciante` → iniciante) e cai em "outro" quando não bate.
 
-Novas colunas / tabelas via migration:
+- **Uso próprio / clínica própria**
+  - Confirmar CNPJ e nome da clínica
+  - Levantar volume atual de pacientes / procedimentos
+  - Mapear ferramentas de gestão atuais
+  - Agendar diagnóstico com especialista POSION
+- **Revenda / distribuidor**
+  - Validar região de atuação e portfólio
+  - Levantar volume mensal de compra
+  - Enviar tabela de revenda
+  - Alinhar condições comerciais
+- **Iniciante / ainda pesquisando**
+  - Enviar material educativo (case + vídeo)
+  - Qualificar orçamento disponível
+  - Explorar timeline de decisão
+- **Outro / não informado**
+  - Confirmar objetivo da compra
+  - Coletar dados básicos faltantes
 
-- `leads.sdr_qualification` `jsonb` — `{ goals, plans, challenges, timeline, score, notes, updated_at, updated_by }`
-- `agency_leads.sdr_qualification` `jsonb` — mesma estrutura
-- Nova tabela `lead_tasks`:
-  - `id`, `parent_task_id` (self-ref para sub-tarefas), `lead_id` (FK opcional a `leads`), `agency_lead_id` (FK opcional a `agency_leads`), `tenant_id` (opcional), `title`, `done`, `due_date`, `assignee_user_id`, `position`, `created_at`, `updated_at`
-  - CHECK garante exatamente um de `lead_id` / `agency_lead_id` preenchido
-- Nova tabela `lead_task_comments`:
-  - `id`, `task_id` FK `lead_tasks`, `author_user_id`, `body`, `created_at`
-- RLS: admin (POSION) faz tudo; membros do tenant enxergam somente tarefas cujo `lead_id` pertence ao seu tenant (via `has_tenant_access`). `agency_leads` fica restrito a admin (já é).
-- GRANTs para `authenticated` + `service_role` conforme padrão.
+### Regras por **Score SDR**
+Adicionadas independentemente da faixa de `tipo_purchase`:
 
-## Integração nas telas
+- **Quente (≥70)**: "Agendar reunião de proposta em ≤48h", "Preparar proposta comercial personalizada", "Enviar mensagem de follow-up no WhatsApp hoje"
+- **Morno (40–69)**: "Enviar case de sucesso do segmento", "Agendar call de descoberta em 5 dias", "Registrar próximo touchpoint"
+- **Frio (<40) ou sem score**: "Nutrir com conteúdo (2 mensagens em 7 dias)", "Reagendar qualificação em 15 dias"
 
-- **`LeadsPage` + `KanbanBoard`**: substituem `LeadDetailModal` por `UnifiedLeadPanel` com `source="lead"`. Mantém realtime já existente.
-- **`AgencyPipelinePage`**: hoje tem editor inline próprio. Passa a abrir `UnifiedLeadPanel` com `source="agency_lead"` no clique do card, mantendo drag-and-drop de etapa.
-- **`AppointmentModal` (Agenda)**: quando o agendamento estiver vinculado a um `agency_lead_id`, exibe um bloco compacto "Contexto do lead" (nome, WhatsApp, empresa, volume) direto no modal e um botão **"Abrir painel completo"** que abre `UnifiedLeadPanel` sobre o modal. Para permitir isso, `appointments` ganha coluna `agency_lead_id uuid` (FK opcional a `agency_leads`) além do `lead_id` já existente, e o selector de lead no modal grava o id no campo certo conforme a origem.
+### Detalhes técnicos
+- `useLeadTasks` ganha método `bulkInsert(items)` que insere pai + subtarefas mantendo `position` sequencial e `template_key` em uma nova coluna `template_key text` de `lead_tasks` (migration curta, sem RLS nova).
+- `LeadTasksTab` importa `getSuggestedTasks` e o hook, mostra sugestões apenas quando `!loading && tasks.length === 0`.
+- Nenhuma alteração no fluxo manual de criar tarefa/subtarefa/comentário.
 
-## Aba de Tarefas — comportamento
+---
 
-- Lista as tarefas de nível 0 ordenadas por `position`.
-- Cada tarefa tem checkbox, título editável inline, prazo, responsável, botão de expandir sub-tarefas e ícone de comentários com contador.
-- Ao expandir, mostra sub-tarefas (mesma estrutura, um nível de profundidade) e um painel de comentários com input de novo comentário.
-- Adicionar tarefa: input rápido no topo. Adicionar sub-tarefa: botão dentro da tarefa expandida.
-- Realtime opcional (mesmo canal já usado nas outras telas) para refletir mudanças multi-usuário.
+## 2. Sidebar — mover itens para "Agência POSION"
 
-## Aba Qualificação SDR (GPCT)
+Editar apenas `src/components/admin/AppSidebar.tsx` (`navGroups`):
 
-Formulário com:
-- `Goals` (textarea) — objetivos do lead
-- `Plans` (textarea) — planos atuais para atingir os objetivos
-- `Challenges` (textarea) — desafios/dores
-- `Timeline` (select: imediato / 30d / 60-90d / >90d / indefinido)
-- `Score` (slider 0-100 com badge colorida: <40 frio, 40-70 morno, >70 quente)
-- `Notas do SDR` (textarea)
-- Botão "Salvar qualificação" que grava em `sdr_qualification` do lead correspondente e registra `updated_by` + `updated_at`.
+**Grupo "Agência POSION"** passa a conter, nesta ordem:
+1. Dashboard
+2. Pipeline Agência
+3. Leads (formulário) — movido de Marketing
+4. Qualificação — movido de Marketing
+5. Agenda de Reunião
+6. WhatsApp Master — movido de Operação Master
+7. Contratos
 
-## Arquivos a criar / editar
+**Grupo "Marketing"** fica só com: Campanhas Meta, Conexão Facebook, Conversions API.
 
-Criar:
-- `src/components/leads/UnifiedLeadPanel.tsx` — shell com abas
-- `src/components/leads/panel/LeadSummaryTab.tsx`
-- `src/components/leads/panel/LeadFormAnswersTab.tsx`
-- `src/components/leads/panel/LeadSDRTab.tsx`
-- `src/components/leads/panel/LeadTasksTab.tsx`
-- `src/components/leads/panel/LeadContextCard.tsx` — bloco compacto usado dentro do AppointmentModal
-- `src/hooks/useUnifiedLead.ts` — adaptador que carrega/salva dependendo de `source`
-- `src/hooks/useLeadTasks.ts` — CRUD tarefas + subtarefas + comentários
-- Migration SQL nova
+**Grupo "Operação Master"** fica só com: Conexão WhatsApp, Status WhatsApp, Usuários & Convites.
 
-Editar:
-- `src/pages/admin/LeadsPage.tsx` — trocar `LeadDetailModal` por `UnifiedLeadPanel`
-- `src/components/admin/KanbanBoard.tsx` — mesma troca
-- `src/pages/admin/AgencyPipelinePage.tsx` — abrir `UnifiedLeadPanel` no clique
-- `src/components/admin/AppointmentModal.tsx` — embutir `LeadContextCard` + botão para o painel completo; gravar `agency_lead_id`
+Manter as flags `comercial: true` existentes (Leads formulário e WhatsApp Master já têm; Qualificação continua sem — só master vê).
 
-Manter (deprecado, mas sem remover ainda para evitar quebrar imports externos):
-- `src/components/admin/LeadDetailModal.tsx` — passa a re-exportar `UnifiedLeadPanel` com `source="lead"` para retrocompatibilidade.
+---
+
+## Arquivos
+
+**Criar**
+- `src/lib/lead-task-templates.ts`
+- Migration adicionando coluna `template_key text` em `lead_tasks`
+
+**Editar**
+- `src/components/leads/panel/LeadTasksTab.tsx` — bloco de sugestões + apply
+- `src/hooks/useLeadTasks.ts` — `bulkInsert`
+- `src/components/leads/UnifiedLeadPanel.tsx` — passar `lead` para a tab (se ainda não passa)
+- `src/components/admin/AppSidebar.tsx` — reordenação de grupos
