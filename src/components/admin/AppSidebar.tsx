@@ -13,22 +13,22 @@ import logoAsset from "@/assets/posion/logo-posion.png.asset.json";
 
 import { useUserRole } from "@/hooks/useUserRole";
 
-type NavItem = { title: string; url: string; icon: any; live?: boolean; comercial?: boolean };
-type NavGroup = { label: string; comercial?: boolean; items: NavItem[] };
+type NavItem = { title: string; url: string; icon: any; live?: boolean; agency?: boolean };
+type NavGroup = { label: string; agency?: boolean; items: NavItem[] };
 
-// itens marcados `comercial: true` também aparecem para `comercial_admin_master`
+// Itens marcados `agency: true` são visíveis para `comercial_admin_master` e `user` (visão Agência POSION).
 const navGroups: NavGroup[] = [
   {
     label: "Agência POSION",
-    comercial: true,
+    agency: true,
     items: [
-      { title: "Dashboard", url: "/admin", icon: LayoutDashboard, comercial: true },
-      { title: "Pipeline Agência", url: "/admin/pipeline", icon: GitBranch, comercial: true },
-      { title: "Leads (formulário)", url: "/admin/leads", icon: Users, comercial: true },
-      { title: "Automações", url: "/admin/automacoes", icon: Zap, comercial: true },
-      { title: "Agenda de Reunião", url: "/admin/agendamentos", icon: Activity, comercial: true },
-      { title: "WhatsApp Master", url: "/admin/whatsapp", icon: MessageCircle, live: true, comercial: true },
-      { title: "Contratos", url: "/admin/contratos-agencia", icon: FileText },
+      { title: "Dashboard", url: "/admin", icon: LayoutDashboard, agency: true },
+      { title: "Pipeline Agência", url: "/admin/pipeline", icon: GitBranch, agency: true },
+      { title: "Leads (formulário)", url: "/admin/leads", icon: Users, agency: true },
+      { title: "Automações", url: "/admin/automacoes", icon: Zap, agency: true },
+      { title: "Agenda de Reunião", url: "/admin/agendamentos", icon: Activity, agency: true },
+      { title: "WhatsApp Master", url: "/admin/whatsapp", icon: MessageCircle, live: true, agency: true },
+      { title: "Contratos", url: "/admin/contratos-agencia", icon: FileText, agency: true },
     ],
   },
   {
@@ -63,18 +63,24 @@ const AppSidebar = () => {
   const navigate = useNavigate();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const { isMaster, isComercialMaster } = useUserRole();
+  const { isMaster, isComercialMaster, globalRoles, loading } = useUserRole();
 
-  // Comercial Admin Master só vê grupos/itens marcados como `comercial`
-  const visibleGroups = navGroups
-    .map((g) => {
-      if (isMaster) return g;
-      if (isComercialMaster && g.comercial) {
-        return { ...g, items: g.items.filter((i) => i.comercial) };
-      }
-      return null;
-    })
-    .filter((g): g is NavGroup => !!g && g.items.length > 0);
+  // Visão "Agência POSION" restrita: comercial_admin_master OU usuários sem papel master (role `user`)
+  const isAgencyOnly =
+    !isMaster && (isComercialMaster || globalRoles.length === 0 || globalRoles.every((r) => r === "user"));
+
+  const visibleGroups = loading
+    ? []
+    : navGroups
+        .map((g) => {
+          if (isMaster) return g;
+          if (isAgencyOnly && g.agency) {
+            return { ...g, items: g.items.filter((i) => i.agency) };
+          }
+          return null;
+        })
+        .filter((g): g is NavGroup => !!g && g.items.length > 0);
+
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
