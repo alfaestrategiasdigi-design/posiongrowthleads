@@ -52,7 +52,11 @@ export default function Dashboard() {
       const toDate = range.to.toISOString().slice(0, 10);
       const [l, ac, sc, t, clinic, spend] = await Promise.all([
         supabase.from("agency_leads").select("id,stage,valor_proposta,created_at,nome_clinica,plano_interesse,ganho_at,tenant_id_criado"),
-        supabase.from("agency_contracts").select("id,agency_lead_id,tenant_id,cliente_nome,valor_total,data_assinatura,status"),
+        supabase
+          .from("agency_contracts")
+          .select("id,agency_lead_id,tenant_id,cliente_nome,valor_total,data_assinatura,status")
+          .is("tenant_id", null)
+          .order("data_assinatura", { ascending: false }),
         supabase.from("saas_contracts").select("id,tenant_id,mrr,status,started_at"),
         supabase.from("tenants").select("id,name,status,created_at"),
         supabase.from("clinic_leads").select("tenant_id,stage,created_at").gte("created_at", range.from.toISOString()).lte("created_at", range.to.toISOString()),
@@ -153,19 +157,12 @@ export default function Dashboard() {
   // ============= AGÊNCIA =============
   const agency = useMemo(() => {
     const leadsPeriodo = leads.filter((l) => inRange(l.created_at));
-    const ganhosAll = leads.filter((l) => l.stage === "ganho");
-    const ganhosPeriodo = ganhosAll.filter((l) => inRange((l as any).ganho_at || l.created_at));
     const emNegociacao = leads.filter((l) => ["proposta", "negociacao"].includes(l.stage));
     const contratosPeriodo = agencyContracts.filter((c) => inRange(c.data_assinatura));
 
-    // Receita = contratos assinados no período (cada lead em GANHO já gera contrato automaticamente).
-    // Fallback: soma leads em ganho que ainda não possuem contrato correspondente.
-    const contractLeadIds = new Set(agencyContracts.map((c: any) => c.agency_lead_id).filter(Boolean));
+    // Receita POSION = somente contratos próprios do admin master (tenant_id NULL).
     const receitaContratos = contratosPeriodo.reduce((s, c) => s + Number(c.valor_total || 0), 0);
-    const receitaGanhosSemContrato = ganhosPeriodo
-      .filter((l) => !contractLeadIds.has(l.id))
-      .reduce((s, l) => s + Number(l.valor_proposta || 0), 0);
-    const receitaAgencia = receitaContratos + receitaGanhosSemContrato;
+    const receitaAgencia = receitaContratos;
 
     const mrr = saasContracts.filter((s) => s.status === "active").reduce((s, c) => s + Number(c.mrr || 0), 0);
 
@@ -175,14 +172,14 @@ export default function Dashboard() {
       stage: STAGE_LABELS[stage] || stage, count, fill: STAGE_COLORS[stage] || "#888",
     }));
 
-    const convRate = leadsPeriodo.length > 0 ? (ganhosPeriodo.length / leadsPeriodo.length) * 100 : 0;
+    const convRate = leadsPeriodo.length > 0 ? (contratosPeriodo.length / leadsPeriodo.length) * 100 : 0;
     const pipelineValue = emNegociacao.reduce((s, l) => s + (l.valor_proposta || 0), 0);
-    const totalFechamentos = contratosPeriodo.length + ganhosPeriodo.length;
+    const totalFechamentos = contratosPeriodo.length;
     const ticketMedio = totalFechamentos > 0 ? receitaAgencia / totalFechamentos : 0;
 
     return {
       leadsPeriodo: leadsPeriodo.length,
-      ganhos: ganhosPeriodo.length,
+      ganhos: contratosPeriodo.length,
       emNegociacao: emNegociacao.length,
       pipelineValue,
       receitaAgencia,
@@ -198,19 +195,15 @@ export default function Dashboard() {
   // Timeline de receita (agência + saas) por dia
   const timelineData = useMemo(() => {
     const days = eachDayOfInterval({ start: range.from, end: range.to });
-    const contractLeadIds = new Set(agencyContracts.map((c: any) => c.agency_lead_id).filter(Boolean));
     return days.map((d) => {
       const dayKey = format(d, "yyyy-MM-dd");
       const receitaContratos = agencyContracts
         .filter((c) => c.data_assinatura === dayKey)
         .reduce((s, c) => s + Number(c.valor_total || 0), 0);
-      const receitaGanhos = leads
-        .filter((l) => l.stage === "ganho" && !contractLeadIds.has(l.id) && format(new Date((l as any).ganho_at || l.created_at), "yyyy-MM-dd") === dayKey)
-        .reduce((s, l) => s + Number(l.valor_proposta || 0), 0);
       const label = format(d, days.length > 45 ? "dd/MM" : "dd/MM", { locale: ptBR });
-      return { day: label, receita: receitaContratos + receitaGanhos };
+      return { day: label, receita: receitaContratos };
     });
-  }, [agencyContracts, leads, range]);
+  }, [agencyContracts, range]);
 
   // Top clínicas por GMV
   const topTenants = useMemo(() => {
@@ -311,17 +304,17 @@ export default function Dashboard() {
           <div className="rounded-xl border border-border/60 bg-card/40 p-4">
             <h3 className="text-sm font-semibold mb-3">Últimos ganhos</h3>
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {leads.filter((l) => l.stage === "ganho").slice(0, 6).map((l) => (
-                <div key={l.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border/30 last:border-0">
+              {agencyContracts.slice(0, 6).map((c) => (
+                <div key={c.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border/30 last:border-0">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{l.nome_clinica}</div>
-                    <div className="text-[10px] text-muted-foreground">{format(new Date(l.created_at), "dd/MM/yy")}</div>
+                    <div className="truncate font-medium">{c.cliente_nome}</div>
+                    <div className="text-[10px] text-muted-foreground">{format(new Date(c.data_assinatura), "dd/MM/yy")}</div>
                   </div>
-                  <span className="text-emerald-500 font-semibold text-xs">{fmt(l.valor_proposta || 0)}</span>
+                  <span className="text-emerald-500 font-semibold text-xs">{fmt(c.valor_total || 0)}</span>
                 </div>
               ))}
-              {leads.filter((l) => l.stage === "ganho").length === 0 && (
-                <div className="text-xs text-muted-foreground text-center py-6">Nenhum lead ganho ainda.</div>
+              {agencyContracts.length === 0 && (
+                <div className="text-xs text-muted-foreground text-center py-6">Nenhum ganho ainda.</div>
               )}
             </div>
           </div>
