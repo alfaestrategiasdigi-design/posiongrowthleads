@@ -51,7 +51,7 @@ export default function Index() {
             Central do Cliente
           </h1>
           <p className="text-center text-sm text-white/50 mb-7 leading-relaxed">
-            Acesso exclusivo para clínicas parceiras, equipe comercial e administradores Posion.
+            Acesso exclusivo para clínicas parceiras, equipe de suporte Posion.
           </p>
 
           <Button
