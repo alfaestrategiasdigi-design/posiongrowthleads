@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, MessageCircle, Users, LogOut, UserPlus, ListChecks,
+  LayoutDashboard, MessageCircle, Users, LogOut, UserPlus, Zap,
   Facebook, Building2, FileText, Megaphone, Plug, Activity, Target, CreditCard, GitBranch,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
