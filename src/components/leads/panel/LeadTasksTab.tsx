@@ -81,7 +81,44 @@ export default function LeadTasksTab({ lead }: { lead: UnifiedLeadView }) {
         <Button size="sm" onClick={submit} className="gap-1"><Plus className="w-3.5 h-3.5" /> Adicionar</Button>
       </div>
 
+      {pendingSuggestions.length > 0 && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-semibold text-primary flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" /> Sugestões para este lead
+            </div>
+            <Button size="sm" variant="ghost" onClick={toggleAll} className="h-6 text-[10px]">
+              {allSelected ? "Limpar" : "Selecionar tudo"}
+            </Button>
+          </div>
+          <div className="text-[10px] text-muted-foreground">
+            Baseado em <span className="font-medium">{lead.tipoPurchase || "perfil não informado"}</span>
+            {lead.sdr?.score != null && <> · score {lead.sdr.score}</>}
+          </div>
+          <div className="space-y-1">
+            {pendingSuggestions.map((s) => (
+              <label key={s.key} className="flex items-start gap-2 text-xs cursor-pointer hover:bg-primary/5 rounded p-1">
+                <Checkbox checked={!!selected[s.key]} onCheckedChange={() => toggleSel(s.key)} className="mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium">{s.title}</div>
+                  {s.subtasks && s.subtasks.length > 0 && (
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      + {s.subtasks.length} sub-tarefa(s): {s.subtasks.join(" · ")}
+                    </div>
+                  )}
+                </div>
+              </label>
+            ))}
+          </div>
+          <Button size="sm" onClick={applySelected} disabled={applying} className="w-full gap-1 h-8">
+            {applying ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+            Aplicar {Object.values(selected).filter(Boolean).length || "todas"}
+          </Button>
+        </div>
+      )}
+
       <div className="space-y-2">
+
         {roots.length === 0 && !loading && (
           <div className="text-center py-8 text-xs text-muted-foreground">
             <CheckCircle2 className="w-8 h-8 mx-auto mb-2 opacity-40" />
