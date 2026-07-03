@@ -109,13 +109,18 @@ Deno.serve(async (req) => {
         });
         if (ir.ok) { rows = ir.body?.data ?? []; cache.set(key, { v: rows, exp: Date.now() + TTL }); }
       }
-      const agg = { spend: 0, impressions: 0, clicks: 0, reach: 0, leads: 0, purchases: 0, purchase_value: 0 };
+      const agg = { spend: 0, impressions: 0, clicks: 0, reach: 0, leads: 0, purchases: 0, purchase_value: 0, messaging: 0, link_clicks: 0 };
       const daily: Array<{ date: string; spend: number; leads: number; clicks: number; impressions: number }> = [];
       for (const row of rows ?? []) {
-        let dLeads = 0, dPurch = 0, dPurchVal = 0;
+        let dLeads = 0, dPurch = 0, dPurchVal = 0, dMsg = 0, dLinkClicks = 0;
         for (const a of row?.actions ?? []) {
           if (["lead", "leadgen.other", "onsite_conversion.lead_grouped"].includes(a.action_type)) dLeads += +a.value || 0;
           if (["purchase", "offsite_conversion.fb_pixel_purchase"].includes(a.action_type)) dPurch += +a.value || 0;
+          if ([
+            "onsite_conversion.messaging_conversation_started_7d",
+            "onsite_conversion.total_messaging_connection",
+          ].includes(a.action_type)) dMsg += +a.value || 0;
+          if (a.action_type === "link_click") dLinkClicks += +a.value || 0;
         }
         for (const a of row?.action_values ?? []) {
           if (["purchase", "offsite_conversion.fb_pixel_purchase"].includes(a.action_type)) dPurchVal += +a.value || 0;
@@ -126,9 +131,27 @@ Deno.serve(async (req) => {
         agg.spend += dSpend; agg.impressions += dImpr; agg.clicks += dClicks;
         agg.reach += +row?.reach || 0;
         agg.leads += dLeads; agg.purchases += dPurch; agg.purchase_value += dPurchVal;
+        agg.messaging += dMsg; agg.link_clicks += dLinkClicks;
         daily.push({ date: row?.date_start ?? "", spend: dSpend, leads: dLeads, clicks: dClicks, impressions: dImpr });
       }
       const spend = agg.spend;
+
+      // Determina "resultado" com base no objetivo da campanha (Meta)
+      const obj = String(c.objective || "").toUpperCase();
+      let result_kind: "messaging" | "leads" | "purchases" | "link_clicks" = "leads";
+      if (obj.includes("MESSAG") || obj === "OUTCOME_ENGAGEMENT") result_kind = agg.messaging > 0 ? "messaging" : (agg.leads > 0 ? "leads" : "messaging");
+      else if (obj.includes("LEAD")) result_kind = "leads";
+      else if (obj.includes("SALES") || obj.includes("CONVERSION") || obj.includes("PURCHASE")) result_kind = "purchases";
+      else if (obj.includes("TRAFFIC") || obj.includes("LINK_CLICK")) result_kind = "link_clicks";
+
+      const result_map = {
+        messaging: { value: agg.messaging, label: "Conversas" },
+        leads: { value: agg.leads, label: "Leads" },
+        purchases: { value: agg.purchases, label: "Compras" },
+        link_clicks: { value: agg.link_clicks, label: "Cliques" },
+      } as const;
+      const result_value = result_map[result_kind].value;
+
       return {
         ...c,
         ad_account_id: acc.id,
@@ -139,11 +162,18 @@ Deno.serve(async (req) => {
           cpc: agg.clicks ? spend / agg.clicks : 0,
           cpm: agg.impressions ? (spend / agg.impressions) * 1000 : 0,
           leads: agg.leads, cpl: agg.leads > 0 ? spend / agg.leads : 0,
+          messaging: agg.messaging,
+          link_clicks: agg.link_clicks,
+          result_kind,
+          result_label: result_map[result_kind].label,
+          result_value,
+          cost_per_result: result_value > 0 ? spend / result_value : 0,
           purchases: agg.purchases, purchase_value: agg.purchase_value,
           roas: spend > 0 ? agg.purchase_value / spend : 0,
         } : null,
         daily,
       };
+
     });
     all.push(...withIns);
   }
