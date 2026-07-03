@@ -93,6 +93,36 @@ function normalize(source: LeadSource, r: any): UnifiedLeadView {
     tenantId: r.tenant_id_criado || null,
     formFields: [],
     facebookMeta: null,
+    sourceLeadId: r.source_lead_id ?? null,
+    formLead: null,
+  };
+}
+
+function mergeFormLead(view: UnifiedLeadView, formLead: any | null): UnifiedLeadView {
+  if (!formLead) return view;
+  return {
+    ...view,
+    formLead,
+    // Prefer form data as source of truth for these fields
+    tipoPurchase: view.tipoPurchase ?? formLead.tipo_purchase ?? null,
+    formFields: formLead.extras?.form_fields ?? [],
+    facebookMeta: formLead.extras?.facebook ?? {
+      campaign: formLead.facebook_campaign,
+      campaign_id: formLead.campaign_id_manual,
+      form_id: formLead.facebook_form_id,
+      form_name: formLead.facebook_form_name,
+      ad_name: formLead.facebook_ad_name,
+      ad_id: formLead.facebook_ad_id,
+      adset_name: formLead.facebook_adset_name,
+      adset_id: formLead.facebook_adset_id,
+      lead_id: formLead.facebook_lead_id,
+      utm_source: formLead.utm_source,
+      utm_medium: formLead.utm_medium,
+      utm_campaign: formLead.utm_campaign,
+      utm_content: formLead.utm_content,
+      utm_term: formLead.utm_term,
+    },
+    sdr: view.sdr ?? ((formLead.sdr_qualification as SDRQualification) ?? null),
   };
 }
 
@@ -105,9 +135,22 @@ export function useUnifiedLead(source: LeadSource | null, id: string | null) {
     setLoading(true);
     const table = source === "lead" ? "leads" : "agency_leads";
     const { data: row, error } = await supabase.from(table).select("*").eq("id", id).maybeSingle();
-    if (!error && row) setData(normalize(source, row));
+    if (!error && row) {
+      let view = normalize(source, row);
+      // For agency_leads with a linked form lead, fetch it and merge form-side data
+      if (source === "agency_lead" && (row as any).source_lead_id) {
+        const { data: formRow } = await supabase
+          .from("leads")
+          .select("*")
+          .eq("id", (row as any).source_lead_id)
+          .maybeSingle();
+        view = mergeFormLead(view, formRow);
+      }
+      setData(view);
+    }
     setLoading(false);
   }, [source, id]);
+
 
   useEffect(() => {
     if (source && id) load();
