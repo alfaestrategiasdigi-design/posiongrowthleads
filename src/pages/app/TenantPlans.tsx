@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTenant } from "@/hooks/useTenant";
 import { supabase } from "@/integrations/supabase/client";
-import { Check, Sparkles, Crown, Rocket, Loader2, ShieldCheck, FileText, CreditCard, RefreshCw, ExternalLink } from "lucide-react";
+import { Check, Sparkles, Crown, Rocket, Loader2, ShieldCheck, FileText, CreditCard, RefreshCw, ExternalLink, Clock, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -160,82 +160,85 @@ export default function TenantPlans() {
           </Card>
         )}
 
-        <div>
-          <h2 className="font-display text-xl mb-4">{hasActiveSub ? "Trocar de plano" : "Escolha seu plano"}</h2>
-          <div className="grid md:grid-cols-3 gap-4">
-            {(["starter", "pro", "scale"] as const).map((code) => {
-              const m = PLAN_META[code];
-              const Icon = m.icon;
-              const group = groupedPlans[code] || {};
-              const isCurrent = hasActiveSub && sub.plan_code === code;
-              return (
-                <Card key={code} className={`bg-[#0E1730] ${isCurrent ? "border-primary/60" : "border-white/10"} relative`}>
-                  {code === "pro" && (
-                    <div className="absolute -top-2 left-4 text-[10px] uppercase tracking-widest bg-primary text-primary-foreground px-2 py-0.5 rounded">Mais popular</div>
-                  )}
-                  <CardHeader>
-                    <div className="flex items-center gap-2">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-                        <Icon className="w-5 h-5 text-primary" />
+        <TrialGate tenant={tenant as any}>
+          <div>
+            <h2 className="font-display text-xl mb-4">{hasActiveSub ? "Trocar de plano" : "Escolha seu plano"}</h2>
+            <div className="grid md:grid-cols-3 gap-4">
+              {(["starter", "pro", "scale"] as const).map((code) => {
+                const m = PLAN_META[code];
+                const Icon = m.icon;
+                const group = groupedPlans[code] || {};
+                const isCurrent = hasActiveSub && sub.plan_code === code;
+                return (
+                  <Card key={code} className={`bg-[#0E1730] ${isCurrent ? "border-primary/60" : "border-white/10"} relative`}>
+                    {code === "pro" && (
+                      <div className="absolute -top-2 left-4 text-[10px] uppercase tracking-widest bg-primary text-primary-foreground px-2 py-0.5 rounded">Mais popular</div>
+                    )}
+                    <CardHeader>
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+                          <Icon className="w-5 h-5 text-primary" />
+                        </div>
+                        <div>
+                          <CardTitle className="capitalize">{code}</CardTitle>
+                          <p className="text-xs text-muted-foreground">{m.tagline}</p>
+                        </div>
                       </div>
-                      <div>
-                        <CardTitle className="capitalize">{code}</CardTitle>
-                        <p className="text-xs text-muted-foreground">{m.tagline}</p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <ul className="space-y-1.5 text-sm">
+                        {m.features.map((f) => (
+                          <li key={f} className="flex items-start gap-2">
+                            <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                            <span>{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="space-y-2 pt-3 border-t border-white/5">
+                        {group.monthly && (
+                          <Button
+                            variant={isCurrent && sub.interval === "month" ? "secondary" : "default"}
+                            className="w-full justify-between"
+                            disabled={busyKey === group.monthly.lookup_key || (isCurrent && sub.interval === "month" && ["active", "authorized"].includes(sub.status))}
+                            onClick={() => startCheckout(group.monthly!.lookup_key)}
+                          >
+                            <span className="flex items-center gap-2">
+                              {busyKey === group.monthly.lookup_key ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                              Mensal
+                            </span>
+                            <span className="tabular-nums font-semibold">{BRL(group.monthly.amount_cents, group.monthly.currency)}/mês</span>
+                          </Button>
+                        )}
+                        {group.quarter && (
+                          <Button
+                            variant={isCurrent && sub.interval === "quarter" ? "secondary" : "outline"}
+                            className="w-full justify-between"
+                            disabled={busyKey === group.quarter.lookup_key || (isCurrent && sub.interval === "quarter" && ["active", "authorized"].includes(sub.status))}
+                            onClick={() => startCheckout(group.quarter!.lookup_key)}
+                          >
+                            <span className="flex items-center gap-2">
+                              {busyKey === group.quarter.lookup_key ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                              Trimestral <span className="text-[10px] text-emerald-300">-10%</span>
+                            </span>
+                            <span className="tabular-nums font-semibold">{BRL(group.quarter.amount_cents, group.quarter.currency)}</span>
+                          </Button>
+                        )}
                       </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <ul className="space-y-1.5 text-sm">
-                      {m.features.map((f) => (
-                        <li key={f} className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                          <span>{f}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="space-y-2 pt-3 border-t border-white/5">
-                      {group.monthly && (
-                        <Button
-                          variant={isCurrent && sub.interval === "month" ? "secondary" : "default"}
-                          className="w-full justify-between"
-                          disabled={busyKey === group.monthly.lookup_key || (isCurrent && sub.interval === "month" && ["active", "authorized"].includes(sub.status))}
-                          onClick={() => startCheckout(group.monthly!.lookup_key)}
-                        >
-                          <span className="flex items-center gap-2">
-                            {busyKey === group.monthly.lookup_key ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                            Mensal
-                          </span>
-                          <span className="tabular-nums font-semibold">{BRL(group.monthly.amount_cents, group.monthly.currency)}/mês</span>
-                        </Button>
-                      )}
-                      {group.quarter && (
-                        <Button
-                          variant={isCurrent && sub.interval === "quarter" ? "secondary" : "outline"}
-                          className="w-full justify-between"
-                          disabled={busyKey === group.quarter.lookup_key || (isCurrent && sub.interval === "quarter" && ["active", "authorized"].includes(sub.status))}
-                          onClick={() => startCheckout(group.quarter!.lookup_key)}
-                        >
-                          <span className="flex items-center gap-2">
-                            {busyKey === group.quarter.lookup_key ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                            Trimestral <span className="text-[10px] text-emerald-300">-10%</span>
-                          </span>
-                          <span className="tabular-nums font-semibold">{BRL(group.quarter.amount_cents, group.quarter.currency)}</span>
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        {!hasActiveSub && (
-          <div className="rounded-xl p-5 border border-white/10 bg-[#0E1730] flex items-center gap-3 text-sm text-muted-foreground">
-            <ShieldCheck className="w-5 h-5 text-primary shrink-0" />
-            Pagamentos processados pelo Mercado Pago. Cartão de crédito com cobrança automática recorrente.
-          </div>
-        )}
+          {!hasActiveSub && (
+            <div className="rounded-xl p-5 border border-white/10 bg-[#0E1730] flex items-center gap-3 text-sm text-muted-foreground mt-6">
+              <ShieldCheck className="w-5 h-5 text-primary shrink-0" />
+              Pagamentos processados pelo Mercado Pago. Cartão de crédito com cobrança automática recorrente.
+            </div>
+          )}
+        </TrialGate>
+
 
         <Card className="bg-[#0E1730] border-white/10">
           <CardHeader className="flex flex-row items-center gap-2">
@@ -274,3 +277,74 @@ export default function TenantPlans() {
     </div>
   );
 }
+
+function TrialGate({ tenant, children }: { tenant: any; children: React.ReactNode }) {
+  const active = !!tenant?.trial_active;
+  const endsAt = tenant?.trial_ends_at ? new Date(tenant.trial_ends_at) : null;
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, [active]);
+
+  if (!active) return <>{children}</>;
+
+  const diffMs = endsAt ? endsAt.getTime() - now.getTime() : 0;
+  const expired = endsAt ? diffMs <= 0 : false;
+  const totalSec = Math.max(0, Math.floor(diffMs / 1000));
+  const days = Math.floor(totalSec / 86400);
+  const hours = Math.floor((totalSec % 86400) / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+
+  return (
+    <div className="relative">
+      <div className="pointer-events-none select-none blur-md opacity-40" aria-hidden>
+        {children}
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center p-6">
+        <div className="max-w-xl w-full rounded-2xl border border-primary/30 bg-[#0E1730]/95 backdrop-blur-xl p-8 text-center shadow-2xl">
+          <div className="w-14 h-14 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center mx-auto mb-4">
+            <Lock className="w-6 h-6 text-primary" />
+          </div>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-primary/80 font-mono mb-2">Período de teste ativo</div>
+          <h3 className="font-display text-2xl mb-2">
+            {expired ? "Seu período de teste expirou" : "Você está usando o Posion em teste"}
+          </h3>
+          <p className="text-sm text-muted-foreground mb-6">
+            {expired
+              ? "Fale com o suporte Posion para ativar seu plano e continuar aproveitando a plataforma."
+              : "Os planos serão liberados automaticamente ao fim do período de teste. Fale com o suporte se precisar antecipar."}
+          </p>
+
+          {endsAt && (
+            <div className="mb-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <Clock className="w-3.5 h-3.5" />
+              {expired ? "Expirado em " : "Expira em "}
+              {endsAt.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+            </div>
+          )}
+
+          {endsAt && !expired && (
+            <div className="grid grid-cols-4 gap-2 mt-4">
+              {[
+                { v: days, l: "dias" },
+                { v: hours, l: "horas" },
+                { v: mins, l: "min" },
+                { v: secs, l: "seg" },
+              ].map((t) => (
+                <div key={t.l} className="rounded-lg border border-white/10 bg-black/40 py-3">
+                  <div className="font-display text-2xl tabular-nums">{String(t.v).padStart(2, "0")}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{t.l}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+

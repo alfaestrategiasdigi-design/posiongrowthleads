@@ -7,12 +7,19 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, ExternalLink, Building2, Users } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Loader2, Plus, ExternalLink, Building2, Users, CalendarIcon, TimerReset } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { TenantUsersDialog } from "@/components/admin/TenantUsersDialog";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
-interface Tenant { id: string; slug: string; name: string; plan: string; status: string; segment: string | null; created_at: string }
+interface Tenant { id: string; slug: string; name: string; plan: string; status: string; segment: string | null; created_at: string; trial_active?: boolean; trial_ends_at?: string | null }
+
 
 export default function TenantsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -87,6 +94,7 @@ export default function TenantsPage() {
                   <TableHead>Slug</TableHead>
                   <TableHead>Plano</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Período de teste</TableHead>
                   <TableHead>Criada em</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -98,6 +106,9 @@ export default function TenantsPage() {
                     <TableCell className="font-mono text-xs">{t.slug}</TableCell>
                     <TableCell><Badge variant="outline">{t.plan}</Badge></TableCell>
                     <TableCell><Badge className={t.status === "active" ? "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/20" : ""}>{t.status}</Badge></TableCell>
+                    <TableCell>
+                      <TrialControls tenant={t} onChange={refresh} />
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{new Date(t.created_at).toLocaleDateString("pt-BR")}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -126,3 +137,59 @@ export default function TenantsPage() {
     </div>
   );
 }
+
+function TrialControls({ tenant, onChange }: { tenant: Tenant; onChange: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [open, setOpen] = useState(false);
+  const active = !!tenant.trial_active;
+  const endsAt = tenant.trial_ends_at ? new Date(tenant.trial_ends_at) : undefined;
+
+  const save = async (patch: Partial<Pick<Tenant, "trial_active" | "trial_ends_at">>) => {
+    setSaving(true);
+    const { error } = await supabase.from("tenants").update(patch as any).eq("id", tenant.id);
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Atualizado");
+    onChange();
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <Switch
+        checked={active}
+        disabled={saving}
+        onCheckedChange={(v) => save({ trial_active: v })}
+      />
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            size="sm"
+            variant="outline"
+            className={cn("h-8 gap-1.5 text-xs font-normal", !active && "opacity-50")}
+            disabled={!active}
+          >
+            <CalendarIcon className="w-3 h-3" />
+            {endsAt ? format(endsAt, "dd/MM/yyyy", { locale: ptBR }) : "Definir data"}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={endsAt}
+            onSelect={(d) => { if (d) { save({ trial_ends_at: d.toISOString() }); setOpen(false); } }}
+            initialFocus
+            className={cn("p-3 pointer-events-auto")}
+          />
+          {endsAt && (
+            <div className="border-t p-2">
+              <Button variant="ghost" size="sm" className="w-full gap-2 text-xs" onClick={() => { save({ trial_ends_at: null }); setOpen(false); }}>
+                <TimerReset className="w-3 h-3" /> Limpar data
+              </Button>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
