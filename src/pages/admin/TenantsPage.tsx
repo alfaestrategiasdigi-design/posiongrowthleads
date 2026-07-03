@@ -25,7 +25,11 @@ export default function TenantsPage() {
 
   const refresh = async () => {
     setLoading(true);
-    const { data } = await supabase.from("tenants").select("*").order("created_at", { ascending: false });
+    const { data } = await supabase
+      .from("tenants")
+      .select("*")
+      .neq("id", "00000000-0000-0000-0000-000000000001")
+      .order("created_at", { ascending: false });
     setTenants((data || []) as Tenant[]);
     setLoading(false);
   };
