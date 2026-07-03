@@ -15,6 +15,7 @@ export type AppointmentType =
 export interface Appointment {
   id: string;
   lead_id: string | null;
+  agency_lead_id?: string | null;
   client_name: string;
   client_phone: string;
   date_time: string;
