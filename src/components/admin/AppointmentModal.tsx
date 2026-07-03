@@ -83,24 +83,30 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
   useEffect(() => {
     if (!open) return;
     (async () => {
+      // Admin Master: leads da agência POSION (agency_leads)
       const { data } = await supabase
-        .from("leads")
-        .select("id, nome_completo, whatsapp")
+        .from("agency_leads")
+        .select("id, nome_clinica, responsavel, whatsapp")
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(100);
       setLeads(data || []);
     })();
   }, [open]);
 
-  const filteredLeads = leads.filter((l) =>
-    !leadQuery || l.nome_completo?.toLowerCase().includes(leadQuery.toLowerCase())
-  );
+  const filteredLeads = leads.filter((l) => {
+    if (!leadQuery) return true;
+    const q = leadQuery.toLowerCase();
+    return (
+      l.nome_clinica?.toLowerCase().includes(q) ||
+      l.responsavel?.toLowerCase().includes(q)
+    );
+  });
 
   const pickLead = (lead: any) => {
     setForm((f) => ({
       ...f,
-      lead_id: lead.id,
-      client_name: lead.nome_completo,
+      lead_id: null, // agency_leads.id não referencia public.leads
+      client_name: lead.responsavel || lead.nome_clinica || "",
       client_phone: maskPhone(lead.whatsapp || ""),
     }));
     setLeadQuery("");
@@ -114,6 +120,7 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
     setSaving(true);
     const payload = {
       lead_id: form.lead_id,
+      tenant_id: null, // Agenda do Admin Master (POSION) — nunca associada a tenant
       client_name: form.client_name.trim(),
       client_phone: unmask(form.client_phone),
       date_time: new Date(form.date_time).toISOString(),
@@ -169,7 +176,7 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
             />
             <div className="mt-2 relative">
               <Input
-                placeholder="🔍 Buscar lead existente para preencher..."
+                placeholder="🔍 Buscar lead POSION (clínica ou responsável)…"
                 value={leadQuery}
                 onChange={(e) => setLeadQuery(e.target.value)}
                 className="text-xs"
@@ -183,7 +190,7 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
                       onClick={() => pickLead(l)}
                       className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex justify-between"
                     >
-                      <span>{l.nome_completo}</span>
+                      <span>{l.responsavel || l.nome_clinica}<span className="text-muted-foreground"> · {l.nome_clinica}</span></span>
                       <span className="text-muted-foreground">{l.whatsapp}</span>
                     </button>
                   ))}
