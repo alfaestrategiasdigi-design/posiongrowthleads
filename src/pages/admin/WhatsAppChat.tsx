@@ -783,11 +783,17 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                       )}
                     </div>
                     <div className="flex flex-wrap gap-1 mt-1.5 items-center">
+                      {conv.lead_id && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/15 text-primary border border-primary/30 flex items-center gap-1">
+                          <Target className="w-2.5 h-2.5" /> Lead
+                        </span>
+                      )}
                       {tags.slice(0, 3).map(t => (
                         <span key={t.id} className="text-[9px] px-1.5 py-0.5 rounded text-white"
                           style={{ background: t.cor }}>{t.nome}</span>
                       ))}
                     </div>
+
                   </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); setConfirmDelete(conv); }}
@@ -809,7 +815,18 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             <div className="flex items-center gap-3">
               <ContactAvatar name={selectedConversation.nome_contato || selectedConversation.telefone} photoUrl={selectedConversation.foto_url} size={40} />
               <div>
-                <h3 className="text-sm font-semibold text-foreground">{selectedConversation.nome_contato || selectedConversation.telefone}</h3>
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  {selectedConversation.nome_contato || selectedConversation.telefone}
+                  {selectedConversation.lead_id && (
+                    <button
+                      onClick={() => setLeadPanelId(selectedConversation.lead_id!)}
+                      className="text-[10px] px-2 py-0.5 rounded bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 flex items-center gap-1"
+                      title="Abrir painel do lead"
+                    >
+                      <Target className="w-3 h-3" /> Lead vinculado <ExternalLink className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                </h3>
                 <div className="flex items-center gap-2">
                   <p className="text-xs text-muted-foreground">{selectedConversation.telefone}</p>
                   {(convTags[selectedConversation.id] || []).map(t => (
@@ -818,6 +835,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                 </div>
               </div>
             </div>
+
             <div className="flex items-center gap-1">
               <Popover>
                 <PopoverTrigger asChild>
