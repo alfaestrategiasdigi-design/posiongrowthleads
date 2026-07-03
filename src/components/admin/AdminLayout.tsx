@@ -32,8 +32,10 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
       if (!sessionUser) { setIsAdmin(false); setIsLoading(false); return; }
       const { data: roles } = await supabase
         .from("user_roles").select("role")
-        .eq("user_id", sessionUser.id).eq("role", "admin").maybeSingle();
-      const admin = !!roles;
+        .eq("user_id", sessionUser.id)
+        .in("role", ["admin", "comercial_admin_master"]);
+      const admin = !!(roles && roles.length > 0);
+
       setIsAdmin(admin);
       setIsLoading(false);
       // Tenant user que caiu no /admin → redireciona ao seu painel
