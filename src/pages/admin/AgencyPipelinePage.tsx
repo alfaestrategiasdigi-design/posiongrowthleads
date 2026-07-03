@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
-  Plus, Loader2, MapPin, DollarSign, Calendar, Trophy, Building2, Trash2, Phone, Mail, Sparkles,
+  Plus, Loader2, MapPin, DollarSign, Calendar, Trophy, Building2, Trash2, Phone, Mail, Sparkles, Pencil,
 } from "lucide-react";
+import UnifiedLeadPanel from "@/components/leads/UnifiedLeadPanel";
 
 const STAGES = [
   { id: "lead", title: "LEAD", color: "from-slate-500 to-slate-600", hex: "#64748b" },
@@ -58,6 +59,7 @@ export default function AgencyPipelinePage() {
   const [dragged, setDragged] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [editing, setEditing] = useState<AgencyLead | null>(null);
+  const [panelLeadId, setPanelLeadId] = useState<string | null>(null);
   const [promoteOpen, setPromoteOpen] = useState<AgencyLead | null>(null);
   const [promoteSlug, setPromoteSlug] = useState("");
   const [promotePlano, setPromotePlano] = useState("starter");
@@ -219,7 +221,7 @@ export default function AgencyPipelinePage() {
                       key={l.id}
                       draggable
                       onDragStart={() => setDragged(l.id)}
-                      onClick={() => setEditing(l)}
+                      onClick={() => setPanelLeadId(l.id)}
                       className="group cursor-grab active:cursor-grabbing rounded-lg border border-border/60 bg-background/60 p-3 hover:border-primary/40 hover:shadow-lg transition-all"
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -227,6 +229,14 @@ export default function AgencyPipelinePage() {
                         {l.plano_interesse && (
                           <Badge variant="outline" className="text-[9px] uppercase h-4">{l.plano_interesse}</Badge>
                         )}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setEditing(l); }}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
+                          title="Editar campos avançados"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
                       </div>
                       {l.responsavel && (
                         <div className="text-[11px] text-muted-foreground truncate mt-0.5">{l.responsavel}</div>
