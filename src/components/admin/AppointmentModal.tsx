@@ -14,6 +14,8 @@ import {
   APPOINTMENT_TYPES, APPOINTMENT_STATUS, DURATIONS, CHANNELS, REMINDER_OPTIONS,
   type Appointment,
 } from "@/types/appointment";
+import LeadContextCard from "@/components/leads/panel/LeadContextCard";
+import UnifiedLeadPanel from "@/components/leads/UnifiedLeadPanel";
 
 interface Props {
   open: boolean;
@@ -33,6 +35,7 @@ const emptyForm = (defaultDate?: Date | null) => {
   const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   return {
     lead_id: null as string | null,
+    agency_lead_id: null as string | null,
     client_name: "",
     client_phone: "",
     date_time: iso,
@@ -53,6 +56,7 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
   const [saving, setSaving] = useState(false);
   const [leads, setLeads] = useState<any[]>([]);
   const [leadQuery, setLeadQuery] = useState("");
+  const [showLeadPanel, setShowLeadPanel] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -62,6 +66,7 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
       ).toISOString().slice(0, 16);
       setForm({
         lead_id: appointment.lead_id,
+        agency_lead_id: (appointment as any).agency_lead_id ?? null,
         client_name: appointment.client_name,
         client_phone: maskPhone(appointment.client_phone),
         date_time: localIso,
@@ -105,7 +110,8 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
   const pickLead = (lead: any) => {
     setForm((f) => ({
       ...f,
-      lead_id: null, // agency_leads.id não referencia public.leads
+      lead_id: null,
+      agency_lead_id: lead.id,
       client_name: lead.responsavel || lead.nome_clinica || "",
       client_phone: maskPhone(lead.whatsapp || ""),
     }));
