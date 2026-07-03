@@ -267,6 +267,7 @@ export default function AgencyPipelinePage() {
         open={newOpen || !!editing}
         onOpenChange={(o) => { if (!o) { setNewOpen(false); setEditing(null); } }}
         lead={editing}
+        campaigns={campaigns}
         onSaved={() => { setNewOpen(false); setEditing(null); load(); }}
         onDelete={editing ? () => { removeLead(editing.id); setEditing(null); } : undefined}
       />
