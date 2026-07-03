@@ -160,82 +160,85 @@ export default function TenantPlans() {
           </Card>
         )}
 
-        <div>
-          <h2 className="font-display text-xl mb-4">{hasActiveSub ? "Trocar de plano" : "Escolha seu plano"}</h2>
-          <div className="grid md:grid-cols-3 gap-4">
-            {(["starter", "pro", "scale"] as const).map((code) => {
-              const m = PLAN_META[code];
-              const Icon = m.icon;
-              const group = groupedPlans[code] || {};
-              const isCurrent = hasActiveSub && sub.plan_code === code;
-              return (
-                <Card key={code} className={`bg-[#0E1730] ${isCurrent ? "border-primary/60" : "border-white/10"} relative`}>
-                  {code === "pro" && (
-                    <div className="absolute -top-2 left-4 text-[10px] uppercase tracking-widest bg-primary text-primary-foreground px-2 py-0.5 rounded">Mais popular</div>
-                  )}
-                  <CardHeader>
-                    <div className="flex items-center gap-2">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-                        <Icon className="w-5 h-5 text-primary" />
+        <TrialGate tenant={tenant as any}>
+          <div>
+            <h2 className="font-display text-xl mb-4">{hasActiveSub ? "Trocar de plano" : "Escolha seu plano"}</h2>
+            <div className="grid md:grid-cols-3 gap-4">
+              {(["starter", "pro", "scale"] as const).map((code) => {
+                const m = PLAN_META[code];
+                const Icon = m.icon;
+                const group = groupedPlans[code] || {};
+                const isCurrent = hasActiveSub && sub.plan_code === code;
+                return (
+                  <Card key={code} className={`bg-[#0E1730] ${isCurrent ? "border-primary/60" : "border-white/10"} relative`}>
+                    {code === "pro" && (
+                      <div className="absolute -top-2 left-4 text-[10px] uppercase tracking-widest bg-primary text-primary-foreground px-2 py-0.5 rounded">Mais popular</div>
+                    )}
+                    <CardHeader>
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+                          <Icon className="w-5 h-5 text-primary" />
+                        </div>
+                        <div>
+                          <CardTitle className="capitalize">{code}</CardTitle>
+                          <p className="text-xs text-muted-foreground">{m.tagline}</p>
+                        </div>
                       </div>
-                      <div>
-                        <CardTitle className="capitalize">{code}</CardTitle>
-                        <p className="text-xs text-muted-foreground">{m.tagline}</p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <ul className="space-y-1.5 text-sm">
+                        {m.features.map((f) => (
+                          <li key={f} className="flex items-start gap-2">
+                            <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                            <span>{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="space-y-2 pt-3 border-t border-white/5">
+                        {group.monthly && (
+                          <Button
+                            variant={isCurrent && sub.interval === "month" ? "secondary" : "default"}
+                            className="w-full justify-between"
+                            disabled={busyKey === group.monthly.lookup_key || (isCurrent && sub.interval === "month" && ["active", "authorized"].includes(sub.status))}
+                            onClick={() => startCheckout(group.monthly!.lookup_key)}
+                          >
+                            <span className="flex items-center gap-2">
+                              {busyKey === group.monthly.lookup_key ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                              Mensal
+                            </span>
+                            <span className="tabular-nums font-semibold">{BRL(group.monthly.amount_cents, group.monthly.currency)}/mês</span>
+                          </Button>
+                        )}
+                        {group.quarter && (
+                          <Button
+                            variant={isCurrent && sub.interval === "quarter" ? "secondary" : "outline"}
+                            className="w-full justify-between"
+                            disabled={busyKey === group.quarter.lookup_key || (isCurrent && sub.interval === "quarter" && ["active", "authorized"].includes(sub.status))}
+                            onClick={() => startCheckout(group.quarter!.lookup_key)}
+                          >
+                            <span className="flex items-center gap-2">
+                              {busyKey === group.quarter.lookup_key ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                              Trimestral <span className="text-[10px] text-emerald-300">-10%</span>
+                            </span>
+                            <span className="tabular-nums font-semibold">{BRL(group.quarter.amount_cents, group.quarter.currency)}</span>
+                          </Button>
+                        )}
                       </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <ul className="space-y-1.5 text-sm">
-                      {m.features.map((f) => (
-                        <li key={f} className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                          <span>{f}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="space-y-2 pt-3 border-t border-white/5">
-                      {group.monthly && (
-                        <Button
-                          variant={isCurrent && sub.interval === "month" ? "secondary" : "default"}
-                          className="w-full justify-between"
-                          disabled={busyKey === group.monthly.lookup_key || (isCurrent && sub.interval === "month" && ["active", "authorized"].includes(sub.status))}
-                          onClick={() => startCheckout(group.monthly!.lookup_key)}
-                        >
-                          <span className="flex items-center gap-2">
-                            {busyKey === group.monthly.lookup_key ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                            Mensal
-                          </span>
-                          <span className="tabular-nums font-semibold">{BRL(group.monthly.amount_cents, group.monthly.currency)}/mês</span>
-                        </Button>
-                      )}
-                      {group.quarter && (
-                        <Button
-                          variant={isCurrent && sub.interval === "quarter" ? "secondary" : "outline"}
-                          className="w-full justify-between"
-                          disabled={busyKey === group.quarter.lookup_key || (isCurrent && sub.interval === "quarter" && ["active", "authorized"].includes(sub.status))}
-                          onClick={() => startCheckout(group.quarter!.lookup_key)}
-                        >
-                          <span className="flex items-center gap-2">
-                            {busyKey === group.quarter.lookup_key ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                            Trimestral <span className="text-[10px] text-emerald-300">-10%</span>
-                          </span>
-                          <span className="tabular-nums font-semibold">{BRL(group.quarter.amount_cents, group.quarter.currency)}</span>
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        {!hasActiveSub && (
-          <div className="rounded-xl p-5 border border-white/10 bg-[#0E1730] flex items-center gap-3 text-sm text-muted-foreground">
-            <ShieldCheck className="w-5 h-5 text-primary shrink-0" />
-            Pagamentos processados pelo Mercado Pago. Cartão de crédito com cobrança automática recorrente.
-          </div>
-        )}
+          {!hasActiveSub && (
+            <div className="rounded-xl p-5 border border-white/10 bg-[#0E1730] flex items-center gap-3 text-sm text-muted-foreground mt-6">
+              <ShieldCheck className="w-5 h-5 text-primary shrink-0" />
+              Pagamentos processados pelo Mercado Pago. Cartão de crédito com cobrança automática recorrente.
+            </div>
+          )}
+        </TrialGate>
+
 
         <Card className="bg-[#0E1730] border-white/10">
           <CardHeader className="flex flex-row items-center gap-2">
