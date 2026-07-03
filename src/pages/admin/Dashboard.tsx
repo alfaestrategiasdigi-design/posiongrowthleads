@@ -50,12 +50,11 @@ export default function Dashboard() {
       setLoading(true);
       const fromDate = range.from.toISOString().slice(0, 10);
       const toDate = range.to.toISOString().slice(0, 10);
-      const [l, ac, sc, t, sales, clinic, spend] = await Promise.all([
-        supabase.from("agency_leads").select("id,stage,valor_proposta,created_at,nome_clinica,plano_interesse"),
+      const [l, ac, sc, t, clinic, spend] = await Promise.all([
+        supabase.from("agency_leads").select("id,stage,valor_proposta,created_at,nome_clinica,plano_interesse,ganho_at,tenant_id_criado"),
         supabase.from("agency_contracts").select("id,agency_lead_id,tenant_id,cliente_nome,valor_total,data_assinatura,status"),
         supabase.from("saas_contracts").select("id,tenant_id,mrr,status,started_at"),
         supabase.from("tenants").select("id,name,status,created_at"),
-        supabase.from("sales").select("tenant_id,amount,sale_date").gte("sale_date", fromDate).lte("sale_date", toDate),
         supabase.from("clinic_leads").select("tenant_id,stage,created_at").gte("created_at", range.from.toISOString()).lte("created_at", range.to.toISOString()),
         supabase.from("campaign_spend").select("tenant_id,amount_spent,period_start").gte("period_start", fromDate).lte("period_start", toDate),
       ]);
@@ -64,12 +63,9 @@ export default function Dashboard() {
       setSaasContracts((sc.data || []) as SaasContract[]);
       setTenants((t.data || []) as Tenant[]);
 
-      const byTenant = new Map<string, number>();
-      (sales.data || []).forEach((s: any) => {
-        if (!s.tenant_id) return;
-        byTenant.set(s.tenant_id, (byTenant.get(s.tenant_id) || 0) + Number(s.amount || 0));
-      });
-      setTenantGmv(Array.from(byTenant.entries()).map(([tenant_id, total]) => ({ tenant_id, total })));
+      // Admin Master vê APENAS a receita do próprio POSION (agency_contracts + saas MRR).
+      // NÃO agregamos "sales" das clínicas — isso é dado do tenant, não da agência.
+      setTenantGmv([]);
 
       // Global funnel: agregação por stage entre todos os tenants
       const stageAgg = new Map<string, number>();
@@ -79,7 +75,7 @@ export default function Dashboard() {
       const FUNNEL_ORDER = ["lead", "qualificado", "consulta_agendada", "compareceu", "negociacao", "ganho", "perdido", "no_show"];
       setClinicLeadStages(FUNNEL_ORDER.map((s) => ({ stage: s, count: stageAgg.get(s) || 0 })));
 
-      // ROI vs Investimento por mês
+      // ROI vs Investimento por mês — receita = contratos POSION assinados no mês (agência + SaaS MRR).
       const monthMap = new Map<string, { invest: number; receita: number }>();
       (spend.data || []).forEach((r: any) => {
         const k = format(startOfMonth(new Date(r.period_start)), "yyyy-MM");
@@ -87,10 +83,18 @@ export default function Dashboard() {
         cur.invest += Number(r.amount_spent || 0);
         monthMap.set(k, cur);
       });
-      (sales.data || []).forEach((r: any) => {
-        const k = format(startOfMonth(new Date(r.sale_date)), "yyyy-MM");
+      (ac.data || []).forEach((r: any) => {
+        if (!r.data_assinatura) return;
+        const k = format(startOfMonth(new Date(r.data_assinatura)), "yyyy-MM");
         const cur = monthMap.get(k) || { invest: 0, receita: 0 };
-        cur.receita += Number(r.amount || 0);
+        cur.receita += Number(r.valor_total || 0);
+        monthMap.set(k, cur);
+      });
+      (sc.data || []).forEach((r: any) => {
+        if (!r.started_at || r.status !== "active") return;
+        const k = format(startOfMonth(new Date(r.started_at)), "yyyy-MM");
+        const cur = monthMap.get(k) || { invest: 0, receita: 0 };
+        cur.receita += Number(r.mrr || 0);
         monthMap.set(k, cur);
       });
       setRoiSeries(
@@ -103,6 +107,7 @@ export default function Dashboard() {
             lucro: Math.max(v.receita - v.invest, 0),
           }))
       );
+
 
       // Performance consolidada por tenant
       const leadsByT = new Map<string, { total: number; ganhos: number }>();
