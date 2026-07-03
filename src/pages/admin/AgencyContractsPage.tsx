@@ -189,12 +189,13 @@ function KPI({ icon: Icon, label, value }: { icon: any; label: string; value: st
   );
 }
 
-function ContractDialog({ contract, onOpenChange, onSaved }: { contract: AgencyContract | "new" | null; onOpenChange: (o: boolean) => void; onSaved: () => void }) {
+function ContractDialog({ contract, tenants, onOpenChange, onSaved }: { contract: AgencyContract | "new" | null; tenants: TenantOpt[]; onOpenChange: (o: boolean) => void; onSaved: () => void }) {
   const open = !!contract;
   const isNew = contract === "new";
   const c = isNew ? null : (contract as AgencyContract | null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
+    tenant_id: "" as string,
     cliente_nome: "", valor_total: 0, valor_comissao: 0, duracao_meses: 12,
     data_assinatura: new Date().toISOString().slice(0, 10),
     status: "ativo" as AgencyContract["status"], observacoes: "",
@@ -202,6 +203,7 @@ function ContractDialog({ contract, onOpenChange, onSaved }: { contract: AgencyC
 
   useEffect(() => {
     if (c) setForm({
+      tenant_id: c.tenant_id || "",
       cliente_nome: c.cliente_nome,
       valor_total: Number(c.valor_total),
       valor_comissao: Number(c.valor_comissao),
@@ -210,13 +212,13 @@ function ContractDialog({ contract, onOpenChange, onSaved }: { contract: AgencyC
       status: c.status,
       observacoes: c.observacoes || "",
     });
-    else setForm({ cliente_nome: "", valor_total: 0, valor_comissao: 0, duracao_meses: 12, data_assinatura: new Date().toISOString().slice(0, 10), status: "ativo", observacoes: "" });
+    else setForm({ tenant_id: "", cliente_nome: "", valor_total: 0, valor_comissao: 0, duracao_meses: 12, data_assinatura: new Date().toISOString().slice(0, 10), status: "ativo", observacoes: "" });
   }, [contract]);
 
   const save = async () => {
     if (!form.cliente_nome.trim()) { toast.error("Cliente obrigatório"); return; }
     setSaving(true);
-    const payload = { ...form };
+    const payload = { ...form, tenant_id: form.tenant_id || null };
     const { error } = c
       ? await supabase.from("agency_contracts").update(payload).eq("id", c.id)
       : await supabase.from("agency_contracts").insert(payload);
