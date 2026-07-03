@@ -331,11 +331,12 @@ function KPI({ icon: Icon, label, value, tint }: { icon: any; label: string; val
 }
 
 function LeadDialog({
-  open, onOpenChange, lead, onSaved, onDelete,
+  open, onOpenChange, lead, campaigns, onSaved, onDelete,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   lead: AgencyLead | null;
+  campaigns: CampaignOption[];
   onSaved: () => void;
   onDelete?: () => void;
 }) {
@@ -344,6 +345,7 @@ function LeadDialog({
     nome_clinica: "", responsavel: "", whatsapp: "", email: "",
     cidade: "", estado: "", origem: "inbound", stage: "lead" as Stage,
     valor_proposta: 0, plano_interesse: "", notas: "",
+    campaign_id_manual: "", utm_campaign: "",
   });
 
   useEffect(() => {
@@ -360,12 +362,15 @@ function LeadDialog({
         valor_proposta: Number(lead.valor_proposta || 0),
         plano_interesse: lead.plano_interesse || "",
         notas: lead.notas || "",
+        campaign_id_manual: lead.campaign_id_manual || "",
+        utm_campaign: lead.utm_campaign || "",
       });
     } else {
       setForm({
         nome_clinica: "", responsavel: "", whatsapp: "", email: "",
         cidade: "", estado: "", origem: "inbound", stage: "lead",
         valor_proposta: 0, plano_interesse: "", notas: "",
+        campaign_id_manual: "", utm_campaign: "",
       });
     }
   }, [lead, open]);
@@ -373,7 +378,12 @@ function LeadDialog({
   const save = async () => {
     if (!form.nome_clinica.trim()) { toast.error("Nome da clínica é obrigatório"); return; }
     setSaving(true);
-    const payload = { ...form, valor_proposta: Number(form.valor_proposta) || 0 };
+    const payload: any = {
+      ...form,
+      valor_proposta: Number(form.valor_proposta) || 0,
+      campaign_id_manual: form.campaign_id_manual || null,
+      utm_campaign: form.utm_campaign || null,
+    };
     const { error } = lead
       ? await supabase.from("agency_leads").update(payload).eq("id", lead.id)
       : await supabase.from("agency_leads").insert(payload);
@@ -429,6 +439,26 @@ function LeadDialog({
             </Select>
           </div>
           <div><Label>Valor da proposta (R$)</Label><Input type="number" value={form.valor_proposta} onChange={(e) => setForm({ ...form, valor_proposta: Number(e.target.value) })} /></div>
+          <div className="col-span-2 border-t border-border/40 pt-3 mt-1">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-primary/80 mb-2">Atribuição de campanha</div>
+            <Label>Campanha Meta vinculada</Label>
+            <Select
+              value={form.campaign_id_manual || "none"}
+              onValueChange={(v) => setForm({ ...form, campaign_id_manual: v === "none" ? "" : v })}
+            >
+              <SelectTrigger><SelectValue placeholder="— nenhuma —" /></SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                <SelectItem value="none">— nenhuma —</SelectItem>
+                {campaigns.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Ao mover para GANHO, o valor da proposta é contabilizado nesta campanha (Receita CRM / ROAS).
+            </p>
+          </div>
+          <div className="col-span-2"><Label>UTM Campaign (opcional)</Label><Input value={form.utm_campaign} onChange={(e) => setForm({ ...form, utm_campaign: e.target.value })} placeholder="nome exato da campanha, se preferir matching por nome" /></div>
           <div className="col-span-2"><Label>Notas</Label><Textarea rows={3} value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} /></div>
         </div>
         <DialogFooter className="gap-2">
