@@ -1161,12 +1161,13 @@ export type Database = {
           ad_account_id: string | null
           created_at: string
           id: string
+          is_admin_master: boolean
           match_label: string | null
           match_type: string
           match_value: string
           notes: string | null
           priority: number
-          tenant_id: string
+          tenant_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1174,12 +1175,13 @@ export type Database = {
           ad_account_id?: string | null
           created_at?: string
           id?: string
+          is_admin_master?: boolean
           match_label?: string | null
           match_type: string
           match_value: string
           notes?: string | null
           priority?: number
-          tenant_id: string
+          tenant_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1187,12 +1189,13 @@ export type Database = {
           ad_account_id?: string | null
           created_at?: string
           id?: string
+          is_admin_master?: boolean
           match_label?: string | null
           match_type?: string
           match_value?: string
           notes?: string | null
           priority?: number
-          tenant_id?: string
+          tenant_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -3200,6 +3203,14 @@ export type Database = {
           p_valor?: number
         }
         Returns: string
+      }
+      resolve_form_routing: {
+        Args: { p_form_id: string }
+        Returns: {
+          is_admin_master: boolean
+          matched: boolean
+          tenant_id: string
+        }[]
       }
       resolve_tenant_for_lead: {
         Args: {
