@@ -72,7 +72,7 @@ export default function LoginPage() {
           </div>
           <h1 className="text-center text-2xl font-semibold text-white mb-1">Entrar</h1>
           <p className="text-center text-sm text-white/50 mb-6">
-            Válido para todas as contas: Admin Master, Agência e Clínicas.
+            Não compartilhe seu login com ninguém.
           </p>
 
           <form onSubmit={onSubmit} className="space-y-4">
