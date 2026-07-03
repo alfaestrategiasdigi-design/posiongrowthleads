@@ -36,18 +36,23 @@ interface SaasContract {
 const fmt = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v || 0);
 
+interface TenantOpt { id: string; name: string }
+
 export default function AgencyContractsPage() {
   const [agency, setAgency] = useState<AgencyContract[]>([]);
   const [saas, setSaas] = useState<SaasContract[]>([]);
+  const [tenants, setTenants] = useState<TenantOpt[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialog, setDialog] = useState<AgencyContract | "new" | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const [a, s] = await Promise.all([
+    const [a, s, t] = await Promise.all([
       supabase.from("agency_contracts").select("*").order("data_assinatura", { ascending: false }),
       supabase.from("saas_contracts").select("*").order("started_at", { ascending: false }),
+      supabase.from("tenants").select("id,name").order("name"),
     ]);
+    setTenants((t.data || []) as TenantOpt[]);
     setAgency((a.data || []) as AgencyContract[]);
     setSaas((s.data || []) as SaasContract[]);
     setLoading(false);
