@@ -10,7 +10,7 @@ const MASTER_TENANT_ID = "00000000-0000-0000-0000-000000000001";
  */
 export async function getPostLoginRedirect(): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return "/";
+  if (!user) return "/login";
 
   // 1) Conta Agência/Admin Master (papel global) → /admin
   const { data: masterRoles } = await supabase
