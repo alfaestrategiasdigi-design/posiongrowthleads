@@ -42,6 +42,8 @@ const TENANT_ROLES = [
   { v: "comercial_tenant", l: "Comercial" },
 ];
 
+const MASTER_TENANT_ID = "00000000-0000-0000-0000-000000000001";
+
 function randomPwd(len = 12) {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
   const arr = new Uint32Array(len);
