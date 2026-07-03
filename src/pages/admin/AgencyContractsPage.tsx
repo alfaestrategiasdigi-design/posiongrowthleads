@@ -36,18 +36,23 @@ interface SaasContract {
 const fmt = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v || 0);
 
+interface TenantOpt { id: string; name: string }
+
 export default function AgencyContractsPage() {
   const [agency, setAgency] = useState<AgencyContract[]>([]);
   const [saas, setSaas] = useState<SaasContract[]>([]);
+  const [tenants, setTenants] = useState<TenantOpt[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialog, setDialog] = useState<AgencyContract | "new" | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const [a, s] = await Promise.all([
+    const [a, s, t] = await Promise.all([
       supabase.from("agency_contracts").select("*").order("data_assinatura", { ascending: false }),
       supabase.from("saas_contracts").select("*").order("started_at", { ascending: false }),
+      supabase.from("tenants").select("id,name").order("name"),
     ]);
+    setTenants((t.data || []) as TenantOpt[]);
     setAgency((a.data || []) as AgencyContract[]);
     setSaas((s.data || []) as SaasContract[]);
     setLoading(false);
@@ -97,6 +102,7 @@ export default function AgencyContractsPage() {
                 <thead className="bg-muted/40">
                   <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
                     <th className="p-3">Cliente</th>
+                    <th className="p-3">Tenant</th>
                     <th className="p-3">Valor</th>
                     <th className="p-3">Comissão</th>
                     <th className="p-3">Duração</th>
@@ -107,11 +113,20 @@ export default function AgencyContractsPage() {
                 </thead>
                 <tbody>
                   {agency.length === 0 && (
-                    <tr><td colSpan={7} className="p-6 text-center text-muted-foreground text-sm">Nenhum contrato ainda.</td></tr>
+                    <tr><td colSpan={8} className="p-6 text-center text-muted-foreground text-sm">Nenhum contrato ainda.</td></tr>
                   )}
-                  {agency.map((c) => (
+                  {agency.map((c) => {
+                    const tenantName = c.tenant_id ? (tenants.find((t) => t.id === c.tenant_id)?.name || "—") : null;
+                    return (
                     <tr key={c.id} className="border-t border-border/40 hover:bg-muted/20 cursor-pointer" onClick={() => setDialog(c)}>
                       <td className="p-3 font-medium">{c.cliente_nome}</td>
+                      <td className="p-3">
+                        {tenantName ? (
+                          <Badge variant="outline" className="text-xs">{tenantName}</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-400 border-amber-500/30">Sem clínica</Badge>
+                        )}
+                      </td>
                       <td className="p-3">{fmt(c.valor_total)}</td>
                       <td className="p-3">{fmt(c.valor_comissao)}</td>
                       <td className="p-3">{c.duracao_meses || 12}m</td>
@@ -123,7 +138,8 @@ export default function AgencyContractsPage() {
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -156,7 +172,7 @@ export default function AgencyContractsPage() {
         </TabsContent>
       </Tabs>
 
-      <ContractDialog contract={dialog} onOpenChange={(o) => !o && setDialog(null)} onSaved={() => { setDialog(null); load(); }} />
+      <ContractDialog contract={dialog} tenants={tenants} onOpenChange={(o) => !o && setDialog(null)} onSaved={() => { setDialog(null); load(); }} />
     </div>
   );
 }
@@ -173,12 +189,13 @@ function KPI({ icon: Icon, label, value }: { icon: any; label: string; value: st
   );
 }
 
-function ContractDialog({ contract, onOpenChange, onSaved }: { contract: AgencyContract | "new" | null; onOpenChange: (o: boolean) => void; onSaved: () => void }) {
+function ContractDialog({ contract, tenants, onOpenChange, onSaved }: { contract: AgencyContract | "new" | null; tenants: TenantOpt[]; onOpenChange: (o: boolean) => void; onSaved: () => void }) {
   const open = !!contract;
   const isNew = contract === "new";
   const c = isNew ? null : (contract as AgencyContract | null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
+    tenant_id: "" as string,
     cliente_nome: "", valor_total: 0, valor_comissao: 0, duracao_meses: 12,
     data_assinatura: new Date().toISOString().slice(0, 10),
     status: "ativo" as AgencyContract["status"], observacoes: "",
@@ -186,6 +203,7 @@ function ContractDialog({ contract, onOpenChange, onSaved }: { contract: AgencyC
 
   useEffect(() => {
     if (c) setForm({
+      tenant_id: c.tenant_id || "",
       cliente_nome: c.cliente_nome,
       valor_total: Number(c.valor_total),
       valor_comissao: Number(c.valor_comissao),
@@ -194,13 +212,13 @@ function ContractDialog({ contract, onOpenChange, onSaved }: { contract: AgencyC
       status: c.status,
       observacoes: c.observacoes || "",
     });
-    else setForm({ cliente_nome: "", valor_total: 0, valor_comissao: 0, duracao_meses: 12, data_assinatura: new Date().toISOString().slice(0, 10), status: "ativo", observacoes: "" });
+    else setForm({ tenant_id: "", cliente_nome: "", valor_total: 0, valor_comissao: 0, duracao_meses: 12, data_assinatura: new Date().toISOString().slice(0, 10), status: "ativo", observacoes: "" });
   }, [contract]);
 
   const save = async () => {
     if (!form.cliente_nome.trim()) { toast.error("Cliente obrigatório"); return; }
     setSaving(true);
-    const payload = { ...form };
+    const payload = { ...form, tenant_id: form.tenant_id || null };
     const { error } = c
       ? await supabase.from("agency_contracts").update(payload).eq("id", c.id)
       : await supabase.from("agency_contracts").insert(payload);
@@ -214,6 +232,17 @@ function ContractDialog({ contract, onOpenChange, onSaved }: { contract: AgencyC
       <DialogContent className="max-w-lg">
         <DialogHeader><DialogTitle>{c ? "Editar Contrato" : "Novo Contrato"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
+          <div>
+            <Label>Clínica (tenant)</Label>
+            <Select value={form.tenant_id || "__none"} onValueChange={(v) => setForm({ ...form, tenant_id: v === "__none" ? "" : v })}>
+              <SelectTrigger><SelectValue placeholder="Sem clínica vinculada" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">— Sem clínica —</SelectItem>
+                {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground mt-1">Vincule o contrato a uma clínica específica para não contar em todos os tenants.</p>
+          </div>
           <div><Label>Cliente *</Label><Input value={form.cliente_nome} onChange={(e) => setForm({ ...form, cliente_nome: e.target.value })} /></div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Valor total (R$)</Label><Input type="number" value={form.valor_total} onChange={(e) => setForm({ ...form, valor_total: Number(e.target.value) })} /></div>
