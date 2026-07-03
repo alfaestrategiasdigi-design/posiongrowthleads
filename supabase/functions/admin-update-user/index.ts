@@ -2,6 +2,9 @@ import { json, requireAdmin, corsHeaders } from "../_shared/admin-auth.ts";
 
 const VALID_GLOBAL = new Set(["admin", "comercial_admin_master", "admin_tenant", "comercial_tenant", "user"]);
 const VALID_TENANT = new Set(["owner", "admin", "vendedor", "recepcao", "viewer", "comercial_tenant"]);
+const MASTER_TENANT_ID = "00000000-0000-0000-0000-000000000001";
+const MASTER_GLOBAL_ROLES = new Set(["admin", "comercial_admin_master"]);
+const CLINIC_GLOBAL_ROLES = new Set(["admin_tenant", "comercial_tenant"]);
 
 /**
  * Actions:
@@ -48,18 +51,22 @@ Deno.serve(async (req) => {
           if (error) return json({ error: error.message }, 400);
         }
 
-        // Auto-link master roles to the master tenant so they always show a binding
-        if (action !== "remove_global_role" && (role === "admin" || role === "comercial_admin_master")) {
+        // Se virou conta Admin Master/Agência, fica só no tenant master.
+        if (action !== "remove_global_role" && MASTER_GLOBAL_ROLES.has(role)) {
           const masterRole = role === "admin" ? "owner" : "admin";
+          await admin.from("tenant_users").delete().eq("user_id", userId).neq("tenant_id", MASTER_TENANT_ID);
           await admin.from("tenant_users").upsert(
             {
               user_id: userId,
-              tenant_id: "00000000-0000-0000-0000-000000000001",
+              tenant_id: MASTER_TENANT_ID,
               role: masterRole as any,
               active: true,
             },
             { onConflict: "user_id,tenant_id" },
           );
+        } else if (action !== "remove_global_role") {
+          // Se deixou de ser Admin Master, não mantém acesso ao tenant master.
+          await admin.from("tenant_users").delete().eq("user_id", userId).eq("tenant_id", MASTER_TENANT_ID);
         }
         return json({ ok: true });
       }
@@ -68,6 +75,26 @@ Deno.serve(async (req) => {
         const tenantRole = String(body.tenant_role || "");
         const active = body.active !== false;
         if (!tenantId || !VALID_TENANT.has(tenantRole)) return json({ error: "tenant/role inválidos" }, 400);
+        if (tenantId === MASTER_TENANT_ID) return json({ error: "use papel Admin Master para vincular à conta admin" }, 400);
+        const { data: masterRoles } = await admin
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .in("role", Array.from(MASTER_GLOBAL_ROLES) as any);
+        if ((masterRoles || []).length > 0) {
+          return json({ error: "conta Admin Master não pode ser vinculada a clínica" }, 400);
+        }
+        const { data: clinicRoles } = await admin
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .in("role", Array.from(CLINIC_GLOBAL_ROLES) as any);
+        if ((clinicRoles || []).length === 0) {
+          const { error: roleErr } = await admin
+            .from("user_roles")
+            .upsert({ user_id: userId, role: "admin_tenant" as any }, { onConflict: "user_id,role" });
+          if (roleErr) return json({ error: roleErr.message }, 400);
+        }
         const { error } = await admin
           .from("tenant_users")
           .upsert(
@@ -80,6 +107,7 @@ Deno.serve(async (req) => {
       case "remove_tenant": {
         const tenantId = String(body.tenant_id || "");
         if (!tenantId) return json({ error: "tenant_id obrigatório" }, 400);
+        if (tenantId === MASTER_TENANT_ID) return json({ error: "não remova o vínculo master por aqui; altere o papel global" }, 400);
         const { error } = await admin.from("tenant_users").delete().eq("user_id", userId).eq("tenant_id", tenantId);
         if (error) return json({ error: error.message }, 400);
         return json({ ok: true });
@@ -88,6 +116,7 @@ Deno.serve(async (req) => {
         const tenantId = String(body.tenant_id || "");
         const active = !!body.active;
         if (!tenantId) return json({ error: "tenant_id obrigatório" }, 400);
+        if (tenantId === MASTER_TENANT_ID && !active) return json({ error: "conta Admin Master precisa ficar ativa" }, 400);
         const { error } = await admin
           .from("tenant_users")
           .update({ active })

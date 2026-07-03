@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
+const MASTER_TENANT_ID = "00000000-0000-0000-0000-000000000001";
+
 export interface Tenant {
   id: string;
   slug: string;
@@ -37,10 +39,22 @@ export function useTenant() {
         return;
       }
       if (!tenantSlug) {
-        // resolve first tenant
+        const { data: masterRoles } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .in("role", ["admin", "comercial_admin_master"]);
+        if ((masterRoles || []).length > 0) {
+          navigate("/admin", { replace: true });
+          return;
+        }
+
+        // resolve first real clinic, never the admin master tenant
         const { data: memberships } = await supabase
           .from("tenant_users")
           .select("tenants(slug)")
+          .eq("active", true)
+          .neq("tenant_id", MASTER_TENANT_ID)
           .limit(1);
         const slug = (memberships?.[0] as any)?.tenants?.slug;
         if (slug) navigate(`/app/${slug}/dashboard`, { replace: true });
@@ -53,8 +67,17 @@ export function useTenant() {
         setState({ loading: false, user, tenant: null, role: null, error: "Tenant não encontrado" });
         return;
       }
+      if (tenant.id === MASTER_TENANT_ID) {
+        navigate("/admin", { replace: true });
+        return;
+      }
       const { data: membership } = await supabase
-        .from("tenant_users").select("role").eq("tenant_id", tenant.id).eq("user_id", user.id).maybeSingle();
+        .from("tenant_users")
+        .select("role")
+        .eq("tenant_id", tenant.id)
+        .eq("user_id", user.id)
+        .eq("active", true)
+        .maybeSingle();
       setState({ loading: false, user, tenant: tenant as Tenant, role: membership?.role ?? null, error: null });
     };
 
