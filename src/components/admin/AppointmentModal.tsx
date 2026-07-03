@@ -359,6 +359,13 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <UnifiedLeadPanel
+        source="agency_lead"
+        leadId={form.agency_lead_id}
+        open={showLeadPanel && !!form.agency_lead_id}
+        onClose={() => setShowLeadPanel(false)}
+      />
     </Dialog>
   );
 };
