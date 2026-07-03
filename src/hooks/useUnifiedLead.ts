@@ -38,7 +38,10 @@ export interface UnifiedLeadView {
   tenantId: string | null;
   formFields?: any[];
   facebookMeta?: any;
+  sourceLeadId?: string | null;
+  formLead?: any | null;
 }
+
 
 function normalize(source: LeadSource, r: any): UnifiedLeadView {
   if (source === "lead") {
