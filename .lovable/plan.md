@@ -1,71 +1,52 @@
-## Objetivo
+## Problema
 
-Substituir o fluxo atual de convites (que exige e-mail e link) por um **painel completo de gestão de usuários** dentro da conta Admin Master. Toda criação, edição de papel global, vínculo com clínicas e ativação/desativação será feita direto pela interface — sem precisar entrar no banco.
+O dashboard da Agência mostra R$ 0 / 0 leads / 0 conversão para a Clarissa porque as políticas de RLS das tabelas usadas pelo painel POSION exigem `has_role(uid, 'admin')`. Contas `comercial_admin_master` e usuários vinculados ao tenant Master (papel `user`) são bloqueadas na leitura e recebem listas vazias — daí os zeros.
 
-## O que muda na página `/admin/usuarios`
+Contas de clínica (`/app/{slug}/...`) já leem via `has_tenant_access`, então não são afetadas — o ajuste é apenas do lado master.
 
-A página `Usuários & Convites` vira **Gestão de Usuários** com 2 abas:
+## O que muda
 
-### Aba 1 — Criar usuário (direto, sem convite)
-Campos:
-- E-mail
-- Senha (com botão "gerar senha aleatória")
-- Papel global (Admin Master, Comercial Master, Admin de Clínica, Comercial de Clínica, Usuário)
-- Clínica vinculada (opcional, aparece só se o papel for de clínica)
-- Cargo interno na clínica (owner / admin / vendedor / recepção / viewer)
+1. Criar uma função `public.is_agency_member(uid)` (SECURITY DEFINER) que retorna true quando o usuário:
+   - tem `admin` no `user_roles`, OU
+   - tem `comercial_admin_master` no `user_roles`, OU
+   - tem vínculo ativo em `tenant_users` com o tenant Master (`00000000-0000-0000-0000-000000000001`).
 
-Botão **"Criar usuário"** cria a conta já confirmada (sem verificação de e-mail), atribui o papel global em `user_roles` e, se selecionada uma clínica, cria o vínculo em `tenant_users`. Ao final mostra a senha em destaque com botão de copiar.
+2. Ajustar as políticas de **SELECT** das tabelas do painel POSION para usar essa função (leitura ampla para toda a agência). As políticas de escrita continuam restritas a `admin`.
 
-### Aba 2 — Usuários existentes
-Tabela listando todos os usuários com:
-- E-mail / ID
-- Papel global (Select editável — troca em `user_roles` na hora)
-- Clínicas vinculadas (chips com papel; botão + para adicionar vínculo, X para remover)
-- Ações: **Resetar senha** (gera nova senha temporária), **Ativar/Desativar**, **Excluir usuário**
+   Tabelas afetadas (apenas SELECT):
+   - `agency_leads`
+   - `agency_contracts` (mantém a política que também deixa clínica ver o próprio)
+   - `saas_contracts`
+   - `tenants` (deixar membros da agência enxergarem todas as clínicas; clínicas continuam vendo só a sua via `current_tenant_ids`)
+   - `campaign_insights`, `campaign_insights_breakdown`, `campaign_spend`, `campaign_lead_links` (usadas nas telas de Campanhas/Pipeline)
+   - `leads` (formulário POSION)
+   - `subscriptions`, `subscription_invoices` (usadas em Planos)
 
-Filtro de busca por e-mail + filtro por papel global.
+3. **Não** vou tocar em tabelas com escopo por tenant (`sales`, `clinic_leads`, `patients`, etc.) — elas devem continuar isoladas por clínica.
 
-## Backend (edge functions)
+4. Nada muda no frontend nesta etapa; o Dashboard, Pipeline, Leads (formulário), Campanhas, Contratos e Planos passam a carregar dados reais assim que o RLS permitir a leitura para membros da agência.
 
-Criar/atualizar functions com service role (bypassa RLS, permite confirmar e-mail sem SMTP):
+## Detalhes técnicos
 
-1. **`admin-create-user`** — cria usuário com `email_confirm: true`, insere em `user_roles` e opcionalmente em `tenant_users`.
-2. **`admin-update-user`** — atualiza papel global, adiciona/remove vínculo de tenant, altera cargo, ativa/desativa.
-3. **`admin-reset-password`** — gera nova senha temporária e retorna para exibir.
-4. **`admin-delete-user`** — remove de `auth.users` (cascata limpa `user_roles` e `tenant_users`).
-5. **`admin-list-users`** — lista consolidada com e-mail (que não vem do PostgREST), papéis e vínculos.
-
-Todas verificam se o chamador tem `has_role(auth.uid(), 'admin')`. Sem isso → 403.
-
-## Diagrama de fluxo
-
-```text
-Admin Master  ──►  UI (/admin/usuarios)
-                     │
-                     ├── Criar        ──►  admin-create-user     ──► auth.users + user_roles + tenant_users
-                     ├── Editar papel ──►  admin-update-user     ──► user_roles (upsert/delete)
-                     ├── Vincular     ──►  admin-update-user     ──► tenant_users (upsert)
-                     ├── Resetar      ──►  admin-reset-password  ──► auth.admin.updateUserById
-                     └── Excluir      ──►  admin-delete-user     ──► auth.admin.deleteUser
+```sql
+create or replace function public.is_agency_member(_uid uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select
+    public.has_role(_uid, 'admin')
+    or public.has_role(_uid, 'comercial_admin_master')
+    or exists (
+      select 1 from public.tenant_users
+      where user_id = _uid
+        and tenant_id = '00000000-0000-0000-0000-000000000001'
+        and active = true
+    );
+$$;
 ```
 
-## Segurança
+Depois: `DROP POLICY` das SELECT atuais dessas tabelas e recriar com `USING (public.is_agency_member(auth.uid()))` (mantendo policies extras onde já existem — ex.: `agency_contracts` que também libera para o tenant dono).
 
-- Signup público continua desativado — o único caminho para criar contas é esta página, chamada apenas por quem tem papel `admin` global.
-- Senhas geradas com 12 caracteres seguros; usuário pode trocar em "Esqueci minha senha" depois.
-- Papéis globais `admin` e `comercial_admin_master` só podem ser concedidos por outro Admin Master (checagem no backend).
-- Não é possível o Admin Master remover o próprio papel `admin` (proteção anti-lockout).
+## Risco / escopo
 
-## Arquivos
-
-**Novos:**
-- `supabase/functions/admin-create-user/index.ts`
-- `supabase/functions/admin-update-user/index.ts`
-- `supabase/functions/admin-reset-password/index.ts`
-- `supabase/functions/admin-delete-user/index.ts`
-- `supabase/functions/admin-list-users/index.ts`
-
-**Modificados:**
-- `src/pages/admin/CreateUserPage.tsx` — reescrita em 2 abas (Criar / Gerenciar).
-
-Fluxo antigo de convites/link permanece disponível como fallback, mas deixa de ser o caminho principal.
+- Leitura mais ampla dentro do time POSION (esperado — todos os papéis master enxergam o painel).
+- Escritas continuam apenas para `admin` (evita SDR alterar dados).
+- Dados de clínicas continuam isolados por RLS de tenant.
