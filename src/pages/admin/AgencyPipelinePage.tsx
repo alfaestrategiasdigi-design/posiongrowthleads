@@ -62,6 +62,27 @@ export default function AgencyPipelinePage() {
   const [promoteSlug, setPromoteSlug] = useState("");
   const [promotePlano, setPromotePlano] = useState("starter");
   const [promoting, setPromoting] = useState(false);
+  const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from("campaign_spend")
+      .select("campaign_id, campaign_name")
+      .eq("channel", "meta_ads")
+      .not("campaign_id", "is", null)
+      .order("campaign_name")
+      .then(({ data }) => {
+        const seen = new Set<string>();
+        const opts: CampaignOption[] = [];
+        for (const r of data || []) {
+          const id = (r as any).campaign_id as string;
+          if (!id || seen.has(id)) continue;
+          seen.add(id);
+          opts.push({ id, name: (r as any).campaign_name || id });
+        }
+        setCampaigns(opts);
+      });
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
