@@ -4,9 +4,11 @@ import {
   Search, Send, Paperclip, Phone, MoreVertical, MessageCircle, Smile,
   Settings, QrCode, Copy, CheckCircle2, Loader2, Wifi, WifiOff, RefreshCw,
   Tag as TagIcon, Sparkles, Filter, FileText, Check, CheckCheck, AlertTriangle,
-  Plus, X, Trash2, Reply, MapPin, User as UserIcon, Mic, StopCircle, CornerDownRight,
+  Plus, X, Trash2, Reply, MapPin, User as UserIcon, Mic, StopCircle, CornerDownRight, Target, ExternalLink,
 } from "lucide-react";
 import type { MessageReaction } from "@/types/admin";
+import UnifiedLeadPanel from "@/components/leads/UnifiedLeadPanel";
+
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -67,7 +69,10 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const [convTags, setConvTags] = useState<Record<string, TagRow[]>>({});
   const [allTags, setAllTags] = useState<TagRow[]>([]);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [onlyWithLead, setOnlyWithLead] = useState(false);
+  const [leadPanelId, setLeadPanelId] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -554,8 +559,12 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       if (!hay.includes(q)) return false;
     }
     if (tagFilter && !(convTags[c.id] || []).some(t => t.id === tagFilter)) return false;
+    if (onlyWithLead && !c.lead_id) return false;
     return true;
-  }), [conversations, q, tagFilter, convTags]);
+  }), [conversations, q, tagFilter, convTags, onlyWithLead]);
+
+  const linkedCount = useMemo(() => conversations.filter(c => c.lead_id).length, [conversations]);
+
 
   const formatListTime = (dateStr: string | null) => {
     if (!dateStr) return "";
@@ -720,14 +729,23 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             </Button>
           </div>
         </div>
-        <div className="p-3 border-b border-border">
+        <div className="p-3 border-b border-border space-y-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Pesquisar conversas..." value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-9 bg-muted/50 border-none text-sm" />
           </div>
+          <button
+            onClick={() => setOnlyWithLead(v => !v)}
+            className={`w-full text-[11px] flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 transition-colors ${onlyWithLead ? "bg-primary/10 border-primary/40 text-primary" : "border-border/50 bg-muted/30 text-muted-foreground hover:text-foreground"}`}
+            title="Filtrar conversas vinculadas a um lead do formulário"
+          >
+            <span className="flex items-center gap-1.5"><Target className="w-3 h-3" /> Somente com lead</span>
+            <span className="tabular-nums">{linkedCount}/{conversations.length}</span>
+          </button>
         </div>
+
 
         <div className="flex-1 overflow-y-auto">
           {loading ? (
@@ -765,11 +783,17 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                       )}
                     </div>
                     <div className="flex flex-wrap gap-1 mt-1.5 items-center">
+                      {conv.lead_id && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/15 text-primary border border-primary/30 flex items-center gap-1">
+                          <Target className="w-2.5 h-2.5" /> Lead
+                        </span>
+                      )}
                       {tags.slice(0, 3).map(t => (
                         <span key={t.id} className="text-[9px] px-1.5 py-0.5 rounded text-white"
                           style={{ background: t.cor }}>{t.nome}</span>
                       ))}
                     </div>
+
                   </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); setConfirmDelete(conv); }}
@@ -791,7 +815,18 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             <div className="flex items-center gap-3">
               <ContactAvatar name={selectedConversation.nome_contato || selectedConversation.telefone} photoUrl={selectedConversation.foto_url} size={40} />
               <div>
-                <h3 className="text-sm font-semibold text-foreground">{selectedConversation.nome_contato || selectedConversation.telefone}</h3>
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  {selectedConversation.nome_contato || selectedConversation.telefone}
+                  {selectedConversation.lead_id && (
+                    <button
+                      onClick={() => setLeadPanelId(selectedConversation.lead_id!)}
+                      className="text-[10px] px-2 py-0.5 rounded bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 flex items-center gap-1"
+                      title="Abrir painel do lead"
+                    >
+                      <Target className="w-3 h-3" /> Lead vinculado <ExternalLink className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                </h3>
                 <div className="flex items-center gap-2">
                   <p className="text-xs text-muted-foreground">{selectedConversation.telefone}</p>
                   {(convTags[selectedConversation.id] || []).map(t => (
@@ -800,6 +835,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                 </div>
               </div>
             </div>
+
             <div className="flex items-center gap-1">
               <Popover>
                 <PopoverTrigger asChild>
@@ -1144,8 +1180,17 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <UnifiedLeadPanel
+        source={leadPanelId ? "lead" : null}
+        leadId={leadPanelId}
+        open={!!leadPanelId}
+        onClose={() => setLeadPanelId(null)}
+        onUpdated={loadConversations}
+      />
     </div>
   );
+
 };
 
 export default WhatsAppChat;

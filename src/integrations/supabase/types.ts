@@ -3326,6 +3326,7 @@ export type Database = {
         Returns: number
       }
       map_lead_status_to_stage: { Args: { _status: string }; Returns: string }
+      normalize_phone: { Args: { p: string }; Returns: string }
       promote_agency_lead_to_tenant: {
         Args: {
           p_lead_id: string
