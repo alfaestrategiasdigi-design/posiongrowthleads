@@ -1180,8 +1180,17 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <UnifiedLeadPanel
+        source={leadPanelId ? "lead" : null}
+        leadId={leadPanelId}
+        open={!!leadPanelId}
+        onClose={() => setLeadPanelId(null)}
+        onUpdated={loadConversations}
+      />
     </div>
   );
+
 };
 
 export default WhatsAppChat;
