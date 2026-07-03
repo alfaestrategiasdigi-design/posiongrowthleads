@@ -274,24 +274,22 @@ Deno.serve(async (req) => {
           deduped++; continue;
         }
 
-        // ISOLAMENTO ESTRITO: só roteia se existir uma regra explícita para o form_id
-        // (ou ad_account/page). Sem fallback para default_tenant_id — evita vazamento
-        // cross-tenant como aconteceu com o FORM CAPILAR indo para tenants errados.
-        const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
+        // ISOLAMENTO ESTRITO por form_id. Regras com is_admin_master=true → tenant NULL (POSION).
+        const { data: routing } = await admin.rpc("resolve_form_routing", {
           p_form_id: lead.form_id ?? formId,
-          p_ad_account_id: (cfg as any)?.ad_account_id ?? null,
-          p_page_id: pageId ?? primaryPageId ?? null,
         });
-        const routedTenant: string | null = (rpc as string | null) ?? null;
+        const routeRow: any = Array.isArray(routing) ? routing[0] : routing;
+        const matched = !!routeRow?.matched;
+        const isMaster = !!routeRow?.is_admin_master;
+        const routedTenant: string | null = matched ? ((routeRow?.tenant_id as string | null) ?? null) : null;
 
-        // Se estamos importando com escopo de tenant, ignore leads que não sejam
-        // roteados para ele — evita cross-tenant contamination.
-        if (scopeTenantId && routedTenant !== scopeTenantId) {
+        // Se importando com escopo de tenant, ignore leads que não sejam desse tenant.
+        if (scopeTenantId && (!matched || isMaster || routedTenant !== scopeTenantId)) {
           failed++;
           continue;
         }
 
-        if (!routedTenant) {
+        if (!matched) {
           await admin.from("unrouted_leads").insert({
             raw_payload: lead,
             form_id: lead.form_id ?? formId,
@@ -303,6 +301,8 @@ Deno.serve(async (req) => {
           failed++;
           continue;
         }
+        // matched=true: pode ser tenant OU master (routedTenant=null)
+
 
         const observacoesParts: string[] = [];
         if (instagram) observacoesParts.push(`Instagram: ${instagram}`);

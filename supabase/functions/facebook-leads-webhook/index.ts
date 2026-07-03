@@ -41,6 +41,21 @@ async function verifyHubSignature(secret: string, rawBody: string, header: strin
   return diff === 0;
 }
 
+// Roteamento STRICT por form_id. Retorna { matched, tenantId, isMaster }.
+// - matched=false  → nenhum tenant nem admin_master mapeou o form → unrouted_leads.
+// - matched=true, isMaster=true → lead do POSION (tenantId=null).
+// - matched=true, tenantId=uuid → lead da clínica.
+async function resolveRoute(formId: string | null): Promise<{ matched: boolean; tenantId: string | null; isMaster: boolean }> {
+  if (!formId) return { matched: false, tenantId: null, isMaster: false };
+  const { data } = await admin.rpc("resolve_form_routing", { p_form_id: formId });
+  const row: any = Array.isArray(data) ? data[0] : data;
+  return {
+    matched: !!row?.matched,
+    tenantId: (row?.tenant_id as string | null) ?? null,
+    isMaster: !!row?.is_admin_master,
+  };
+}
+
 async function fetchLeadFromGraph(leadgenId: string, token: string) {
   try {
     const fields = "id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id";
@@ -243,27 +258,17 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Fase 2 — resolve tenant via mapeamento; fallback para default_tenant_id; senão, fila de não-roteados
+        // Roteamento STRICT por form_id (sem fallback via ad_account/page).
         const pageIdForRoute = v.page_id ? String(v.page_id) : (entry.id ? String(entry.id) : null);
         const formIdForRoute = v.form_id ? String(v.form_id) : null;
-        const adAccountForRoute = null; // webhook não recebe ad_account_id
-        let routedTenant: string | null = null;
-        {
-          // ISOLAMENTO ESTRITO: só roteia com regra explícita. Sem default_tenant_id.
-          const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
-            p_form_id: formIdForRoute,
-            p_ad_account_id: adAccountForRoute,
-            p_page_id: pageIdForRoute,
-          });
-          routedTenant = (rpc as string | null) ?? null;
-        }
+        const route = await resolveRoute(formIdForRoute);
 
-        if (!routedTenant) {
+        if (!route.matched) {
           const ur = await admin.from("unrouted_leads").insert({
             raw_payload: { entry_id: entry.id, change, graph_field_data: flat },
             form_id: formIdForRoute,
             page_id: pageIdForRoute,
-            ad_account_id: adAccountForRoute,
+            ad_account_id: null,
             facebook_lead_id: leadgenId ? String(leadgenId) : null,
             nome: flat["full_name"] ?? flat["nome"] ?? null,
             whatsapp: flat["phone_number"] ?? flat["phone"] ?? null,
@@ -272,11 +277,14 @@ Deno.serve(async (req) => {
           results.push({ ok: true, unrouted: true, id: ur.data?.id ?? null });
           if (evtId) {
             await admin.from("facebook_webhook_events").update({
-              processed: false, error: "no tenant mapping",
+              processed: false, error: "no form mapping",
             }).eq("id", evtId);
           }
           continue;
         }
+        // matched: pode ser tenant (route.tenantId) OU admin_master (tenantId=null)
+        const routedTenant = route.tenantId;
+
 
         const r = await insertLead(flat, {
           facebook_lead_id: leadgenId,
@@ -300,13 +308,8 @@ Deno.serve(async (req) => {
     }
   } else if (Array.isArray(body?.field_data)) {
     const flat = flattenFieldData(body.field_data);
-    const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
-      p_form_id: body.form_id ?? null,
-      p_ad_account_id: body.ad_account_id ?? null,
-      p_page_id: body.page_id ?? null,
-    });
-    const routedTenant = (rpc as string | null) ?? null;
-    if (!routedTenant) {
+    const route = await resolveRoute(body.form_id ? String(body.form_id) : null);
+    if (!route.matched) {
       const ur = await admin.from("unrouted_leads").insert({
         raw_payload: body,
         form_id: body.form_id ?? null,
@@ -326,18 +329,13 @@ Deno.serve(async (req) => {
         facebook_form_name: body.form_name ?? null,
         facebook_ad_name: body.ad_name ?? null,
         facebook_adset_name: body.adset_name ?? null,
-        tenant_id: routedTenant,
+        tenant_id: route.tenantId,
       });
       results.push(r);
     }
   } else {
-    const { data: rpc } = await admin.rpc("resolve_tenant_for_lead", {
-      p_form_id: body.form_id ?? null,
-      p_ad_account_id: body.ad_account_id ?? null,
-      p_page_id: body.page_id ?? null,
-    });
-    const routedTenant = (rpc as string | null) ?? null;
-    if (!routedTenant) {
+    const route = await resolveRoute(body.form_id ? String(body.form_id) : null);
+    if (!route.matched) {
       const ur = await admin.from("unrouted_leads").insert({
         raw_payload: body,
         form_id: body.form_id ?? null,
@@ -357,7 +355,8 @@ Deno.serve(async (req) => {
         facebook_form_name: body.form_name ?? null,
         facebook_ad_name: body.ad_name ?? null,
         facebook_adset_name: body.adset_name ?? null,
-        tenant_id: routedTenant,
+        tenant_id: route.tenantId,
+
       });
       results.push(r);
     }

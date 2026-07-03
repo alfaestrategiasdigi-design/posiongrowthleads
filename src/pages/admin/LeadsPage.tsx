@@ -34,20 +34,82 @@ const LeadsPage = () => {
   const [originFilter, setOriginFilter] = useState<string>("all");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [lastLeadsSync, setLastLeadsSync] = useState<string | null>(null);
+  const [masterForms, setMasterForms] = useState<Array<{ id: string; form_id: string; label: string | null; active: boolean }>>([]);
+  const [availableForms, setAvailableForms] = useState<Array<{ form_id: string; form_name: string | null }>>([]);
+  const [showFormManager, setShowFormManager] = useState(false);
+
+  const loadMasterForms = async () => {
+    const { data } = await (supabase as any)
+      .from("lead_routing_rules")
+      .select("id, match_value, match_label, active")
+      .eq("match_type", "form_id")
+      .eq("is_admin_master", true);
+    setMasterForms((data ?? []).map((r: any) => ({
+      id: r.id, form_id: String(r.match_value), label: r.match_label, active: !!r.active,
+    })));
+  };
 
   useEffect(() => {
     const load = async () => {
-      const [{ data }, { data: cfg }] = await Promise.all([
-        supabase.from("leads").select("*").eq("origem", "facebook_ads").order("created_at", { ascending: false }),
+      await loadMasterForms();
+      const [{ data: cfg }, { data: allFbLeads }] = await Promise.all([
         supabase.rpc("get_facebook_config_meta" as any),
+        // Descobre todos os form_ids/nomes vistos para permitir cadastrar novos como POSION
+        supabase.from("leads")
+          .select("facebook_form_id, facebook_form_name")
+          .eq("origem", "facebook_ads")
+          .not("facebook_form_id", "is", null)
+          .limit(1000),
       ]);
-      setLeads(data || []);
       const row: any = Array.isArray(cfg) ? cfg[0] : cfg;
       setLastLeadsSync(row?.last_leads_sync_at ?? null);
+      const seen = new Map<string, string | null>();
+      for (const l of (allFbLeads ?? []) as any[]) {
+        const fid = l.facebook_form_id ? String(l.facebook_form_id) : null;
+        if (fid && !seen.has(fid)) seen.set(fid, l.facebook_form_name ?? null);
+      }
+      setAvailableForms(Array.from(seen.entries()).map(([form_id, form_name]) => ({ form_id, form_name })));
       setLoading(false);
     };
     load();
   }, []);
+
+  // Recarrega leads sempre que os forms do master mudam (para aplicar o filtro)
+  useEffect(() => {
+    const masterFormIds = masterForms.filter(f => f.active).map(f => f.form_id);
+    if (masterFormIds.length === 0) { setLeads([]); return; }
+    (async () => {
+      const { data } = await supabase
+        .from("leads")
+        .select("*")
+        .eq("origem", "facebook_ads")
+        .is("tenant_id", null)
+        .in("facebook_form_id", masterFormIds)
+        .order("created_at", { ascending: false });
+      setLeads(data || []);
+    })();
+  }, [masterForms]);
+
+  const toggleMasterForm = async (formId: string, active: boolean) => {
+    await (supabase as any).from("lead_routing_rules")
+      .update({ active }).eq("match_value", formId).eq("match_type", "form_id").eq("is_admin_master", true);
+    await loadMasterForms();
+  };
+  const removeMasterForm = async (formId: string) => {
+    await (supabase as any).from("lead_routing_rules")
+      .delete().eq("match_value", formId).eq("match_type", "form_id").eq("is_admin_master", true);
+    await loadMasterForms();
+  };
+  const addMasterForm = async (formId: string, label: string | null) => {
+    const clean = String(formId).trim();
+    if (!clean) return;
+    await (supabase as any).from("lead_routing_rules").insert({
+      tenant_id: null, match_type: "form_id", match_value: clean,
+      match_label: label || `Formulário ${clean}`, priority: 5, active: true, is_admin_master: true,
+    });
+    await loadMasterForms();
+  };
+
 
   const fbSummary = useMemo(() => {
     const fb = leads.filter(l => l.origem === "facebook_ads");
@@ -132,11 +194,74 @@ const LeadsPage = () => {
           </p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
+          <Button variant="outline" onClick={() => setShowFormManager(v => !v)} className="gap-2 text-sm rounded-full">
+            <Filter className="w-4 h-4" /> Formulários POSION ({masterForms.filter(f => f.active).length})
+          </Button>
           <Button variant="outline" onClick={handleExportCSV} disabled={filtered.length === 0} className="gap-2 text-sm rounded-full">
             <Download className="w-4 h-4" /> Exportar CSV
           </Button>
         </div>
       </div>
+
+      {/* Gerenciador de formulários do Admin Master (POSION) */}
+      {showFormManager && (
+        <div className="card-elevated p-6 space-y-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Admin Master</p>
+            <h3 className="font-display text-lg text-foreground normal-case tracking-normal">Formulários atribuídos ao POSION</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Somente leads dos formulários selecionados aqui aparecem nesta tela. Tudo que não estiver mapeado (nem aqui, nem em uma clínica) vai para "leads não roteados".
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            {masterForms.length === 0 && (
+              <p className="text-xs text-muted-foreground italic">Nenhum formulário POSION cadastrado.</p>
+            )}
+            {masterForms.map(f => (
+              <div key={f.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-card/40 p-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-foreground truncate">{f.label || `Formulário ${f.form_id}`}</p>
+                  <p className="text-[10px] text-muted-foreground font-mono">{f.form_id}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant={f.active ? "default" : "outline"} className="rounded-full text-xs"
+                    onClick={() => toggleMasterForm(f.form_id, !f.active)}>
+                    {f.active ? "Ativo" : "Inativo"}
+                  </Button>
+                  <Button size="sm" variant="outline" className="rounded-full text-xs text-rose-400 border-rose-400/40 hover:bg-rose-500/10"
+                    onClick={() => removeMasterForm(f.form_id)}>
+                    Remover
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="pt-3 border-t border-border/60 space-y-2">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Adicionar formulário POSION</p>
+            {availableForms.filter(af => !masterForms.some(mf => mf.form_id === af.form_id)).length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {availableForms
+                  .filter(af => !masterForms.some(mf => mf.form_id === af.form_id))
+                  .map(af => (
+                    <button
+                      key={af.form_id}
+                      onClick={() => addMasterForm(af.form_id, af.form_name)}
+                      className="text-xs px-3 py-1.5 rounded-full border border-accent/30 bg-accent/5 text-accent hover:bg-accent/15 transition"
+                      title={af.form_id}
+                    >
+                      + {af.form_name || af.form_id}
+                    </button>
+                  ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">Nenhum novo formulário disponível.</p>
+            )}
+          </div>
+        </div>
+      )}
+
 
       {/* KPI Tiles */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">

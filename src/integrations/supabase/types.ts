@@ -94,6 +94,7 @@ export type Database = {
           plano_interesse: string | null
           proximo_followup: string | null
           responsavel: string | null
+          source_lead_id: string | null
           stage: string
           tags: string[] | null
           tenant_id_criado: string | null
@@ -123,6 +124,7 @@ export type Database = {
           plano_interesse?: string | null
           proximo_followup?: string | null
           responsavel?: string | null
+          source_lead_id?: string | null
           stage?: string
           tags?: string[] | null
           tenant_id_criado?: string | null
@@ -152,6 +154,7 @@ export type Database = {
           plano_interesse?: string | null
           proximo_followup?: string | null
           responsavel?: string | null
+          source_lead_id?: string | null
           stage?: string
           tags?: string[] | null
           tenant_id_criado?: string | null
@@ -163,6 +166,13 @@ export type Database = {
           whatsapp?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "agency_leads_source_lead_id_fkey"
+            columns: ["source_lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "agency_leads_tenant_id_criado_fkey"
             columns: ["tenant_id_criado"]
@@ -1151,12 +1161,13 @@ export type Database = {
           ad_account_id: string | null
           created_at: string
           id: string
+          is_admin_master: boolean
           match_label: string | null
           match_type: string
           match_value: string
           notes: string | null
           priority: number
-          tenant_id: string
+          tenant_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1164,12 +1175,13 @@ export type Database = {
           ad_account_id?: string | null
           created_at?: string
           id?: string
+          is_admin_master?: boolean
           match_label?: string | null
           match_type: string
           match_value: string
           notes?: string | null
           priority?: number
-          tenant_id: string
+          tenant_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1177,12 +1189,13 @@ export type Database = {
           ad_account_id?: string | null
           created_at?: string
           id?: string
+          is_admin_master?: boolean
           match_label?: string | null
           match_type?: string
           match_value?: string
           notes?: string | null
           priority?: number
-          tenant_id?: string
+          tenant_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -3181,6 +3194,7 @@ export type Database = {
         Args: { p_agency_lead_id?: string; p_lead_id?: string }
         Returns: number
       }
+      map_lead_status_to_stage: { Args: { _status: string }; Returns: string }
       promote_agency_lead_to_tenant: {
         Args: {
           p_lead_id: string
@@ -3189,6 +3203,14 @@ export type Database = {
           p_valor?: number
         }
         Returns: string
+      }
+      resolve_form_routing: {
+        Args: { p_form_id: string }
+        Returns: {
+          is_admin_master: boolean
+          matched: boolean
+          tenant_id: string
+        }[]
       }
       resolve_tenant_for_lead: {
         Args: {
