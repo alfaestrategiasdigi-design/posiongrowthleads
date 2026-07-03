@@ -15,7 +15,7 @@ import LeadsPage from "./pages/admin/LeadsPage";
 import ConexaoWhatsappPage from "./pages/admin/ConexaoWhatsappPage";
 import WhatsAppStatusPage from "./pages/admin/WhatsAppStatusPage";
 import CreateUserPage from "./pages/admin/CreateUserPage";
-import QualificacaoPage from "./pages/admin/QualificacaoPage";
+import AutomacoesPage from "./pages/admin/AutomacoesPage";
 import FacebookConfigPage from "./pages/admin/FacebookConfigPage";
 import CapiConfigPage from "./pages/admin/CapiConfigPage";
 import CampanhasPage from "./pages/admin/CampanhasPage";
@@ -93,7 +93,8 @@ const App = () => (
           <Route path="/admin/conexao-whatsapp" element={<AdminLayout><ConexaoWhatsappPage /></AdminLayout>} />
           <Route path="/admin/whatsapp-status" element={<AdminLayout><WhatsAppStatusPage /></AdminLayout>} />
           <Route path="/admin/usuarios" element={<AdminLayout><CreateUserPage /></AdminLayout>} />
-          <Route path="/admin/qualificacao" element={<AdminLayout><QualificacaoPage /></AdminLayout>} />
+          <Route path="/admin/automacoes" element={<AdminLayout><AutomacoesPage /></AdminLayout>} />
+          <Route path="/admin/qualificacao" element={<Navigate to="/admin/automacoes" replace />} />
           <Route path="/admin/facebook" element={<AdminLayout><FacebookConfigPage /></AdminLayout>} />
           <Route path="/admin/capi" element={<AdminLayout><CapiConfigPage /></AdminLayout>} />
           <Route path="/admin/campanhas" element={<AdminLayout><CampanhasPage /></AdminLayout>} />

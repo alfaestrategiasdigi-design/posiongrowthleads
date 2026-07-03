@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, MessageCircle, Users, LogOut, UserPlus, ListChecks,
+  LayoutDashboard, MessageCircle, Users, LogOut, UserPlus, Zap,
   Facebook, Building2, FileText, Megaphone, Plug, Activity, Target, CreditCard, GitBranch,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,7 +25,7 @@ const navGroups: NavGroup[] = [
       { title: "Dashboard", url: "/admin", icon: LayoutDashboard, comercial: true },
       { title: "Pipeline Agência", url: "/admin/pipeline", icon: GitBranch, comercial: true },
       { title: "Leads (formulário)", url: "/admin/leads", icon: Users, comercial: true },
-      { title: "Qualificação", url: "/admin/qualificacao", icon: ListChecks },
+      { title: "Automações", url: "/admin/automacoes", icon: Zap, comercial: true },
       { title: "Agenda de Reunião", url: "/admin/agendamentos", icon: Activity, comercial: true },
       { title: "WhatsApp Master", url: "/admin/whatsapp", icon: MessageCircle, live: true, comercial: true },
       { title: "Contratos", url: "/admin/contratos-agencia", icon: FileText },
