@@ -58,6 +58,22 @@ Deno.serve(async (req) => {
       if (tErr) return json({ error: `tenant_users: ${tErr.message}` }, 400);
     }
 
+    // Auto-link master roles (admin / comercial_admin_master) to the master tenant
+    if (globalRole === "admin" || globalRole === "comercial_admin_master") {
+      const masterRole = globalRole === "admin" ? "owner" : "admin";
+      await admin
+        .from("tenant_users")
+        .upsert(
+          {
+            user_id: userId,
+            tenant_id: "00000000-0000-0000-0000-000000000001",
+            role: masterRole as any,
+            active: true,
+          },
+          { onConflict: "user_id,tenant_id" },
+        );
+    }
+
     return json({ ok: true, user_id: userId, email, password, created });
   } catch (e) {
     return json({ error: String((e as Error).message || e) }, 500);
