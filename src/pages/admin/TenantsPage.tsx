@@ -7,12 +7,19 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, ExternalLink, Building2, Users } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Loader2, Plus, ExternalLink, Building2, Users, CalendarIcon, TimerReset } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { TenantUsersDialog } from "@/components/admin/TenantUsersDialog";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
-interface Tenant { id: string; slug: string; name: string; plan: string; status: string; segment: string | null; created_at: string }
+interface Tenant { id: string; slug: string; name: string; plan: string; status: string; segment: string | null; created_at: string; trial_active?: boolean; trial_ends_at?: string | null }
+
 
 export default function TenantsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
