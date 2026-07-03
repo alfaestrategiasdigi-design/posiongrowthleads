@@ -22,9 +22,11 @@ const AppointmentsPage = () => {
 
   const loadAppointments = async () => {
     setLoading(true);
+    // Agenda do Admin Master (POSION) — somente registros sem tenant.
     const { data, error } = await supabase
       .from("appointments")
       .select("*")
+      .is("tenant_id", null)
       .order("date_time", { ascending: true });
     if (error) toast.error("Erro ao carregar agendamentos");
     else setAppointments((data || []) as Appointment[]);
@@ -109,8 +111,9 @@ const AppointmentsPage = () => {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Agendamentos</h1>
-          <p className="text-muted-foreground text-sm">Gerencie a agenda da clínica</p>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-primary/70 mb-1">POSION · Admin Master</div>
+          <h1 className="text-2xl font-bold text-foreground">Agenda de Reuniões</h1>
+          <p className="text-muted-foreground text-sm">Reuniões dos leads da agência POSION</p>
         </div>
         <Button onClick={() => openNew()} className="gap-2 bg-accent hover:bg-accent/90">
           <Plus className="w-4 h-4" /> Novo Agendamento
