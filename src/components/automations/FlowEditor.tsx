@@ -82,10 +82,10 @@ export default function FlowEditor({ flowId, onBack }: Props) {
       trigger_type: flow.trigger_type,
       trigger_config: flow.trigger_config,
       status: flow.status,
-      nodes: nodes.map((n) => ({ id: n.id, type: n.type, position: n.position, data: n.data })),
-      edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, label: e.label })),
+      nodes: nodes.map((n) => ({ id: n.id, type: n.type, position: n.position, data: n.data })) as any,
+      edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, label: typeof e.label === "string" ? e.label : undefined })) as any,
     };
-    const { error } = await supabase.from("automation_flows").update(payload).eq("id", flow.id);
+    const { error } = await supabase.from("automation_flows").update(payload as any).eq("id", flow.id);
     setSaving(false);
     if (error) return toast.error(error.message);
     toast.success("Fluxo salvo");
