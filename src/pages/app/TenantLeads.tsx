@@ -365,13 +365,12 @@ export default function TenantLeads() {
               <tr className="border-b border-border/60 bg-card/40">
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Nome</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Contato</th>
-                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Clínica</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Cidade</th>
-                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Especialidade</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Formulário</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Status</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Data</th>
               </tr>
+
             </thead>
             <tbody>
               {filtered.map(lead => {
@@ -401,14 +400,9 @@ export default function TenantLeads() {
                       </div>
                     </td>
                     <td className="p-4">
-                      {lead.nome_empresa && <p className="text-sm text-foreground flex items-center gap-1.5"><Building2 className="w-3 h-3 text-accent/70" /> {lead.nome_empresa}</p>}
-                    </td>
-                    <td className="p-4">
                       {lead.cidade_estado && <p className="text-sm text-muted-foreground flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {lead.cidade_estado}</p>}
                     </td>
-                    <td className="p-4">
-                      {lead.especialidade && <span className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium border border-accent/20">{lead.especialidade}</span>}
-                    </td>
+
                     <td className="p-4">
                       {formName && <span className="text-xs text-muted-foreground truncate max-w-[160px] inline-block" title={formName}>{formName}</span>}
                     </td>
@@ -425,7 +419,7 @@ export default function TenantLeads() {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={8} className="p-12 text-center text-muted-foreground text-sm">Nenhum lead encontrado. Clique em <b>Sincronizar</b> para importar dos formulários vinculados.</td></tr>
+                <tr><td colSpan={6} className="p-12 text-center text-muted-foreground text-sm">Nenhum lead encontrado. Clique em <b>Sincronizar</b> para importar dos formulários vinculados.</td></tr>
               )}
             </tbody>
           </table>
