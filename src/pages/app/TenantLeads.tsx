@@ -400,14 +400,9 @@ export default function TenantLeads() {
                       </div>
                     </td>
                     <td className="p-4">
-                      {lead.nome_empresa && <p className="text-sm text-foreground flex items-center gap-1.5"><Building2 className="w-3 h-3 text-accent/70" /> {lead.nome_empresa}</p>}
-                    </td>
-                    <td className="p-4">
                       {lead.cidade_estado && <p className="text-sm text-muted-foreground flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {lead.cidade_estado}</p>}
                     </td>
-                    <td className="p-4">
-                      {lead.especialidade && <span className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium border border-accent/20">{lead.especialidade}</span>}
-                    </td>
+
                     <td className="p-4">
                       {formName && <span className="text-xs text-muted-foreground truncate max-w-[160px] inline-block" title={formName}>{formName}</span>}
                     </td>
