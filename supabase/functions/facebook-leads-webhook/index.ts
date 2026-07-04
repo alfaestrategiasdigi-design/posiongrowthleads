@@ -176,7 +176,7 @@ export async function insertLead(payload: Record<string, string>, meta: {
     const { data: existing } = await admin
       .from("leads").select("id").eq("facebook_lead_id", meta.facebook_lead_id).maybeSingle();
     if (existing) {
-      if (meta.tenant_id) {
+      if (Object.prototype.hasOwnProperty.call(meta, "tenant_id")) {
         await admin.from("leads").update({ tenant_id: meta.tenant_id }).eq("id", existing.id);
       }
       console.log(`[webhook] Lead duplicado (já existe): ${meta.facebook_lead_id} → ${existing.id}`);
