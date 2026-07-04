@@ -1,9 +1,9 @@
 // Importação retroativa de leads do Facebook Lead Ads.
 // POST body: { form_ids?: string[], max_per_form?: number }
-// Se form_ids estiver vazio, busca todos os formulários da página configurada.
-// IMPORTANTE: descobre a Página dona de cada form via user_access_token e usa o
-// page_access_token correto de /me/accounts — assim funciona para forms de
-// qualquer Página que o usuário administre, não apenas da página "principal".
+// Se form_ids estiver vazio, busca todos os formulários acessíveis na conta/BM.
+// IMPORTANTE: a origem de segurança é o USER token com acesso ao Business Manager.
+// Page tokens são usados quando existem, mas não bloqueiam o sync: se a BM já tem
+// acesso, o user token é fallback para listar formulários e buscar leads.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -106,23 +106,55 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Cache de tokens por Página, montado a partir de /me/accounts (user token)
-  const pageTokenCache: Record<string, { token: string; name?: string }> = {};
+  // Cache de Páginas acessíveis via conta/BM. `token` pode não existir em páginas
+  // vindas de Business Manager; nesses casos usamos o user token como fallback.
+  const pageTokenCache: Record<string, { token?: string; name?: string; business_id?: string; business_name?: string }> = {};
   if (primaryPageId && pagePrimaryToken) {
     pageTokenCache[primaryPageId] = { token: pagePrimaryToken };
   }
+  const rememberPage = (p: any, business?: any) => {
+    if (!p?.id) return;
+    const cur = pageTokenCache[p.id] ?? {};
+    pageTokenCache[p.id] = {
+      ...cur,
+      token: p.access_token ?? cur.token,
+      name: p.name ?? cur.name,
+      business_id: business?.id ?? p.business?.id ?? cur.business_id,
+      business_name: business?.name ?? p.business?.name ?? cur.business_name,
+    };
+  };
   const loadPagesErrors: any[] = [];
   if (userToken) {
     try {
-      let url: string | null = `${GRAPH}/me/accounts?fields=id,name,access_token&limit=200&access_token=${encodeURIComponent(userToken)}`;
+      let url: string | null = `${GRAPH}/me/accounts?fields=id,name,access_token,business{id,name}&limit=200&access_token=${encodeURIComponent(userToken)}`;
       while (url) {
         const r = await fetch(url);
         const j: any = await r.json();
         if (!r.ok) { loadPagesErrors.push(j?.error ?? j); break; }
-        for (const p of j.data ?? []) {
-          if (p?.id && p?.access_token) pageTokenCache[p.id] = { token: p.access_token, name: p.name };
-        }
+        for (const p of j.data ?? []) rememberPage(p);
         url = j.paging?.next ?? null;
+      }
+    } catch (e) { loadPagesErrors.push(String(e)); }
+
+    try {
+      let bizUrl: string | null = `${GRAPH}/me/businesses?fields=id,name&limit=200&access_token=${encodeURIComponent(userToken)}`;
+      while (bizUrl) {
+        const rb = await fetch(bizUrl);
+        const jb: any = await rb.json();
+        if (!rb.ok) { loadPagesErrors.push(jb?.error ?? jb); break; }
+        for (const b of jb.data ?? []) {
+          for (const edge of ["owned_pages", "client_pages"]) {
+            let pageUrl: string | null = `${GRAPH}/${b.id}/${edge}?fields=id,name,access_token&limit=200&access_token=${encodeURIComponent(userToken)}`;
+            while (pageUrl) {
+              const rp = await fetch(pageUrl);
+              const jp: any = await rp.json();
+              if (!rp.ok) { loadPagesErrors.push({ business_id: b.id, edge, error: jp?.error ?? jp }); break; }
+              for (const p of jp.data ?? []) rememberPage(p, b);
+              pageUrl = jp.paging?.next ?? null;
+            }
+          }
+        }
+        bizUrl = jb.paging?.next ?? null;
       }
     } catch (e) { loadPagesErrors.push(String(e)); }
   }
@@ -151,22 +183,23 @@ Deno.serve(async (req) => {
   }
 
   if (!formIds.length) {
-    if (!primaryPageId) {
-      return new Response(JSON.stringify({ error: "page_id não configurado e nenhum form_ids enviado" }), {
+    const pages = Object.entries(pageTokenCache);
+    if (!pages.length && primaryPageId) pages.push([primaryPageId, { token: pagePrimaryToken }]);
+    if (!pages.length) {
+      return new Response(JSON.stringify({ error: "Nenhuma Página/BM acessível e nenhum form_ids enviado" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const tok = pageTokenCache[primaryPageId]?.token || pagePrimaryToken;
-    const r = await fetch(`${GRAPH}/${primaryPageId}/leadgen_forms?fields=id,name&limit=100&access_token=${encodeURIComponent(tok)}`);
-    const j = await r.json();
-    if (!r.ok) {
-      return new Response(JSON.stringify({ error: "Falha listando forms", detail: j }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    for (const f of j.data ?? []) {
-      formIds.push(f.id);
-      formsMeta[f.id] = { name: f.name, page_id: primaryPageId };
+    for (const [pageId, page] of pages) {
+      const tok = page.token || userToken || pagePrimaryToken;
+      if (!tok) continue;
+      const r = await fetch(`${GRAPH}/${pageId}/leadgen_forms?fields=id,name&limit=200&access_token=${encodeURIComponent(tok)}`);
+      const j = await r.json();
+      if (!r.ok) { loadPagesErrors.push({ page_id: pageId, page_name: page.name, error: j?.error ?? j }); continue; }
+      for (const f of j.data ?? []) {
+        if (!formIds.includes(f.id)) formIds.push(f.id);
+        formsMeta[f.id] = { name: f.name, page_id: pageId, page_name: page.name };
+      }
     }
   }
 
@@ -184,7 +217,7 @@ Deno.serve(async (req) => {
           page_name: j.page?.name,
         };
         if (j.page?.id && !pageTokenCache[j.page.id]?.name && j.page?.name) {
-          pageTokenCache[j.page.id] = { ...(pageTokenCache[j.page.id] ?? { token: "" }), name: j.page.name };
+          pageTokenCache[j.page.id] = { ...(pageTokenCache[j.page.id] ?? {}), name: j.page.name };
         }
       } else {
         formsMeta[formId] = { name: undefined };
@@ -200,15 +233,16 @@ Deno.serve(async (req) => {
     const formName = meta.name ?? null;
     const pageName = meta.page_name ?? (pageId ? pageTokenCache[pageId]?.name : undefined) ?? null;
 
-    // Escolhe token da Página dona (necessário para /leads)
+    // Escolhe token da Página dona quando disponível; se a origem veio de BM,
+    // o user token autorizado também pode buscar os leads do form.
     const pageToken = pageId ? pageTokenCache[pageId]?.token : undefined;
-    const fetchToken = pageToken || (pageId === primaryPageId ? pagePrimaryToken : "");
+    const fetchToken = pageToken || userToken || (pageId === primaryPageId ? pagePrimaryToken : "");
 
     if (!fetchToken) {
       by_form.push({
         form_id: formId, form_name: formName, page_id: pageId, page_name: pageName,
         error: pageId
-          ? `Sem Page Access Token para a Página ${pageName ?? pageId}. Faça login no Facebook como admin dessa Página no fluxo de conexão.`
+          ? `Sem token de usuário/BM para acessar a origem ${pageName ?? pageId}. Reconecte a conta Meta com acesso ao Business Manager.`
           : "Não foi possível identificar a Página dona do formulário.",
         imported: 0, deduped: 0, failed: 0, fetched: 0,
       });
@@ -263,17 +297,6 @@ Deno.serve(async (req) => {
           },
         };
 
-        const { data: existing } = await admin
-          .from("leads").select("id, extras").eq("facebook_lead_id", lead.id).maybeSingle();
-        if (existing) {
-          // Se lead antigo está sem os campos do form, backfill agora
-          const cur: any = (existing as any).extras ?? {};
-          if (!cur.form_fields || (Array.isArray(cur.form_fields) && cur.form_fields.length === 0)) {
-            await admin.from("leads").update({ extras: { ...cur, ...extrasPayload } } as any).eq("id", (existing as any).id);
-          }
-          deduped++; continue;
-        }
-
         // ISOLAMENTO ESTRITO por form_id. Regras com is_admin_master=true → tenant NULL (POSION).
         const { data: routing } = await admin.rpc("resolve_form_routing", {
           p_form_id: lead.form_id ?? formId,
@@ -287,6 +310,24 @@ Deno.serve(async (req) => {
         if (scopeTenantId && (!matched || isMaster || routedTenant !== scopeTenantId)) {
           failed++;
           continue;
+        }
+
+        const { data: existing } = await admin
+          .from("leads").select("id, extras, tenant_id").eq("facebook_lead_id", lead.id).maybeSingle();
+        if (existing) {
+          // Lead já importado antes do vínculo: atualiza o tenant de acordo com a regra atual.
+          const cur: any = (existing as any).extras ?? {};
+          const patch: any = {};
+          if (!cur.form_fields || (Array.isArray(cur.form_fields) && cur.form_fields.length === 0)) {
+            patch.extras = { ...cur, ...extrasPayload };
+          }
+          if (matched && (existing as any).tenant_id !== routedTenant) {
+            patch.tenant_id = routedTenant;
+          }
+          if (Object.keys(patch).length) {
+            await admin.from("leads").update(patch).eq("id", (existing as any).id);
+          }
+          deduped++; continue;
         }
 
         if (!matched) {

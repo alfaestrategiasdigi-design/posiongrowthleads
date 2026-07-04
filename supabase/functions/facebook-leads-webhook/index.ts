@@ -1,7 +1,7 @@
 // Facebook Lead Ads webhook
 // GET  → verificação do Meta (hub.challenge)
 // POST → recebe leadgen events da Meta OU JSON direto (curl/manual)
-// Token de página e app_secret são lidos do banco (facebook_webhook_config),
+// Token de página/user e app_secret são lidos do banco (facebook_webhook_config),
 // com fallback para FACEBOOK_PAGE_ACCESS_TOKEN (secret) se o banco estiver vazio.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -20,10 +20,59 @@ const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 async function loadConfig() {
   const { data, error } = await admin
     .from("facebook_webhook_config")
-    .select("verify_token, page_access_token, app_secret, page_id, default_tenant_id")
+    .select("verify_token, page_access_token, user_access_token, app_secret, page_id, default_tenant_id")
     .limit(1).maybeSingle();
   if (error) console.error("[webhook] erro carregando config:", error.message);
   return data;
+}
+
+async function buildPageAccessCache(userToken: string, primaryPageId: string | null, primaryPageToken: string) {
+  const cache: Record<string, { token?: string; name?: string }> = {};
+  if (primaryPageId && primaryPageToken) cache[primaryPageId] = { token: primaryPageToken };
+  const remember = (p: any) => {
+    if (!p?.id) return;
+    cache[p.id] = {
+      ...(cache[p.id] ?? {}),
+      token: p.access_token ?? cache[p.id]?.token,
+      name: p.name ?? cache[p.id]?.name,
+    };
+  };
+  if (!userToken) return cache;
+
+  try {
+    let url: string | null = `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token&limit=200&access_token=${encodeURIComponent(userToken)}`;
+    while (url) {
+      const r = await fetch(url);
+      const j: any = await r.json();
+      if (!r.ok) break;
+      for (const p of j.data ?? []) remember(p);
+      url = j.paging?.next ?? null;
+    }
+  } catch (e) { console.warn("[webhook] falha lendo /me/accounts:", e); }
+
+  try {
+    let bizUrl: string | null = `https://graph.facebook.com/v21.0/me/businesses?fields=id,name&limit=200&access_token=${encodeURIComponent(userToken)}`;
+    while (bizUrl) {
+      const rb = await fetch(bizUrl);
+      const jb: any = await rb.json();
+      if (!rb.ok) break;
+      for (const b of jb.data ?? []) {
+        for (const edge of ["owned_pages", "client_pages"]) {
+          let pageUrl: string | null = `https://graph.facebook.com/v21.0/${b.id}/${edge}?fields=id,name,access_token&limit=200&access_token=${encodeURIComponent(userToken)}`;
+          while (pageUrl) {
+            const rp = await fetch(pageUrl);
+            const jp: any = await rp.json();
+            if (!rp.ok) break;
+            for (const p of jp.data ?? []) remember(p);
+            pageUrl = jp.paging?.next ?? null;
+          }
+        }
+      }
+      bizUrl = jb.paging?.next ?? null;
+    }
+  } catch (e) { console.warn("[webhook] falha lendo páginas do BM:", e); }
+
+  return cache;
 }
 
 async function verifyHubSignature(secret: string, rawBody: string, header: string | null): Promise<boolean> {
@@ -127,6 +176,9 @@ export async function insertLead(payload: Record<string, string>, meta: {
     const { data: existing } = await admin
       .from("leads").select("id").eq("facebook_lead_id", meta.facebook_lead_id).maybeSingle();
     if (existing) {
+      if (Object.prototype.hasOwnProperty.call(meta, "tenant_id")) {
+        await admin.from("leads").update({ tenant_id: meta.tenant_id }).eq("id", existing.id);
+      }
       console.log(`[webhook] Lead duplicado (já existe): ${meta.facebook_lead_id} → ${existing.id}`);
       return { ok: true, deduped: true, id: existing.id };
     }
@@ -215,8 +267,10 @@ Deno.serve(async (req) => {
   }
 
   const FB_PAGE_TOKEN = cfg?.page_access_token || FB_TOKEN_ENV || "";
-  if (!FB_PAGE_TOKEN) {
-    console.error("[webhook] FACEBOOK_PAGE_ACCESS_TOKEN ausente (banco + secret vazios) — leads do Meta serão registrados só com leadgen_id");
+  const FB_USER_TOKEN = cfg?.user_access_token || "";
+  const pageTokenCache = await buildPageAccessCache(FB_USER_TOKEN, cfg?.page_id ?? null, FB_PAGE_TOKEN);
+  if (!FB_PAGE_TOKEN && !FB_USER_TOKEN) {
+    console.error("[webhook] token Meta ausente (page/user/secret vazios) — leads serão registrados só com leadgen_id");
   }
 
   const results: any[] = [];
@@ -248,8 +302,12 @@ Deno.serve(async (req) => {
         let adsetName: string | null = null;
         let campaignName: string | null = null;
 
-        if (leadgenId && FB_PAGE_TOKEN) {
-          const full = await fetchLeadFromGraph(String(leadgenId), FB_PAGE_TOKEN);
+        const pageIdForRoute = v.page_id ? String(v.page_id) : (entry.id ? String(entry.id) : null);
+        const formIdForRoute = v.form_id ? String(v.form_id) : null;
+        const graphToken = (pageIdForRoute ? pageTokenCache[pageIdForRoute]?.token : undefined) || FB_USER_TOKEN || FB_PAGE_TOKEN;
+
+        if (leadgenId && graphToken) {
+          const full = await fetchLeadFromGraph(String(leadgenId), graphToken);
           if (full) {
             flat = flattenFieldData(full.field_data);
             adName = full.ad_name ?? null;
@@ -259,8 +317,6 @@ Deno.serve(async (req) => {
         }
 
         // Roteamento STRICT por form_id (sem fallback via ad_account/page).
-        const pageIdForRoute = v.page_id ? String(v.page_id) : (entry.id ? String(entry.id) : null);
-        const formIdForRoute = v.form_id ? String(v.form_id) : null;
         const route = await resolveRoute(formIdForRoute);
 
         if (!route.matched) {
