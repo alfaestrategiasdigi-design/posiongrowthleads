@@ -153,24 +153,30 @@ export default function TenantCampaigns() {
     const ruleList = (rules ?? []) as Array<{ match_value: string; match_label: string | null }>;
     if (ruleList.length === 0) { setLinkedForms([]); setLastBackfill(null); return; }
     const ids = ruleList.map((r) => r.match_value);
+    // Leads reais do Meta ficam em public.leads (facebook_form_id).
+    // Consultamos por tenant_id + form_id para contar/agregar por formulário
+    // e usamos facebook_form_name como fallback quando o rótulo da regra estiver vazio.
     const { data: leads } = await supabase
-      .from("agency_leads")
-      .select("form_id,created_at")
-      .eq("tenant_id_criado", tenant.id)
-      .in("form_id", ids);
-    const rows = ((leads ?? []) as unknown) as Array<{ form_id: string; created_at: string }>;
-    const byForm: Record<string, { total: number; last: string | null }> = {};
+      .from("leads")
+      .select("facebook_form_id,facebook_form_name,created_at")
+      .eq("tenant_id", tenant.id)
+      .in("facebook_form_id", ids);
+    const rows = ((leads ?? []) as unknown) as Array<{
+      facebook_form_id: string; facebook_form_name: string | null; created_at: string;
+    }>;
+    const byForm: Record<string, { total: number; last: string | null; name: string | null }> = {};
     let globalLast: string | null = null;
     for (const l of rows) {
-      const k = l.form_id;
-      byForm[k] = byForm[k] || { total: 0, last: null };
+      const k = l.facebook_form_id;
+      byForm[k] = byForm[k] || { total: 0, last: null, name: null };
       byForm[k].total += 1;
+      if (!byForm[k].name && l.facebook_form_name) byForm[k].name = l.facebook_form_name;
       if (!byForm[k].last || l.created_at > byForm[k].last!) byForm[k].last = l.created_at;
       if (!globalLast || l.created_at > globalLast) globalLast = l.created_at;
     }
     setLinkedForms(ruleList.map((r) => ({
       form_id: r.match_value,
-      label: r.match_label || `Form ${r.match_value}`,
+      label: r.match_label || byForm[r.match_value]?.name || `Form ${r.match_value}`,
       total_leads: byForm[r.match_value]?.total ?? 0,
       last_lead_at: byForm[r.match_value]?.last ?? null,
     })));
