@@ -483,6 +483,27 @@ export default function CampanhasPage() {
     return m;
   }, [rules]);
 
+  // Backfill Página nas regras antigas assim que os forms forem carregados,
+  // para que cada vínculo Formulário → Cliente registre também de qual Página do BM veio.
+  useEffect(() => {
+    if (leadForms.length === 0 || rules.length === 0) return;
+    (async () => {
+      const byForm = new Map(leadForms.map((f) => [f.id, f]));
+      const missing = rules.filter(
+        (r) => r.active && r.match_type === "form_id" && !(r as any).page_id && byForm.has(r.match_value),
+      );
+      if (missing.length === 0) return;
+      await Promise.all(missing.map((r) => {
+        const f = byForm.get(r.match_value)!;
+        return supabase.from("lead_routing_rules")
+          .update({ page_id: f.page_id ?? null, page_name: f.page_name ?? null } as any)
+          .eq("id", r.id);
+      }));
+      loadRules();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadForms, rules.length]);
+
 
   // ===== KPIs =====
   const visibleCampaigns = useMemo(
