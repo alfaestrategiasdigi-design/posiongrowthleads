@@ -369,7 +369,13 @@ export default function CampanhasPage() {
     } finally { setLoadingForms(false); }
   };
 
-  const bindFormToTenant = async (formId: string, formName: string, tenantId: string) => {
+  const bindFormToTenant = async (
+    formId: string,
+    formName: string,
+    tenantId: string,
+    pageId?: string | null,
+    pageName?: string | null,
+  ) => {
     setBusy(`form:${formId}`);
     try {
       await supabase.from("lead_routing_rules")
@@ -378,9 +384,10 @@ export default function CampanhasPage() {
         const { error } = await supabase.from("lead_routing_rules").insert({
           tenant_id: tenantId, match_type: "form_id", match_value: formId,
           match_label: formName, priority: 5, active: true,
+          page_id: pageId ?? null, page_name: pageName ?? null,
         } as any);
         if (error) throw error;
-        toast({ title: "Formulário vinculado", description: `${formName} — importando histórico…` });
+        toast({ title: "Formulário vinculado", description: `${formName}${pageName ? ` (Página: ${pageName})` : ""} — importando histórico…` });
         // Auto import historical leads for this form so they land on the tenant
         supabase.functions.invoke("facebook-backfill-leads", {
           body: { form_ids: [formId], max_per_form: 2000 },
@@ -475,6 +482,27 @@ export default function CampanhasPage() {
     for (const r of rules) if (r.active && r.match_type === "form_id") m.set(r.match_value, r.tenant_id);
     return m;
   }, [rules]);
+
+  // Backfill Página nas regras antigas assim que os forms forem carregados,
+  // para que cada vínculo Formulário → Cliente registre também de qual Página do BM veio.
+  useEffect(() => {
+    if (leadForms.length === 0 || rules.length === 0) return;
+    (async () => {
+      const byForm = new Map(leadForms.map((f) => [f.id, f]));
+      const missing = rules.filter(
+        (r) => r.active && r.match_type === "form_id" && !(r as any).page_id && byForm.has(r.match_value),
+      );
+      if (missing.length === 0) return;
+      await Promise.all(missing.map((r) => {
+        const f = byForm.get(r.match_value)!;
+        return supabase.from("lead_routing_rules")
+          .update({ page_id: f.page_id ?? null, page_name: f.page_name ?? null } as any)
+          .eq("id", r.id);
+      }));
+      loadRules();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadForms, rules.length]);
 
 
   // ===== KPIs =====
@@ -751,7 +779,7 @@ export default function CampanhasPage() {
                                       <td className="py-3">
                                         <Select
                                           value={linked}
-                                          onValueChange={(v) => bindFormToTenant(f.id, f.name, v)}
+                                          onValueChange={(v) => bindFormToTenant(f.id, f.name, v, f.page_id ?? null, f.page_name ?? pageName ?? null)}
                                           disabled={busy === `form:${f.id}`}
                                         >
                                           <SelectTrigger className="bg-[#111] border-white/10 text-slate-300 h-8 w-[220px] text-xs">
