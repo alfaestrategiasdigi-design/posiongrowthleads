@@ -369,7 +369,13 @@ export default function CampanhasPage() {
     } finally { setLoadingForms(false); }
   };
 
-  const bindFormToTenant = async (formId: string, formName: string, tenantId: string) => {
+  const bindFormToTenant = async (
+    formId: string,
+    formName: string,
+    tenantId: string,
+    pageId?: string | null,
+    pageName?: string | null,
+  ) => {
     setBusy(`form:${formId}`);
     try {
       await supabase.from("lead_routing_rules")
@@ -378,9 +384,10 @@ export default function CampanhasPage() {
         const { error } = await supabase.from("lead_routing_rules").insert({
           tenant_id: tenantId, match_type: "form_id", match_value: formId,
           match_label: formName, priority: 5, active: true,
+          page_id: pageId ?? null, page_name: pageName ?? null,
         } as any);
         if (error) throw error;
-        toast({ title: "Formulário vinculado", description: `${formName} — importando histórico…` });
+        toast({ title: "Formulário vinculado", description: `${formName}${pageName ? ` (Página: ${pageName})` : ""} — importando histórico…` });
         // Auto import historical leads for this form so they land on the tenant
         supabase.functions.invoke("facebook-backfill-leads", {
           body: { form_ids: [formId], max_per_form: 2000 },
