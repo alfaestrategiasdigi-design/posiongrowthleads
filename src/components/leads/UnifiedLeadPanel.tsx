@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MessageCircle, Loader2, User, Building2, Phone, Mail, MapPin, DollarSign } from "lucide-react";
 import { useUnifiedLead, type LeadSource } from "@/hooks/useUnifiedLead";
+
 import LeadSummaryTab from "./panel/LeadSummaryTab";
 import LeadFormAnswersTab from "./panel/LeadFormAnswersTab";
 import LeadSDRTab from "./panel/LeadSDRTab";
@@ -24,6 +26,9 @@ const fmt = (v: number | null) =>
 const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated }: Props) => {
   const { data: lead, loading, reload, saveSDR, savePatch } = useUnifiedLead(open ? source : null, open ? leadId : null);
   const [tab, setTab] = useState("summary");
+  const location = useLocation();
+  const isTenantContext = location.pathname.startsWith("/app/");
+
 
   const whatsappLink = lead?.whatsapp
     ? `https://wa.me/55${lead.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${lead.contactName?.split(" ")[0] || ""}`)}`
@@ -59,12 +64,13 @@ const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated }: Props) =
               </div>
 
               {/* Quick facts strip */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+              <div className={`grid ${isTenantContext ? "grid-cols-2 md:grid-cols-3" : "grid-cols-2 md:grid-cols-4"} gap-2 text-xs`}>
                 <QuickFact icon={Phone} label="WhatsApp" value={lead.whatsapp || "—"} />
-                <QuickFact icon={Building2} label="Empresa" value={lead.company || "—"} />
+                {!isTenantContext && <QuickFact icon={Building2} label="Empresa" value={lead.company || "—"} />}
                 <QuickFact icon={MapPin} label="Local" value={lead.city || "—"} />
                 <QuickFact icon={DollarSign} label="Proposta" value={fmt(lead.proposalValue)} />
               </div>
+
 
               {whatsappLink && (
                 <div className="flex gap-2">
