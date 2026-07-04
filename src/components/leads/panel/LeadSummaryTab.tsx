@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { UnifiedLeadView } from "@/hooks/useUnifiedLead";
 import { PIPELINE_STAGES } from "@/types/admin";
+
 
 const AGENCY_STAGES = [
   { id: "lead", title: "Lead" },
@@ -26,10 +28,13 @@ interface Props {
 }
 
 export default function LeadSummaryTab({ lead, onSave }: Props) {
+  const location = useLocation();
+  const isTenantContext = location.pathname.startsWith("/app/");
   const [stage, setStage] = useState(lead.stage);
   const [valor, setValor] = useState(lead.proposalValue ? String(lead.proposalValue) : "");
   const [notes, setNotes] = useState(lead.notes || "");
   const [saving, setSaving] = useState(false);
+
 
   useEffect(() => {
     setStage(lead.stage);
@@ -96,13 +101,13 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
 
       {/* Diagnóstico rápido */}
       <div className="grid grid-cols-2 gap-2 pt-3 border-t border-border/40 text-sm">
-        <Field label="Empresa" value={lead.company} />
-        <Field label={lead.volumeLabel} value={lead.volume} />
+        {!isTenantContext && <Field label="Empresa" value={lead.company} />}
+        {!isTenantContext && <Field label={lead.volumeLabel} value={lead.volume} />}
         <Field label="Cidade" value={lead.city} />
         <Field label="E-mail" value={lead.email} />
         <Field label="WhatsApp" value={lead.whatsapp} />
         <Field label="Origem" value={lead.origem} />
-        {lead.source === "lead" && (
+        {lead.source === "lead" && !isTenantContext && (
           <>
             <Field label="Especialidade" value={lead.raw.especialidade} />
             <Field label="Nº profissionais" value={lead.raw.num_profissionais} />
@@ -110,6 +115,7 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
             <Field label="CNPJ" value={lead.raw.cnpj} />
           </>
         )}
+
         <Field
           label="Criado em"
           value={lead.createdAt ? format(new Date(lead.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : null}
