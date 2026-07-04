@@ -155,13 +155,52 @@ export default function TenantLeads() {
 
   const handleExportCSV = () => {
     if (filtered.length === 0) return;
-    const headers = ["Nome","WhatsApp","E-mail","Empresa","CNPJ","Cidade","Especialidade","Status","Data"];
-    const csv = [headers.join(";"), ...filtered.map(l => [l.nome_completo, l.whatsapp, l.email||"", l.nome_empresa||"", l.cnpj||"", l.cidade_estado||"", l.especialidade||"", l.status, new Date(l.created_at).toLocaleString("pt-BR")].join(";"))].join("\n");
+
+    // Coletar todas as chaves de form_data entre os leads
+    const formKeys = new Set<string>();
+    filtered.forEach(l => {
+      const fd = (l as any).form_data;
+      if (fd && typeof fd === "object" && !Array.isArray(fd)) {
+        Object.keys(fd).forEach(k => formKeys.add(k));
+      }
+    });
+    const formKeysArray = Array.from(formKeys);
+
+    const baseHeaders = ["Nome","WhatsApp","E-mail","Status","Origem","Formulário","UTM Campaign","Data"];
+    const allHeaders = [...baseHeaders, ...formKeysArray];
+
+    const rows = filtered.map(l => {
+      const any = l as any;
+      const formName = any.facebook_form_name || any.facebook_form_id || "";
+      const base = [
+        l.nome_completo || "",
+        l.whatsapp || "",
+        l.email || "",
+        l.status || "",
+        any.source || any.origem || "",
+        formName,
+        any.utm_campaign || "",
+        l.created_at ? new Date(l.created_at).toLocaleString("pt-BR") : "",
+      ];
+      const fd = any.form_data;
+      const formValues = formKeysArray.map(key => {
+        const v = fd && typeof fd === "object" ? fd[key] : undefined;
+        if (v === undefined || v === null) return "";
+        return typeof v === "object" ? JSON.stringify(v) : String(v);
+      });
+      return [...base, ...formValues];
+    });
+
+    const escape = (cell: unknown) => `"${String(cell ?? "").replace(/"/g, '""')}"`;
+    const BOM = "\uFEFF";
+    const csv = BOM + [allHeaders, ...rows].map(r => r.map(escape).join(";")).join("\n");
+
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = `leads-${tenant?.slug}-${new Date().toISOString().split("T")[0]}.csv`;
     link.click();
+    URL.revokeObjectURL(link.href);
   };
 
   if (!tenant) return null;
