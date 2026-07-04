@@ -101,13 +101,13 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
 
       {/* Diagnóstico rápido */}
       <div className="grid grid-cols-2 gap-2 pt-3 border-t border-border/40 text-sm">
-        <Field label="Empresa" value={lead.company} />
-        <Field label={lead.volumeLabel} value={lead.volume} />
+        {!isTenantContext && <Field label="Empresa" value={lead.company} />}
+        {!isTenantContext && <Field label={lead.volumeLabel} value={lead.volume} />}
         <Field label="Cidade" value={lead.city} />
         <Field label="E-mail" value={lead.email} />
         <Field label="WhatsApp" value={lead.whatsapp} />
         <Field label="Origem" value={lead.origem} />
-        {lead.source === "lead" && (
+        {lead.source === "lead" && !isTenantContext && (
           <>
             <Field label="Especialidade" value={lead.raw.especialidade} />
             <Field label="Nº profissionais" value={lead.raw.num_profissionais} />
@@ -115,6 +115,7 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
             <Field label="CNPJ" value={lead.raw.cnpj} />
           </>
         )}
+
         <Field
           label="Criado em"
           value={lead.createdAt ? format(new Date(lead.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : null}
