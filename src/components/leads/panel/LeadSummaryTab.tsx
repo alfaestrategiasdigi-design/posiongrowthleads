@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { UnifiedLeadView } from "@/hooks/useUnifiedLead";
 import { PIPELINE_STAGES } from "@/types/admin";
+
 
 const AGENCY_STAGES = [
   { id: "lead", title: "Lead" },
