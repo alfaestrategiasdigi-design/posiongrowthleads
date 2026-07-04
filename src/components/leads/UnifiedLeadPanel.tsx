@@ -64,12 +64,13 @@ const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated }: Props) =
               </div>
 
               {/* Quick facts strip */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+              <div className={`grid ${isTenantContext ? "grid-cols-2 md:grid-cols-3" : "grid-cols-2 md:grid-cols-4"} gap-2 text-xs`}>
                 <QuickFact icon={Phone} label="WhatsApp" value={lead.whatsapp || "—"} />
-                <QuickFact icon={Building2} label="Empresa" value={lead.company || "—"} />
+                {!isTenantContext && <QuickFact icon={Building2} label="Empresa" value={lead.company || "—"} />}
                 <QuickFact icon={MapPin} label="Local" value={lead.city || "—"} />
                 <QuickFact icon={DollarSign} label="Proposta" value={fmt(lead.proposalValue)} />
               </div>
+
 
               {whatsappLink && (
                 <div className="flex gap-2">
