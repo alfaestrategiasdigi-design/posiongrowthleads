@@ -297,17 +297,6 @@ Deno.serve(async (req) => {
           },
         };
 
-        const { data: existing } = await admin
-          .from("leads").select("id, extras").eq("facebook_lead_id", lead.id).maybeSingle();
-        if (existing) {
-          // Se lead antigo está sem os campos do form, backfill agora
-          const cur: any = (existing as any).extras ?? {};
-          if (!cur.form_fields || (Array.isArray(cur.form_fields) && cur.form_fields.length === 0)) {
-            await admin.from("leads").update({ extras: { ...cur, ...extrasPayload } } as any).eq("id", (existing as any).id);
-          }
-          deduped++; continue;
-        }
-
         // ISOLAMENTO ESTRITO por form_id. Regras com is_admin_master=true → tenant NULL (POSION).
         const { data: routing } = await admin.rpc("resolve_form_routing", {
           p_form_id: lead.form_id ?? formId,
@@ -321,6 +310,24 @@ Deno.serve(async (req) => {
         if (scopeTenantId && (!matched || isMaster || routedTenant !== scopeTenantId)) {
           failed++;
           continue;
+        }
+
+        const { data: existing } = await admin
+          .from("leads").select("id, extras, tenant_id").eq("facebook_lead_id", lead.id).maybeSingle();
+        if (existing) {
+          // Lead já importado antes do vínculo: atualiza o tenant de acordo com a regra atual.
+          const cur: any = (existing as any).extras ?? {};
+          const patch: any = {};
+          if (!cur.form_fields || (Array.isArray(cur.form_fields) && cur.form_fields.length === 0)) {
+            patch.extras = { ...cur, ...extrasPayload };
+          }
+          if (matched && (existing as any).tenant_id !== routedTenant) {
+            patch.tenant_id = routedTenant;
+          }
+          if (Object.keys(patch).length) {
+            await admin.from("leads").update(patch).eq("id", (existing as any).id);
+          }
+          deduped++; continue;
         }
 
         if (!matched) {
