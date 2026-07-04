@@ -15,6 +15,8 @@ interface Props {
 
 export default function LeadContextCard({ source, leadId, onOpenPanel }: Props) {
   const { data: lead, loading } = useUnifiedLead(source, leadId);
+  const location = useLocation();
+  const isTenantContext = location.pathname.startsWith("/app/");
 
   if (loading) return <div className="text-xs text-muted-foreground p-3">Carregando contexto do lead…</div>;
   if (!lead) return null;
@@ -32,9 +34,10 @@ export default function LeadContextCard({ source, leadId, onOpenPanel }: Props) 
       <div className="grid grid-cols-2 gap-2 text-xs">
         <Item icon={User} label="Nome" value={lead.contactName || lead.name} />
         <Item icon={Phone} label="WhatsApp" value={lead.whatsapp || "—"} />
-        <Item icon={Building2} label="Empresa" value={lead.company || "—"} />
-        <Item icon={DollarSign} label={lead.volumeLabel} value={lead.volume || fmt(lead.proposalValue)} />
+        {!isTenantContext && <Item icon={Building2} label="Empresa" value={lead.company || "—"} />}
+        {!isTenantContext && <Item icon={DollarSign} label={lead.volumeLabel} value={lead.volume || fmt(lead.proposalValue)} />}
       </div>
+
       {lead.sdr?.score != null && (
         <div className="text-[11px] text-muted-foreground">
           Score SDR: <span className="font-semibold text-foreground">{lead.sdr.score}/100</span>
