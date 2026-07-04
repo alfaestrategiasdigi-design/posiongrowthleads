@@ -419,7 +419,7 @@ export default function TenantLeads() {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={8} className="p-12 text-center text-muted-foreground text-sm">Nenhum lead encontrado. Clique em <b>Sincronizar</b> para importar dos formulários vinculados.</td></tr>
+                <tr><td colSpan={6} className="p-12 text-center text-muted-foreground text-sm">Nenhum lead encontrado. Clique em <b>Sincronizar</b> para importar dos formulários vinculados.</td></tr>
               )}
             </tbody>
           </table>
