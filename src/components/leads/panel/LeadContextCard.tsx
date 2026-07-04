@@ -1,6 +1,8 @@
 import { Building2, Phone, DollarSign, User, ExternalLink } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useUnifiedLead, type LeadSource } from "@/hooks/useUnifiedLead";
+
 
 const fmt = (v: number | null) =>
   v == null ? "—" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v);
