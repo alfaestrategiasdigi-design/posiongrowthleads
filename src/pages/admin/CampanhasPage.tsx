@@ -758,7 +758,7 @@ export default function CampanhasPage() {
                                       <td className="py-3">
                                         <Select
                                           value={linked}
-                                          onValueChange={(v) => bindFormToTenant(f.id, f.name, v)}
+                                          onValueChange={(v) => bindFormToTenant(f.id, f.name, v, f.page_id ?? null, f.page_name ?? pageName ?? null)}
                                           disabled={busy === `form:${f.id}`}
                                         >
                                           <SelectTrigger className="bg-[#111] border-white/10 text-slate-300 h-8 w-[220px] text-xs">
