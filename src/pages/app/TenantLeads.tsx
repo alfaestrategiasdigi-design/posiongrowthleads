@@ -193,7 +193,7 @@ export default function TenantLeads() {
 
     const escape = (cell: unknown) => `"${String(cell ?? "").replace(/"/g, '""')}"`;
     const BOM = "\uFEFF";
-    const csv = BOM + [allHeaders, ...rows].map(r => r.map(escape).join(";")).join("\n");
+    const csv = BOM + [allHeaders, ...rows].map(r => r.map(escape).join(";")).join("\r\n");
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
