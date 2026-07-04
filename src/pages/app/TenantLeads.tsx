@@ -365,13 +365,12 @@ export default function TenantLeads() {
               <tr className="border-b border-border/60 bg-card/40">
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Nome</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Contato</th>
-                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Clínica</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Cidade</th>
-                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Especialidade</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Formulário</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Status</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Data</th>
               </tr>
+
             </thead>
             <tbody>
               {filtered.map(lead => {
