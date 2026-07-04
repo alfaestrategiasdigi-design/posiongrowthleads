@@ -1444,6 +1444,8 @@ export type Database = {
           match_type: string
           match_value: string
           notes: string | null
+          page_id: string | null
+          page_name: string | null
           priority: number
           tenant_id: string | null
           updated_at: string
@@ -1458,6 +1460,8 @@ export type Database = {
           match_type: string
           match_value: string
           notes?: string | null
+          page_id?: string | null
+          page_name?: string | null
           priority?: number
           tenant_id?: string | null
           updated_at?: string
@@ -1472,6 +1476,8 @@ export type Database = {
           match_type?: string
           match_value?: string
           notes?: string | null
+          page_id?: string | null
+          page_name?: string | null
           priority?: number
           tenant_id?: string | null
           updated_at?: string
