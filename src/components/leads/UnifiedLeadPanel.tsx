@@ -26,6 +26,9 @@ const fmt = (v: number | null) =>
 const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated }: Props) => {
   const { data: lead, loading, reload, saveSDR, savePatch } = useUnifiedLead(open ? source : null, open ? leadId : null);
   const [tab, setTab] = useState("summary");
+  const location = useLocation();
+  const isTenantContext = location.pathname.startsWith("/app/");
+
 
   const whatsappLink = lead?.whatsapp
     ? `https://wa.me/55${lead.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${lead.contactName?.split(" ")[0] || ""}`)}`
