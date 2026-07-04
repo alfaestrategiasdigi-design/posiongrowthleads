@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MessageCircle, Loader2, User, Building2, Phone, Mail, MapPin, DollarSign } from "lucide-react";
 import { useUnifiedLead, type LeadSource } from "@/hooks/useUnifiedLead";
+
 import LeadSummaryTab from "./panel/LeadSummaryTab";
 import LeadFormAnswersTab from "./panel/LeadFormAnswersTab";
 import LeadSDRTab from "./panel/LeadSDRTab";
