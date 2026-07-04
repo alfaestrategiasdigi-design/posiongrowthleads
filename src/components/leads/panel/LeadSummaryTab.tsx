@@ -28,10 +28,13 @@ interface Props {
 }
 
 export default function LeadSummaryTab({ lead, onSave }: Props) {
+  const location = useLocation();
+  const isTenantContext = location.pathname.startsWith("/app/");
   const [stage, setStage] = useState(lead.stage);
   const [valor, setValor] = useState(lead.proposalValue ? String(lead.proposalValue) : "");
   const [notes, setNotes] = useState(lead.notes || "");
   const [saving, setSaving] = useState(false);
+
 
   useEffect(() => {
     setStage(lead.stage);
