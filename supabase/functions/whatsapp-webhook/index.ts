@@ -753,7 +753,8 @@ Deno.serve(async (req) => {
         // raw @lid as a provisional remote_jid and flag the message. When the
         // alias arrives later (contacts.* event) mergeProvisionalLidConversations
         // migrates the conversation/messages to the canonical phone JID.
-        const effectiveJid = resolved.remoteJid ?? rawRemoteJid;
+        const effectiveJid = resolved.remoteJid
+          ?? (resolved.blockedSelfJid && !rawRemoteJid?.includes("@lid") ? null : rawRemoteJid);
         if (!effectiveJid) {
           console.warn("[whatsapp-webhook] no_jid_dropped", { wamid, fromMe, blockedSelfJid: resolved.blockedSelfJid, ownJids: Array.from(ownJids) });
           continue;
