@@ -56,13 +56,28 @@ export default function TenantLeads() {
     }
     setAccessDenied(false);
 
+    // Whitelist explícita: nunca traga campos de prospecção B2B (nome_empresa,
+    // cnpj, faturamento_mensal, num_profissionais, investiu_trafego, especialidade)
+    // para o painel do dono da clínica. Filtragem no backend evita exposição
+    // acidental via devtools/network mesmo que o front esconda visualmente.
+    const TENANT_LEAD_COLUMNS = [
+      "id","tenant_id","created_at","status","origem",
+      "nome_completo","whatsapp","email","cidade_estado",
+      "observacoes","valor_proposta","tipo_purchase",
+      "sdr_qualification","form_data",
+      "facebook_form_id","facebook_form_name","facebook_campaign",
+      "utm_source","utm_medium","utm_campaign",
+      "mql","sql_qualified",
+      "reuniao_agendada_em","reuniao_realizada_em","proposta_enviada_em","fechado_em","motivo_perda",
+    ].join(",");
+
     const { data } = await supabase
       .from("leads")
-      .select("*")
+      .select(TENANT_LEAD_COLUMNS)
       .eq("tenant_id", tenant.id)
       .order("created_at", { ascending: false });
     const clean = (data ?? []).filter((r: any) => r?.tenant_id === tenant.id);
-    setLeads(clean as Lead[]);
+    setLeads(clean as unknown as Lead[]);
     setLoading(false);
   };
 
