@@ -1,12 +1,17 @@
 // Multi-device / @lid / fromMe routing tests for the whatsapp-webhook.
 // Guarantees: an outbound message sent from the physical phone must NEVER
 // land on the "me myself" conversation and must always route to the real recipient.
+// Also enforces the alias-creation policy hardened after the 2026-07-05 incident:
+// aliases may ONLY be created when @lid and phone come from the SAME key object.
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
+  decideAliasFromSameKey,
+  extractRawKeySnapshot,
   extractRootOwnJids,
   normalizePhoneJid,
   resolveOutboundRecipientPure,
 } from "./routing.ts";
+
 
 const OWN = "5511999990000@s.whatsapp.net";
 const OWN_LID = "111122223333@lid";
