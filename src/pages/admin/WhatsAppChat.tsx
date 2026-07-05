@@ -27,6 +27,7 @@ import { format, isToday, isThisWeek, differenceInCalendarDays } from "date-fns"
 import { ptBR } from "date-fns/locale";
 import type { Conversation, Message } from "@/types/admin";
 import ContactAvatar from "@/components/admin/whatsapp/ContactAvatar";
+import { LidReviewDialog } from "@/components/admin/whatsapp/LidReviewDialog";
 
 const PROJECT_REF = "mbhbflbuawkmtmpjazcj";
 const BASE_WEBHOOK_URL = `https://${PROJECT_REF}.supabase.co/functions/v1/whatsapp-webhook`;
@@ -70,6 +71,8 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const [allTags, setAllTags] = useState<TagRow[]>([]);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [onlyWithLead, setOnlyWithLead] = useState(false);
+  const [lidReviewOpen, setLidReviewOpen] = useState(false);
+  const [lidPendingCount, setLidPendingCount] = useState(0);
   const [leadPanelId, setLeadPanelId] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
 
@@ -113,7 +116,9 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       : (tenantId ? query.eq("tenant_id", tenantId) : query.is("tenant_id", null));
     const { data, error } = await query.order("ultima_interacao", { ascending: false });
     if (error) toast.error("Falha ao carregar conversas", { description: error.message });
-    setConversations((data as Conversation[]) || []);
+    const list = (data as Conversation[]) || [];
+    setConversations(list);
+    setLidPendingCount(list.filter((c: any) => (c as any).needs_lid_review === true).length);
     setLoading(false);
   }, [tenantId, masterMode]);
 
@@ -744,7 +749,18 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             <span className="flex items-center gap-1.5"><Target className="w-3 h-3" /> Somente com lead</span>
             <span className="tabular-nums">{linkedCount}/{conversations.length}</span>
           </button>
+          {lidPendingCount > 0 && (
+            <button
+              onClick={() => setLidReviewOpen(true)}
+              className="w-full text-[11px] flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-500 px-2 py-1.5 hover:bg-amber-500/20"
+              title="Conversas com identificador provisório (@lid) aguardando confirmação"
+            >
+              <span className="flex items-center gap-1.5"><AlertTriangle className="w-3 h-3" /> Revisar conversas @lid</span>
+              <span className="tabular-nums">{lidPendingCount}</span>
+            </button>
+          )}
         </div>
+
 
 
         <div className="flex-1 overflow-y-auto">
@@ -1187,6 +1203,13 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
         open={!!leadPanelId}
         onClose={() => setLeadPanelId(null)}
         onUpdated={loadConversations}
+      />
+
+      <LidReviewDialog
+        open={lidReviewOpen}
+        onOpenChange={setLidReviewOpen}
+        tenantId={masterMode ? null : (tenantId ?? null)}
+        onDone={loadConversations}
       />
     </div>
   );

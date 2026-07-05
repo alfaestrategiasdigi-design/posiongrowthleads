@@ -65,18 +65,14 @@ async function upsertJidAlias(tenantId: string | null, instanceName: string | nu
       updated_at: new Date().toISOString(),
       last_seen_at: new Date().toISOString(),
     }, { onConflict: "tenant_scope,lid_jid" });
-    // Now that we know the canonical JID for this @lid, migrate any provisional
-    // conversation/messages that were ingested under the raw @lid.
     await mergeProvisionalLidConversations(tenantId, lidJid, phoneJid);
   } catch (e) {
     console.warn("[whatsapp-webhook] upsertJidAlias_failed", String(e));
   }
 }
 
-// When a @lid alias becomes known, migrate messages that were ingested with the
-// raw @lid as remote_jid into the canonical phone-jid conversation and clear
-// the pending flag. If no canonical conversation exists yet, rename the
-// provisional one in place. Safe to call repeatedly.
+// Merge a provisional @lid conversation into the canonical phone-jid conversation.
+// Safe to call repeatedly. If no canonical exists, renames the provisional in place.
 async function mergeProvisionalLidConversations(tenantId: string | null, lidJid: string, phoneJid: string) {
   const phone = onlyDigits(phoneJid.split("@")[0]);
   if (!phone) return;
@@ -85,8 +81,8 @@ async function mergeProvisionalLidConversations(tenantId: string | null, lidJid:
     .select("id, nao_lidas, ultima_interacao, ultima_mensagem, nome_contato")
     .eq("remote_jid", lidJid);
   provQ = tenantId ? provQ.eq("tenant_id", tenantId) : provQ.is("tenant_id", null);
-  const { data: provisional } = await provQ.maybeSingle();
-  if (!provisional) return;
+  const { data: provList } = await provQ;
+  if (!provList || provList.length === 0) return;
 
   let canonQ = admin.from("conversations")
     .select("id, nao_lidas, ultima_interacao")
@@ -102,35 +98,92 @@ async function mergeProvisionalLidConversations(tenantId: string | null, lidJid:
     canonical = data;
   }
 
-  if (!canonical) {
-    // No canonical yet: just rename the provisional in place.
-    await admin.from("conversations")
-      .update({ remote_jid: phoneJid, telefone: phone })
-      .eq("id", provisional.id);
+  for (const provisional of provList) {
+    if (canonical && canonical.id === provisional.id) continue;
+    if (!canonical) {
+      await admin.from("conversations")
+        .update({ remote_jid: phoneJid, telefone: phone, needs_lid_review: false, lid_review_notes: null })
+        .eq("id", provisional.id);
+      await admin.from("messages")
+        .update({ metadata: {} })
+        .eq("conversation_id", provisional.id)
+        .filter("metadata->>pending_lid_resolution", "eq", "true");
+      // First iteration becomes the canonical for subsequent ones.
+      canonical = { id: provisional.id, nao_lidas: provisional.nao_lidas ?? 0, ultima_interacao: provisional.ultima_interacao } as any;
+      continue;
+    }
     await admin.from("messages")
-      .update({ metadata: {} })
-      .eq("conversation_id", provisional.id)
-      .eq("metadata->>pending_lid_resolution", "true");
+      .update({ conversation_id: canonical.id, metadata: {} })
+      .eq("conversation_id", provisional.id);
+    await admin.from("message_reactions")
+      .update({ conversation_id: canonical.id })
+      .eq("conversation_id", provisional.id);
+    await admin.from("conversations")
+      .update({
+        ultima_mensagem: provisional.ultima_mensagem ?? undefined,
+        ultima_interacao: provisional.ultima_interacao ?? new Date().toISOString(),
+        nao_lidas: (canonical.nao_lidas ?? 0) + (provisional.nao_lidas ?? 0),
+        nome_contato: provisional.nome_contato ?? undefined,
+        needs_lid_review: false,
+        lid_review_notes: null,
+      })
+      .eq("id", canonical.id);
+    await admin.from("conversations").delete().eq("id", provisional.id);
+  }
+}
+
+// Root-cause hardening: when a message arrives on a KNOWN canonical conversation
+// (non-@lid), look for any provisional @lid conversation in the same tenant with
+// the same pushName. If exactly one candidate exists, register the alias — which
+// triggers mergeProvisionalLidConversations — so we no longer depend solely on
+// CONTACTS_UPDATE firing. Multiple candidates are flagged for manual review.
+async function tryResolveByPushNameFromCanonical(
+  tenantId: string | null,
+  instanceName: string | null,
+  canonicalRemoteJid: string,
+  pushName: string,
+) {
+  if (!pushName || pushName.length < 2) return;
+  if (canonicalRemoteJid.includes("@lid")) return;
+  let q = admin.from("conversations")
+    .select("id, remote_jid")
+    .like("remote_jid", "%@lid")
+    .ilike("nome_contato", pushName);
+  q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
+  const { data } = await q.limit(3);
+  if (!data || data.length === 0) return;
+  if (data.length === 1) {
+    await upsertJidAlias(tenantId, instanceName, data[0].remote_jid, canonicalRemoteJid);
     return;
   }
-
-  // Move messages from provisional -> canonical and clear pending flag.
-  await admin.from("messages")
-    .update({ conversation_id: canonical.id, metadata: {} })
-    .eq("conversation_id", provisional.id);
-  await admin.from("message_reactions")
-    .update({ conversation_id: canonical.id })
-    .eq("conversation_id", provisional.id);
+  // Ambiguous: flag them for manual review.
   await admin.from("conversations")
-    .update({
-      ultima_mensagem: provisional.ultima_mensagem ?? undefined,
-      ultima_interacao: provisional.ultima_interacao ?? new Date().toISOString(),
-      nao_lidas: (canonical.nao_lidas ?? 0) + (provisional.nao_lidas ?? 0),
-      nome_contato: provisional.nome_contato ?? undefined,
-    })
-    .eq("id", canonical.id);
-  await admin.from("conversations").delete().eq("id", provisional.id);
+    .update({ needs_lid_review: true, lid_review_notes: `multiple @lid candidates for pushName='${pushName}'` })
+    .in("id", data.map((c: any) => c.id));
 }
+
+// When a NEW @lid arrives, try to route it into an existing canonical conversation
+// with the same pushName in the same tenant. Returns the canonical remote_jid if
+// exactly one match was found (and registers the alias), otherwise null.
+async function tryRouteLidToCanonicalByPushName(
+  tenantId: string | null,
+  instanceName: string | null,
+  lidJid: string,
+  pushName: string,
+): Promise<string | null> {
+  if (!pushName || pushName.length < 2) return null;
+  let q = admin.from("conversations")
+    .select("id, remote_jid")
+    .not("remote_jid", "like", "%@lid")
+    .not("remote_jid", "is", null)
+    .ilike("nome_contato", pushName);
+  q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
+  const { data } = await q.limit(3);
+  if (!data || data.length !== 1) return null;
+  await upsertJidAlias(tenantId, instanceName, lidJid, data[0].remote_jid);
+  return data[0].remote_jid as string;
+}
+
 
 async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): Promise<string | null> {
   if (!lidJid?.includes("@lid")) return null;
@@ -421,12 +474,23 @@ Deno.serve(async (req) => {
           console.warn("[whatsapp-webhook] no_jid_dropped", { wamid, fromMe });
           continue;
         }
-        const remoteJid = effectiveJid;
-        const isPendingLid = resolved.unresolvedLid || remoteJid.includes("@lid");
-        if (isPendingLid) {
-          console.log("[whatsapp-webhook] pending_lid_stored", { wamid, rawRemoteJid, fromMe });
-        }
+        let remoteJid = effectiveJid;
+        let isPendingLid = resolved.unresolvedLid || remoteJid.includes("@lid");
         const pushName: string = m?.pushName ?? m?.notifyName ?? "";
+
+        // Root-cause hardening #1: if this arrived as @lid, try to route it into
+        // an existing canonical conversation by pushName BEFORE creating a new
+        // provisional row. Zero dependency on CONTACTS_UPDATE.
+        if (isPendingLid && pushName) {
+          const canonical = await tryRouteLidToCanonicalByPushName(tenantId, instanceName || null, remoteJid, pushName);
+          if (canonical) {
+            remoteJid = canonical;
+            isPendingLid = false;
+          }
+        }
+        if (isPendingLid) {
+          console.log("[whatsapp-webhook] pending_lid_stored", { wamid, rawRemoteJid, fromMe, pushName });
+        }
         const msgObj = m?.message ?? m;
 
         // Detect message type (broad coverage)
@@ -544,6 +608,8 @@ Deno.serve(async (req) => {
             ultima_mensagem: preview,
             ultima_interacao: new Date().toISOString(),
             nao_lidas: fromMe ? 0 : 1,
+            needs_lid_review: isPendingLid,
+            lid_review_notes: isPendingLid ? "unresolved @lid — pushName sem correspondente único no tenant" : null,
           }).select("id, nao_lidas, remote_jid, telefone").maybeSingle();
           conv = ins.data;
           if (!conv && ins.error) {
@@ -578,6 +644,13 @@ Deno.serve(async (req) => {
             remote_jid: remoteJid,
             nome_contato: pushName || undefined,
           }).eq("id", conv.id);
+        }
+
+        // Root-cause hardening #2: when this message is on a KNOWN canonical
+        // conversation, opportunistically resolve any pending @lid siblings by
+        // pushName. This makes merges independent of CONTACTS_UPDATE arriving.
+        if (!isPendingLid && pushName) {
+          await tryResolveByPushNameFromCanonical(tenantId, instanceName || null, remoteJid, pushName);
         }
 
         if (!conv?.id) continue;

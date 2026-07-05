@@ -1111,8 +1111,10 @@ export type Database = {
           foto_url: string | null
           id: string
           lead_id: string | null
+          lid_review_notes: string | null
           marked_unread: boolean | null
           nao_lidas: number
+          needs_lid_review: boolean
           nome_contato: string | null
           pinned_at: string | null
           provider: string | null
@@ -1128,8 +1130,10 @@ export type Database = {
           foto_url?: string | null
           id?: string
           lead_id?: string | null
+          lid_review_notes?: string | null
           marked_unread?: boolean | null
           nao_lidas?: number
+          needs_lid_review?: boolean
           nome_contato?: string | null
           pinned_at?: string | null
           provider?: string | null
@@ -1145,8 +1149,10 @@ export type Database = {
           foto_url?: string | null
           id?: string
           lead_id?: string | null
+          lid_review_notes?: string | null
           marked_unread?: boolean | null
           nao_lidas?: number
+          needs_lid_review?: boolean
           nome_contato?: string | null
           pinned_at?: string | null
           provider?: string | null
