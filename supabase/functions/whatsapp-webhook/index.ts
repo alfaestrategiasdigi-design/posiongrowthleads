@@ -417,9 +417,12 @@ async function adoptLegacyGlobalConversation(target: any, tenantId: string | nul
 // the same pushName. If exactly one candidate exists, register the alias — which
 // triggers mergeProvisionalLidConversations — so we no longer depend solely on
 // CONTACTS_UPDATE firing. Multiple candidates are flagged for manual review.
+// HARDENED (2026-07-05): pushName-only matching NEVER creates aliases anymore.
+// It only flags candidates for manual review. PushName collisions between
+// unrelated contacts were the exact vector for the wrong-merge incident.
 async function tryResolveByPushNameFromCanonical(
   tenantId: string | null,
-  instanceName: string | null,
+  _instanceName: string | null,
   canonicalRemoteJid: string,
   pushName: string,
 ) {
@@ -432,22 +435,22 @@ async function tryResolveByPushNameFromCanonical(
   q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
   const { data } = await q.limit(3);
   if (!data || data.length === 0) return;
-  if (data.length === 1) {
-    await upsertJidAlias(tenantId, instanceName, data[0].remote_jid, canonicalRemoteJid);
-    return;
-  }
-  // Ambiguous: flag them for manual review.
+  // Never auto-alias by pushName. Flag every candidate for human review.
   await admin.from("conversations")
-    .update({ needs_lid_review: true, lid_review_notes: `multiple @lid candidates for pushName='${pushName}'` })
+    .update({
+      needs_lid_review: true,
+      lid_review_notes: `pushName='${pushName}' também corresponde à conversa canônica ${canonicalRemoteJid}. Revise manualmente antes de mesclar.`,
+    })
     .in("id", data.map((c: any) => c.id));
 }
 
-// When a NEW @lid arrives, try to route it into an existing canonical conversation
-// with the same pushName in the same tenant. Returns the canonical remote_jid if
-// exactly one match was found (and registers the alias), otherwise null.
+// HARDENED (2026-07-05): return null (no auto-route) and flag for review
+// when a new @lid arrives with a matching pushName. Alias creation is only
+// allowed via same-key payload pairing (decideAliasFromSameKey) or authoritative
+// contacts.* events.
 async function tryRouteLidToCanonicalByPushName(
   tenantId: string | null,
-  instanceName: string | null,
+  _instanceName: string | null,
   lidJid: string,
   pushName: string,
 ): Promise<string | null> {
@@ -459,12 +462,17 @@ async function tryRouteLidToCanonicalByPushName(
     .ilike("nome_contato", pushName);
   q = tenantId ? q.or(`tenant_id.eq.${tenantId},tenant_id.is.null`) : q.is("tenant_id", null);
   const { data } = await q.limit(3);
-  if (!data || data.length !== 1) return null;
-  const target = await adoptLegacyGlobalConversation(data[0], tenantId);
-  if (target.tenant_id !== tenantId) return null;
-  await upsertJidAlias(tenantId, instanceName, lidJid, target.remote_jid);
-  return target.remote_jid as string;
+  if (!data || data.length === 0) return null;
+  // Flag candidate(s) — do not auto-alias.
+  await admin.from("conversations")
+    .update({
+      needs_lid_review: true,
+      lid_review_notes: `Novo @lid ${lidJid} tem pushName='${pushName}' igual a esta conversa. Confirme manualmente antes de mesclar.`,
+    })
+    .in("id", data.map((c: any) => c.id));
+  return null;
 }
+
 
 
 async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): Promise<string | null> {
