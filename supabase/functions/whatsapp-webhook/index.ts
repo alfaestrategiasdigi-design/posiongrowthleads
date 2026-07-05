@@ -29,29 +29,49 @@ function onlyDigits(value: unknown): string {
 }
 
 function normalizePhoneJid(value: unknown): string | null {
-  const raw = String(value ?? "").trim();
+  let raw = String(value ?? "").trim();
   if (!raw) return null;
-  if (raw.endsWith("@g.us") || raw.endsWith("@broadcast")) return null;
-  if (raw.includes("@lid")) return raw;
+  raw = raw.replace(/^whatsapp:/i, "").split(/[\s,;]+/)[0]?.trim() ?? "";
+  if (!raw) return null;
+  const at = raw.indexOf("@");
+  const normalizedDomain = at >= 0 ? raw.slice(at + 1).split(":")[0].toLowerCase() : "";
+  if (normalizedDomain === "g.us" || normalizedDomain === "broadcast" || raw.endsWith("@broadcast")) return null;
+  if (normalizedDomain === "lid" || raw.includes("@lid")) {
+    const lidDigits = onlyDigits(raw.split("@")[0]);
+    return lidDigits ? `${lidDigits}@lid` : null;
+  }
   const digits = onlyDigits(raw.split("@")[0]);
   if (!digits) return null;
   return `${digits}@s.whatsapp.net`;
 }
 
-function firstStandardJid(candidates: unknown[]): string | null {
+function firstStandardJid(candidates: unknown[], exclude = new Set<string>()): string | null {
   for (const candidate of candidates) {
     const jid = normalizePhoneJid(candidate);
-    if (jid && !jid.includes("@lid")) return jid;
+    if (jid && !jid.includes("@lid") && !exclude.has(jid)) return jid;
   }
   return null;
 }
 
-function firstLidJid(candidates: unknown[]): string | null {
+function firstLidJid(candidates: unknown[], exclude = new Set<string>()): string | null {
   for (const candidate of candidates) {
     const jid = normalizePhoneJid(candidate);
-    if (jid?.includes("@lid")) return jid;
+    if (jid?.includes("@lid") && !exclude.has(jid)) return jid;
   }
   return null;
+}
+
+function uniqueCandidates(candidates: unknown[]): unknown[] {
+  const seen = new Set<string>();
+  const out: unknown[] = [];
+  for (const candidate of candidates) {
+    if (candidate === undefined || candidate === null || candidate === "") continue;
+    const key = typeof candidate === "string" ? candidate.trim() : JSON.stringify(candidate);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(candidate);
+  }
+  return out;
 }
 
 function eventKey(value: unknown): string {
