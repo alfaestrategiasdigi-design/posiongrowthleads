@@ -620,6 +620,8 @@ Deno.serve(async (req) => {
       conn.instance_name = instanceName;
     }
     const tenantId = conn?.tenant_id ?? null;
+    const ownJids = extractRootOwnJids(body, instanceName);
+    for (const jid of await fetchInstanceOwnJids(conn, instanceName)) ownJids.add(jid);
 
     // Connection state
     if (eventMatches(event, "connection.update") || body?.data?.state) {
@@ -735,17 +737,17 @@ Deno.serve(async (req) => {
       for (const m of messagesArr) {
         const key = m?.key ?? m?.message?.key ?? m?.message?.message?.key ?? {};
         const wamid: string | null = key?.id ?? m?.id ?? null;
-        const resolved = await resolveRemoteJid(m, key, tenantId, instanceName || null);
+        const fromMe: boolean = Boolean(key?.fromMe ?? m?.fromMe);
+        const resolved = await resolveRemoteJid(m, key, tenantId, instanceName || null, fromMe, ownJids);
         const rawRemoteJid = resolved.rawRemoteJid;
         if (rawRemoteJid?.endsWith("@g.us") || rawRemoteJid?.endsWith("@broadcast")) continue;
-        const fromMe: boolean = Boolean(key?.fromMe ?? m?.fromMe);
         // Never drop by unresolved @lid: if the alias is not yet known, keep the
         // raw @lid as a provisional remote_jid and flag the message. When the
         // alias arrives later (contacts.* event) mergeProvisionalLidConversations
         // migrates the conversation/messages to the canonical phone JID.
         const effectiveJid = resolved.remoteJid ?? rawRemoteJid;
         if (!effectiveJid) {
-          console.warn("[whatsapp-webhook] no_jid_dropped", { wamid, fromMe });
+          console.warn("[whatsapp-webhook] no_jid_dropped", { wamid, fromMe, blockedSelfJid: resolved.blockedSelfJid, ownJids: Array.from(ownJids) });
           continue;
         }
         let remoteJid = effectiveJid;
