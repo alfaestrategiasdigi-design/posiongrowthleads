@@ -181,6 +181,15 @@ Deno.serve(async (req) => {
     }
 
     if (target) {
+      if (!dryRun && lid.remote_jid?.includes("@lid") && target.remote_jid && !target.remote_jid.includes("@lid")) {
+        await admin.from("whatsapp_jid_aliases").upsert({
+          tenant_id: lid.tenant_id,
+          lid_jid: lid.remote_jid,
+          phone_jid: target.remote_jid,
+          updated_at: new Date().toISOString(),
+          last_seen_at: new Date().toISOString(),
+        }, { onConflict: "tenant_scope,lid_jid" });
+      }
       if (!dryRun) await mergeInto(admin, lid.id, target);
       bumpT(lid.tenant_id, "auto_merged");
       details.push({ id: lid.id, tenant_id: lid.tenant_id, action: "auto_merged", target_id: target.id, reason });
