@@ -474,12 +474,23 @@ Deno.serve(async (req) => {
           console.warn("[whatsapp-webhook] no_jid_dropped", { wamid, fromMe });
           continue;
         }
-        const remoteJid = effectiveJid;
-        const isPendingLid = resolved.unresolvedLid || remoteJid.includes("@lid");
-        if (isPendingLid) {
-          console.log("[whatsapp-webhook] pending_lid_stored", { wamid, rawRemoteJid, fromMe });
-        }
+        let remoteJid = effectiveJid;
+        let isPendingLid = resolved.unresolvedLid || remoteJid.includes("@lid");
         const pushName: string = m?.pushName ?? m?.notifyName ?? "";
+
+        // Root-cause hardening #1: if this arrived as @lid, try to route it into
+        // an existing canonical conversation by pushName BEFORE creating a new
+        // provisional row. Zero dependency on CONTACTS_UPDATE.
+        if (isPendingLid && pushName) {
+          const canonical = await tryRouteLidToCanonicalByPushName(tenantId, instanceName || null, remoteJid, pushName);
+          if (canonical) {
+            remoteJid = canonical;
+            isPendingLid = false;
+          }
+        }
+        if (isPendingLid) {
+          console.log("[whatsapp-webhook] pending_lid_stored", { wamid, rawRemoteJid, fromMe, pushName });
+        }
         const msgObj = m?.message ?? m;
 
         // Detect message type (broad coverage)
