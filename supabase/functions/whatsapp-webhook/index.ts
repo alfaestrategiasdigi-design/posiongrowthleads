@@ -477,7 +477,11 @@ async function tryRouteLidToCanonicalByPushName(
 
 async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): Promise<string | null> {
   if (!lidJid?.includes("@lid")) return null;
-  let q = admin.from("whatsapp_jid_aliases").select("phone_jid").eq("lid_jid", lidJid);
+  // HARDENED: quarantined aliases must never be used for routing.
+  let q = admin.from("whatsapp_jid_aliases")
+    .select("phone_jid")
+    .eq("lid_jid", lidJid)
+    .is("quarantined_at", null);
   q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
   const { data } = await q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (data?.phone_jid) return data.phone_jid;
@@ -486,6 +490,7 @@ async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): P
       .select("phone_jid")
       .eq("lid_jid", lidJid)
       .is("tenant_id", null)
+      .is("quarantined_at", null)
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -515,9 +520,17 @@ async function resolveRemoteJid(
   const standard = firstStandardJid(candidates, fromMe ? ownJids : new Set());
   const lid = firstLidJid(candidates, fromMe ? ownJids : new Set());
   if (standard) {
-    await upsertJidAlias(tenantId, instanceName, lid, standard);
+    // HARDENED (2026-07-05): only alias if @lid and phone came from the SAME
+    // key object. Cross-field pairing (@lid from key, phone from participantAlt
+    // of a nested envelope) was the vector that glued 4 unrelated @lids onto
+    // one contact. See decideAliasFromSameKey in routing.ts.
+    const decision = decideAliasFromSameKey(key);
+    if (decision.ok) {
+      await upsertJidAlias(tenantId, instanceName, decision.lidJid, decision.phoneJid, "same_key");
+    }
     return { remoteJid: standard, rawRemoteJid, unresolvedLid: false, blockedSelfJid: false };
   }
+
 
   const mapped = await mappedPhoneJid(tenantId, lid ?? normalizedRaw ?? null);
   if (mapped) return { remoteJid: mapped, rawRemoteJid, unresolvedLid: false, blockedSelfJid: false };
