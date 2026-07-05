@@ -4,6 +4,7 @@
 
 export const EVOLUTION_EVENTS = [
   "MESSAGES_UPSERT",
+  "MESSAGES_SET",
   "MESSAGES_UPDATE",
   "MESSAGES_DELETE",
   "MESSAGES_EDITED",
@@ -19,7 +20,7 @@ export const EVOLUTION_EVENTS = [
 ] as const;
 
 // Events considered "must have" for direct-phone sync of outbound messages.
-export const REQUIRED_EVENTS = ["MESSAGES_UPSERT", "SEND_MESSAGE"] as const;
+export const REQUIRED_EVENTS = ["MESSAGES_UPSERT", "MESSAGES_SET", "SEND_MESSAGE"] as const;
 
 export function normalizeBase(raw: string): string {
   let s = (raw || "").trim();
