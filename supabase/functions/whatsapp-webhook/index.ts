@@ -139,6 +139,155 @@ function extractMessageCreatedAt(row: any): string {
   return new Date().toISOString();
 }
 
+function collectFromKeys(source: any, keys: string[]): unknown[] {
+  if (!source || typeof source !== "object") return [];
+  const values: unknown[] = [];
+  for (const key of keys) {
+    values.push(source?.[key]);
+  }
+  return values;
+}
+
+function collectOutboundPeerCandidates(row: any, key: any): unknown[] {
+  const envelope = row?.message ?? {};
+  const nested = row?.message?.message ?? {};
+  const nestedKey = row?.message?.key ?? row?.message?.message?.key ?? {};
+  const candidateKeys = [
+    "remoteJidAlt", "remoteJid_alt", "participantAlt", "participant_alt",
+    "participantPn", "participant_pn", "senderPn", "sender_pn",
+    "recipientJid", "recipient_jid", "recipient", "to", "chatId", "chat_id",
+    "destinationJid", "destination_jid", "targetJid", "target_jid",
+  ];
+  return uniqueCandidates([
+    ...collectFromKeys(key, candidateKeys),
+    ...collectFromKeys(row, candidateKeys),
+    ...collectFromKeys(envelope, candidateKeys),
+    ...collectFromKeys(nested, candidateKeys),
+    ...collectFromKeys(nestedKey, candidateKeys),
+    row?.participant,
+    envelope?.participant,
+    nested?.participant,
+  ]);
+}
+
+function collectInboundPeerCandidates(row: any, key: any): unknown[] {
+  const envelope = row?.message ?? {};
+  const nested = row?.message?.message ?? {};
+  const nestedKey = row?.message?.key ?? row?.message?.message?.key ?? {};
+  return uniqueCandidates([
+    key?.remoteJidAlt,
+    key?.remoteJid_alt,
+    key?.participantAlt,
+    key?.participant_alt,
+    envelope?.remoteJidAlt,
+    envelope?.remoteJid_alt,
+    nested?.remoteJidAlt,
+    nested?.remoteJid_alt,
+    nestedKey?.remoteJidAlt,
+    nestedKey?.remoteJid_alt,
+    key?.remoteJid,
+    row?.remoteJid,
+  ]);
+}
+
+function extractRootOwnJids(body: any, instanceName: string): Set<string> {
+  const own = new Set<string>();
+  const rootCandidates = uniqueCandidates([
+    body?.sender,
+    body?.ownerJid,
+    body?.owner,
+    body?.wuid,
+    body?.instanceOwner,
+    body?.instance_owner,
+    body?.data?.sender,
+    body?.data?.ownerJid,
+    body?.data?.owner,
+    body?.data?.wuid,
+  ]);
+  for (const candidate of rootCandidates) {
+    const raw = String(candidate ?? "").trim();
+    if (!raw || raw === instanceName) continue;
+    const jid = normalizePhoneJid(raw);
+    const digits = onlyDigits(raw);
+    if (jid && (raw.includes("@") || digits.length >= 10)) own.add(jid);
+  }
+  return own;
+}
+
+function collectOwnJidsFromObject(value: any, instanceName: string): Set<string> {
+  const own = new Set<string>();
+  const seen = new Set<any>();
+  const visit = (node: any, parentKey = "", depth = 0) => {
+    if (!node || depth > 5) return;
+    if (typeof node !== "object") return;
+    if (seen.has(node)) return;
+    seen.add(node);
+
+    const maybeInstance = String(node?.instanceName ?? node?.instance_name ?? node?.name ?? node?.instance?.instanceName ?? "").trim();
+    const looksLikeThisInstance = !instanceName || !maybeInstance || maybeInstance === instanceName;
+    if (looksLikeThisInstance) {
+      for (const key of ["ownerJid", "owner", "wuid", "jid", "number", "phoneNumber", "phone", "profileId"]) {
+        const raw = node?.[key];
+        const jid = normalizePhoneJid(raw);
+        const digits = onlyDigits(raw);
+        if (jid && (String(raw ?? "").includes("@") || digits.length >= 10)) own.add(jid);
+      }
+      for (const key of ["instance", "user", "account"]) {
+        const child = node?.[key];
+        if (child && typeof child === "object") {
+          for (const inner of ["ownerJid", "owner", "wuid", "jid", "number", "phoneNumber", "phone", "id"]) {
+            const raw = child?.[inner];
+            const jid = normalizePhoneJid(raw);
+            const digits = onlyDigits(raw);
+            if (jid && (String(raw ?? "").includes("@") || digits.length >= 10)) own.add(jid);
+          }
+        }
+      }
+    }
+
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item, parentKey, depth + 1);
+      return;
+    }
+    for (const [key, child] of Object.entries(node)) {
+      if (["contacts", "chats", "messages"].includes(key)) continue;
+      visit(child, key, depth + 1);
+    }
+  };
+  visit(value);
+  return own;
+}
+
+async function fetchInstanceOwnJids(conn: any, instanceName: string): Promise<Set<string>> {
+  const own = new Set<string>();
+  if (!conn?.instance_url || !conn?.api_key || !instanceName) return own;
+  const base = normalizeBase(conn.instance_url);
+  const attempts = [
+    { method: "GET", url: `${base}/instance/connectionState/${encodeURIComponent(instanceName)}` },
+    { method: "GET", url: `${base}/instance/fetchInstances` },
+    { method: "POST", url: `${base}/instance/fetchInstances`, body: {} },
+  ];
+  for (const attempt of attempts) {
+    try {
+      const r = await fetch(attempt.url, {
+        method: attempt.method,
+        headers: { "Content-Type": "application/json", apikey: conn.api_key },
+        body: attempt.body ? JSON.stringify(attempt.body) : undefined,
+        signal: AbortSignal.timeout(3500),
+      });
+      const text = await r.text();
+      if (!r.ok || !text) continue;
+      let parsed: any = null;
+      try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
+      for (const jid of collectOwnJidsFromObject(parsed, instanceName)) own.add(jid);
+      if (own.size > 0) break;
+    } catch {
+      // non-fatal; webhook routing still uses payload-level candidates.
+    }
+  }
+  return own;
+}
+
 async function upsertJidAlias(tenantId: string | null, instanceName: string | null, lidJid: string | null, phoneJid: string | null) {
   if (!lidJid?.includes("@lid") || !phoneJid || phoneJid.includes("@lid")) return;
   try {
