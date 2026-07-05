@@ -303,8 +303,21 @@ async function fetchInstanceOwnJids(conn: any, instanceName: string): Promise<Se
   return own;
 }
 
-async function upsertJidAlias(tenantId: string | null, instanceName: string | null, lidJid: string | null, phoneJid: string | null) {
+// Persist a (@lid, phone) alias. Callers MUST pass source="same_key" only when
+// both sides came from the SAME payload key object (see decideAliasFromSameKey
+// in routing.ts). Any other source is rejected — this is the hardening after
+// the 2026-07-05 wrong-merge incident that glued 4 unrelated @lids onto a
+// single contact via pushName heuristics.
+type AliasSource = "same_key" | "contacts_event" | "wamid_dedup";
+async function upsertJidAlias(
+  tenantId: string | null,
+  instanceName: string | null,
+  lidJid: string | null,
+  phoneJid: string | null,
+  source: AliasSource,
+) {
   if (!lidJid?.includes("@lid") || !phoneJid || phoneJid.includes("@lid")) return;
+  if (!source) return;
   try {
     await admin.from("whatsapp_jid_aliases").upsert({
       tenant_id: tenantId,
@@ -319,6 +332,7 @@ async function upsertJidAlias(tenantId: string | null, instanceName: string | nu
     console.warn("[whatsapp-webhook] upsertJidAlias_failed", String(e));
   }
 }
+
 
 // Merge a provisional @lid conversation into the canonical phone-jid conversation.
 // Safe to call repeatedly. If no canonical exists, renames the provisional in place.
