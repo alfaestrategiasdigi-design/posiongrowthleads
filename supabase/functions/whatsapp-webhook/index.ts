@@ -889,7 +889,7 @@ Deno.serve(async (req) => {
               : (existingMsg as any).conversations;
             const adopted = await adoptLegacyGlobalConversation(existingConv, tenantId);
             if (isPendingLid && adopted?.remote_jid && !adopted.remote_jid.includes("@lid")) {
-              await upsertJidAlias(tenantId, instanceName || null, remoteJid, adopted.remote_jid);
+              await upsertJidAlias(tenantId, instanceName || null, remoteJid, adopted.remote_jid, "wamid_dedup");
             }
             continue;
           }
