@@ -1236,6 +1236,16 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
         tenantId={masterMode ? null : (tenantId ?? null)}
         onDone={loadConversations}
       />
+
+      <ReassignMessageDialog
+        open={!!reassignMessage}
+        onClose={() => setReassignMessage(null)}
+        message={reassignMessage as any}
+        currentConversationId={selectedConversation?.id || ""}
+        tenantId={masterMode ? null : (tenantId ?? null)}
+        onMoved={() => { if (selectedConversation) loadMessages(selectedConversation.id); }}
+      />
+
     </div>
   );
 
