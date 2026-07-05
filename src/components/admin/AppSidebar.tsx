@@ -2,8 +2,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, MessageCircle, Users, LogOut, UserPlus, Zap,
   Facebook, Building2, FileText, Megaphone, Plug, Activity, Target, CreditCard, GitBranch,
+  PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter,
@@ -61,7 +63,7 @@ const navGroups: NavGroup[] = [
 const AppSidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { state } = useSidebar();
+  const { state, toggleSidebar } = useSidebar();
   const collapsed = state === "collapsed";
   const { isMaster, isComercialMaster, globalRoles, loading } = useUserRole();
 
@@ -95,13 +97,26 @@ const AppSidebar = () => {
   return (
     <Sidebar collapsible="icon" className="tech-sidebar border-r border-sidebar-border bg-sidebar/95 backdrop-blur-xl">
       <SidebarHeader className="p-4">
-        <div className="flex items-center justify-center relative">
-          <img src={logoAsset.url} alt="Posion" className="h-9 w-auto" />
-          {!collapsed && (
-            <span className="absolute -bottom-2 right-0 text-[8px] font-mono uppercase tracking-[0.2em] text-cyan-300/70">
-              v2 · OS
-            </span>
-          )}
+        <div className={collapsed ? "flex flex-col items-center gap-3" : "flex items-center justify-between gap-2"}>
+          <div className="relative min-w-0 flex justify-center">
+            <img src={logoAsset.url} alt="Posion" className={collapsed ? "h-7 w-auto" : "h-9 w-auto"} />
+            {!collapsed && (
+              <span className="absolute -bottom-2 right-0 text-[8px] font-mono uppercase tracking-[0.2em] text-cyan-300/70">
+                v2 · OS
+              </span>
+            )}
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+            title={collapsed ? "Expandir menu" : "Recolher menu"}
+            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </Button>
         </div>
       </SidebarHeader>
 
