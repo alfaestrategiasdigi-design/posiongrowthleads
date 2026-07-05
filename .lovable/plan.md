@@ -1,74 +1,35 @@
+## Diagnóstico confirmado
 
-# Plano: Correção da sincronização de mensagens WhatsApp (Evolution API)
+O bug não é visual: o backend está aceitando eventos `fromMe=true` da Evolution API usando o `key.remoteJid` como se fosse sempre o contato de destino. Em cenários multi-device/@lid, o webhook pode entregar o `remoteJid` como o próprio WhatsApp conectado ou como um identificador alternativo, enquanto o contato real vem em campos como `remoteJidAlt`, `participant`, `participantAlt`, `sender`, `recipient` ou dentro do envelope da mensagem.
 
-## Objetivo
-Eliminar os 3 pontos de descarte silencioso no `whatsapp-webhook` que fazem mensagens enviadas pelo celular sumirem no painel, sem quebrar a deduplicação já existente.
+A referência externa confirma esse comportamento: há issues/PRs da Evolution/Baileys sobre `@lid`, `remoteJidAlt` e mensagens onde o `remoteJid` precisa ser substituído pelo identificador real antes de persistir o evento.
 
----
+## Plano de correção
 
-## Etapa 1 — Diagnóstico (leitura, sem alteração)
+1. **Criar resolução canônica de destino para mensagens `fromMe`**
+   - Separar a lógica de “quem é o contato da conversa” da lógica genérica de `remoteJid`.
+   - Para `fromMe=true`, priorizar campos de destinatário/alternativos (`remoteJidAlt`, `participantAlt`, `participant`, `senderPn`, `recipient`, etc.) e rejeitar o JID da própria instância quando ele aparecer como `remoteJid`.
+   - Para `fromMe=false`, manter o comportamento atual, mas com suporte ampliado aos mesmos aliases `@lid`/telefone.
 
-1. Puxar logs da função `whatsapp-webhook` (últimos 7 dias) via `supabase--edge_function_logs` filtrando por:
-   - `unresolved_lid_dropped`
-   - `unknown_instance`
-2. Agrupar ocorrências por `instance_name` / tenant (parse do payload dos logs) para identificar clínicas afetadas.
-3. Listar `zapi_connections` ativas (`provider='evolution'`) via `supabase--read_query`.
-4. Para cada instância ativa, chamar `GET {instance_url}/webhook/find/{instance_name}` (com header `apikey`) e verificar se `MESSAGES_UPSERT` e `SEND_MESSAGE` estão inscritos. Essa varredura será feita por uma nova edge function utilitária `evolution-webhook-audit` (invocada uma vez, resultado logado e retornado como JSON).
+2. **Identificar e ignorar o próprio WhatsApp da instância**
+   - Derivar o “número próprio” da conexão quando disponível e impedir que mensagens enviadas para terceiros sejam gravadas na conversa do próprio número.
+   - Se o webhook vier ambíguo e só trouxer o próprio JID, não criar conversa errada; registrar como pendente de resolução em vez de contaminar o histórico.
 
-## Etapa 2 — Correções em `supabase/functions/whatsapp-webhook/index.ts`
+3. **Fortalecer `@lid` de forma global por tenant**
+   - Quando houver `@lid` + JID telefônico no mesmo payload, salvar alias imediatamente.
+   - Quando houver `fromMe + @lid` sem telefone claro, tentar resolver por alias já conhecido antes de criar qualquer conversa provisória.
+   - Em caso ambíguo, sinalizar revisão manual sem mesclar automaticamente.
 
-### 2.1 `unknown_instance` (≈ linhas 190-216)
-Mudar de "descarta se `instance_name` não bate em `zapi_connections`" para:
-- Resolver conexão primeiro por `instance_name`.
-- Se falhar, tentar resolver pelo `tenant` da URL (`?tenant=<slug>` ou `?tenant_id=<uuid>`) e pegar a conexão daquele tenant.
-- Só descartar (`unknown_instance`) se **ambos** falharem.
-- Quando resolver pelo tenant, atualizar `zapi_connections.instance_name` para o valor recebido (auto-heal), logando `instance_name_updated`.
+4. **Corrigir dados já contaminados**
+   - Localizar mensagens `fromMe` recentes que foram parar na conversa do próprio número ou em conversa errada.
+   - Reassociar automaticamente somente quando existir evidência única: mesmo `wamid`, alias conhecido, telefone alternativo ou conversa candidata única.
+   - O que não tiver evidência única fica marcado para revisão, sem decisão unilateral.
 
-### 2.2 `unresolved_lid_dropped` (≈ linhas 342-345)
-- Remover o `continue` do bloco `if (!remoteJid || unresolvedLid)`.
-- Novo comportamento:
-  - Se `remoteJid` estiver ausente → continuar `continue` (sem JID não há como criar conversa).
-  - Se `remoteJid` for `<id>@lid` sem alias resolvido → **manter** o `@lid` bruto como `remote_jid` provisório e prosseguir com criação/lookup de conversa por esse JID. Marcar a mensagem com `metadata.pending_lid_resolution = true` (coluna JSONB `metadata` em `messages` — adicionar migration se não existir).
-- Adicionar handler pós-inserção: sempre que `whatsapp_jid_aliases` receber um novo mapeamento `lid → s.whatsapp.net` (via `contacts.update`/`upsert` no próprio webhook), rodar um `UPDATE` em `conversations` e `messages` trocando o `remote_jid` antigo pelo canônico e mesclando conversas duplicadas (a antiga `@lid` recebe `merged_into_id`, mensagens são reapontadas para a canônica).
-
-### 2.3 Reforçar inscrição de eventos
-Extrair a lista `EVENTS` e a função `configureWebhook` (hoje em `evolution-connect` e `evolution-resubscribe`) para um módulo compartilhado `supabase/functions/_shared/evolution-webhook.ts`. A nova função `evolution-webhook-audit` (Etapa 1.4):
-- Para cada `zapi_connection` ativa, chama `GET /webhook/find/<instance>`.
-- Se `MESSAGES_UPSERT` ou `SEND_MESSAGE` faltarem, chama `configureWebhook` compartilhada com a lista completa.
-- Retorna JSON com `{instance, missing_before, fixed, ok}`.
-
-### 2.4 O que NÃO mudar
-- Dedup por `wamid` (linhas ~501-505).
-- Dedup por janela de 15s para `fromMe && text` (linhas ~506-522).
-
-## Etapa 3 — Migration
-Nova migration:
-- `ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;` (se ainda não existir — confirmar com `read_query` antes).
-- Índice parcial `CREATE INDEX IF NOT EXISTS idx_messages_pending_lid ON public.messages ((metadata->>'pending_lid_resolution')) WHERE metadata->>'pending_lid_resolution' = 'true';`
-
-## Etapa 4 — Validação
-1. Redeploy de `whatsapp-webhook`, `evolution-connect`, `evolution-resubscribe`, `evolution-webhook-audit`.
-2. Executar `evolution-webhook-audit` e anexar output ao relatório.
-3. Re-puxar logs por 10 min e confirmar ausência de novos `unresolved_lid_dropped` / `unknown_instance`.
-
-## Etapa 5 — Cenários de teste manual (documentados no relatório)
-- **unknown_instance**: renomear temporariamente `zapi_connections.instance_name` de um tenant e enviar uma mensagem — antes: descartada; depois: resolvida via `?tenant=` e `instance_name` auto-atualizado.
-- **unresolved_lid_dropped**: enviar mensagem do celular para contato novo cujo JID chega como `@lid` sem alias — antes: sumia; depois: aparece no painel como conversa `@lid` provisória e é mesclada quando o alias resolver.
-- **webhook incompleto**: via API Evolution, `POST /webhook/set` removendo `MESSAGES_UPSERT`. Rodar `evolution-webhook-audit` — deve detectar e reinscrever.
-
-## Relatório final
-Após execução, entregar em uma única mensagem:
-- Causa raiz por tenant (contagem de logs + auditoria de webhooks).
-- Diff resumido das 3 correções (arquivo + linhas).
-- Output do `evolution-webhook-audit` pós-correção.
-- Passo-a-passo dos 3 cenários de teste manual.
-
----
-
-## Arquivos afetados
-- `supabase/functions/whatsapp-webhook/index.ts` (edições nas 3 zonas)
-- `supabase/functions/_shared/evolution-webhook.ts` (novo — EVENTS + configureWebhook)
-- `supabase/functions/evolution-connect/index.ts` (passa a importar do shared)
-- `supabase/functions/evolution-resubscribe/index.ts` (passa a importar do shared)
-- `supabase/functions/evolution-webhook-audit/index.ts` (novo)
-- Nova migration para coluna `metadata` + índice em `messages`
+5. **Validação real antes de encerrar**
+   - Criar testes de payload simulando:
+     - envio do telefone para Lucas;
+     - envio do telefone para outro número;
+     - evento com `remoteJid` próprio e contato em `remoteJidAlt`/`participant`;
+     - evento `@lid` com e sem alias.
+   - Chamar a função de webhook com esses payloads e validar no banco que cada mensagem cai na conversa do destinatário correto, nunca na conversa “comigo mesmo”.
+   - Entregar relatório com: causa raiz, arquivos alterados, casos corrigidos por tenant, casos pendentes e resultado dos testes.
