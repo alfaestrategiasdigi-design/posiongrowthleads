@@ -573,6 +573,27 @@ Deno.serve(async (req) => {
 
         if (!text && tipo === "text") continue;
 
+        // Exact dedup must happen BEFORE mutating conversations. Evolution may
+        // deliver the same phone-originated wamid twice: once as a canonical JID
+        // and once as an unresolved @lid. If we create/update the @lid thread
+        // before checking wamid, the UI gets an empty/phantom duplicated chat.
+        if (wamid) {
+          const { data: existingMsg } = await admin.from("messages")
+            .select("id, conversation_id, tenant_id, conversations(id, tenant_id, remote_jid, telefone)")
+            .eq("wamid", wamid)
+            .maybeSingle();
+          if (existingMsg) {
+            const existingConv = Array.isArray((existingMsg as any).conversations)
+              ? (existingMsg as any).conversations[0]
+              : (existingMsg as any).conversations;
+            const adopted = await adoptLegacyGlobalConversation(existingConv, tenantId);
+            if (isPendingLid && adopted?.remote_jid && !adopted.remote_jid.includes("@lid")) {
+              await upsertJidAlias(tenantId, instanceName || null, remoteJid, adopted.remote_jid);
+            }
+            continue;
+          }
+        }
+
         // Quoted / reply context
         const ctx = msgObj?.extendedTextMessage?.contextInfo
           ?? msgObj?.imageMessage?.contextInfo
