@@ -696,7 +696,7 @@ Deno.serve(async (req) => {
       for (const c of contacts) {
         const contactCandidates = [c?.remoteJidAlt, c?.remoteJid_alt, c?.jidAlt, c?.idAlt, c?.remoteJid, c?.id];
         const jid = firstStandardJid(contactCandidates);
-        await upsertJidAlias(tenantId, instanceName || null, firstLidJid(contactCandidates), jid);
+        await upsertJidAlias(tenantId, instanceName || null, firstLidJid(contactCandidates), jid, "contacts_event");
         if (!jid) continue;
         const updates: any = {};
         if (c?.pushName || c?.name) updates.nome_contato = c.pushName || c.name;
