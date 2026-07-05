@@ -638,7 +638,6 @@ Deno.serve(async (req) => {
     }
     const tenantId = conn?.tenant_id ?? null;
     const ownJids = extractRootOwnJids(body, instanceName);
-    for (const jid of await fetchInstanceOwnJids(conn, instanceName)) ownJids.add(jid);
 
     // Connection state
     if (eventMatches(event, "connection.update") || body?.data?.state) {
