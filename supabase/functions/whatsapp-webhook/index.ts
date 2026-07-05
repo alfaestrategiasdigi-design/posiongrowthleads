@@ -65,9 +65,71 @@ async function upsertJidAlias(tenantId: string | null, instanceName: string | nu
       updated_at: new Date().toISOString(),
       last_seen_at: new Date().toISOString(),
     }, { onConflict: "tenant_scope,lid_jid" });
-  } catch {
-    // Alias mapping is an optimization: if it fails, webhook ingestion must continue.
+    // Now that we know the canonical JID for this @lid, migrate any provisional
+    // conversation/messages that were ingested under the raw @lid.
+    await mergeProvisionalLidConversations(tenantId, lidJid, phoneJid);
+  } catch (e) {
+    console.warn("[whatsapp-webhook] upsertJidAlias_failed", String(e));
   }
+}
+
+// When a @lid alias becomes known, migrate messages that were ingested with the
+// raw @lid as remote_jid into the canonical phone-jid conversation and clear
+// the pending flag. If no canonical conversation exists yet, rename the
+// provisional one in place. Safe to call repeatedly.
+async function mergeProvisionalLidConversations(tenantId: string | null, lidJid: string, phoneJid: string) {
+  const phone = onlyDigits(phoneJid.split("@")[0]);
+  if (!phone) return;
+
+  let provQ = admin.from("conversations")
+    .select("id, nao_lidas, ultima_interacao, ultima_mensagem, nome_contato")
+    .eq("remote_jid", lidJid);
+  provQ = tenantId ? provQ.eq("tenant_id", tenantId) : provQ.is("tenant_id", null);
+  const { data: provisional } = await provQ.maybeSingle();
+  if (!provisional) return;
+
+  let canonQ = admin.from("conversations")
+    .select("id, nao_lidas, ultima_interacao")
+    .eq("remote_jid", phoneJid);
+  canonQ = tenantId ? canonQ.eq("tenant_id", tenantId) : canonQ.is("tenant_id", null);
+  let { data: canonical } = await canonQ.maybeSingle();
+  if (!canonical) {
+    let byPhoneQ = admin.from("conversations")
+      .select("id, nao_lidas, ultima_interacao")
+      .eq("telefone", phone);
+    byPhoneQ = tenantId ? byPhoneQ.eq("tenant_id", tenantId) : byPhoneQ.is("tenant_id", null);
+    const { data } = await byPhoneQ.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
+    canonical = data;
+  }
+
+  if (!canonical) {
+    // No canonical yet: just rename the provisional in place.
+    await admin.from("conversations")
+      .update({ remote_jid: phoneJid, telefone: phone })
+      .eq("id", provisional.id);
+    await admin.from("messages")
+      .update({ metadata: {} })
+      .eq("conversation_id", provisional.id)
+      .eq("metadata->>pending_lid_resolution", "true");
+    return;
+  }
+
+  // Move messages from provisional -> canonical and clear pending flag.
+  await admin.from("messages")
+    .update({ conversation_id: canonical.id, metadata: {} })
+    .eq("conversation_id", provisional.id);
+  await admin.from("message_reactions")
+    .update({ conversation_id: canonical.id })
+    .eq("conversation_id", provisional.id);
+  await admin.from("conversations")
+    .update({
+      ultima_mensagem: provisional.ultima_mensagem ?? undefined,
+      ultima_interacao: provisional.ultima_interacao ?? new Date().toISOString(),
+      nao_lidas: (canonical.nao_lidas ?? 0) + (provisional.nao_lidas ?? 0),
+      nome_contato: provisional.nome_contato ?? undefined,
+    })
+    .eq("id", canonical.id);
+  await admin.from("conversations").delete().eq("id", provisional.id);
 }
 
 async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): Promise<string | null> {
@@ -183,10 +245,8 @@ Deno.serve(async (req) => {
     }
 
     let conn: any = null;
+    let connResolvedBy: "instance_name" | "tenant" | null = null;
     if (instanceName) {
-      // Strict: resolve tenant from the connection's instance_name only.
-      // ?tenant query param is ignored to prevent cross-tenant leakage when
-      // a misconfigured webhook URL points to the wrong tenant.
       const { data } = await admin.from("zapi_connections")
         .select("tenant_id, instance_url, api_key, instance_name")
         .eq("provider", "evolution")
@@ -194,9 +254,12 @@ Deno.serve(async (req) => {
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      conn = data;
+      if (data) { conn = data; connResolvedBy = "instance_name"; }
     }
     if (!conn && resolvedTenantId) {
+      // Fallback: the URL carries a valid tenant slug/id, so accept the payload
+      // and auto-heal the stored instance_name (Evolution may have been
+      // recreated with a slightly different name).
       const { data } = await admin.from("zapi_connections")
         .select("tenant_id, instance_url, api_key, instance_name")
         .eq("provider", "evolution")
@@ -204,15 +267,27 @@ Deno.serve(async (req) => {
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      conn = data;
+      if (data) { conn = data; connResolvedBy = "tenant"; }
     }
-    // If the instance is not registered, refuse to ingest — prevents
-    // unregistered/foreign instances from polluting any inbox.
-    if (instanceName && !conn) {
-      console.warn("[whatsapp-webhook] unknown instance, dropping:", instanceName);
+    // Only refuse when BOTH the instance name and the URL tenant fail to
+    // resolve any registered connection. Otherwise ingestion continues.
+    if (!conn) {
+      console.warn("[whatsapp-webhook] unknown_instance", {
+        instanceName, tenantSlug, tenantIdParam,
+      });
       return new Response(JSON.stringify({ ok: true, dropped: "unknown_instance" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+    if (connResolvedBy === "tenant" && instanceName && conn.instance_name !== instanceName) {
+      console.log("[whatsapp-webhook] instance_name_updated", {
+        tenant_id: conn.tenant_id, from: conn.instance_name, to: instanceName,
+      });
+      await admin.from("zapi_connections")
+        .update({ instance_name: instanceName, updated_at: new Date().toISOString() })
+        .eq("provider", "evolution")
+        .eq("tenant_id", conn.tenant_id);
+      conn.instance_name = instanceName;
     }
     const tenantId = conn?.tenant_id ?? null;
 
