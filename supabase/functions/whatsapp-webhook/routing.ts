@@ -145,6 +145,16 @@ export function resolveOutboundRecipientPure(
 
   if (fromMe && rawIsOwn) {
     return { remoteJid: null, rawRemoteJid: lid ?? rawRemoteJid, unresolvedLid: Boolean(lid), blockedSelfJid: true };
+  }
+  if (lid) {
+    return { remoteJid: null, rawRemoteJid: lid, unresolvedLid: true, blockedSelfJid: false };
+  }
+  return {
+    remoteJid: normalizedRaw?.includes("@lid") ? null : normalizedRaw,
+    rawRemoteJid,
+    unresolvedLid: Boolean(normalizedRaw?.includes("@lid")),
+    blockedSelfJid: false,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -171,9 +181,6 @@ export function decideAliasFromSameKey(key: any): AliasPairDecision {
   const isLid = (j: string | null) => Boolean(j?.includes("@lid"));
   const isPhone = (j: string | null) => Boolean(j && !j.includes("@lid"));
 
-  // Same-key pair candidates: remoteJid + remoteJidAlt is the canonical one
-  // Evolution/Baileys emits for @lid mapping. senderPn also arrives on the
-  // same key for messages the sender identified themselves with.
   const pairs: Array<[string | null, string | null]> = [
     [remote, alt],
     [alt, remote],
@@ -187,7 +194,7 @@ export function decideAliasFromSameKey(key: any): AliasPairDecision {
   return { ok: false, reason: "no_same_key_pair" };
 }
 
-// Snapshot of the raw key fields we persist on every stored message so
+// Snapshot of raw key fields persisted on every stored message so
 // misclassifications can be audited without depending on Evolution logs.
 export function extractRawKeySnapshot(key: any, message: any, fromMe: boolean) {
   const safe = (v: unknown) => (v === undefined || v === null ? null : String(v));
@@ -203,13 +210,3 @@ export function extractRawKeySnapshot(key: any, message: any, fromMe: boolean) {
   };
 }
 
-  if (lid) {
-    return { remoteJid: null, rawRemoteJid: lid, unresolvedLid: true, blockedSelfJid: false };
-  }
-  return {
-    remoteJid: normalizedRaw?.includes("@lid") ? null : normalizedRaw,
-    rawRemoteJid,
-    unresolvedLid: Boolean(normalizedRaw?.includes("@lid")),
-    blockedSelfJid: false,
-  };
-}
