@@ -486,7 +486,11 @@ async function resolveRemoteJid(
   if (mapped) return { remoteJid: mapped, rawRemoteJid, unresolvedLid: false, blockedSelfJid: false };
 
   if (fromMe && rawIsOwn) {
-    return { remoteJid: null, rawRemoteJid, unresolvedLid: Boolean(lid), blockedSelfJid: true };
+    return { remoteJid: null, rawRemoteJid: lid ?? rawRemoteJid, unresolvedLid: Boolean(lid), blockedSelfJid: true };
+  }
+
+  if (lid) {
+    return { remoteJid: null, rawRemoteJid: lid, unresolvedLid: true, blockedSelfJid: false };
   }
 
   return {
