@@ -1059,9 +1059,12 @@ Deno.serve(async (req) => {
           contact_card: contactJson,
           tenant_id: tenantId,
           created_at: messageCreatedAt,
-          metadata: isPendingLid
-            ? { pending_lid_resolution: true, raw_lid: rawRemoteJid }
-            : {},
+          metadata: {
+            raw_key: extractRawKeySnapshot(key, m, fromMe),
+            own_jids: Array.from(ownJids),
+            ...(isPendingLid ? { pending_lid_resolution: true, raw_lid: rawRemoteJid } : {}),
+          },
+
         });
       }
     }
