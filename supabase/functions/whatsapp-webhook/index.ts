@@ -132,6 +132,23 @@ async function mergeProvisionalLidConversations(tenantId: string | null, lidJid:
   }
 }
 
+async function adoptLegacyGlobalConversation(target: any, tenantId: string | null) {
+  if (!tenantId || !target || target.tenant_id) return target;
+  await admin.from("conversations")
+    .update({ tenant_id: tenantId, needs_lid_review: false, lid_review_notes: null })
+    .eq("id", target.id)
+    .is("tenant_id", null);
+  await admin.from("messages")
+    .update({ tenant_id: tenantId })
+    .eq("conversation_id", target.id)
+    .is("tenant_id", null);
+  await admin.from("message_reactions")
+    .update({ tenant_id: tenantId })
+    .eq("conversation_id", target.id)
+    .is("tenant_id", null);
+  return { ...target, tenant_id: tenantId };
+}
+
 // Root-cause hardening: when a message arrives on a KNOWN canonical conversation
 // (non-@lid), look for any provisional @lid conversation in the same tenant with
 // the same pushName. If exactly one candidate exists, register the alias — which
@@ -146,7 +163,7 @@ async function tryResolveByPushNameFromCanonical(
   if (!pushName || pushName.length < 2) return;
   if (canonicalRemoteJid.includes("@lid")) return;
   let q = admin.from("conversations")
-    .select("id, remote_jid")
+    .select("id, tenant_id, remote_jid")
     .like("remote_jid", "%@lid")
     .ilike("nome_contato", pushName);
   q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
@@ -173,15 +190,17 @@ async function tryRouteLidToCanonicalByPushName(
 ): Promise<string | null> {
   if (!pushName || pushName.length < 2) return null;
   let q = admin.from("conversations")
-    .select("id, remote_jid")
+    .select("id, tenant_id, remote_jid")
     .not("remote_jid", "like", "%@lid")
     .not("remote_jid", "is", null)
     .ilike("nome_contato", pushName);
-  q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
+  q = tenantId ? q.or(`tenant_id.eq.${tenantId},tenant_id.is.null`) : q.is("tenant_id", null);
   const { data } = await q.limit(3);
   if (!data || data.length !== 1) return null;
-  await upsertJidAlias(tenantId, instanceName, lidJid, data[0].remote_jid);
-  return data[0].remote_jid as string;
+  const target = await adoptLegacyGlobalConversation(data[0], tenantId);
+  if (target.tenant_id !== tenantId) return null;
+  await upsertJidAlias(tenantId, instanceName, lidJid, target.remote_jid);
+  return target.remote_jid as string;
 }
 
 
@@ -190,7 +209,18 @@ async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): P
   let q = admin.from("whatsapp_jid_aliases").select("phone_jid").eq("lid_jid", lidJid);
   q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
   const { data } = await q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
-  return data?.phone_jid ?? null;
+  if (data?.phone_jid) return data.phone_jid;
+  if (tenantId) {
+    const { data: globalAlias } = await admin.from("whatsapp_jid_aliases")
+      .select("phone_jid")
+      .eq("lid_jid", lidJid)
+      .is("tenant_id", null)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return globalAlias?.phone_jid ?? null;
+  }
+  return null;
 }
 
 async function resolveRemoteJid(message: any, key: any, tenantId: string | null, instanceName: string | null): Promise<{ remoteJid: string | null; rawRemoteJid: string | null; unresolvedLid: boolean }> {
@@ -226,18 +256,18 @@ async function resolveRemoteJid(message: any, key: any, tenantId: string | null,
 
 async function findConversation(tenantId: string | null, remoteJid: string, phone: string) {
   let byJid = admin.from("conversations")
-    .select("id, nao_lidas, remote_jid, telefone")
+    .select("id, tenant_id, nao_lidas, remote_jid, telefone")
     .eq("remote_jid", remoteJid);
-  byJid = tenantId ? byJid.eq("tenant_id", tenantId) : byJid.is("tenant_id", null);
-  const jidResult = await byJid.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
-  if (jidResult.data) return jidResult.data;
+  byJid = tenantId ? byJid.or(`tenant_id.eq.${tenantId},tenant_id.is.null`) : byJid.is("tenant_id", null);
+  const jidResult = await byJid.order("tenant_id", { ascending: false, nullsFirst: false }).order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
+  if (jidResult.data) return await adoptLegacyGlobalConversation(jidResult.data, tenantId);
 
   let byPhone = admin.from("conversations")
-    .select("id, nao_lidas, remote_jid, telefone")
+    .select("id, tenant_id, nao_lidas, remote_jid, telefone")
     .eq("telefone", phone);
-  byPhone = tenantId ? byPhone.eq("tenant_id", tenantId) : byPhone.is("tenant_id", null);
-  const phoneResult = await byPhone.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
-  return phoneResult.data ?? null;
+  byPhone = tenantId ? byPhone.or(`tenant_id.eq.${tenantId},tenant_id.is.null`) : byPhone.is("tenant_id", null);
+  const phoneResult = await byPhone.order("tenant_id", { ascending: false, nullsFirst: false }).order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
+  return phoneResult.data ? await adoptLegacyGlobalConversation(phoneResult.data, tenantId) : null;
 }
 
 async function fetchAndStoreMedia(
@@ -542,6 +572,27 @@ Deno.serve(async (req) => {
           : "text";
 
         if (!text && tipo === "text") continue;
+
+        // Exact dedup must happen BEFORE mutating conversations. Evolution may
+        // deliver the same phone-originated wamid twice: once as a canonical JID
+        // and once as an unresolved @lid. If we create/update the @lid thread
+        // before checking wamid, the UI gets an empty/phantom duplicated chat.
+        if (wamid) {
+          const { data: existingMsg } = await admin.from("messages")
+            .select("id, conversation_id, tenant_id, conversations(id, tenant_id, remote_jid, telefone)")
+            .eq("wamid", wamid)
+            .maybeSingle();
+          if (existingMsg) {
+            const existingConv = Array.isArray((existingMsg as any).conversations)
+              ? (existingMsg as any).conversations[0]
+              : (existingMsg as any).conversations;
+            const adopted = await adoptLegacyGlobalConversation(existingConv, tenantId);
+            if (isPendingLid && adopted?.remote_jid && !adopted.remote_jid.includes("@lid")) {
+              await upsertJidAlias(tenantId, instanceName || null, remoteJid, adopted.remote_jid);
+            }
+            continue;
+          }
+        }
 
         // Quoted / reply context
         const ctx = msgObj?.extendedTextMessage?.contextInfo

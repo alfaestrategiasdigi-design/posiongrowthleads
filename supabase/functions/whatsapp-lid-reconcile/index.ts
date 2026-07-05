@@ -41,6 +41,23 @@ async function mergeInto(admin: any, sourceId: string, target: any) {
   await admin.from("conversations").delete().eq("id", sourceId);
 }
 
+async function adoptLegacyGlobalConversation(admin: any, target: any, tenantId: string | null) {
+  if (!tenantId || !target || target.tenant_id) return target;
+  await admin.from("conversations")
+    .update({ tenant_id: tenantId, needs_lid_review: false, lid_review_notes: null })
+    .eq("id", target.id)
+    .is("tenant_id", null);
+  await admin.from("messages")
+    .update({ tenant_id: tenantId })
+    .eq("conversation_id", target.id)
+    .is("tenant_id", null);
+  await admin.from("message_reactions")
+    .update({ tenant_id: tenantId })
+    .eq("conversation_id", target.id)
+    .is("tenant_id", null);
+  return { ...target, tenant_id: tenantId };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -92,7 +109,17 @@ Deno.serve(async (req) => {
     let aliasQ = admin.from("whatsapp_jid_aliases")
       .select("phone_jid").eq("lid_jid", lid.remote_jid);
     aliasQ = lid.tenant_id ? aliasQ.eq("tenant_id", lid.tenant_id) : aliasQ.is("tenant_id", null);
-    const { data: alias } = await aliasQ.maybeSingle();
+    let { data: alias } = await aliasQ.maybeSingle();
+    if (!alias?.phone_jid && lid.tenant_id) {
+      const { data: globalAlias } = await admin.from("whatsapp_jid_aliases")
+        .select("phone_jid")
+        .eq("lid_jid", lid.remote_jid)
+        .is("tenant_id", null)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      alias = globalAlias;
+    }
 
     let target: any = null;
     let reason = "";
@@ -100,18 +127,18 @@ Deno.serve(async (req) => {
     if (alias?.phone_jid) {
       const phone = onlyDigits(alias.phone_jid.split("@")[0]);
       let cq = admin.from("conversations")
-        .select("id, nao_lidas")
+        .select("id, tenant_id, nao_lidas")
         .eq("remote_jid", alias.phone_jid);
-      cq = lid.tenant_id ? cq.eq("tenant_id", lid.tenant_id) : cq.is("tenant_id", null);
-      const { data: byJid } = await cq.maybeSingle();
-      if (byJid) { target = byJid; reason = "alias_hit_by_jid"; }
+      cq = lid.tenant_id ? cq.or(`tenant_id.eq.${lid.tenant_id},tenant_id.is.null`) : cq.is("tenant_id", null);
+      const { data: byJid } = await cq.order("tenant_id", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
+      if (byJid) { target = await adoptLegacyGlobalConversation(admin, byJid, lid.tenant_id); reason = "alias_hit_by_jid"; }
       else if (phone) {
         let pq = admin.from("conversations")
-          .select("id, nao_lidas")
+          .select("id, tenant_id, nao_lidas")
           .eq("telefone", phone);
-        pq = lid.tenant_id ? pq.eq("tenant_id", lid.tenant_id) : pq.is("tenant_id", null);
-        const { data: byPhone } = await pq.maybeSingle();
-        if (byPhone) { target = byPhone; reason = "alias_hit_by_phone"; }
+        pq = lid.tenant_id ? pq.or(`tenant_id.eq.${lid.tenant_id},tenant_id.is.null`) : pq.is("tenant_id", null);
+        const { data: byPhone } = await pq.order("tenant_id", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
+        if (byPhone) { target = await adoptLegacyGlobalConversation(admin, byPhone, lid.tenant_id); reason = "alias_hit_by_phone"; }
       }
       if (!target) {
         // Rename in place using alias.
@@ -132,14 +159,14 @@ Deno.serve(async (req) => {
     // 2) Match por nome_contato (case-insensitive) no mesmo tenant.
     if (!target && lid.nome_contato && lid.nome_contato.length >= 2) {
       let nq = admin.from("conversations")
-        .select("id, nao_lidas, remote_jid")
+        .select("id, tenant_id, nao_lidas, remote_jid")
         .ilike("nome_contato", lid.nome_contato.trim())
         .neq("id", lid.id);
-      nq = lid.tenant_id ? nq.eq("tenant_id", lid.tenant_id) : nq.is("tenant_id", null);
+      nq = lid.tenant_id ? nq.or(`tenant_id.eq.${lid.tenant_id},tenant_id.is.null`) : nq.is("tenant_id", null);
       const { data: candidates } = await nq;
       const canonicals = (candidates ?? []).filter((c: any) => !c.remote_jid?.includes("@lid"));
       if (canonicals.length === 1) {
-        target = canonicals[0];
+        target = await adoptLegacyGlobalConversation(admin, canonicals[0], lid.tenant_id);
         reason = "pushname_unique_canonical";
       } else if (canonicals.length > 1) {
         if (!dryRun) {
@@ -154,6 +181,15 @@ Deno.serve(async (req) => {
     }
 
     if (target) {
+      if (!dryRun && lid.remote_jid?.includes("@lid") && target.remote_jid && !target.remote_jid.includes("@lid")) {
+        await admin.from("whatsapp_jid_aliases").upsert({
+          tenant_id: lid.tenant_id,
+          lid_jid: lid.remote_jid,
+          phone_jid: target.remote_jid,
+          updated_at: new Date().toISOString(),
+          last_seen_at: new Date().toISOString(),
+        }, { onConflict: "tenant_scope,lid_jid" });
+      }
       if (!dryRun) await mergeInto(admin, lid.id, target);
       bumpT(lid.tenant_id, "auto_merged");
       details.push({ id: lid.id, tenant_id: lid.tenant_id, action: "auto_merged", target_id: target.id, reason });
