@@ -550,8 +550,9 @@ Deno.serve(async (req) => {
             conv = await findConversation(tenantId, remoteJid, phone);
           }
 
-          // Auto-create lead (tenant scope, inbound only)
-          if (!fromMe && tenantId) {
+          // Auto-create lead (tenant scope, inbound only, skip while pending @lid
+          // because the "phone" is a lid id, not a real MSISDN).
+          if (!fromMe && tenantId && !isPendingLid) {
             try {
               const { data: existingLead } = await admin
                 .from("leads")
