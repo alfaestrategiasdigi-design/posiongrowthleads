@@ -227,7 +227,7 @@ function collectOwnJidsFromObject(value: any, instanceName: string): Set<string>
     const maybeInstance = String(node?.instanceName ?? node?.instance_name ?? node?.name ?? node?.instance?.instanceName ?? node?.instance?.instance_name ?? "").trim();
     const matchesThisInstance = Boolean(!instanceName || maybeInstance === instanceName);
     const hasExplicitOwnerField = ["ownerJid", "owner", "wuid", "profileId"].some((key) => node?.[key]);
-    if (matchesThisInstance && (maybeInstance || hasExplicitOwnerField || depth <= 2)) {
+    if (matchesThisInstance && (maybeInstance || hasExplicitOwnerField)) {
       const safeKeys = hasExplicitOwnerField || maybeInstance
         ? ["ownerJid", "owner", "wuid", "jid", "number", "phoneNumber", "phone", "profileId"]
         : ["ownerJid", "owner", "wuid", "jid", "profileId"];
@@ -241,10 +241,11 @@ function collectOwnJidsFromObject(value: any, instanceName: string): Set<string>
         const child = node?.[key];
         if (child && typeof child === "object") {
           const childInstance = String(child?.instanceName ?? child?.instance_name ?? child?.name ?? "").trim();
-          const childMatches = !instanceName || !childInstance || childInstance === instanceName;
+          const childMatches = !instanceName || childInstance === instanceName;
+          const childHasExplicitOwner = ["ownerJid", "owner", "wuid", "profileId"].some((inner) => child?.[inner]);
           const childKeys = childMatches && childInstance
             ? ["ownerJid", "owner", "wuid", "jid", "number", "phoneNumber", "phone", "id"]
-            : ["ownerJid", "owner", "wuid", "jid", "profileId"];
+            : (childHasExplicitOwner ? ["ownerJid", "owner", "wuid", "jid", "profileId"] : []);
           for (const inner of childKeys) {
             const raw = child?.[inner];
             const jid = normalizePhoneJid(raw);
