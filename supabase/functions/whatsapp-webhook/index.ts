@@ -217,7 +217,7 @@ function extractRootOwnJids(body: any, instanceName: string): Set<string> {
 function collectOwnJidsFromObject(value: any, instanceName: string): Set<string> {
   const own = new Set<string>();
   const seen = new Set<any>();
-  const visit = (node: any, parentKey = "", depth = 0) => {
+  const visit = (node: any, depth = 0) => {
     if (!node || depth > 5) return;
     if (typeof node !== "object") return;
     if (seen.has(node)) return;
@@ -246,12 +246,12 @@ function collectOwnJidsFromObject(value: any, instanceName: string): Set<string>
     }
 
     if (Array.isArray(node)) {
-      for (const item of node) visit(item, parentKey, depth + 1);
+      for (const item of node) visit(item, depth + 1);
       return;
     }
     for (const [key, child] of Object.entries(node)) {
       if (["contacts", "chats", "messages"].includes(key)) continue;
-      visit(child, key, depth + 1);
+      visit(child, depth + 1);
     }
   };
   visit(value);
