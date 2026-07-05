@@ -116,7 +116,9 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       : (tenantId ? query.eq("tenant_id", tenantId) : query.is("tenant_id", null));
     const { data, error } = await query.order("ultima_interacao", { ascending: false });
     if (error) toast.error("Falha ao carregar conversas", { description: error.message });
-    setConversations((data as Conversation[]) || []);
+    const list = (data as Conversation[]) || [];
+    setConversations(list);
+    setLidPendingCount(list.filter((c: any) => (c as any).needs_lid_review === true).length);
     setLoading(false);
   }, [tenantId, masterMode]);
 
