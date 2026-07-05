@@ -13,6 +13,7 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+const ownJidCache = new Map<string, { expiresAt: number; jids: string[] }>();
 
 function normalizeBase(raw: string): string {
   if (!raw) return raw;
@@ -261,6 +262,9 @@ function collectOwnJidsFromObject(value: any, instanceName: string): Set<string>
 async function fetchInstanceOwnJids(conn: any, instanceName: string): Promise<Set<string>> {
   const own = new Set<string>();
   if (!conn?.instance_url || !conn?.api_key || !instanceName) return own;
+  const cacheKey = `${normalizeBase(conn.instance_url)}::${instanceName}`;
+  const cached = ownJidCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return new Set(cached.jids);
   const base = normalizeBase(conn.instance_url);
   const attempts = [
     { method: "GET", url: `${base}/instance/connectionState/${encodeURIComponent(instanceName)}` },
@@ -285,6 +289,7 @@ async function fetchInstanceOwnJids(conn: any, instanceName: string): Promise<Se
       // non-fatal; webhook routing still uses payload-level candidates.
     }
   }
+  if (own.size > 0) ownJidCache.set(cacheKey, { expiresAt: Date.now() + 5 * 60 * 1000, jids: Array.from(own) });
   return own;
 }
 
