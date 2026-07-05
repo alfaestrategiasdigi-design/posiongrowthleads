@@ -27,6 +27,7 @@ import { format, isToday, isThisWeek, differenceInCalendarDays } from "date-fns"
 import { ptBR } from "date-fns/locale";
 import type { Conversation, Message } from "@/types/admin";
 import ContactAvatar from "@/components/admin/whatsapp/ContactAvatar";
+import { LidReviewDialog } from "@/components/admin/whatsapp/LidReviewDialog";
 
 const PROJECT_REF = "mbhbflbuawkmtmpjazcj";
 const BASE_WEBHOOK_URL = `https://${PROJECT_REF}.supabase.co/functions/v1/whatsapp-webhook`;
@@ -70,6 +71,8 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const [allTags, setAllTags] = useState<TagRow[]>([]);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [onlyWithLead, setOnlyWithLead] = useState(false);
+  const [lidReviewOpen, setLidReviewOpen] = useState(false);
+  const [lidPendingCount, setLidPendingCount] = useState(0);
   const [leadPanelId, setLeadPanelId] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
 
