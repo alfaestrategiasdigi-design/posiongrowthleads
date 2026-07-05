@@ -3,6 +3,8 @@
 // contacts.update / contacts.upsert (pushName + profilePicUrl). Mídia (image/audio/video/document)
 // é baixada via getBase64FromMediaMessage e salva em storage whatsapp-media.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { decideAliasFromSameKey, extractRawKeySnapshot } from "./routing.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
