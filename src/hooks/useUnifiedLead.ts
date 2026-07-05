@@ -134,14 +134,31 @@ export function useUnifiedLead(source: LeadSource | null, id: string | null) {
     if (!source || !id) return;
     setLoading(true);
     const table = source === "lead" ? "leads" : "agency_leads";
-    const { data: row, error } = await supabase.from(table).select("*").eq("id", id).maybeSingle();
+
+    // No contexto do tenant (/app/...), filtramos no backend os campos de
+    // prospecção B2B para evitar expô-los via network/devtools ao dono da clínica.
+    const isTenantContext =
+      typeof window !== "undefined" && window.location.pathname.startsWith("/app/");
+    const TENANT_LEAD_COLUMNS = [
+      "id","tenant_id","created_at","status","origem",
+      "nome_completo","whatsapp","email","cidade_estado",
+      "observacoes","valor_proposta","tipo_purchase",
+      "sdr_qualification","form_data",
+      "facebook_form_id","facebook_form_name","facebook_campaign",
+      "utm_source","utm_medium","utm_campaign",
+      "mql","sql_qualified",
+      "reuniao_agendada_em","reuniao_realizada_em","proposta_enviada_em","fechado_em","motivo_perda",
+    ].join(",");
+    const selectCols = isTenantContext && source === "lead" ? TENANT_LEAD_COLUMNS : "*";
+
+    const { data: row, error } = await supabase.from(table).select(selectCols).eq("id", id).maybeSingle();
     if (!error && row) {
       let view = normalize(source, row);
       // For agency_leads with a linked form lead, fetch it and merge form-side data
       if (source === "agency_lead" && (row as any).source_lead_id) {
         const { data: formRow } = await supabase
           .from("leads")
-          .select("*")
+          .select(isTenantContext ? TENANT_LEAD_COLUMNS : "*")
           .eq("id", (row as any).source_lead_id)
           .maybeSingle();
         view = mergeFormLead(view, formRow);
