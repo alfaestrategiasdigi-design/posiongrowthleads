@@ -964,7 +964,14 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                               ))}
                             </PopoverContent>
                           </Popover>
+                          <button
+                            onClick={() => setReassignMessage(msg)}
+                            title="Mover para outra conversa"
+                            className="p-1 rounded-full bg-background/90 border border-border hover:bg-muted">
+                            <Move className="w-3.5 h-3.5" />
+                          </button>
                         </div>
+
                       )}
                     </div>
                   </div>
