@@ -54,6 +54,71 @@ function firstLidJid(candidates: unknown[]): string | null {
   return null;
 }
 
+function eventKey(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase().replace(/[_.-]+/g, ".");
+}
+
+function eventMatches(event: string, ...names: string[]): boolean {
+  const normalized = eventKey(event);
+  return names.some((name) => {
+    const target = eventKey(name);
+    return normalized === target || normalized.includes(target);
+  });
+}
+
+function asArrayPayload(data: any): any[] {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.messages)) return data.messages;
+  if (Array.isArray(data?.message)) return data.message;
+  if (Array.isArray(data?.data)) return data.data;
+  return data ? [data] : [];
+}
+
+function unwrapMessagePayload(row: any): any {
+  // Evolution can deliver SEND_MESSAGE/MESSAGES_SET as either:
+  // { key, message: { conversation } } or { message: { key, message: { conversation } } }.
+  // Always return the actual WhatsApp content object, not the envelope.
+  return row?.message?.message ?? row?.message ?? row;
+}
+
+function extractPushName(row: any): string {
+  return String(
+    row?.pushName
+      ?? row?.notifyName
+      ?? row?.name
+      ?? row?.message?.pushName
+      ?? row?.message?.notifyName
+      ?? row?.message?.name
+      ?? "",
+  ).trim();
+}
+
+function extractMessageCreatedAt(row: any): string {
+  const raw = row?.messageTimestamp
+    ?? row?.timestamp
+    ?? row?.createdAt
+    ?? row?.message?.messageTimestamp
+    ?? row?.message?.timestamp
+    ?? row?.message?.createdAt
+    ?? row?.message?.message?.messageTimestamp;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    const ms = raw > 10_000_000_000 ? raw : raw * 1000;
+    const d = new Date(ms);
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    const numeric = Number(raw);
+    if (Number.isFinite(numeric)) {
+      const ms = numeric > 10_000_000_000 ? numeric : numeric * 1000;
+      const d = new Date(ms);
+      if (!Number.isNaN(d.getTime())) return d.toISOString();
+    }
+    const d = new Date(raw);
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+  return new Date().toISOString();
+}
+
 async function upsertJidAlias(tenantId: string | null, instanceName: string | null, lidJid: string | null, phoneJid: string | null) {
   if (!lidJid?.includes("@lid") || !phoneJid || phoneJid.includes("@lid")) return;
   try {
@@ -256,14 +321,14 @@ async function resolveRemoteJid(message: any, key: any, tenantId: string | null,
 
 async function findConversation(tenantId: string | null, remoteJid: string, phone: string) {
   let byJid = admin.from("conversations")
-    .select("id, tenant_id, nao_lidas, remote_jid, telefone")
+    .select("id, tenant_id, nao_lidas, remote_jid, telefone, ultima_interacao")
     .eq("remote_jid", remoteJid);
   byJid = tenantId ? byJid.or(`tenant_id.eq.${tenantId},tenant_id.is.null`) : byJid.is("tenant_id", null);
   const jidResult = await byJid.order("tenant_id", { ascending: false, nullsFirst: false }).order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
   if (jidResult.data) return await adoptLegacyGlobalConversation(jidResult.data, tenantId);
 
   let byPhone = admin.from("conversations")
-    .select("id, tenant_id, nao_lidas, remote_jid, telefone")
+    .select("id, tenant_id, nao_lidas, remote_jid, telefone, ultima_interacao")
     .eq("telefone", phone);
   byPhone = tenantId ? byPhone.or(`tenant_id.eq.${tenantId},tenant_id.is.null`) : byPhone.is("tenant_id", null);
   const phoneResult = await byPhone.order("tenant_id", { ascending: false, nullsFirst: false }).order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
@@ -375,7 +440,7 @@ Deno.serve(async (req) => {
     const tenantId = conn?.tenant_id ?? null;
 
     // Connection state
-    if (event.includes("connection.update") || body?.data?.state) {
+    if (eventMatches(event, "connection.update") || body?.data?.state) {
       const state = body?.data?.state ?? body?.state;
       const status = state === "open" ? "connected" : state === "connecting" ? "connecting" : "disconnected";
       if (instanceName) {
@@ -388,7 +453,7 @@ Deno.serve(async (req) => {
     }
 
     // Contacts update -> pushName + profile pic
-    if (event.includes("contacts.")) {
+    if (eventMatches(event, "contacts.update", "contacts.upsert", "contacts.set")) {
       const contacts: any[] = Array.isArray(body?.data) ? body.data : [body?.data].filter(Boolean);
       for (const c of contacts) {
         const contactCandidates = [c?.remoteJidAlt, c?.remoteJid_alt, c?.jidAlt, c?.idAlt, c?.remoteJid, c?.id];
@@ -406,7 +471,7 @@ Deno.serve(async (req) => {
     }
 
     // Message status updates (sent/delivered/read)
-    if (event.includes("messages.update")) {
+    if (eventMatches(event, "messages.update", "send.message.update")) {
       const arr: any[] = Array.isArray(body?.data) ? body.data : [body?.data].filter(Boolean);
       for (const u of arr) {
         const wamid = u?.key?.id ?? u?.id;
@@ -419,7 +484,7 @@ Deno.serve(async (req) => {
     }
 
     // Message DELETE (revoked)
-    if (event.includes("messages.delete") || event === "message.delete") {
+    if (eventMatches(event, "messages.delete", "message.delete")) {
       const arr: any[] = Array.isArray(body?.data) ? body.data : [body?.data].filter(Boolean);
       for (const u of arr) {
         const wamid = u?.key?.id ?? u?.id;
@@ -432,7 +497,7 @@ Deno.serve(async (req) => {
     }
 
     // Message EDITED
-    if (event.includes("messages.edited") || event === "message.edited") {
+    if (eventMatches(event, "messages.edited", "message.edited")) {
       const arr: any[] = Array.isArray(body?.data) ? body.data : [body?.data].filter(Boolean);
       for (const u of arr) {
         const wamid = u?.key?.id ?? u?.id;
@@ -448,7 +513,7 @@ Deno.serve(async (req) => {
     }
 
     // REACTIONS
-    if (event.includes("messages.reaction") || event === "message.reaction") {
+    if (eventMatches(event, "messages.reaction", "message.reaction")) {
       const arr: any[] = Array.isArray(body?.data) ? body.data : [body?.data].filter(Boolean);
       for (const r of arr) {
         const targetWamid = r?.reaction?.key?.id ?? r?.message?.reactionMessage?.key?.id ?? r?.key?.id;
@@ -479,17 +544,14 @@ Deno.serve(async (req) => {
 
     // Messages upsert (includes SEND_MESSAGE for outbound echoes from other devices)
     if (
-      event.includes("messages.upsert") ||
-      event.includes("send.message") ||
-      event === "send_message" ||
+      eventMatches(event, "messages.upsert", "messages.set", "send.message") ||
       (!event && body?.data)
     ) {
-      const messagesArr: any[] = Array.isArray(body?.data) ? body.data
-        : Array.isArray(body?.data?.messages) ? body.data.messages
-        : body?.data ? [body.data] : [];
+      const messagesArr: any[] = asArrayPayload(body?.data);
+      const isHistorySet = eventMatches(event, "messages.set");
 
       for (const m of messagesArr) {
-        const key = m?.key ?? m?.message?.key ?? {};
+        const key = m?.key ?? m?.message?.key ?? m?.message?.message?.key ?? {};
         const wamid: string | null = key?.id ?? m?.id ?? null;
         const resolved = await resolveRemoteJid(m, key, tenantId, instanceName || null);
         const rawRemoteJid = resolved.rawRemoteJid;
@@ -506,7 +568,7 @@ Deno.serve(async (req) => {
         }
         let remoteJid = effectiveJid;
         let isPendingLid = resolved.unresolvedLid || remoteJid.includes("@lid");
-        const pushName: string = m?.pushName ?? m?.notifyName ?? "";
+        const pushName: string = extractPushName(m);
 
         // Root-cause hardening #1: if this arrived as @lid, try to route it into
         // an existing canonical conversation by pushName BEFORE creating a new
@@ -521,7 +583,7 @@ Deno.serve(async (req) => {
         if (isPendingLid) {
           console.log("[whatsapp-webhook] pending_lid_stored", { wamid, rawRemoteJid, fromMe, pushName });
         }
-        const msgObj = m?.message ?? m;
+        const msgObj = unwrapMessagePayload(m);
 
         // Detect message type (broad coverage)
         const stickerMsg = msgObj?.stickerMessage;
@@ -648,6 +710,9 @@ Deno.serve(async (req) => {
             : tipo === "location" ? "📍 Localização"
             : tipo === "contact" ? "👤 Contato"
             : `[${tipo}]`);
+        const messageCreatedAt = extractMessageCreatedAt(m);
+        const shouldUpdateConversationPreview = !conv?.ultima_interacao
+          || new Date(messageCreatedAt).getTime() >= new Date(conv.ultima_interacao).getTime();
 
         if (!conv) {
           const ins = await admin.from("conversations").insert({
@@ -657,8 +722,8 @@ Deno.serve(async (req) => {
             nome_contato: pushName || phone,
             provider: "evolution",
             ultima_mensagem: preview,
-            ultima_interacao: new Date().toISOString(),
-            nao_lidas: fromMe ? 0 : 1,
+            ultima_interacao: messageCreatedAt,
+            nao_lidas: fromMe || isHistorySet ? 0 : 1,
             needs_lid_review: isPendingLid,
             lid_review_notes: isPendingLid ? "unresolved @lid — pushName sem correspondente único no tenant" : null,
           }).select("id, nao_lidas, remote_jid, telefone").maybeSingle();
@@ -688,9 +753,11 @@ Deno.serve(async (req) => {
           }
         } else {
           await admin.from("conversations").update({
-            ultima_mensagem: preview,
-            ultima_interacao: new Date().toISOString(),
-            nao_lidas: fromMe ? conv.nao_lidas : (conv.nao_lidas ?? 0) + 1,
+            ...(shouldUpdateConversationPreview ? {
+              ultima_mensagem: preview,
+              ultima_interacao: messageCreatedAt,
+            } : {}),
+            nao_lidas: fromMe || isHistorySet ? conv.nao_lidas : (conv.nao_lidas ?? 0) + 1,
             telefone: phone,
             remote_jid: remoteJid,
             nome_contato: pushName || undefined,
@@ -752,6 +819,7 @@ Deno.serve(async (req) => {
           location: locationJson,
           contact_card: contactJson,
           tenant_id: tenantId,
+          created_at: messageCreatedAt,
           metadata: isPendingLid
             ? { pending_lid_resolution: true, raw_lid: rawRemoteJid }
             : {},

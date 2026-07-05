@@ -146,7 +146,7 @@ async function buildWebhookUrl(admin: any, tenantId: string | null): Promise<str
 async function configureWebhook(base: string, apiKey: string, instanceName: string, webhookUrl: string): Promise<void> {
   // Full coverage: inbound + outbound (from any device), status, contacts, deletes, edits, presence.
   const events = [
-    "MESSAGES_UPSERT", "MESSAGES_UPDATE", "MESSAGES_DELETE", "MESSAGES_EDITED",
+    "MESSAGES_UPSERT", "MESSAGES_SET", "MESSAGES_UPDATE", "MESSAGES_DELETE", "MESSAGES_EDITED",
     "SEND_MESSAGE", "SEND_MESSAGE_UPDATE",
     "CONTACTS_UPDATE", "CONTACTS_UPSERT",
     "CHATS_UPSERT", "CHATS_UPDATE", "CHATS_DELETE",
