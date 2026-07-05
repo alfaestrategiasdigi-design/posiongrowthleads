@@ -28,6 +28,9 @@ import { ptBR } from "date-fns/locale";
 import type { Conversation, Message } from "@/types/admin";
 import ContactAvatar from "@/components/admin/whatsapp/ContactAvatar";
 import { LidReviewDialog } from "@/components/admin/whatsapp/LidReviewDialog";
+import { ReassignMessageDialog } from "@/components/admin/whatsapp/ReassignMessageDialog";
+import { Move } from "lucide-react";
+
 
 const PROJECT_REF = "mbhbflbuawkmtmpjazcj";
 const BASE_WEBHOOK_URL = `https://${PROJECT_REF}.supabase.co/functions/v1/whatsapp-webhook`;
