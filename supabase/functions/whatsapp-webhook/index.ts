@@ -408,15 +408,23 @@ Deno.serve(async (req) => {
       for (const m of messagesArr) {
         const key = m?.key ?? m?.message?.key ?? {};
         const wamid: string | null = key?.id ?? m?.id ?? null;
-        const { remoteJid, rawRemoteJid, unresolvedLid } = await resolveRemoteJid(m, key, tenantId, instanceName || null);
+        const resolved = await resolveRemoteJid(m, key, tenantId, instanceName || null);
+        const rawRemoteJid = resolved.rawRemoteJid;
         if (rawRemoteJid?.endsWith("@g.us") || rawRemoteJid?.endsWith("@broadcast")) continue;
         const fromMe: boolean = Boolean(key?.fromMe ?? m?.fromMe);
-        // Nunca cria conversa com @lid: LID é um identificador temporário do multi-device
-        // e causa uma conversa nova por mensagem/dispositivo. Quando a Evolution envia
-        // remoteJidAlt usamos o JID real; sem isso, descartamos para não duplicar o inbox.
-        if (!remoteJid || unresolvedLid) {
-          console.warn("[whatsapp-webhook] unresolved_lid_dropped", { wamid, rawRemoteJid, fromMe });
+        // Never drop by unresolved @lid: if the alias is not yet known, keep the
+        // raw @lid as a provisional remote_jid and flag the message. When the
+        // alias arrives later (contacts.* event) mergeProvisionalLidConversations
+        // migrates the conversation/messages to the canonical phone JID.
+        const effectiveJid = resolved.remoteJid ?? rawRemoteJid;
+        if (!effectiveJid) {
+          console.warn("[whatsapp-webhook] no_jid_dropped", { wamid, fromMe });
           continue;
+        }
+        const remoteJid = effectiveJid;
+        const isPendingLid = resolved.unresolvedLid || remoteJid.includes("@lid");
+        if (isPendingLid) {
+          console.log("[whatsapp-webhook] pending_lid_stored", { wamid, rawRemoteJid, fromMe });
         }
         const pushName: string = m?.pushName ?? m?.notifyName ?? "";
         const msgObj = m?.message ?? m;
