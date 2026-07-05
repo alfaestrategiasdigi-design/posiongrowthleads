@@ -5,8 +5,9 @@ import {
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard, MessageCircle, Kanban, Users, DollarSign, Calendar, Settings,
-  Building2, Zap, Sparkles, Package, UserSearch, Megaphone,
+  Building2, Zap, Sparkles, Package, UserSearch, Megaphone, PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { Tenant } from "@/hooks/useTenant";
 import posionLogo from "@/assets/posion/logo-posion.png.asset.json";
 
@@ -15,7 +16,7 @@ interface Props { tenant: Tenant; isSuperAdmin: boolean; tenantRole?: string | n
 const COMERCIAL_ROLES = new Set(["comercial_tenant", "vendedor", "recepcao", "viewer"]);
 
 export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Props) {
-  const { state } = useSidebar();
+  const { state, toggleSidebar } = useSidebar();
   const collapsed = state === "collapsed";
   const { pathname } = useLocation();
   const base = `/app/${tenant.slug}`;
@@ -52,7 +53,33 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
                 <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mt-0.5">{tenant.plan}</div>
               </div>
             )}
+            {!collapsed && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={toggleSidebar}
+                aria-label="Recolher menu lateral"
+                title="Recolher menu"
+                className="ml-auto h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+              >
+                <PanelLeftClose className="h-4 w-4" />
+              </Button>
+            )}
           </div>
+          {collapsed && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={toggleSidebar}
+              aria-label="Expandir menu lateral"
+              title="Expandir menu"
+              className="mt-3 h-8 w-8 mx-auto text-muted-foreground hover:text-foreground"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         <SidebarGroup>
           <SidebarGroupLabel className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/70">Operação</SidebarGroupLabel>
