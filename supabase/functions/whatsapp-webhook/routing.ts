@@ -156,3 +156,57 @@ export function resolveOutboundRecipientPure(
     blockedSelfJid: false,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Alias-creation policy (hardening after 2026-07-05 Lucas incident).
+//
+// Rule: a (@lid, phone) alias may only be persisted when BOTH sides come
+// from the SAME key object in the webhook payload. Cross-field candidates
+// (e.g. @lid in remoteJid + phone in participantAlt of a different message)
+// are ambiguous and were the root cause of multiple @lids being wrongly
+// glued onto the same contact.
+// ---------------------------------------------------------------------------
+export type AliasPairDecision =
+  | { ok: true; lidJid: string; phoneJid: string }
+  | { ok: false; reason: string };
+
+export function decideAliasFromSameKey(key: any): AliasPairDecision {
+  if (!key || typeof key !== "object") return { ok: false, reason: "no_key" };
+  const remote = normalizePhoneJid(key.remoteJid);
+  const alt = normalizePhoneJid(key.remoteJidAlt ?? key.remoteJid_alt);
+  const senderPn = normalizePhoneJid(key.senderPn ?? key.sender_pn);
+  const participant = normalizePhoneJid(key.participant);
+  const participantAlt = normalizePhoneJid(key.participantAlt ?? key.participant_alt);
+
+  const isLid = (j: string | null) => Boolean(j?.includes("@lid"));
+  const isPhone = (j: string | null) => Boolean(j && !j.includes("@lid"));
+
+  const pairs: Array<[string | null, string | null]> = [
+    [remote, alt],
+    [alt, remote],
+    [remote, senderPn],
+    [participant, participantAlt],
+    [participantAlt, participant],
+  ];
+  for (const [a, b] of pairs) {
+    if (isLid(a) && isPhone(b)) return { ok: true, lidJid: a as string, phoneJid: b as string };
+  }
+  return { ok: false, reason: "no_same_key_pair" };
+}
+
+// Snapshot of raw key fields persisted on every stored message so
+// misclassifications can be audited without depending on Evolution logs.
+export function extractRawKeySnapshot(key: any, message: any, fromMe: boolean) {
+  const safe = (v: unknown) => (v === undefined || v === null ? null : String(v));
+  return {
+    fromMe: Boolean(fromMe),
+    remoteJid: safe(key?.remoteJid ?? message?.remoteJid),
+    remoteJidAlt: safe(key?.remoteJidAlt ?? key?.remoteJid_alt),
+    participant: safe(key?.participant ?? message?.participant),
+    participantAlt: safe(key?.participantAlt ?? key?.participant_alt),
+    senderPn: safe(key?.senderPn ?? key?.sender_pn),
+    id: safe(key?.id ?? message?.id),
+    pushName: safe(message?.pushName ?? message?.push_name),
+  };
+}
+

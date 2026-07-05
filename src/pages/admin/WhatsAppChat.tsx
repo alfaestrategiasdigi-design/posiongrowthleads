@@ -28,6 +28,9 @@ import { ptBR } from "date-fns/locale";
 import type { Conversation, Message } from "@/types/admin";
 import ContactAvatar from "@/components/admin/whatsapp/ContactAvatar";
 import { LidReviewDialog } from "@/components/admin/whatsapp/LidReviewDialog";
+import { ReassignMessageDialog } from "@/components/admin/whatsapp/ReassignMessageDialog";
+import { Move } from "lucide-react";
+
 
 const PROJECT_REF = "mbhbflbuawkmtmpjazcj";
 const BASE_WEBHOOK_URL = `https://${PROJECT_REF}.supabase.co/functions/v1/whatsapp-webhook`;
@@ -75,6 +78,8 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const [lidPendingCount, setLidPendingCount] = useState(0);
   const [leadPanelId, setLeadPanelId] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [reassignMessage, setReassignMessage] = useState<Message | null>(null);
+
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -882,7 +887,20 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             </div>
           </div>
 
+          {(selectedConversation as any)?.needs_lid_review && (
+            <div className="px-4 py-2 border-b border-amber-500/40 bg-amber-500/10 text-amber-200 text-[11px] flex items-start gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <div className="font-semibold">Possível mistura de mensagens de outro contato</div>
+                <div className="text-amber-200/80">
+                  {(selectedConversation as any)?.lid_review_notes || "Revise as mensagens deste intervalo manualmente antes de responder. Use o botão \u201cMover\u201d na mensagem para reatribuí-la à conversa correta."}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#050816]/60">
+
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
@@ -946,7 +964,14 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                               ))}
                             </PopoverContent>
                           </Popover>
+                          <button
+                            onClick={() => setReassignMessage(msg)}
+                            title="Mover para outra conversa"
+                            className="p-1 rounded-full bg-background/90 border border-border hover:bg-muted">
+                            <Move className="w-3.5 h-3.5" />
+                          </button>
                         </div>
+
                       )}
                     </div>
                   </div>
@@ -1211,6 +1236,16 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
         tenantId={masterMode ? null : (tenantId ?? null)}
         onDone={loadConversations}
       />
+
+      <ReassignMessageDialog
+        open={!!reassignMessage}
+        onClose={() => setReassignMessage(null)}
+        message={reassignMessage as any}
+        currentConversationId={selectedConversation?.id || ""}
+        tenantId={masterMode ? null : (tenantId ?? null)}
+        onMoved={() => { if (selectedConversation) loadMessages(selectedConversation.id); }}
+      />
+
     </div>
   );
 

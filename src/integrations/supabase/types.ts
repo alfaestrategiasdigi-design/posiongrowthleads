@@ -3361,6 +3361,8 @@ export type Database = {
           last_seen_at: string
           lid_jid: string
           phone_jid: string
+          quarantine_reason: string | null
+          quarantined_at: string | null
           tenant_id: string | null
           tenant_scope: string | null
           updated_at: string
@@ -3372,6 +3374,8 @@ export type Database = {
           last_seen_at?: string
           lid_jid: string
           phone_jid: string
+          quarantine_reason?: string | null
+          quarantined_at?: string | null
           tenant_id?: string | null
           tenant_scope?: string | null
           updated_at?: string
@@ -3383,6 +3387,8 @@ export type Database = {
           last_seen_at?: string
           lid_jid?: string
           phone_jid?: string
+          quarantine_reason?: string | null
+          quarantined_at?: string | null
           tenant_id?: string | null
           tenant_scope?: string | null
           updated_at?: string

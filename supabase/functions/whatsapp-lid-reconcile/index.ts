@@ -105,9 +105,10 @@ Deno.serve(async (req) => {
   for (const lid of lidConvs ?? []) {
     bumpT(lid.tenant_id, "found");
 
-    // 1) Alias já conhecido?
+    // 1) Alias já conhecido? (quarentena é ignorada)
     let aliasQ = admin.from("whatsapp_jid_aliases")
-      .select("phone_jid").eq("lid_jid", lid.remote_jid);
+      .select("phone_jid").eq("lid_jid", lid.remote_jid)
+      .is("quarantined_at", null);
     aliasQ = lid.tenant_id ? aliasQ.eq("tenant_id", lid.tenant_id) : aliasQ.is("tenant_id", null);
     let { data: alias } = await aliasQ.maybeSingle();
     if (!alias?.phone_jid && lid.tenant_id) {
@@ -115,11 +116,13 @@ Deno.serve(async (req) => {
         .select("phone_jid")
         .eq("lid_jid", lid.remote_jid)
         .is("tenant_id", null)
+        .is("quarantined_at", null)
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       alias = globalAlias;
     }
+
 
     let target: any = null;
     let reason = "";

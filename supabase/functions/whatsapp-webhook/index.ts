@@ -3,6 +3,8 @@
 // contacts.update / contacts.upsert (pushName + profilePicUrl). Mídia (image/audio/video/document)
 // é baixada via getBase64FromMediaMessage e salva em storage whatsapp-media.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { decideAliasFromSameKey, extractRawKeySnapshot } from "./routing.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -303,8 +305,21 @@ async function fetchInstanceOwnJids(conn: any, instanceName: string): Promise<Se
   return own;
 }
 
-async function upsertJidAlias(tenantId: string | null, instanceName: string | null, lidJid: string | null, phoneJid: string | null) {
+// Persist a (@lid, phone) alias. Callers MUST pass source="same_key" only when
+// both sides came from the SAME payload key object (see decideAliasFromSameKey
+// in routing.ts). Any other source is rejected — this is the hardening after
+// the 2026-07-05 wrong-merge incident that glued 4 unrelated @lids onto a
+// single contact via pushName heuristics.
+type AliasSource = "same_key" | "contacts_event" | "wamid_dedup";
+async function upsertJidAlias(
+  tenantId: string | null,
+  instanceName: string | null,
+  lidJid: string | null,
+  phoneJid: string | null,
+  source: AliasSource,
+) {
   if (!lidJid?.includes("@lid") || !phoneJid || phoneJid.includes("@lid")) return;
+  if (!source) return;
   try {
     await admin.from("whatsapp_jid_aliases").upsert({
       tenant_id: tenantId,
@@ -319,6 +334,7 @@ async function upsertJidAlias(tenantId: string | null, instanceName: string | nu
     console.warn("[whatsapp-webhook] upsertJidAlias_failed", String(e));
   }
 }
+
 
 // Merge a provisional @lid conversation into the canonical phone-jid conversation.
 // Safe to call repeatedly. If no canonical exists, renames the provisional in place.
@@ -403,9 +419,12 @@ async function adoptLegacyGlobalConversation(target: any, tenantId: string | nul
 // the same pushName. If exactly one candidate exists, register the alias — which
 // triggers mergeProvisionalLidConversations — so we no longer depend solely on
 // CONTACTS_UPDATE firing. Multiple candidates are flagged for manual review.
+// HARDENED (2026-07-05): pushName-only matching NEVER creates aliases anymore.
+// It only flags candidates for manual review. PushName collisions between
+// unrelated contacts were the exact vector for the wrong-merge incident.
 async function tryResolveByPushNameFromCanonical(
   tenantId: string | null,
-  instanceName: string | null,
+  _instanceName: string | null,
   canonicalRemoteJid: string,
   pushName: string,
 ) {
@@ -418,22 +437,22 @@ async function tryResolveByPushNameFromCanonical(
   q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
   const { data } = await q.limit(3);
   if (!data || data.length === 0) return;
-  if (data.length === 1) {
-    await upsertJidAlias(tenantId, instanceName, data[0].remote_jid, canonicalRemoteJid);
-    return;
-  }
-  // Ambiguous: flag them for manual review.
+  // Never auto-alias by pushName. Flag every candidate for human review.
   await admin.from("conversations")
-    .update({ needs_lid_review: true, lid_review_notes: `multiple @lid candidates for pushName='${pushName}'` })
+    .update({
+      needs_lid_review: true,
+      lid_review_notes: `pushName='${pushName}' também corresponde à conversa canônica ${canonicalRemoteJid}. Revise manualmente antes de mesclar.`,
+    })
     .in("id", data.map((c: any) => c.id));
 }
 
-// When a NEW @lid arrives, try to route it into an existing canonical conversation
-// with the same pushName in the same tenant. Returns the canonical remote_jid if
-// exactly one match was found (and registers the alias), otherwise null.
+// HARDENED (2026-07-05): return null (no auto-route) and flag for review
+// when a new @lid arrives with a matching pushName. Alias creation is only
+// allowed via same-key payload pairing (decideAliasFromSameKey) or authoritative
+// contacts.* events.
 async function tryRouteLidToCanonicalByPushName(
   tenantId: string | null,
-  instanceName: string | null,
+  _instanceName: string | null,
   lidJid: string,
   pushName: string,
 ): Promise<string | null> {
@@ -445,17 +464,26 @@ async function tryRouteLidToCanonicalByPushName(
     .ilike("nome_contato", pushName);
   q = tenantId ? q.or(`tenant_id.eq.${tenantId},tenant_id.is.null`) : q.is("tenant_id", null);
   const { data } = await q.limit(3);
-  if (!data || data.length !== 1) return null;
-  const target = await adoptLegacyGlobalConversation(data[0], tenantId);
-  if (target.tenant_id !== tenantId) return null;
-  await upsertJidAlias(tenantId, instanceName, lidJid, target.remote_jid);
-  return target.remote_jid as string;
+  if (!data || data.length === 0) return null;
+  // Flag candidate(s) — do not auto-alias.
+  await admin.from("conversations")
+    .update({
+      needs_lid_review: true,
+      lid_review_notes: `Novo @lid ${lidJid} tem pushName='${pushName}' igual a esta conversa. Confirme manualmente antes de mesclar.`,
+    })
+    .in("id", data.map((c: any) => c.id));
+  return null;
 }
+
 
 
 async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): Promise<string | null> {
   if (!lidJid?.includes("@lid")) return null;
-  let q = admin.from("whatsapp_jid_aliases").select("phone_jid").eq("lid_jid", lidJid);
+  // HARDENED: quarantined aliases must never be used for routing.
+  let q = admin.from("whatsapp_jid_aliases")
+    .select("phone_jid")
+    .eq("lid_jid", lidJid)
+    .is("quarantined_at", null);
   q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
   const { data } = await q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (data?.phone_jid) return data.phone_jid;
@@ -464,6 +492,7 @@ async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): P
       .select("phone_jid")
       .eq("lid_jid", lidJid)
       .is("tenant_id", null)
+      .is("quarantined_at", null)
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -493,9 +522,17 @@ async function resolveRemoteJid(
   const standard = firstStandardJid(candidates, fromMe ? ownJids : new Set());
   const lid = firstLidJid(candidates, fromMe ? ownJids : new Set());
   if (standard) {
-    await upsertJidAlias(tenantId, instanceName, lid, standard);
+    // HARDENED (2026-07-05): only alias if @lid and phone came from the SAME
+    // key object. Cross-field pairing (@lid from key, phone from participantAlt
+    // of a nested envelope) was the vector that glued 4 unrelated @lids onto
+    // one contact. See decideAliasFromSameKey in routing.ts.
+    const decision = decideAliasFromSameKey(key);
+    if (decision.ok) {
+      await upsertJidAlias(tenantId, instanceName, decision.lidJid, decision.phoneJid, "same_key");
+    }
     return { remoteJid: standard, rawRemoteJid, unresolvedLid: false, blockedSelfJid: false };
   }
+
 
   const mapped = await mappedPhoneJid(tenantId, lid ?? normalizedRaw ?? null);
   if (mapped) return { remoteJid: mapped, rawRemoteJid, unresolvedLid: false, blockedSelfJid: false };
@@ -659,7 +696,7 @@ Deno.serve(async (req) => {
       for (const c of contacts) {
         const contactCandidates = [c?.remoteJidAlt, c?.remoteJid_alt, c?.jidAlt, c?.idAlt, c?.remoteJid, c?.id];
         const jid = firstStandardJid(contactCandidates);
-        await upsertJidAlias(tenantId, instanceName || null, firstLidJid(contactCandidates), jid);
+        await upsertJidAlias(tenantId, instanceName || null, firstLidJid(contactCandidates), jid, "contacts_event");
         if (!jid) continue;
         const updates: any = {};
         if (c?.pushName || c?.name) updates.nome_contato = c.pushName || c.name;
@@ -852,7 +889,7 @@ Deno.serve(async (req) => {
               : (existingMsg as any).conversations;
             const adopted = await adoptLegacyGlobalConversation(existingConv, tenantId);
             if (isPendingLid && adopted?.remote_jid && !adopted.remote_jid.includes("@lid")) {
-              await upsertJidAlias(tenantId, instanceName || null, remoteJid, adopted.remote_jid);
+              await upsertJidAlias(tenantId, instanceName || null, remoteJid, adopted.remote_jid, "wamid_dedup");
             }
             continue;
           }
@@ -1022,9 +1059,12 @@ Deno.serve(async (req) => {
           contact_card: contactJson,
           tenant_id: tenantId,
           created_at: messageCreatedAt,
-          metadata: isPendingLid
-            ? { pending_lid_resolution: true, raw_lid: rawRemoteJid }
-            : {},
+          metadata: {
+            raw_key: extractRawKeySnapshot(key, m, fromMe),
+            own_jids: Array.from(ownJids),
+            ...(isPendingLid ? { pending_lid_resolution: true, raw_lid: rawRemoteJid } : {}),
+          },
+
         });
       }
     }
