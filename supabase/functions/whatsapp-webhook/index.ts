@@ -13,6 +13,7 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+const ownJidCache = new Map<string, { expiresAt: number; jids: string[] }>();
 
 function normalizeBase(raw: string): string {
   if (!raw) return raw;
@@ -29,29 +30,49 @@ function onlyDigits(value: unknown): string {
 }
 
 function normalizePhoneJid(value: unknown): string | null {
-  const raw = String(value ?? "").trim();
+  let raw = String(value ?? "").trim();
   if (!raw) return null;
-  if (raw.endsWith("@g.us") || raw.endsWith("@broadcast")) return null;
-  if (raw.includes("@lid")) return raw;
+  raw = raw.replace(/^whatsapp:/i, "").split(/[\s,;]+/)[0]?.trim() ?? "";
+  if (!raw) return null;
+  const at = raw.indexOf("@");
+  const normalizedDomain = at >= 0 ? raw.slice(at + 1).split(":")[0].toLowerCase() : "";
+  if (normalizedDomain === "g.us" || normalizedDomain === "broadcast" || raw.endsWith("@broadcast")) return null;
+  if (normalizedDomain === "lid" || raw.includes("@lid")) {
+    const lidDigits = onlyDigits(raw.split("@")[0]);
+    return lidDigits ? `${lidDigits}@lid` : null;
+  }
   const digits = onlyDigits(raw.split("@")[0]);
   if (!digits) return null;
   return `${digits}@s.whatsapp.net`;
 }
 
-function firstStandardJid(candidates: unknown[]): string | null {
+function firstStandardJid(candidates: unknown[], exclude = new Set<string>()): string | null {
   for (const candidate of candidates) {
     const jid = normalizePhoneJid(candidate);
-    if (jid && !jid.includes("@lid")) return jid;
+    if (jid && !jid.includes("@lid") && !exclude.has(jid)) return jid;
   }
   return null;
 }
 
-function firstLidJid(candidates: unknown[]): string | null {
+function firstLidJid(candidates: unknown[], exclude = new Set<string>()): string | null {
   for (const candidate of candidates) {
     const jid = normalizePhoneJid(candidate);
-    if (jid?.includes("@lid")) return jid;
+    if (jid?.includes("@lid") && !exclude.has(jid)) return jid;
   }
   return null;
+}
+
+function uniqueCandidates(candidates: unknown[]): unknown[] {
+  const seen = new Set<string>();
+  const out: unknown[] = [];
+  for (const candidate of candidates) {
+    if (candidate === undefined || candidate === null || candidate === "") continue;
+    const key = typeof candidate === "string" ? candidate.trim() : JSON.stringify(candidate);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(candidate);
+  }
+  return out;
 }
 
 function eventKey(value: unknown): string {
@@ -117,6 +138,169 @@ function extractMessageCreatedAt(row: any): string {
     if (!Number.isNaN(d.getTime())) return d.toISOString();
   }
   return new Date().toISOString();
+}
+
+function collectFromKeys(source: any, keys: string[]): unknown[] {
+  if (!source || typeof source !== "object") return [];
+  const values: unknown[] = [];
+  for (const key of keys) {
+    values.push(source?.[key]);
+  }
+  return values;
+}
+
+function collectOutboundPeerCandidates(row: any, key: any): unknown[] {
+  const envelope = row?.message ?? {};
+  const nested = row?.message?.message ?? {};
+  const nestedKey = row?.message?.key ?? row?.message?.message?.key ?? {};
+  const candidateKeys = [
+    "remoteJidAlt", "remoteJid_alt", "participantAlt", "participant_alt",
+    "participantPn", "participant_pn", "senderPn", "sender_pn",
+    "recipientJid", "recipient_jid", "recipient", "to", "chatId", "chat_id",
+    "destinationJid", "destination_jid", "targetJid", "target_jid",
+  ];
+  return uniqueCandidates([
+    ...collectFromKeys(key, candidateKeys),
+    ...collectFromKeys(row, candidateKeys),
+    ...collectFromKeys(envelope, candidateKeys),
+    ...collectFromKeys(nested, candidateKeys),
+    ...collectFromKeys(nestedKey, candidateKeys),
+    row?.participant,
+    envelope?.participant,
+    nested?.participant,
+  ]);
+}
+
+function collectInboundPeerCandidates(row: any, key: any): unknown[] {
+  const envelope = row?.message ?? {};
+  const nested = row?.message?.message ?? {};
+  const nestedKey = row?.message?.key ?? row?.message?.message?.key ?? {};
+  return uniqueCandidates([
+    key?.remoteJidAlt,
+    key?.remoteJid_alt,
+    key?.participantAlt,
+    key?.participant_alt,
+    envelope?.remoteJidAlt,
+    envelope?.remoteJid_alt,
+    nested?.remoteJidAlt,
+    nested?.remoteJid_alt,
+    nestedKey?.remoteJidAlt,
+    nestedKey?.remoteJid_alt,
+    key?.remoteJid,
+    row?.remoteJid,
+  ]);
+}
+
+function extractRootOwnJids(body: any, instanceName: string): Set<string> {
+  const own = new Set<string>();
+  const rootCandidates = uniqueCandidates([
+    body?.sender,
+    body?.ownerJid,
+    body?.owner,
+    body?.wuid,
+    body?.instanceOwner,
+    body?.instance_owner,
+    body?.data?.sender,
+    body?.data?.ownerJid,
+    body?.data?.owner,
+    body?.data?.wuid,
+  ]);
+  for (const candidate of rootCandidates) {
+    const raw = String(candidate ?? "").trim();
+    if (!raw || raw === instanceName) continue;
+    const jid = normalizePhoneJid(raw);
+    const digits = onlyDigits(raw);
+    if (jid && (raw.includes("@") || digits.length >= 10)) own.add(jid);
+  }
+  return own;
+}
+
+function collectOwnJidsFromObject(value: any, instanceName: string): Set<string> {
+  const own = new Set<string>();
+  const seen = new Set<any>();
+  const visit = (node: any, depth = 0) => {
+    if (!node || depth > 5) return;
+    if (typeof node !== "object") return;
+    if (seen.has(node)) return;
+    seen.add(node);
+
+    const maybeInstance = String(node?.instanceName ?? node?.instance_name ?? node?.name ?? node?.instance?.instanceName ?? node?.instance?.instance_name ?? "").trim();
+    const matchesThisInstance = Boolean(!instanceName || maybeInstance === instanceName);
+    const hasExplicitOwnerField = ["ownerJid", "owner", "wuid", "profileId"].some((key) => node?.[key]);
+    if (matchesThisInstance && (maybeInstance || hasExplicitOwnerField)) {
+      const safeKeys = hasExplicitOwnerField || maybeInstance
+        ? ["ownerJid", "owner", "wuid", "jid", "number", "phoneNumber", "phone", "profileId"]
+        : ["ownerJid", "owner", "wuid", "jid", "profileId"];
+      for (const key of safeKeys) {
+        const raw = node?.[key];
+        const jid = normalizePhoneJid(raw);
+        const digits = onlyDigits(raw);
+        if (jid && (String(raw ?? "").includes("@") || digits.length >= 10)) own.add(jid);
+      }
+      for (const key of ["instance", "user", "account"]) {
+        const child = node?.[key];
+        if (child && typeof child === "object") {
+          const childInstance = String(child?.instanceName ?? child?.instance_name ?? child?.name ?? "").trim();
+          const childMatches = !instanceName || childInstance === instanceName;
+          const childHasExplicitOwner = ["ownerJid", "owner", "wuid", "profileId"].some((inner) => child?.[inner]);
+          const childKeys = childMatches && childInstance
+            ? ["ownerJid", "owner", "wuid", "jid", "number", "phoneNumber", "phone", "id"]
+            : (childHasExplicitOwner ? ["ownerJid", "owner", "wuid", "jid", "profileId"] : []);
+          for (const inner of childKeys) {
+            const raw = child?.[inner];
+            const jid = normalizePhoneJid(raw);
+            const digits = onlyDigits(raw);
+            if (jid && (String(raw ?? "").includes("@") || digits.length >= 10)) own.add(jid);
+          }
+        }
+      }
+    }
+
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item, depth + 1);
+      return;
+    }
+    for (const [key, child] of Object.entries(node)) {
+      if (["contacts", "chats", "messages"].includes(key)) continue;
+      visit(child, depth + 1);
+    }
+  };
+  visit(value);
+  return own;
+}
+
+async function fetchInstanceOwnJids(conn: any, instanceName: string): Promise<Set<string>> {
+  const own = new Set<string>();
+  if (!conn?.instance_url || !conn?.api_key || !instanceName) return own;
+  const cacheKey = `${normalizeBase(conn.instance_url)}::${instanceName}`;
+  const cached = ownJidCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return new Set(cached.jids);
+  const base = normalizeBase(conn.instance_url);
+  const attempts = [
+    { method: "GET", url: `${base}/instance/connectionState/${encodeURIComponent(instanceName)}` },
+    { method: "GET", url: `${base}/instance/fetchInstances` },
+    { method: "POST", url: `${base}/instance/fetchInstances`, body: {} },
+  ];
+  for (const attempt of attempts) {
+    try {
+      const r = await fetch(attempt.url, {
+        method: attempt.method,
+        headers: { "Content-Type": "application/json", apikey: conn.api_key },
+        body: attempt.body ? JSON.stringify(attempt.body) : undefined,
+        signal: AbortSignal.timeout(3500),
+      });
+      const text = await r.text();
+      if (!r.ok || !text) continue;
+      let parsed: any = null;
+      try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
+      for (const jid of collectOwnJidsFromObject(parsed, instanceName)) own.add(jid);
+      if (own.size > 0) break;
+    } catch {
+      // non-fatal; webhook routing still uses payload-level candidates.
+    }
+  }
+  if (own.size > 0) ownJidCache.set(cacheKey, { expiresAt: Date.now() + 5 * 60 * 1000, jids: Array.from(own) });
+  return own;
 }
 
 async function upsertJidAlias(tenantId: string | null, instanceName: string | null, lidJid: string | null, phoneJid: string | null) {
@@ -288,34 +472,47 @@ async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): P
   return null;
 }
 
-async function resolveRemoteJid(message: any, key: any, tenantId: string | null, instanceName: string | null): Promise<{ remoteJid: string | null; rawRemoteJid: string | null; unresolvedLid: boolean }> {
+async function resolveRemoteJid(
+  message: any,
+  key: any,
+  tenantId: string | null,
+  instanceName: string | null,
+  fromMe: boolean,
+  ownJids: Set<string>,
+): Promise<{ remoteJid: string | null; rawRemoteJid: string | null; unresolvedLid: boolean; blockedSelfJid: boolean }> {
   const rawRemoteJid = String(key?.remoteJid ?? message?.remoteJid ?? "").trim() || null;
-  const candidates = [
-    key?.remoteJidAlt,
-    key?.remoteJid_alt,
-    key?.participantAlt,
-    message?.remoteJidAlt,
-    message?.remoteJid_alt,
-    message?.participantAlt,
-    message?.message?.key?.remoteJidAlt,
-    message?.message?.key?.remoteJid_alt,
-    rawRemoteJid,
-  ];
-  const standard = firstStandardJid(candidates);
-  const lid = firstLidJid(candidates);
+  const normalizedRaw = normalizePhoneJid(rawRemoteJid);
+  const rawIsOwn = Boolean(normalizedRaw && ownJids.has(normalizedRaw));
+  const candidateList = fromMe
+    ? [
+      ...collectOutboundPeerCandidates(message, key),
+      ...(rawIsOwn ? [] : [rawRemoteJid]),
+    ]
+    : collectInboundPeerCandidates(message, key);
+  const candidates = uniqueCandidates(candidateList);
+  const standard = firstStandardJid(candidates, fromMe ? ownJids : new Set());
+  const lid = firstLidJid(candidates, fromMe ? ownJids : new Set());
   if (standard) {
     await upsertJidAlias(tenantId, instanceName, lid, standard);
-    return { remoteJid: standard, rawRemoteJid, unresolvedLid: false };
+    return { remoteJid: standard, rawRemoteJid, unresolvedLid: false, blockedSelfJid: false };
   }
 
-  const normalizedRaw = normalizePhoneJid(rawRemoteJid);
-  const mapped = await mappedPhoneJid(tenantId, normalizedRaw ?? null);
-  if (mapped) return { remoteJid: mapped, rawRemoteJid, unresolvedLid: false };
+  const mapped = await mappedPhoneJid(tenantId, lid ?? normalizedRaw ?? null);
+  if (mapped) return { remoteJid: mapped, rawRemoteJid, unresolvedLid: false, blockedSelfJid: false };
+
+  if (fromMe && rawIsOwn) {
+    return { remoteJid: null, rawRemoteJid: lid ?? rawRemoteJid, unresolvedLid: Boolean(lid), blockedSelfJid: true };
+  }
+
+  if (lid) {
+    return { remoteJid: null, rawRemoteJid: lid, unresolvedLid: true, blockedSelfJid: false };
+  }
 
   return {
     remoteJid: normalizedRaw?.includes("@lid") ? null : normalizedRaw,
     rawRemoteJid,
     unresolvedLid: Boolean(normalizedRaw?.includes("@lid")),
+    blockedSelfJid: false,
   };
 }
 
@@ -381,7 +578,10 @@ Deno.serve(async (req) => {
 
   try {
     const event = (body?.event ?? body?.type ?? "").toString().toLowerCase();
-    const instanceName: string = body?.instance ?? body?.instanceName ?? body?.sender ?? "";
+    const senderCandidate = String(body?.sender ?? "").trim();
+    const senderLooksLikeJid = Boolean(normalizePhoneJid(senderCandidate))
+      && (senderCandidate.includes("@") || onlyDigits(senderCandidate).length >= 10);
+    const instanceName: string = body?.instance ?? body?.instanceName ?? (senderLooksLikeJid ? "" : senderCandidate);
     const url = new URL(req.url);
     const tenantSlug = url.searchParams.get("tenant");
     const tenantIdParam = url.searchParams.get("tenant_id");
@@ -438,6 +638,7 @@ Deno.serve(async (req) => {
       conn.instance_name = instanceName;
     }
     const tenantId = conn?.tenant_id ?? null;
+    const ownJids = extractRootOwnJids(body, instanceName);
 
     // Connection state
     if (eventMatches(event, "connection.update") || body?.data?.state) {
@@ -553,17 +754,18 @@ Deno.serve(async (req) => {
       for (const m of messagesArr) {
         const key = m?.key ?? m?.message?.key ?? m?.message?.message?.key ?? {};
         const wamid: string | null = key?.id ?? m?.id ?? null;
-        const resolved = await resolveRemoteJid(m, key, tenantId, instanceName || null);
+        const fromMe: boolean = Boolean(key?.fromMe ?? m?.fromMe);
+        const resolved = await resolveRemoteJid(m, key, tenantId, instanceName || null, fromMe, ownJids);
         const rawRemoteJid = resolved.rawRemoteJid;
         if (rawRemoteJid?.endsWith("@g.us") || rawRemoteJid?.endsWith("@broadcast")) continue;
-        const fromMe: boolean = Boolean(key?.fromMe ?? m?.fromMe);
         // Never drop by unresolved @lid: if the alias is not yet known, keep the
         // raw @lid as a provisional remote_jid and flag the message. When the
         // alias arrives later (contacts.* event) mergeProvisionalLidConversations
         // migrates the conversation/messages to the canonical phone JID.
-        const effectiveJid = resolved.remoteJid ?? rawRemoteJid;
+        const effectiveJid = resolved.remoteJid
+          ?? (resolved.blockedSelfJid && !rawRemoteJid?.includes("@lid") ? null : rawRemoteJid);
         if (!effectiveJid) {
-          console.warn("[whatsapp-webhook] no_jid_dropped", { wamid, fromMe });
+          console.warn("[whatsapp-webhook] no_jid_dropped", { wamid, fromMe, blockedSelfJid: resolved.blockedSelfJid, ownJids: Array.from(ownJids) });
           continue;
         }
         let remoteJid = effectiveJid;
