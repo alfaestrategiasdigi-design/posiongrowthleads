@@ -224,10 +224,14 @@ function collectOwnJidsFromObject(value: any, instanceName: string): Set<string>
     if (seen.has(node)) return;
     seen.add(node);
 
-    const maybeInstance = String(node?.instanceName ?? node?.instance_name ?? node?.name ?? node?.instance?.instanceName ?? "").trim();
-    const looksLikeThisInstance = !instanceName || !maybeInstance || maybeInstance === instanceName;
-    if (looksLikeThisInstance) {
-      for (const key of ["ownerJid", "owner", "wuid", "jid", "number", "phoneNumber", "phone", "profileId"]) {
+    const maybeInstance = String(node?.instanceName ?? node?.instance_name ?? node?.name ?? node?.instance?.instanceName ?? node?.instance?.instance_name ?? "").trim();
+    const matchesThisInstance = Boolean(!instanceName || maybeInstance === instanceName);
+    const hasExplicitOwnerField = ["ownerJid", "owner", "wuid", "profileId"].some((key) => node?.[key]);
+    if (matchesThisInstance && (maybeInstance || hasExplicitOwnerField || depth <= 2)) {
+      const safeKeys = hasExplicitOwnerField || maybeInstance
+        ? ["ownerJid", "owner", "wuid", "jid", "number", "phoneNumber", "phone", "profileId"]
+        : ["ownerJid", "owner", "wuid", "jid", "profileId"];
+      for (const key of safeKeys) {
         const raw = node?.[key];
         const jid = normalizePhoneJid(raw);
         const digits = onlyDigits(raw);
@@ -236,7 +240,12 @@ function collectOwnJidsFromObject(value: any, instanceName: string): Set<string>
       for (const key of ["instance", "user", "account"]) {
         const child = node?.[key];
         if (child && typeof child === "object") {
-          for (const inner of ["ownerJid", "owner", "wuid", "jid", "number", "phoneNumber", "phone", "id"]) {
+          const childInstance = String(child?.instanceName ?? child?.instance_name ?? child?.name ?? "").trim();
+          const childMatches = !instanceName || !childInstance || childInstance === instanceName;
+          const childKeys = childMatches && childInstance
+            ? ["ownerJid", "owner", "wuid", "jid", "number", "phoneNumber", "phone", "id"]
+            : ["ownerJid", "owner", "wuid", "jid", "profileId"];
+          for (const inner of childKeys) {
             const raw = child?.[inner];
             const jid = normalizePhoneJid(raw);
             const digits = onlyDigits(raw);
