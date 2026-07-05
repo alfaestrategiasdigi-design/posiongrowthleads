@@ -568,7 +568,10 @@ Deno.serve(async (req) => {
 
   try {
     const event = (body?.event ?? body?.type ?? "").toString().toLowerCase();
-    const instanceName: string = body?.instance ?? body?.instanceName ?? body?.sender ?? "";
+    const senderCandidate = String(body?.sender ?? "").trim();
+    const senderLooksLikeJid = Boolean(normalizePhoneJid(senderCandidate))
+      && (senderCandidate.includes("@") || onlyDigits(senderCandidate).length >= 10);
+    const instanceName: string = body?.instance ?? body?.instanceName ?? (senderLooksLikeJid ? "" : senderCandidate);
     const url = new URL(req.url);
     const tenantSlug = url.searchParams.get("tenant");
     const tenantIdParam = url.searchParams.get("tenant_id");
