@@ -628,6 +628,9 @@ Deno.serve(async (req) => {
           location: locationJson,
           contact_card: contactJson,
           tenant_id: tenantId,
+          metadata: isPendingLid
+            ? { pending_lid_resolution: true, raw_lid: rawRemoteJid }
+            : {},
         });
       }
     }
