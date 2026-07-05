@@ -1204,6 +1204,13 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
         onClose={() => setLeadPanelId(null)}
         onUpdated={loadConversations}
       />
+
+      <LidReviewDialog
+        open={lidReviewOpen}
+        onOpenChange={setLidReviewOpen}
+        tenantId={masterMode ? null : (tenantId ?? null)}
+        onDone={loadConversations}
+      />
     </div>
   );
 
