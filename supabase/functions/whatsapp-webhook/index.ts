@@ -608,6 +608,8 @@ Deno.serve(async (req) => {
             ultima_mensagem: preview,
             ultima_interacao: new Date().toISOString(),
             nao_lidas: fromMe ? 0 : 1,
+            needs_lid_review: isPendingLid,
+            lid_review_notes: isPendingLid ? "unresolved @lid — pushName sem correspondente único no tenant" : null,
           }).select("id, nao_lidas, remote_jid, telefone").maybeSingle();
           conv = ins.data;
           if (!conv && ins.error) {
@@ -642,6 +644,13 @@ Deno.serve(async (req) => {
             remote_jid: remoteJid,
             nome_contato: pushName || undefined,
           }).eq("id", conv.id);
+        }
+
+        // Root-cause hardening #2: when this message is on a KNOWN canonical
+        // conversation, opportunistically resolve any pending @lid siblings by
+        // pushName. This makes merges independent of CONTACTS_UPDATE arriving.
+        if (!isPendingLid && pushName) {
+          await tryResolveByPushNameFromCanonical(tenantId, instanceName || null, remoteJid, pushName);
         }
 
         if (!conv?.id) continue;
