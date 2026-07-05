@@ -1909,6 +1909,7 @@ export type Database = {
           media_mime: string | null
           media_type: string | null
           media_url: string | null
+          metadata: Json
           reply_preview: string | null
           reply_to_wamid: string | null
           sender: string
@@ -1932,6 +1933,7 @@ export type Database = {
           media_mime?: string | null
           media_type?: string | null
           media_url?: string | null
+          metadata?: Json
           reply_preview?: string | null
           reply_to_wamid?: string | null
           sender: string
@@ -1955,6 +1957,7 @@ export type Database = {
           media_mime?: string | null
           media_type?: string | null
           media_url?: string | null
+          metadata?: Json
           reply_preview?: string | null
           reply_to_wamid?: string | null
           sender?: string

@@ -1,0 +1,2 @@
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+CREATE INDEX IF NOT EXISTS idx_messages_pending_lid ON public.messages ((metadata->>'pending_lid_resolution')) WHERE metadata->>'pending_lid_resolution' = 'true';
