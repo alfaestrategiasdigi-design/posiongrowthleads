@@ -78,6 +78,8 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const [lidPendingCount, setLidPendingCount] = useState(0);
   const [leadPanelId, setLeadPanelId] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [reassignMessage, setReassignMessage] = useState<Message | null>(null);
+
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
