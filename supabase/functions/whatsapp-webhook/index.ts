@@ -457,34 +457,43 @@ async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): P
   return null;
 }
 
-async function resolveRemoteJid(message: any, key: any, tenantId: string | null, instanceName: string | null): Promise<{ remoteJid: string | null; rawRemoteJid: string | null; unresolvedLid: boolean }> {
+async function resolveRemoteJid(
+  message: any,
+  key: any,
+  tenantId: string | null,
+  instanceName: string | null,
+  fromMe: boolean,
+  ownJids: Set<string>,
+): Promise<{ remoteJid: string | null; rawRemoteJid: string | null; unresolvedLid: boolean; blockedSelfJid: boolean }> {
   const rawRemoteJid = String(key?.remoteJid ?? message?.remoteJid ?? "").trim() || null;
-  const candidates = [
-    key?.remoteJidAlt,
-    key?.remoteJid_alt,
-    key?.participantAlt,
-    message?.remoteJidAlt,
-    message?.remoteJid_alt,
-    message?.participantAlt,
-    message?.message?.key?.remoteJidAlt,
-    message?.message?.key?.remoteJid_alt,
-    rawRemoteJid,
-  ];
-  const standard = firstStandardJid(candidates);
-  const lid = firstLidJid(candidates);
+  const normalizedRaw = normalizePhoneJid(rawRemoteJid);
+  const rawIsOwn = Boolean(normalizedRaw && ownJids.has(normalizedRaw));
+  const candidateList = fromMe
+    ? [
+      ...collectOutboundPeerCandidates(message, key),
+      ...(rawIsOwn ? [] : [rawRemoteJid]),
+    ]
+    : collectInboundPeerCandidates(message, key);
+  const candidates = uniqueCandidates(candidateList);
+  const standard = firstStandardJid(candidates, fromMe ? ownJids : new Set());
+  const lid = firstLidJid(candidates, fromMe ? ownJids : new Set());
   if (standard) {
     await upsertJidAlias(tenantId, instanceName, lid, standard);
-    return { remoteJid: standard, rawRemoteJid, unresolvedLid: false };
+    return { remoteJid: standard, rawRemoteJid, unresolvedLid: false, blockedSelfJid: false };
   }
 
-  const normalizedRaw = normalizePhoneJid(rawRemoteJid);
-  const mapped = await mappedPhoneJid(tenantId, normalizedRaw ?? null);
-  if (mapped) return { remoteJid: mapped, rawRemoteJid, unresolvedLid: false };
+  const mapped = await mappedPhoneJid(tenantId, lid ?? normalizedRaw ?? null);
+  if (mapped) return { remoteJid: mapped, rawRemoteJid, unresolvedLid: false, blockedSelfJid: false };
+
+  if (fromMe && rawIsOwn) {
+    return { remoteJid: null, rawRemoteJid, unresolvedLid: Boolean(lid), blockedSelfJid: true };
+  }
 
   return {
     remoteJid: normalizedRaw?.includes("@lid") ? null : normalizedRaw,
     rawRemoteJid,
     unresolvedLid: Boolean(normalizedRaw?.includes("@lid")),
+    blockedSelfJid: false,
   };
 }
 
