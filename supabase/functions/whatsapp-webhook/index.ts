@@ -256,18 +256,18 @@ async function resolveRemoteJid(message: any, key: any, tenantId: string | null,
 
 async function findConversation(tenantId: string | null, remoteJid: string, phone: string) {
   let byJid = admin.from("conversations")
-    .select("id, nao_lidas, remote_jid, telefone")
+    .select("id, tenant_id, nao_lidas, remote_jid, telefone")
     .eq("remote_jid", remoteJid);
-  byJid = tenantId ? byJid.eq("tenant_id", tenantId) : byJid.is("tenant_id", null);
-  const jidResult = await byJid.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
-  if (jidResult.data) return jidResult.data;
+  byJid = tenantId ? byJid.or(`tenant_id.eq.${tenantId},tenant_id.is.null`) : byJid.is("tenant_id", null);
+  const jidResult = await byJid.order("tenant_id", { ascending: false, nullsFirst: false }).order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
+  if (jidResult.data) return await adoptLegacyGlobalConversation(jidResult.data, tenantId);
 
   let byPhone = admin.from("conversations")
-    .select("id, nao_lidas, remote_jid, telefone")
+    .select("id, tenant_id, nao_lidas, remote_jid, telefone")
     .eq("telefone", phone);
-  byPhone = tenantId ? byPhone.eq("tenant_id", tenantId) : byPhone.is("tenant_id", null);
-  const phoneResult = await byPhone.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
-  return phoneResult.data ?? null;
+  byPhone = tenantId ? byPhone.or(`tenant_id.eq.${tenantId},tenant_id.is.null`) : byPhone.is("tenant_id", null);
+  const phoneResult = await byPhone.order("tenant_id", { ascending: false, nullsFirst: false }).order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
+  return phoneResult.data ? await adoptLegacyGlobalConversation(phoneResult.data, tenantId) : null;
 }
 
 async function fetchAndStoreMedia(
