@@ -626,9 +626,13 @@ html { scroll-behavior: smooth; }
    TECH ADMIN SHELL — neon cyber overlay
    =========================================================== */
 :root {
-  --tech-cyan: 188 95% 55%;
-  --tech-violet: 268 88% 68%;
-  --tech-mint: 156 88% 55%;
+  /* Gold-forward accent (aligned with WhatsApp Master).
+     Legacy var name kept as `--tech-cyan` so existing rules pick up the new hue
+     without a broad rename. */
+  --tech-cyan: 44 68% 52%;      /* #C9A227 antique gold */
+  --tech-violet: 40 78% 40%;    /* #B8860B deep gold — for gradient depth */
+  --tech-gold-soft: 44 75% 68%; /* #E8C468 light gold */
+  --tech-mint: 156 78% 48%;     /* preserved: real "online / connected" status */
   --tech-grid: 224 30% 16%;
 }
 
@@ -734,16 +738,18 @@ html { scroll-behavior: smooth; }
 }
 .tech-sidebar [data-active="true"] svg { color: hsl(var(--tech-cyan)); filter: drop-shadow(0 0 6px hsl(var(--tech-cyan) / 0.5)); }
 
-/* Buttons / pills tech */
+/* Buttons / pills tech — gold gradient */
 .tech-pill {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 10px; border-radius: 9999px;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
-  background: hsl(var(--tech-cyan) / 0.08);
-  color: hsl(var(--tech-cyan));
-  border: 1px solid hsl(var(--tech-cyan) / 0.3);
+  background: linear-gradient(135deg, hsl(var(--tech-gold-soft) / 0.22), hsl(var(--tech-violet) / 0.18));
+  color: hsl(var(--tech-gold-soft));
+  border: 1px solid hsl(var(--tech-cyan) / 0.45);
+  box-shadow: 0 0 12px -4px hsl(var(--tech-cyan) / 0.4);
 }
+.tech-pill .tech-dot { background: hsl(var(--tech-mint)); }
 
 /* Page heading tech */
 .tech-heading {
@@ -751,8 +757,38 @@ html { scroll-behavior: smooth; }
   font-size: 1.75rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  background: linear-gradient(135deg, hsl(0 0% 100%) 0%, hsl(var(--tech-cyan) / 0.85) 100%);
+  background: linear-gradient(135deg, hsl(0 0% 100%) 0%, hsl(var(--tech-gold-soft)) 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* ==== Floating gold cards inside the admin shell ====
+   Applies to shadcn Card and similar bordered surfaces so Dashboard,
+   Kanban, Leads etc. inherit the WhatsApp Master aesthetic without
+   editing each page. */
+.tech-shell [data-slot="card"],
+.tech-shell .rounded-xl.border.bg-card,
+.tech-shell .rounded-lg.border.bg-card {
+  border-color: hsl(var(--tech-cyan) / 0.18) !important;
+  box-shadow:
+    0 1px 0 hsl(var(--tech-gold-soft) / 0.04) inset,
+    0 18px 40px -24px rgba(0,0,0,0.7),
+    0 6px 14px -8px rgba(0,0,0,0.6);
+  transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+}
+.tech-shell [data-slot="card"]:hover,
+.tech-shell .rounded-xl.border.bg-card:hover,
+.tech-shell .rounded-lg.border.bg-card:hover {
+  transform: translateY(-2px);
+  border-color: hsl(var(--tech-cyan) / 0.42) !important;
+  box-shadow:
+    0 1px 0 hsl(var(--tech-gold-soft) / 0.08) inset,
+    0 24px 50px -22px rgba(0,0,0,0.8),
+    0 0 24px -8px hsl(var(--tech-cyan) / 0.35);
+}
+.tech-shell [data-slot="card"][data-active="true"],
+.tech-shell .rounded-xl.border.bg-card[data-active="true"] {
+  border-color: hsl(var(--tech-cyan) / 0.55) !important;
+  box-shadow: 0 0 0 1px hsl(var(--tech-cyan) / 0.35), 0 0 28px -8px hsl(var(--tech-cyan) / 0.45);
 }
 
 /* ===========================================================

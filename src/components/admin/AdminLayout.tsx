@@ -109,7 +109,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
               <span className="hidden sm:inline text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground/70">
                 {new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase()}
               </span>
-              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300/70 truncate max-w-[180px]">
+              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-amber-300/80 truncate max-w-[180px]">
                 {user.email}
               </span>
             </div>

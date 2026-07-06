@@ -101,7 +101,7 @@ const AppSidebar = () => {
           <div className="relative min-w-0 flex justify-center">
             <img src={logoAsset.url} alt="Posion" className={collapsed ? "h-7 w-auto" : "h-9 w-auto"} />
             {!collapsed && (
-              <span className="absolute -bottom-2 right-0 text-[8px] font-mono uppercase tracking-[0.2em] text-cyan-300/70">
+              <span className="absolute -bottom-2 right-0 text-[8px] font-mono uppercase tracking-[0.2em] text-amber-300/80">
                 v2 · OS
               </span>
             )}
@@ -120,7 +120,7 @@ const AppSidebar = () => {
         </div>
       </SidebarHeader>
 
-      <SidebarSeparator className="bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent" />
+      <SidebarSeparator className="bg-gradient-to-r from-transparent via-amber-500/30 to-transparent" />
 
       <SidebarContent className="px-1">
         {visibleGroups.map((group) => (
@@ -141,7 +141,7 @@ const AppSidebar = () => {
                         isActive={active}
                         onClick={() => navigate(item.url)}
                         tooltip={item.title}
-                        className="gap-3 relative font-medium text-sm transition-all hover:bg-cyan-500/5 hover:text-cyan-200"
+                        className="gap-3 relative font-medium text-sm transition-all hover:bg-amber-500/5 hover:text-amber-200"
                       >
                         <item.icon className="w-4 h-4 shrink-0" strokeWidth={1.8} />
                         <span className="truncate">{item.title}</span>
@@ -161,7 +161,7 @@ const AppSidebar = () => {
       <SidebarFooter className="p-2 border-t border-sidebar-border">
         {!collapsed && (
           <div className="px-3 py-2 mb-1 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em] text-muted-foreground/60">
-            <Activity className="w-3 h-3 text-cyan-400" />
+            <Activity className="w-3 h-3 text-amber-400" />
             <span>Status</span>
             <span className="ml-auto tech-dot" />
             <span className="text-emerald-400">online</span>
