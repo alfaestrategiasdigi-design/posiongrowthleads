@@ -219,17 +219,17 @@ export default function Dashboard() {
 
       {/* HERO — Total combinado */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-6">
+        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-6">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-2 font-mono">Receita total combinada</div>
-              <div className="text-4xl font-bold">{fmt(agency.totalCombinado)}</div>
+              <div className="text-4xl font-bold bg-gradient-to-br from-white to-amber-200/90 bg-clip-text text-transparent">{fmt(agency.totalCombinado)}</div>
               <div className="text-sm text-muted-foreground mt-1">
                 Agência {fmt(agency.receitaAgencia)} + SaaS MRR {fmt(agency.mrr)}/mês
               </div>
             </div>
-            <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center">
-              <DollarSign className="w-7 h-7 text-amber-400" />
+            <div className="w-14 h-14 rounded-2xl premium-section-icon flex items-center justify-center">
+              <DollarSign className="w-7 h-7 text-amber-300" />
             </div>
           </div>
 
