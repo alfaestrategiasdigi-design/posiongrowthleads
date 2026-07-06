@@ -755,10 +755,10 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
 
   // ============ JSX ============
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden">
+    <div className="wa-shell flex h-[calc(100vh-3.5rem)] overflow-hidden">
       {/* Sidebar */}
-      <div className="w-[320px] border-r border-border flex flex-col bg-card/50 shrink-0">
-        <div className="px-3 py-2 border-b border-border flex items-center justify-between gap-2">
+      <div className="w-[340px] wa-panel flex flex-col shrink-0">
+        <div className="wa-header-bar px-3 py-2 flex items-center justify-between gap-2">
           {statusBadge()}
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-8 w-8" title="Sincronizar conversas" onClick={handleSyncChats} disabled={syncing}>
