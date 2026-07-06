@@ -334,7 +334,7 @@ export default function Dashboard() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+          <div data-no-float className="premium-card rounded-xl p-4">
             <h3 className="text-sm font-semibold mb-3">Distribuição do funil</h3>
             <div className="space-y-2">
               {agency.stageData.map((s) => {
