@@ -219,17 +219,17 @@ export default function Dashboard() {
 
       {/* HERO — Total combinado */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-6">
+        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-6">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-2 font-mono">Receita total combinada</div>
-              <div className="text-4xl font-bold">{fmt(agency.totalCombinado)}</div>
+              <div className="text-4xl font-bold bg-gradient-to-br from-white to-amber-200/90 bg-clip-text text-transparent">{fmt(agency.totalCombinado)}</div>
               <div className="text-sm text-muted-foreground mt-1">
                 Agência {fmt(agency.receitaAgencia)} + SaaS MRR {fmt(agency.mrr)}/mês
               </div>
             </div>
-            <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center">
-              <DollarSign className="w-7 h-7 text-amber-400" />
+            <div className="w-14 h-14 rounded-2xl premium-section-icon flex items-center justify-center">
+              <DollarSign className="w-7 h-7 text-amber-300" />
             </div>
           </div>
 
@@ -334,7 +334,7 @@ export default function Dashboard() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+          <div data-no-float className="premium-card rounded-xl p-4">
             <h3 className="text-sm font-semibold mb-3">Distribuição do funil</h3>
             <div className="space-y-2">
               {agency.stageData.map((s) => {
@@ -356,7 +356,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+          <div data-no-float className="premium-card rounded-xl p-4">
             <h3 className="text-sm font-semibold mb-3">Origem dos leads</h3>
             <div className="space-y-2">
               {(() => {
@@ -383,7 +383,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+          <div data-no-float className="premium-card rounded-xl p-4">
             <Tabs defaultValue="ganhos" className="w-full">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold">Movimentação</h3>
@@ -477,12 +477,14 @@ export default function Dashboard() {
 
 function KPI({ icon: Icon, label, value, sub }: { icon: any; label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-sm p-4">
+    <div data-no-float className="premium-card rounded-xl p-4">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</span>
-        <Icon className="w-4 h-4 text-amber-400/70" />
+        <span className="text-[10px] uppercase tracking-[0.18em] text-amber-400/70 font-mono">{label}</span>
+        <div className="w-7 h-7 rounded-lg premium-section-icon flex items-center justify-center">
+          <Icon className="w-3.5 h-3.5 text-amber-300" />
+        </div>
       </div>
-      <div className="text-2xl font-bold">{value}</div>
+      <div className="text-2xl font-bold tabular-nums">{value}</div>
       {sub && <div className="text-[11px] text-muted-foreground mt-1">{sub}</div>}
     </div>
   );
@@ -553,7 +555,7 @@ function MetricCard({
 }) {
   const isPercent = label.toLowerCase().includes("conversão");
   const inner = (
-    <div className="rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent p-4 flex items-center gap-3 hover:border-amber-400/50 transition-colors">
+    <div data-no-float className="premium-card rounded-xl p-4 flex items-center gap-3">
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
           <div className="text-[10px] uppercase tracking-[0.18em] text-amber-400/80 font-mono">{label}</div>
@@ -575,8 +577,8 @@ function MetricCard({
 function SectionTitle({ icon: Icon, title, subtitle }: { icon: any; title: string; subtitle?: string }) {
   return (
     <div className="flex items-center gap-3 mb-4">
-      <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
-        <Icon className="w-4 h-4 text-amber-400" />
+      <div className="w-9 h-9 rounded-lg premium-section-icon flex items-center justify-center">
+        <Icon className="w-4 h-4 text-amber-300" />
       </div>
       <div>
         <h2 className="text-lg font-bold">{title}</h2>
