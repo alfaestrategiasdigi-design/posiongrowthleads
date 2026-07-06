@@ -477,12 +477,14 @@ export default function Dashboard() {
 
 function KPI({ icon: Icon, label, value, sub }: { icon: any; label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-sm p-4">
+    <div data-no-float className="premium-card rounded-xl p-4">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</span>
-        <Icon className="w-4 h-4 text-amber-400/70" />
+        <span className="text-[10px] uppercase tracking-[0.18em] text-amber-400/70 font-mono">{label}</span>
+        <div className="w-7 h-7 rounded-lg premium-section-icon flex items-center justify-center">
+          <Icon className="w-3.5 h-3.5 text-amber-300" />
+        </div>
       </div>
-      <div className="text-2xl font-bold">{value}</div>
+      <div className="text-2xl font-bold tabular-nums">{value}</div>
       {sub && <div className="text-[11px] text-muted-foreground mt-1">{sub}</div>}
     </div>
   );
