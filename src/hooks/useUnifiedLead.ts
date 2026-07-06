@@ -143,7 +143,7 @@ export function useUnifiedLead(source: LeadSource | null, id: string | null) {
       "id","tenant_id","created_at","status","origem",
       "nome_completo","whatsapp","email","cidade_estado",
       "observacoes","valor_proposta","tipo_purchase",
-      "sdr_qualification","form_data",
+      "sdr_qualification","extras",
       "facebook_form_id","facebook_form_name","facebook_campaign",
       "utm_source","utm_medium","utm_campaign",
       "mql","sql_qualified",
