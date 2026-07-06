@@ -698,6 +698,15 @@ export default function CampanhasPage() {
                 </div>
               )}
 
+              {formsStale && (
+                <div className="text-[11px] text-sky-300/90 bg-sky-500/5 border border-sky-500/20 rounded px-3 py-2 mb-2">
+                  <span className="font-semibold uppercase tracking-wider mr-2">Cache</span>
+                  Mostrando última listagem bem-sucedida de{" "}
+                  <b>{new Date(formsStale.since).toLocaleString("pt-BR")}</b>
+                  {formsStale.rateLimited ? " — Meta retornou rate limit (#4). Tente novamente em ~1h." : " — atualização atual falhou parcialmente."}
+                </div>
+              )}
+
               {leadFormErrors.length > 0 && (
                 <div className="text-[10px] text-amber-500/80 bg-amber-500/5 border border-amber-500/10 rounded px-3 py-2 mb-2">
                   <div className="font-semibold uppercase tracking-wider mb-1">Páginas com falha ({leadFormErrors.length})</div>
