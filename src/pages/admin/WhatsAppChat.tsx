@@ -412,6 +412,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
     setMessages(prev => [...prev, optimistic]);
     setNewMessage(""); setReplyTo(null); setSending(true);
     try {
+      pendingLocalSendRef.current = Date.now();
       const { data, error } = await supabase.functions.invoke("evolution-send", {
         body: {
           conversation_id: selectedConversation.id,
