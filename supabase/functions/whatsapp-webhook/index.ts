@@ -690,21 +690,60 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Contacts update -> pushName + profile pic
+    // Contacts update -> pushName + profile pic + automatic (@lid, phone) alias learning.
+    // The Evolution/Baileys `contacts.*` events are AUTHORITATIVE: when a single
+    // contact object exposes BOTH a @lid identifier and a phone JID, the pairing
+    // is trustworthy (unlike pushName heuristics). We scan every field variant
+    // Evolution v2 has been observed to emit so no pairing is missed.
     if (eventMatches(event, "contacts.update", "contacts.upsert", "contacts.set")) {
       const contacts: any[] = Array.isArray(body?.data) ? body.data : [body?.data].filter(Boolean);
       for (const c of contacts) {
-        const contactCandidates = [c?.remoteJidAlt, c?.remoteJid_alt, c?.jidAlt, c?.idAlt, c?.remoteJid, c?.id];
-        const jid = firstStandardJid(contactCandidates);
-        await upsertJidAlias(tenantId, instanceName || null, firstLidJid(contactCandidates), jid, "contacts_event");
-        if (!jid) continue;
+        // Wide net across every field name Baileys / Evolution has been seen to use.
+        const contactCandidates = [
+          c?.remoteJid, c?.remoteJidAlt, c?.remoteJid_alt,
+          c?.jid, c?.jidAlt, c?.jid_alt,
+          c?.id, c?.idAlt, c?.id_alt,
+          c?.lid, c?.lidJid, c?.lid_jid,
+          c?.pn, c?.phoneNumber, c?.phone_number, c?.phone, c?.whatsappNumber, c?.wa_id,
+          c?.senderPn, c?.senderLid, c?.participantPn, c?.participantAlt,
+          c?.key?.remoteJid, c?.key?.remoteJidAlt, c?.key?.participant, c?.key?.participantAlt,
+          c?.key?.senderPn, c?.key?.senderLid,
+        ];
+        const phoneJid = firstStandardJid(contactCandidates);
+        const lidJid = firstLidJid(contactCandidates);
+
+        // Same-object pairing -> save alias (source "contacts_event") which also
+        // triggers mergeProvisionalLidConversations() and folds any pending @lid
+        // thread into the canonical phone thread without human intervention.
+        await upsertJidAlias(tenantId, instanceName || null, lidJid, phoneJid, "contacts_event");
+
+        // Update pushName / avatar on whichever JID we can address.
         const updates: any = {};
-        if (c?.pushName || c?.name) updates.nome_contato = c.pushName || c.name;
+        if (c?.pushName || c?.name || c?.verifiedName) updates.nome_contato = c.pushName || c.name || c.verifiedName;
         if (c?.profilePicUrl || c?.profilePictureUrl) updates.foto_url = c.profilePicUrl || c.profilePictureUrl;
-        if (Object.keys(updates).length === 0) continue;
-        let q = admin.from("conversations").update(updates).eq("remote_jid", jid);
-        if (tenantId) q = q.eq("tenant_id", tenantId); else q = q.is("tenant_id", null);
-        await q;
+        if (Object.keys(updates).length > 0) {
+          const targetJid = phoneJid ?? lidJid;
+          if (targetJid) {
+            let q = admin.from("conversations").update(updates).eq("remote_jid", targetJid);
+            if (tenantId) q = q.eq("tenant_id", tenantId); else q = q.is("tenant_id", null);
+            await q;
+          }
+        }
+
+        // If we learned a phone JID (with or without an alias in the same event),
+        // try to fold any previously-stored alias for this phone: some Evolution
+        // builds emit the @lid event first and the phone event second.
+        if (phoneJid && !lidJid) {
+          let aliasQ = admin.from("whatsapp_jid_aliases")
+            .select("lid_jid")
+            .eq("phone_jid", phoneJid)
+            .is("quarantined_at", null);
+          aliasQ = tenantId ? aliasQ.eq("tenant_id", tenantId) : aliasQ.is("tenant_id", null);
+          const { data: aliases } = await aliasQ;
+          for (const a of aliases ?? []) {
+            if (a?.lid_jid) await mergeProvisionalLidConversations(tenantId, a.lid_jid, phoneJid);
+          }
+        }
       }
     }
 
