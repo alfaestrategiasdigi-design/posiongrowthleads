@@ -577,8 +577,8 @@ function MetricCard({
 function SectionTitle({ icon: Icon, title, subtitle }: { icon: any; title: string; subtitle?: string }) {
   return (
     <div className="flex items-center gap-3 mb-4">
-      <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
-        <Icon className="w-4 h-4 text-amber-400" />
+      <div className="w-9 h-9 rounded-lg premium-section-icon flex items-center justify-center">
+        <Icon className="w-4 h-4 text-amber-300" />
       </div>
       <div>
         <h2 className="text-lg font-bold">{title}</h2>
