@@ -215,5 +215,14 @@ Deno.serve(async (req) => {
     details.push({ id: lid.id, tenant_id: lid.tenant_id, action: "manual_no_candidate" });
   }
 
-  return json({ ok: true, dry_run: dryRun, per_tenant: perTenant, details });
+  // Contagem de @lid restantes (para permitir loop do cliente).
+  let remCountQ = admin.from("conversations")
+    .select("id", { count: "exact", head: true })
+    .like("remote_jid", "%@lid");
+  if (tenantFilter) remCountQ = remCountQ.eq("tenant_id", tenantFilter);
+  const { count: remaining } = await remCountQ;
+  const processed = (lidConvs ?? []).length;
+  const nextOffset = (remaining ?? 0) > 0 ? offset + processed : null;
+
+  return json({ ok: true, dry_run: dryRun, per_tenant: perTenant, details, processed, remaining: remaining ?? 0, next_offset: nextOffset, limit, offset });
 });
