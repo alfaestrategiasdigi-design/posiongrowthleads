@@ -788,29 +788,31 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             </Button>
           </div>
         </div>
-        <div className="p-3 border-b border-border space-y-2">
+        <div className="wa-panel-2 p-3 space-y-2">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "hsl(var(--wa-gold-soft))" }} />
             <Input placeholder="Pesquisar conversas..." value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9 bg-muted/50 border-none text-sm" />
+              className="wa-input pl-9 h-9 text-sm placeholder:text-[#7a7365]" />
           </div>
           <button
             onClick={() => setOnlyWithLead(v => !v)}
-            className={`w-full text-[11px] flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 transition-colors ${onlyWithLead ? "bg-primary/10 border-primary/40 text-primary" : "border-border/50 bg-muted/30 text-muted-foreground hover:text-foreground"}`}
+            data-active={onlyWithLead ? "true" : undefined}
+            className="wa-tag-chip w-full !justify-between !py-1.5 !text-[11px]"
+            style={onlyWithLead ? { "--wa-tag-color": "hsl(44 55% 47%)" } as React.CSSProperties : undefined}
             title="Filtrar conversas vinculadas a um lead do formulário"
           >
             <span className="flex items-center gap-1.5"><Target className="w-3 h-3" /> Somente com lead</span>
-            <span className="tabular-nums">{linkedCount}/{conversations.length}</span>
+            <span className="wa-mono">{linkedCount}/{conversations.length}</span>
           </button>
           {lidPendingCount > 0 && (
             <button
               onClick={() => setLidReviewOpen(true)}
-              className="w-full text-[11px] flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-500 px-2 py-1.5 hover:bg-amber-500/20"
+              className="w-full text-[11px] flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-300 px-2 py-1.5 hover:bg-amber-500/20"
               title="Conversas com identificador provisório (@lid) aguardando confirmação"
             >
               <span className="flex items-center gap-1.5"><AlertTriangle className="w-3 h-3" /> Revisar conversas @lid</span>
-              <span className="tabular-nums">{lidPendingCount}</span>
+              <span className="wa-mono">{lidPendingCount}</span>
             </button>
           )}
         </div>
