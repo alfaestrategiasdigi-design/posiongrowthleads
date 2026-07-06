@@ -265,6 +265,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       const { data: signed } = await supabase.storage.from("whatsapp-media").createSignedUrl(path, 60 * 60 * 24 * 7);
       const url = signed?.signedUrl;
       if (!url) { toast.error("URL não gerada"); return; }
+      pendingLocalSendRef.current = Date.now();
       const { data, error } = await supabase.functions.invoke("evolution-send", {
         body: {
           conversation_id: selectedConversation.id,
