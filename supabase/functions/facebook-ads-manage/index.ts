@@ -303,6 +303,11 @@ Deno.serve(async (req) => {
         // /me/accounts + owned_pages/client_pages de cada Business Manager.
         const pagesMap = new Map<string, { id: string; name: string; access_token?: string }>();
         const errors: any[] = [];
+        let hadRateLimit = false;
+        const isRateLimit = (b: any) => {
+          const c = Number(b?.error?.code ?? 0);
+          return [4, 17, 32, 613, 80004].includes(c);
+        };
 
         const meAcc = await fbGet(`me/accounts`, token, {
           fields: "id,name,access_token", limit: "200",
@@ -310,11 +315,13 @@ Deno.serve(async (req) => {
         if (meAcc.ok) {
           for (const p of meAcc.body?.data ?? []) pagesMap.set(p.id, p);
         } else {
+          if (isRateLimit(meAcc.body)) hadRateLimit = true;
           errors.push({ page_id: "me/accounts", page_name: "Páginas pessoais (/me/accounts)", error: meAcc.body?.error?.message ?? "Erro Graph" });
         }
 
         const biz = await fbGet(`me/businesses`, token, { fields: "id,name", limit: "200" });
         if (!biz.ok) {
+          if (isRateLimit(biz.body)) hadRateLimit = true;
           errors.push({ page_id: "me/businesses", page_name: "Business Managers (/me/businesses)", error: biz.body?.error?.message ?? "Erro Graph" });
         } else {
           for (const b of biz.body?.data ?? []) {
@@ -325,6 +332,7 @@ Deno.serve(async (req) => {
               if (r.ok) {
                 for (const p of r.body?.data ?? []) if (!pagesMap.has(p.id)) pagesMap.set(p.id, p);
               } else {
+                if (isRateLimit(r.body)) hadRateLimit = true;
                 errors.push({
                   page_id: `${b.id}/${edge}`,
                   page_name: `BM ${b.name ?? b.id} · ${edge}`,
@@ -346,15 +354,6 @@ Deno.serve(async (req) => {
         }
 
         const pages = [...pagesMap.values()];
-        if (pages.length === 0) {
-          return json({
-            ok: false,
-            error: "Nenhuma Página acessível. Reconecte concedendo pages_show_list, leads_retrieval e business_management.",
-            need_reconnect: true,
-            errors,
-          }, 200);
-        }
-
         const forms: any[] = [];
         const pageSummary: any[] = [];
 
@@ -364,6 +363,7 @@ Deno.serve(async (req) => {
             fields: "id,name,status,leads_count,created_time", limit: "200",
           });
           if (!r.ok) {
+            if (isRateLimit(r.body)) hadRateLimit = true;
             errors.push({ page_id: p.id, page_name: p.name || p.id, error: r.body?.error?.message ?? "Erro Graph" });
             pageSummary.push({ id: p.id, name: p.name || p.id, forms_count: 0, error: true });
             return;
@@ -374,8 +374,65 @@ Deno.serve(async (req) => {
           pageSummary.push({ id: p.id, name: pageName, forms_count: data.length });
         });
 
-        return json({ ok: true, data: forms, pages: pageSummary, errors });
+        // Load previous cache (used for stale-fallback and merge)
+        const { data: cachedRow } = await admin
+          .from("facebook_lead_forms_cache")
+          .select("data, pages, updated_at")
+          .eq("id", 1)
+          .maybeSingle();
+
+        // Success = we managed to actually enumerate pages beyond the cfg fallback,
+        // and we did not hit a rate limit that hid BMs.
+        const enumeratedFresh = pages.length > (cfgPageId ? 1 : 0);
+        const looksHealthy = !hadRateLimit && errors.length === 0 && forms.length > 0;
+
+        if (looksHealthy) {
+          await admin.from("facebook_lead_forms_cache").upsert({
+            id: 1,
+            data: forms,
+            pages: pageSummary,
+            updated_at: new Date().toISOString(),
+          });
+          return json({ ok: true, data: forms, pages: pageSummary, errors, stale: false });
+        }
+
+        // Not healthy: serve cache if we have one, so BMs don't "disappear" for the user.
+        if (cachedRow?.data) {
+          const cachedForms = cachedRow.data as any[];
+          const cachedPages = (cachedRow.pages ?? []) as any[];
+          // Merge: prefer fresh forms for pages we DID reach; keep cached forms for pages we missed.
+          const freshPageIds = new Set(pageSummary.filter(p => !p.error).map(p => p.id));
+          const merged = [
+            ...forms,
+            ...cachedForms.filter((f: any) => !freshPageIds.has(f.page_id)),
+          ];
+          const mergedPages = [
+            ...pageSummary,
+            ...cachedPages.filter((p: any) => !pageSummary.some(x => x.id === p.id)),
+          ];
+          return json({
+            ok: true,
+            data: merged,
+            pages: mergedPages,
+            errors,
+            stale: true,
+            stale_since: cachedRow.updated_at,
+            rate_limited: hadRateLimit,
+          });
+        }
+
+        if (pages.length === 0) {
+          return json({
+            ok: false,
+            error: "Nenhuma Página acessível. Reconecte concedendo pages_show_list, leads_retrieval e business_management.",
+            need_reconnect: true,
+            errors,
+          }, 200);
+        }
+
+        return json({ ok: true, data: forms, pages: pageSummary, errors, stale: false, rate_limited: hadRateLimit });
       }
+
 
 
       default:
