@@ -79,6 +79,10 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch {}
   const tenantFilter: string | null = body?.tenant_id ?? null;
   const dryRun: boolean = Boolean(body?.dry_run);
+  const rawLimit = Number(body?.limit);
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 100) : 20;
+  const rawOffset = Number(body?.offset);
+  const offset = Number.isFinite(rawOffset) && rawOffset >= 0 ? Math.floor(rawOffset) : 0;
 
   if (tenantFilter && !isAdmin) {
     const { data: allowed } = await admin.rpc("has_tenant_access", { _user_id: userId, _tenant_id: tenantFilter });
@@ -88,7 +92,9 @@ Deno.serve(async (req) => {
 
   let q = admin.from("conversations")
     .select("id, tenant_id, remote_jid, telefone, nome_contato, ultima_interacao, nao_lidas")
-    .like("remote_jid", "%@lid");
+    .like("remote_jid", "%@lid")
+    .order("ultima_interacao", { ascending: false, nullsFirst: false })
+    .range(offset, offset + limit - 1);
   if (tenantFilter) q = q.eq("tenant_id", tenantFilter);
   const { data: lidConvs, error } = await q;
   if (error) return json({ error: error.message }, 500);
@@ -209,5 +215,14 @@ Deno.serve(async (req) => {
     details.push({ id: lid.id, tenant_id: lid.tenant_id, action: "manual_no_candidate" });
   }
 
-  return json({ ok: true, dry_run: dryRun, per_tenant: perTenant, details });
+  // Contagem de @lid restantes (para permitir loop do cliente).
+  let remCountQ = admin.from("conversations")
+    .select("id", { count: "exact", head: true })
+    .like("remote_jid", "%@lid");
+  if (tenantFilter) remCountQ = remCountQ.eq("tenant_id", tenantFilter);
+  const { count: remaining } = await remCountQ;
+  const processed = (lidConvs ?? []).length;
+  const nextOffset = (remaining ?? 0) > 0 ? offset + processed : null;
+
+  return json({ ok: true, dry_run: dryRun, per_tenant: perTenant, details, processed, remaining: remaining ?? 0, next_offset: nextOffset, limit, offset });
 });

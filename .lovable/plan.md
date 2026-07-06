@@ -1,35 +1,40 @@
-## Diagnóstico confirmado
+## Contexto
 
-O bug não é visual: o backend está aceitando eventos `fromMe=true` da Evolution API usando o `key.remoteJid` como se fosse sempre o contato de destino. Em cenários multi-device/@lid, o webhook pode entregar o `remoteJid` como o próprio WhatsApp conectado ou como um identificador alternativo, enquanto o contato real vem em campos como `remoteJidAlt`, `participant`, `participantAlt`, `sender`, `recipient` ou dentro do envelope da mensagem.
+Tenant `Clínica Donna Face` tem **61 conversas @lid** aguardando reconciliação. Ao chamar `whatsapp-lid-reconcile` direto, a requisição estoura o timeout do gateway (`context canceled`) porque a função processa tudo em série, com várias idas ao banco por conversa (~5-8 queries × 61 = ~400 queries em uma única request).
 
-A referência externa confirma esse comportamento: há issues/PRs da Evolution/Baileys sobre `@lid`, `remoteJidAlt` e mensagens onde o `remoteJid` precisa ser substituído pelo identificador real antes de persistir o evento.
+Preciso ao mesmo tempo (1) executar a reconciliação agora e (2) evitar que o próximo lote grande volte a estourar.
 
-## Plano de correção
+## Plano
 
-1. **Criar resolução canônica de destino para mensagens `fromMe`**
-   - Separar a lógica de “quem é o contato da conversa” da lógica genérica de `remoteJid`.
-   - Para `fromMe=true`, priorizar campos de destinatário/alternativos (`remoteJidAlt`, `participantAlt`, `participant`, `senderPn`, `recipient`, etc.) e rejeitar o JID da própria instância quando ele aparecer como `remoteJid`.
-   - Para `fromMe=false`, manter o comportamento atual, mas com suporte ampliado aos mesmos aliases `@lid`/telefone.
+### 1. Tornar `whatsapp-lid-reconcile` resiliente a lotes grandes
+- Aceitar no body: `limit` (default 20) e `offset` (default 0), além do `tenant_id` já existente.
+- Aplicar `.order('ultima_interacao', { ascending: false }).range(offset, offset+limit-1)` no `SELECT` das conversas `@lid`.
+- Devolver no JSON: `processed`, `remaining` (contagem de `@lid` restantes no tenant) e `next_offset`, para permitir loop pelo cliente.
+- Nenhuma mudança de lógica de merge — só paginação.
 
-2. **Identificar e ignorar o próprio WhatsApp da instância**
-   - Derivar o “número próprio” da conexão quando disponível e impedir que mensagens enviadas para terceiros sejam gravadas na conversa do próprio número.
-   - Se o webhook vier ambíguo e só trouxer o próprio JID, não criar conversa errada; registrar como pendente de resolução em vez de contaminar o histórico.
+### 2. Loop de execução em lotes (server-side, via edge function call)
+- Chamar `whatsapp-lid-reconcile` repetidamente com `limit=15` até `remaining=0` ou até esgotar 10 iterações de segurança.
+- Reportar resumo consolidado: `auto_merged`, `renamed`, `manual_review` por tenant.
 
-3. **Fortalecer `@lid` de forma global por tenant**
-   - Quando houver `@lid` + JID telefônico no mesmo payload, salvar alias imediatamente.
-   - Quando houver `fromMe + @lid` sem telefone claro, tentar resolver por alias já conhecido antes de criar qualquer conversa provisória.
-   - Em caso ambíguo, sinalizar revisão manual sem mesclar automaticamente.
+### 3. Melhoria opcional na UI (se sobrar espaço no plano)
+- Em `LidReviewDialog.tsx`, no botão "Rodar reconciliação automática", trocar a chamada única por um loop de lotes com feedback de progresso (`Processando 20/61…`). Isso resolve o problema para o usuário também na interface, não só quando eu rodo manualmente.
 
-4. **Corrigir dados já contaminados**
-   - Localizar mensagens `fromMe` recentes que foram parar na conversa do próprio número ou em conversa errada.
-   - Reassociar automaticamente somente quando existir evidência única: mesmo `wamid`, alias conhecido, telefone alternativo ou conversa candidata única.
-   - O que não tiver evidência única fica marcado para revisão, sem decisão unilateral.
+## Detalhes técnicos
 
-5. **Validação real antes de encerrar**
-   - Criar testes de payload simulando:
-     - envio do telefone para Lucas;
-     - envio do telefone para outro número;
-     - evento com `remoteJid` próprio e contato em `remoteJidAlt`/`participant`;
-     - evento `@lid` com e sem alias.
-   - Chamar a função de webhook com esses payloads e validar no banco que cada mensagem cai na conversa do destinatário correto, nunca na conversa “comigo mesmo”.
-   - Entregar relatório com: causa raiz, arquivos alterados, casos corrigidos por tenant, casos pendentes e resultado dos testes.
+Arquivos alterados:
+
+- `supabase/functions/whatsapp-lid-reconcile/index.ts`
+  - Ler `limit`/`offset` do body (com defaults e clamp).
+  - Aplicar `.range()` na query principal.
+  - Após o loop, executar um `SELECT count(*)` filtrado por tenant + `remote_jid LIKE '%@lid'` + `needs_lid_review=true` (ou sem esse filtro, para refletir o pool real) e devolver `remaining`.
+  - Devolver `next_offset = offset + processed` quando `remaining > 0`.
+
+- `src/components/admin/whatsapp/LidReviewDialog.tsx`
+  - `runReconcile` passa a chamar a função em loop com `limit=15`, acumulando os contadores retornados e mostrando um toast de progresso a cada rodada.
+  - Ao final, mesmo `toast.success` + `load()` + `onDone()` já existentes.
+
+Execução pós-deploy (feita por mim via ferramenta de curl):
+1. Loop de 5 chamadas com `{ tenant_id: "f23ff22b-…-9efe7", limit: 15 }` até `remaining=0`.
+2. Rodar `SELECT count(*) FROM conversations WHERE tenant_id='…' AND needs_lid_review=true` e reportar quantas caíram em `auto_merged`, quantas em `renamed` e quantas restaram como `manual_review` (essas continuam aparecendo no diálogo para você confirmar o número real).
+
+Sem mudanças em regras de merge, sem migrations, sem alteração no webhook.

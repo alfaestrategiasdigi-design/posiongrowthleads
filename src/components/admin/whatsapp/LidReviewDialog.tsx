@@ -51,13 +51,29 @@ export function LidReviewDialog({
 
   const runReconcile = async () => {
     setReconciling(true);
-    const { data, error } = await supabase.functions.invoke("whatsapp-lid-reconcile", {
-      body: tenantId ? { tenant_id: tenantId } : {},
-    });
-    setReconciling(false);
-    if (error) return toast.error(error.message);
-    const summary = (data as any)?.per_tenant ?? {};
-    toast.success(`Reconciliação executada — ${Object.keys(summary).length} tenant(s) processado(s)`);
+    const totals = { auto_merged: 0, renamed: 0, manual_review: 0, found: 0 };
+    let totalRemaining = 0;
+    try {
+      for (let i = 0; i < 20; i++) {
+        const { data, error } = await supabase.functions.invoke("whatsapp-lid-reconcile", {
+          body: { ...(tenantId ? { tenant_id: tenantId } : {}), limit: 15, offset: 0 },
+        });
+        if (error) { toast.error(error.message); break; }
+        const summary = (data as any)?.per_tenant ?? {};
+        for (const key of Object.keys(summary)) {
+          totals.auto_merged += summary[key].auto_merged ?? 0;
+          totals.renamed += summary[key].renamed ?? 0;
+          totals.manual_review += summary[key].manual_review ?? 0;
+          totals.found += summary[key].found ?? 0;
+        }
+        totalRemaining = (data as any)?.remaining ?? 0;
+        if (((data as any)?.processed ?? 0) === 0 || totalRemaining === 0) break;
+        toast.message(`Processadas ${totals.found} — restam ${totalRemaining}`);
+      }
+      toast.success(`Reconciliação concluída — mescladas: ${totals.auto_merged}, renomeadas: ${totals.renamed}, revisão manual: ${totals.manual_review}`);
+    } finally {
+      setReconciling(false);
+    }
     await load();
     onDone?.();
   };
