@@ -884,16 +884,16 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       {/* Chat */}
       {selectedConversation ? (
         <div className="flex-1 flex flex-col">
-          <div className="h-16 border-b border-border flex items-center justify-between px-4 bg-card/50 shrink-0">
+          <div className="wa-header-bar h-16 flex items-center justify-between px-4 shrink-0">
             <div className="flex items-center gap-3">
               <ContactAvatar name={selectedConversation.nome_contato || selectedConversation.telefone} photoUrl={selectedConversation.foto_url} size={40} />
               <div>
-                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <h3 className="wa-name text-[16px] font-semibold flex items-center gap-2" style={{ color: "#f2e6c2" }}>
                   {selectedConversation.nome_contato || selectedConversation.telefone}
                   {selectedConversation.lead_id && (
                     <button
                       onClick={() => setLeadPanelId(selectedConversation.lead_id!)}
-                      className="text-[10px] px-2 py-0.5 rounded bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 flex items-center gap-1"
+                      className="wa-badge-lead"
                       title="Abrir painel do lead"
                     >
                       <Target className="w-3 h-3" /> Lead vinculado <ExternalLink className="w-2.5 h-2.5" />
@@ -901,9 +901,10 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                   )}
                 </h3>
                 <div className="flex items-center gap-2">
-                  <p className="text-xs text-muted-foreground">{selectedConversation.telefone}</p>
+                  <p className="wa-mono text-xs" style={{ color: "#8a8272" }}>{selectedConversation.telefone}</p>
                   {(convTags[selectedConversation.id] || []).map(t => (
-                    <span key={t.id} className="text-[9px] px-1.5 py-0.5 rounded text-white" style={{ background: t.cor }}>{t.nome}</span>
+                    <span key={t.id} className="wa-tag-chip" data-active="true"
+                      style={{ "--wa-tag-color": t.cor } as React.CSSProperties}>{t.nome}</span>
                   ))}
                 </div>
               </div>
@@ -912,7 +913,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             <div className="flex items-center gap-1">
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-9 w-9" title="Tags"><TagIcon className="w-4 h-4 text-muted-foreground" /></Button>
+                  <button className="wa-icon-btn" title="Tags"><TagIcon className="w-4 h-4" /></button>
                 </PopoverTrigger>
                 <PopoverContent className="w-64 p-2" align="end">
                   <p className="text-[11px] text-muted-foreground px-2 pb-1">Aplicar tags</p>
@@ -930,12 +931,12 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                   })}
                 </PopoverContent>
               </Popover>
-              <Button variant="ghost" size="icon" className="h-9 w-9" title="Excluir conversa"
+              <button className="wa-icon-btn" title="Excluir conversa"
                 onClick={() => setConfirmDelete(selectedConversation)}>
-                <Trash2 className="w-4 h-4 text-rose-300/80" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-9 w-9"><Phone className="w-4 h-4 text-muted-foreground" /></Button>
-              <Button variant="ghost" size="icon" className="h-9 w-9"><MoreVertical className="w-4 h-4 text-muted-foreground" /></Button>
+                <Trash2 className="w-4 h-4" style={{ color: "#c26666" }} />
+              </button>
+              <button className="wa-icon-btn" title="Ligar"><Phone className="w-4 h-4" /></button>
+              <button className="wa-icon-btn" title="Mais opções"><MoreVertical className="w-4 h-4" /></button>
             </div>
           </div>
 
@@ -951,20 +952,20 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#050816]/60">
-
+          <div className="wa-chat-bg flex-1 overflow-y-auto p-4 space-y-3">
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
-                  <div className="w-20 h-20 rounded-full bg-muted/30 flex items-center justify-center mx-auto mb-4">
-                    <MessageCircle className="w-10 h-10 text-muted-foreground/50" />
+                  <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(201,162,39,0.05)", border: "1px solid var(--wa-hairline)" }}>
+                    <MessageCircle className="w-10 h-10" style={{ color: "hsl(var(--wa-gold-deep))" }} />
                   </div>
-                  <p className="text-muted-foreground text-sm">Nenhuma mensagem nesta conversa</p>
+                  <p className="wa-body text-sm" style={{ color: "#8a8272" }}>Nenhuma mensagem nesta conversa</p>
                 </div>
               </div>
             ) : (
               messages.map(msg => {
                 const isOut = msg.sender === "usuario";
+                const otherDevice = isOut && isFromOtherDevice(msg);
                 return (
                   <div key={msg.id} className={`group flex ${isOut ? "justify-end" : "justify-start"} gap-2`}>
                     {!isOut && (
@@ -976,16 +977,23 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                       />
                     )}
                     <div className="relative max-w-[70%]">
-                      <div className={`rounded-2xl px-3 py-2 ${isOut ? "rounded-br-md text-[#1a1208]" : "rounded-bl-md text-foreground border border-border/50"}`}
-                        style={isOut ? { background: "#c9a84c" } : { background: "#0d1426" }}>
+                      <div className={`wa-bubble ${isOut ? "wa-bubble-out" : "wa-bubble-in"}`}>
                         {msg.tipo_disparo === "boas_vindas" && (
                           <div className="flex items-center gap-1 text-[10px] opacity-70 mb-1">
                             <Sparkles className="w-3 h-3" /> Boas-vindas automática
                           </div>
                         )}
+                        {otherDevice && (
+                          <div className="mb-1">
+                            <span className="wa-otherdev" title="Esta mensagem foi enviada de outro dispositivo (celular ou outra sessão do WhatsApp)">
+                              <Phone className="w-2.5 h-2.5" /> outro dispositivo
+                            </span>
+                          </div>
+                        )}
                         {renderQuoted(msg)}
                         {renderMessageBody(msg)}
-                        <p className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isOut ? "text-[#1a1208]/60" : "text-muted-foreground"}`}>
+                        <p className={`wa-mono text-[10px] mt-1 flex items-center justify-end gap-1 ${isOut ? "text-[#1a1208]/60" : ""}`}
+                           style={!isOut ? { color: "#8a8272" } : undefined}>
                           {formatMessageTime(msg.created_at)} {renderStatus(msg)}
                         </p>
                         {renderReactions(msg)}
@@ -996,14 +1004,16 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                           <button
                             onClick={() => setReplyTo(msg)}
                             title="Responder"
-                            className="p-1 rounded-full bg-background/90 border border-border hover:bg-muted">
+                            className="p-1 rounded-full"
+                            style={{ background: "#0d0d0d", border: "1px solid var(--wa-hairline)", color: "hsl(var(--wa-gold-soft))" }}>
                             <Reply className="w-3.5 h-3.5" />
                           </button>
                           <Popover>
                             <PopoverTrigger asChild>
                               <button
                                 title="Reagir"
-                                className="p-1 rounded-full bg-background/90 border border-border hover:bg-muted">
+                                className="p-1 rounded-full"
+                                style={{ background: "#0d0d0d", border: "1px solid var(--wa-hairline)", color: "hsl(var(--wa-gold-soft))" }}>
                                 <Smile className="w-3.5 h-3.5" />
                               </button>
                             </PopoverTrigger>
@@ -1019,7 +1029,8 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                           <button
                             onClick={() => setReassignMessage(msg)}
                             title="Mover para outra conversa"
-                            className="p-1 rounded-full bg-background/90 border border-border hover:bg-muted">
+                            className="p-1 rounded-full"
+                            style={{ background: "#0d0d0d", border: "1px solid var(--wa-hairline)", color: "hsl(var(--wa-gold-soft))" }}>
                             <Move className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -1035,21 +1046,21 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
 
           {/* Reply chip */}
           {replyTo && (
-            <div className="px-3 pt-2 bg-card/50 border-t border-border shrink-0">
-              <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-muted/50 border-l-2 border-accent">
-                <CornerDownRight className="w-4 h-4 text-accent mt-0.5" />
+            <div className="wa-panel-2 px-3 pt-2 shrink-0">
+              <div className="flex items-start gap-2 px-3 py-2 rounded-lg" style={{ background: "#0d0d0d", borderLeft: "2px solid hsl(var(--wa-gold))" }}>
+                <CornerDownRight className="w-4 h-4 mt-0.5" style={{ color: "hsl(var(--wa-gold-soft))" }} />
                 <div className="flex-1 min-w-0">
-                  <div className="text-[10px] text-accent font-medium uppercase tracking-wide">Respondendo</div>
-                  <div className="text-xs text-muted-foreground truncate">{replyTo.conteudo || "mídia"}</div>
+                  <div className="text-[10px] font-medium uppercase tracking-wide" style={{ color: "hsl(var(--wa-gold-soft))" }}>Respondendo</div>
+                  <div className="text-xs truncate" style={{ color: "#9a9384" }}>{replyTo.conteudo || "mídia"}</div>
                 </div>
-                <button onClick={() => setReplyTo(null)} className="p-1 hover:bg-muted rounded">
+                <button onClick={() => setReplyTo(null)} className="wa-icon-btn !h-7 !w-7">
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
           )}
 
-          <div className="p-3 border-t border-border bg-card/50 shrink-0">
+          <div className="wa-header-bar p-3 shrink-0" style={{ borderTop: "1px solid var(--wa-hairline)", borderBottom: "none" }}>
             {recording ? (
               <div className="flex items-center gap-3 h-10 px-3 rounded-full bg-rose-500/10 border border-rose-500/30">
                 <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
@@ -1062,25 +1073,25 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0"><Smile className="w-5 h-5 text-muted-foreground" /></Button>
-                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={handleAttach} disabled={uploading}>
-                  {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5 text-muted-foreground" />}
-                </Button>
+                <button className="wa-icon-btn !h-10 !w-10 shrink-0"><Smile className="w-5 h-5" /></button>
+                <button className="wa-icon-btn !h-10 !w-10 shrink-0" onClick={handleAttach} disabled={uploading}>
+                  {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
+                </button>
                 <input ref={fileInputRef} type="file" hidden onChange={handleFileSelected}
                   accept="image/*,video/*,audio/*,application/pdf" />
                 <Input placeholder="Digite uma mensagem..." value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)} onKeyDown={handleKeyPress}
-                  disabled={sending} className="flex-1 bg-muted/50 border-none h-10" />
+                  disabled={sending} className="wa-input flex-1 h-10 placeholder:text-[#7a7365]" />
                 {newMessage.trim() ? (
-                  <Button onClick={handleSendMessage} disabled={sending}
-                    size="icon" className="h-10 w-10 rounded-full bg-accent hover:bg-accent/90 shrink-0">
+                  <button onClick={handleSendMessage} disabled={sending}
+                    className="wa-send-btn h-10 w-10 shrink-0 flex items-center justify-center disabled:opacity-50">
                     {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  </Button>
+                  </button>
                 ) : (
-                  <Button onClick={startRecording} title="Gravar áudio"
-                    size="icon" className="h-10 w-10 rounded-full bg-accent hover:bg-accent/90 shrink-0">
+                  <button onClick={startRecording} title="Gravar áudio"
+                    className="wa-send-btn h-10 w-10 shrink-0 flex items-center justify-center">
                     <Mic className="w-4 h-4" />
-                  </Button>
+                  </button>
                 )}
               </div>
             )}
