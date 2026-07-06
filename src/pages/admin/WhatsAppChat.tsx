@@ -131,6 +131,9 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const [savingWelcome, setSavingWelcome] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
+  const localWamidsRef = useRef<Set<string>>(loadLocalWamids());
+  const sessionStartRef = useRef<number>(getSessionStart());
+  const pendingLocalSendRef = useRef<number | null>(null);
 
   // ============ Loads ============
   const loadConversations = useCallback(async () => {
