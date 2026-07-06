@@ -827,16 +827,23 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Definitive stop-the-bleeding rule: if this is an OUTBOUND message
-        // whose recipient we could not resolve beyond an @lid, do NOT create a
-        // provisional conversation. There is no reliable way to know the true
-        // recipient here (pushName is the operator itself), and creating a new
-        // row per outbound message is exactly what produced the duplicates.
+        // Stop-the-bleeding rule for OUTBOUND @lid echoes without a resolved
+        // phone: only accept them when they can be attached to a conversation
+        // that ALREADY exists for that exact @lid (previous inbound created it
+        // or a merge mapped it). This prevents creating brand-new phantom
+        // conversations while still letting operators see their outbound
+        // messages inside legitimate LID-only threads.
         if (isPendingLid && fromMe) {
-          console.warn("[whatsapp-webhook] outbound_unresolved_lid_dropped", {
-            wamid, rawRemoteJid, remoteJid, senderPushName: rawPushName,
-          });
-          continue;
+          let existsQ = admin.from("conversations")
+            .select("id").eq("remote_jid", remoteJid).limit(1);
+          existsQ = tenantId ? existsQ.eq("tenant_id", tenantId) : existsQ.is("tenant_id", null);
+          const { data: existingLidConv } = await existsQ.maybeSingle();
+          if (!existingLidConv) {
+            console.warn("[whatsapp-webhook] outbound_unresolved_lid_dropped_no_conv", {
+              wamid, rawRemoteJid, remoteJid, senderPushName: rawPushName,
+            });
+            continue;
+          }
         }
 
         if (isPendingLid) {
