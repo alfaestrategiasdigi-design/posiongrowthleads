@@ -807,21 +807,42 @@ Deno.serve(async (req) => {
         }
         let remoteJid = effectiveJid;
         let isPendingLid = resolved.unresolvedLid || remoteJid.includes("@lid");
-        const pushName: string = extractPushName(m);
+        const rawPushName: string = extractPushName(m);
+        // CRITICAL: on fromMe payloads, `pushName` is the SENDER's (phone owner)
+        // own name, not the recipient's. Using it as `nome_contato` created a
+        // storm of conversations all labelled with the operator's name pointing
+        // to random @lid recipients. Only trust pushName for inbound messages.
+        const pushName: string = fromMe ? "" : rawPushName;
 
         // Root-cause hardening #1: if this arrived as @lid, try to route it into
         // an existing canonical conversation by pushName BEFORE creating a new
-        // provisional row. Zero dependency on CONTACTS_UPDATE.
-        if (isPendingLid && pushName) {
+        // provisional row. Zero dependency on CONTACTS_UPDATE. Skip for fromMe:
+        // matching by operator's own pushName would attach every outbound to the
+        // wrong contact (root cause of the "56 conversas @lid" storm).
+        if (isPendingLid && pushName && !fromMe) {
           const canonical = await tryRouteLidToCanonicalByPushName(tenantId, instanceName || null, remoteJid, pushName);
           if (canonical) {
             remoteJid = canonical;
             isPendingLid = false;
           }
         }
+
+        // Definitive stop-the-bleeding rule: if this is an OUTBOUND message
+        // whose recipient we could not resolve beyond an @lid, do NOT create a
+        // provisional conversation. There is no reliable way to know the true
+        // recipient here (pushName is the operator itself), and creating a new
+        // row per outbound message is exactly what produced the duplicates.
+        if (isPendingLid && fromMe) {
+          console.warn("[whatsapp-webhook] outbound_unresolved_lid_dropped", {
+            wamid, rawRemoteJid, remoteJid, senderPushName: rawPushName,
+          });
+          continue;
+        }
+
         if (isPendingLid) {
           console.log("[whatsapp-webhook] pending_lid_stored", { wamid, rawRemoteJid, fromMe, pushName });
         }
+
         const msgObj = unwrapMessagePayload(m);
 
         // Detect message type (broad coverage)
@@ -999,7 +1020,7 @@ Deno.serve(async (req) => {
             nao_lidas: fromMe || isHistorySet ? conv.nao_lidas : (conv.nao_lidas ?? 0) + 1,
             telefone: phone,
             remote_jid: remoteJid,
-            nome_contato: pushName || undefined,
+            nome_contato: !fromMe && pushName ? pushName : undefined,
           }).eq("id", conv.id);
         }
 
