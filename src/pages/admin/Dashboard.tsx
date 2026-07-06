@@ -383,7 +383,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+          <div data-no-float className="premium-card rounded-xl p-4">
             <Tabs defaultValue="ganhos" className="w-full">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold">Movimentação</h3>
