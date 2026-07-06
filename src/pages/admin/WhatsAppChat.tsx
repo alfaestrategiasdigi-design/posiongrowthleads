@@ -55,7 +55,28 @@ const DEFAULT_WELCOME: Welcome = {
   trigger_facebook: true,
   trigger_kanban_status: null,
 };
-const TAG_COLORS = ["#c9a84c", "#22c55e", "#3b82f6", "#a855f7", "#ec4899", "#ef4444", "#f59e0b", "#06b6d4"];
+const TAG_COLORS = ["#c9a227", "#e4c876", "#22c55e", "#3b82f6", "#a855f7", "#ec4899", "#ef4444", "#f59e0b"];
+const LOCAL_WAMIDS_KEY = "wa-local-sent-wamids-v1";
+const loadLocalWamids = (): Set<string> => {
+  try { return new Set(JSON.parse(localStorage.getItem(LOCAL_WAMIDS_KEY) || "[]")); } catch { return new Set(); }
+};
+const persistLocalWamids = (s: Set<string>) => {
+  try {
+    const arr = Array.from(s);
+    // Keep last 2000 to prevent unbounded growth
+    localStorage.setItem(LOCAL_WAMIDS_KEY, JSON.stringify(arr.slice(-2000)));
+  } catch { /* ignore */ }
+};
+const SESSION_START_KEY = "wa-session-started-at-v1";
+const getSessionStart = (): number => {
+  try {
+    const v = localStorage.getItem(SESSION_START_KEY);
+    if (v) return parseInt(v);
+    const now = Date.now();
+    localStorage.setItem(SESSION_START_KEY, String(now));
+    return now;
+  } catch { return Date.now(); }
+};
 
 type WhatsAppChatProps = {
   tenantId?: string | null;
