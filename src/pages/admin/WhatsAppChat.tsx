@@ -1226,19 +1226,49 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
 
             {/* Tags */}
             <TabsContent value="tags" className="space-y-4 mt-4">
-              <div className="border border-border rounded-lg p-3 space-y-2">
+              <div className="border border-border rounded-lg p-3 space-y-3">
                 <Label className="text-xs">Nova tag</Label>
-                <div className="flex gap-2 items-center">
+                <div className="flex gap-2 items-center flex-wrap">
                   <Input placeholder="ex: VIP, Aguardando, Quente..." value={newTagName}
-                    onChange={(e) => setNewTagName(e.target.value)} className="flex-1" />
+                    onChange={(e) => setNewTagName(e.target.value)} className="flex-1 min-w-[180px]" />
+                  <Button size="icon" onClick={createTag} className="h-9 w-9"><Plus className="w-4 h-4" /></Button>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] text-muted-foreground">Cor:</span>
                   <div className="flex gap-1">
                     {TAG_COLORS.map(c => (
-                      <button key={c} onClick={() => setNewTagColor(c)}
-                        className={`w-6 h-6 rounded-full border-2 ${newTagColor === c ? "border-foreground" : "border-transparent"}`}
+                      <button key={c} type="button" onClick={() => setNewTagColor(c)}
+                        title={c}
+                        className={`w-6 h-6 rounded-full border-2 ${newTagColor.toLowerCase() === c.toLowerCase() ? "border-foreground" : "border-transparent"}`}
                         style={{ background: c }} />
                     ))}
                   </div>
-                  <Button size="icon" onClick={createTag} className="h-9 w-9"><Plus className="w-4 h-4" /></Button>
+                  <div className="flex items-center gap-1 ml-2">
+                    <input
+                      type="color"
+                      value={newTagColor}
+                      onChange={(e) => setNewTagColor(e.target.value)}
+                      className="w-8 h-8 rounded cursor-pointer bg-transparent border border-border"
+                      title="Escolher cor personalizada"
+                    />
+                    <Input
+                      value={newTagColor}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (/^#?[0-9a-fA-F]{0,6}$/.test(v)) {
+                          setNewTagColor(v.startsWith("#") ? v : `#${v}`);
+                        }
+                      }}
+                      maxLength={7}
+                      className="w-24 h-8 font-mono text-xs uppercase"
+                      placeholder="#RRGGBB"
+                    />
+                  </div>
+                  <span className="wa-tag-chip ml-auto" data-active={newTagName ? "true" : undefined}
+                    style={{ "--wa-tag-color": newTagColor } as React.CSSProperties}>
+                    <span className="wa-tag-dot" />
+                    {newTagName || "Prévia"}
+                  </span>
                 </div>
               </div>
               <div className="space-y-1">
@@ -1246,8 +1276,9 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                 {allTags.map(t => (
                   <div key={t.id} className="flex items-center justify-between border border-border rounded p-2">
                     <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full" style={{ background: t.cor }} />
+                      <span className="w-3 h-3 rounded-full" style={{ background: t.cor, boxShadow: `0 0 8px ${t.cor}66` }} />
                       <span className="text-sm">{t.nome}</span>
+                      <span className="wa-mono text-[10px] opacity-60">{t.cor}</span>
                     </div>
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteTag(t.id)}>
                       <X className="w-4 h-4" />
