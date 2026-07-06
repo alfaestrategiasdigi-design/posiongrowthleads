@@ -184,6 +184,18 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       .from("messages").select("*").eq("conversation_id", conversationId)
       .order("created_at", { ascending: true });
     const msgs = (data as Message[]) || [];
+    // If we just sent locally, claim outbound wamids that appeared at/after that timestamp
+    const claimTs = pendingLocalSendRef.current;
+    if (claimTs) {
+      let changed = false;
+      for (const m of msgs) {
+        if (m.sender === "usuario" && m.wamid && new Date(m.created_at).getTime() >= claimTs - 5000) {
+          if (!localWamidsRef.current.has(m.wamid)) { localWamidsRef.current.add(m.wamid); changed = true; }
+        }
+      }
+      if (changed) persistLocalWamids(localWamidsRef.current);
+      pendingLocalSendRef.current = null;
+    }
     setMessages(msgs);
     // Load reactions for this conversation
     const { data: reactRows } = await supabase
