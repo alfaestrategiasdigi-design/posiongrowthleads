@@ -453,6 +453,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       const mediaType = file.type.startsWith("image/") ? "image"
         : file.type.startsWith("video/") ? "video"
         : file.type.startsWith("audio/") ? "audio" : "document";
+      pendingLocalSendRef.current = Date.now();
       const { data, error } = await supabase.functions.invoke("evolution-send", {
         body: { conversation_id: selectedConversation.id, media_url: url, media_type: mediaType, caption: newMessage.trim() || undefined },
       });
