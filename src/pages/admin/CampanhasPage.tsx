@@ -81,6 +81,7 @@ export default function CampanhasPage() {
   const [formsError, setFormsError] = useState<string | null>(null);
   const [syncingForm, setSyncingForm] = useState<string | null>(null);
   const [lastLeadsSync, setLastLeadsSync] = useState<string | null>(null);
+  const [formsStale, setFormsStale] = useState<{ since: string; rateLimited: boolean } | null>(null);
 
   const isPlaceholderAdAccount = !!adAccountId && /^act_1234/.test(adAccountId);
   const adAccountConfigured = !!adAccountId && !isPlaceholderAdAccount;
@@ -358,14 +359,15 @@ export default function CampanhasPage() {
         body: { action: "list_lead_forms" },
       });
       if (error) throw error;
-      if (data?.need_page || data?.need_reconnect) { setFormsError(data.error); setLeadForms([]); setLeadPages([]); setLeadFormErrors([]); return; }
+      if (data?.need_page || data?.need_reconnect) { setFormsError(data.error); setLeadForms([]); setLeadPages([]); setLeadFormErrors([]); setFormsStale(null); return; }
       if (data?.error) throw new Error(data.error);
       setLeadForms((data?.data ?? []) as LeadForm[]);
       setLeadPages((data?.pages ?? []) as PageSummary[]);
       setLeadFormErrors((data?.errors ?? []) as any[]);
+      setFormsStale(data?.stale ? { since: data.stale_since, rateLimited: !!data.rate_limited } : null);
     } catch (e: any) {
       setFormsError(e.message ?? "Falha ao carregar formulários");
-      setLeadForms([]); setLeadPages([]); setLeadFormErrors([]);
+      setLeadForms([]); setLeadPages([]); setLeadFormErrors([]); setFormsStale(null);
     } finally { setLoadingForms(false); }
   };
 
