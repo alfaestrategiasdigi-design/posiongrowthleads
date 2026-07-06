@@ -1098,13 +1098,13 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center bg-background/50">
+        <div className="wa-chat-bg flex-1 flex items-center justify-center">
           <div className="text-center max-w-sm">
-            <div className="w-24 h-24 rounded-full bg-muted/20 flex items-center justify-center mx-auto mb-6">
-              <MessageCircle className="w-12 h-12 text-muted-foreground/30" />
+            <div className="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6" style={{ background: "rgba(201,162,39,0.05)", border: "1px solid var(--wa-hairline)" }}>
+              <MessageCircle className="w-12 h-12" style={{ color: "hsl(var(--wa-gold-deep))" }} />
             </div>
-            <h2 className="text-xl font-semibold text-foreground mb-2">WhatsApp Inbox</h2>
-            <p className="text-muted-foreground text-sm mb-4">Selecione uma conversa ou configure a Evolution API.</p>
+            <h2 className="wa-name text-2xl font-semibold mb-2" style={{ color: "#f2e6c2" }}>WhatsApp Inbox</h2>
+            <p className="wa-body text-sm mb-4" style={{ color: "#9a9384" }}>Selecione uma conversa ou configure a Evolution API.</p>
             <Button onClick={() => setCfgOpen(true)} variant="outline" size="sm" className="gap-2">
               <Settings className="w-4 h-4" /> Configurações
             </Button>
