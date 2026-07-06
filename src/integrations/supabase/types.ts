@@ -1270,6 +1270,27 @@ export type Database = {
           },
         ]
       }
+      facebook_lead_forms_cache: {
+        Row: {
+          data: Json
+          id: number
+          pages: Json
+          updated_at: string
+        }
+        Insert: {
+          data: Json
+          id?: number
+          pages?: Json
+          updated_at?: string
+        }
+        Update: {
+          data?: Json
+          id?: number
+          pages?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       facebook_webhook_config: {
         Row: {
           ad_account_id: string | null
