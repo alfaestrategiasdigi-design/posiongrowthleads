@@ -555,7 +555,7 @@ function MetricCard({
 }) {
   const isPercent = label.toLowerCase().includes("conversão");
   const inner = (
-    <div className="rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent p-4 flex items-center gap-3 hover:border-amber-400/50 transition-colors">
+    <div data-no-float className="premium-card rounded-xl p-4 flex items-center gap-3">
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
           <div className="text-[10px] uppercase tracking-[0.18em] text-amber-400/80 font-mono">{label}</div>
