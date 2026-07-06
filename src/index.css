@@ -754,3 +754,225 @@ html { scroll-behavior: smooth; }
   background: linear-gradient(135deg, hsl(0 0% 100%) 0%, hsl(var(--tech-cyan) / 0.85) 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
+
+/* ===========================================================
+   WHATSAPP INBOX — Black & Gold premium floating layer
+   Scoped to `.wa-shell`. No global impact.
+   =========================================================== */
+.wa-shell {
+  --wa-gold: 44 55% 47%;         /* #C9A227 muted antique gold */
+  --wa-gold-soft: 44 55% 60%;
+  --wa-gold-deep: 44 55% 34%;
+  --wa-bg: #000000;
+  --wa-surface: #0b0b0b;
+  --wa-surface-2: #121212;
+  --wa-surface-3: #171717;
+  --wa-hairline: rgba(201,162,39,0.18);
+  --wa-hairline-strong: rgba(201,162,39,0.42);
+
+  background: var(--wa-bg);
+  color: #efe9d8;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.wa-shell ::selection { background: hsl(var(--wa-gold) / 0.4); color: #fff; }
+
+/* Fonts */
+.wa-name    { font-family: 'Fraunces', 'Playfair Display', ui-serif, Georgia, serif; letter-spacing: -0.005em; }
+.wa-mono    { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; font-weight: 400; letter-spacing: 0.01em; }
+.wa-body    { font-family: 'Inter', system-ui, sans-serif; }
+
+/* Surfaces */
+.wa-panel {
+  background: var(--wa-surface);
+  border-right: 1px solid var(--wa-hairline);
+}
+.wa-panel-2 {
+  background: var(--wa-surface-2);
+  border-bottom: 1px solid var(--wa-hairline);
+}
+.wa-header-bar {
+  background: linear-gradient(180deg, #0d0d0d, #060606);
+  border-bottom: 1px solid var(--wa-hairline);
+}
+.wa-chat-bg {
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 0%, rgba(201,162,39,0.06), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 90% 100%, rgba(201,162,39,0.04), transparent 60%),
+    #000000;
+}
+
+/* Floating card (conversation item) */
+.wa-card {
+  position: relative;
+  background: linear-gradient(180deg, #101010 0%, #0b0b0b 100%);
+  border: 1px solid var(--wa-hairline);
+  border-radius: 10px;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.02) inset,
+    0 8px 20px -14px rgba(0,0,0,0.9);
+  transition: transform 220ms cubic-bezier(.2,.7,.2,1),
+              border-color 220ms ease,
+              box-shadow 220ms ease,
+              background 220ms ease;
+}
+.wa-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--wa-hairline-strong);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.03) inset,
+    0 18px 32px -18px rgba(0,0,0,0.95),
+    0 0 22px -6px hsl(var(--wa-gold) / 0.28);
+}
+.wa-card[data-selected="true"] {
+  border-color: hsl(var(--wa-gold) / 0.55);
+  background: linear-gradient(180deg, #141108 0%, #0d0a04 100%);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.04) inset,
+    0 18px 32px -18px rgba(0,0,0,0.95),
+    0 0 28px -6px hsl(var(--wa-gold) / 0.4);
+}
+
+/* Message bubbles — floating, gold outbound, dark inbound */
+.wa-bubble {
+  position: relative;
+  border-radius: 12px;
+  padding: 8px 12px;
+  transition: transform 220ms cubic-bezier(.2,.7,.2,1), box-shadow 220ms ease;
+  box-shadow: 0 6px 18px -10px rgba(0,0,0,0.85);
+}
+.wa-bubble:hover { transform: translateY(-1px); }
+.wa-bubble-out {
+  background: linear-gradient(180deg, #d4b356 0%, #b8912f 100%);
+  color: #1a1208;
+  border: 1px solid rgba(201,162,39,0.7);
+  border-bottom-right-radius: 4px;
+  box-shadow:
+    0 8px 22px -10px rgba(184,145,47,0.45),
+    0 1px 0 rgba(255,255,255,0.15) inset;
+}
+.wa-bubble-in {
+  background: linear-gradient(180deg, #121212 0%, #0c0c0c 100%);
+  color: #efe9d8;
+  border: 1px solid var(--wa-hairline);
+  border-bottom-left-radius: 4px;
+}
+.wa-bubble-in:hover { border-color: var(--wa-hairline-strong); }
+
+/* Outlined tag chip (gold hairline, fills when active) */
+.wa-tag-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid var(--wa-hairline-strong);
+  color: hsl(var(--wa-gold-soft));
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0.01em;
+  transition: background 180ms, color 180ms, border-color 180ms;
+  white-space: nowrap;
+}
+.wa-tag-chip[data-active="true"] {
+  background: var(--wa-tag-color, hsl(var(--wa-gold) / 0.9));
+  color: #0a0a0a;
+  border-color: transparent;
+  font-weight: 600;
+}
+.wa-tag-chip .wa-tag-dot {
+  width: 6px; height: 6px; border-radius: 999px;
+  background: var(--wa-tag-color, hsl(var(--wa-gold)));
+  box-shadow: 0 0 6px var(--wa-tag-color, hsl(var(--wa-gold) / 0.6));
+}
+.wa-tag-chip[data-active="true"] .wa-tag-dot { display: none; }
+
+/* Lead badge */
+.wa-badge-lead {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(201,162,39,0.14), rgba(201,162,39,0.06));
+  border: 1px solid var(--wa-hairline-strong);
+  color: hsl(var(--wa-gold-soft));
+  font-family: 'Inter', sans-serif;
+}
+.wa-badge-lead:hover {
+  background: linear-gradient(180deg, rgba(201,162,39,0.22), rgba(201,162,39,0.12));
+  color: #f2dfa1;
+}
+
+/* Unread pill — gold, mono */
+.wa-unread {
+  min-width: 20px; height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #d4b356, #a88526);
+  color: #1a1208;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-weight: 700;
+  font-size: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 12px -2px hsl(var(--wa-gold) / 0.5);
+}
+
+/* Inputs & buttons */
+.wa-input {
+  background: #0e0e0e;
+  border: 1px solid var(--wa-hairline);
+  color: #efe9d8;
+  border-radius: 10px;
+  transition: border-color 180ms, box-shadow 180ms;
+}
+.wa-input:focus-visible {
+  border-color: hsl(var(--wa-gold) / 0.6);
+  box-shadow: 0 0 0 3px hsl(var(--wa-gold) / 0.15);
+  outline: none;
+}
+
+.wa-icon-btn {
+  height: 34px; width: 34px;
+  border-radius: 10px;
+  color: hsl(var(--wa-gold-soft));
+  background: transparent;
+  border: 1px solid transparent;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all 180ms;
+}
+.wa-icon-btn:hover {
+  background: rgba(201,162,39,0.08);
+  border-color: var(--wa-hairline);
+  color: #f2dfa1;
+}
+
+.wa-send-btn {
+  background: linear-gradient(180deg, #d4b356, #a88526);
+  color: #1a1208;
+  border: 1px solid rgba(201,162,39,0.7);
+  border-radius: 999px;
+  box-shadow: 0 8px 22px -8px hsl(var(--wa-gold) / 0.55);
+  transition: transform 160ms, box-shadow 160ms;
+}
+.wa-send-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px -8px hsl(var(--wa-gold) / 0.7);
+}
+
+/* "Enviado de outro dispositivo" indicator */
+.wa-otherdev {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9px;
+  color: rgba(26,18,8,0.7);
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(26,18,8,0.10);
+  border: 1px solid rgba(26,18,8,0.15);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Divider hairline */
+.wa-hairline {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--wa-hairline-strong), transparent);
+}
