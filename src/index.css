@@ -871,31 +871,31 @@ html { scroll-behavior: smooth; }
     0 0 28px -6px hsl(var(--wa-gold) / 0.4);
 }
 
-/* Message bubbles — floating, gold outbound, dark inbound */
+/* Message bubbles — subtle depth, distinção por alinhamento + tom (não por saturação) */
 .wa-bubble {
   position: relative;
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 8px 12px;
-  transition: transform 220ms cubic-bezier(.2,.7,.2,1), box-shadow 220ms ease;
-  box-shadow: 0 6px 18px -10px rgba(0,0,0,0.85);
+  color: #efe9d8;
+  transition: transform 220ms cubic-bezier(.2,.7,.2,1), border-color 220ms ease;
+  box-shadow: 0 8px 20px -14px rgba(0,0,0,0.8);
 }
 .wa-bubble:hover { transform: translateY(-1px); }
 .wa-bubble-out {
-  background: linear-gradient(180deg, #d4b356 0%, #b8912f 100%);
-  color: #1a1208;
-  border: 1px solid rgba(201,162,39,0.7);
+  background: #1a1712;
+  border: 1px solid rgba(201,162,39,0.32);
   border-bottom-right-radius: 4px;
   box-shadow:
-    0 8px 22px -10px rgba(184,145,47,0.45),
-    0 1px 0 rgba(255,255,255,0.15) inset;
+    0 8px 20px -14px rgba(0,0,0,0.85),
+    inset 0 1px 0 rgba(201,162,39,0.12);
 }
+.wa-bubble-out:hover { border-color: rgba(201,162,39,0.5); }
 .wa-bubble-in {
-  background: linear-gradient(180deg, #121212 0%, #0c0c0c 100%);
-  color: #efe9d8;
-  border: 1px solid var(--wa-hairline);
+  background: #0f0f0f;
+  border: 1px solid rgba(201,162,39,0.14);
   border-bottom-left-radius: 4px;
 }
-.wa-bubble-in:hover { border-color: var(--wa-hairline-strong); }
+.wa-bubble-in:hover { border-color: rgba(201,162,39,0.28); }
 
 /* Outlined tag chip (gold hairline, fills when active) */
 .wa-tag-chip {
