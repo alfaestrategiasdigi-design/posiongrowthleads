@@ -626,9 +626,13 @@ html { scroll-behavior: smooth; }
    TECH ADMIN SHELL — neon cyber overlay
    =========================================================== */
 :root {
-  --tech-cyan: 188 95% 55%;
-  --tech-violet: 268 88% 68%;
-  --tech-mint: 156 88% 55%;
+  /* Gold-forward accent (aligned with WhatsApp Master).
+     Legacy var name kept as `--tech-cyan` so existing rules pick up the new hue
+     without a broad rename. */
+  --tech-cyan: 44 68% 52%;      /* #C9A227 antique gold */
+  --tech-violet: 40 78% 40%;    /* #B8860B deep gold — for gradient depth */
+  --tech-gold-soft: 44 75% 68%; /* #E8C468 light gold */
+  --tech-mint: 156 78% 48%;     /* preserved: real "online / connected" status */
   --tech-grid: 224 30% 16%;
 }
 
