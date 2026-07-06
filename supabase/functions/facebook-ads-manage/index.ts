@@ -302,20 +302,35 @@ Deno.serve(async (req) => {
         // Agrega formulários de TODAS as Páginas acessíveis pelo user token:
         // /me/accounts + owned_pages/client_pages de cada Business Manager.
         const pagesMap = new Map<string, { id: string; name: string; access_token?: string }>();
+        const errors: any[] = [];
 
         const meAcc = await fbGet(`me/accounts`, token, {
           fields: "id,name,access_token", limit: "200",
         });
-        if (meAcc.ok) for (const p of meAcc.body?.data ?? []) pagesMap.set(p.id, p);
+        if (meAcc.ok) {
+          for (const p of meAcc.body?.data ?? []) pagesMap.set(p.id, p);
+        } else {
+          errors.push({ page_id: "me/accounts", page_name: "Páginas pessoais (/me/accounts)", error: meAcc.body?.error?.message ?? "Erro Graph" });
+        }
 
         const biz = await fbGet(`me/businesses`, token, { fields: "id,name", limit: "200" });
-        if (biz.ok) {
+        if (!biz.ok) {
+          errors.push({ page_id: "me/businesses", page_name: "Business Managers (/me/businesses)", error: biz.body?.error?.message ?? "Erro Graph" });
+        } else {
           for (const b of biz.body?.data ?? []) {
             for (const edge of ["owned_pages", "client_pages"]) {
               const r = await fbGet(`${b.id}/${edge}`, token, {
                 fields: "id,name,access_token", limit: "200",
               });
-              if (r.ok) for (const p of r.body?.data ?? []) if (!pagesMap.has(p.id)) pagesMap.set(p.id, p);
+              if (r.ok) {
+                for (const p of r.body?.data ?? []) if (!pagesMap.has(p.id)) pagesMap.set(p.id, p);
+              } else {
+                errors.push({
+                  page_id: `${b.id}/${edge}`,
+                  page_name: `BM ${b.name ?? b.id} · ${edge}`,
+                  error: r.body?.error?.message ?? "Erro Graph",
+                });
+              }
             }
           }
         }
@@ -332,11 +347,15 @@ Deno.serve(async (req) => {
 
         const pages = [...pagesMap.values()];
         if (pages.length === 0) {
-          return json({ ok: false, error: "Nenhuma Página acessível. Reconecte concedendo pages_show_list, leads_retrieval e business_management.", need_reconnect: true }, 200);
+          return json({
+            ok: false,
+            error: "Nenhuma Página acessível. Reconecte concedendo pages_show_list, leads_retrieval e business_management.",
+            need_reconnect: true,
+            errors,
+          }, 200);
         }
 
         const forms: any[] = [];
-        const errors: any[] = [];
         const pageSummary: any[] = [];
 
         await mapLimit(pages, 4, async (p) => {
@@ -345,17 +364,19 @@ Deno.serve(async (req) => {
             fields: "id,name,status,leads_count,created_time", limit: "200",
           });
           if (!r.ok) {
-            errors.push({ page_id: p.id, page_name: p.name, error: r.body?.error?.message ?? "Erro Graph" });
-            pageSummary.push({ id: p.id, name: p.name, forms_count: 0, error: true });
+            errors.push({ page_id: p.id, page_name: p.name || p.id, error: r.body?.error?.message ?? "Erro Graph" });
+            pageSummary.push({ id: p.id, name: p.name || p.id, forms_count: 0, error: true });
             return;
           }
           const data = r.body?.data ?? [];
-          for (const f of data) forms.push({ ...f, page_id: p.id, page_name: p.name });
-          pageSummary.push({ id: p.id, name: p.name, forms_count: data.length });
+          const pageName = p.name || p.id;
+          for (const f of data) forms.push({ ...f, page_id: p.id, page_name: pageName });
+          pageSummary.push({ id: p.id, name: pageName, forms_count: data.length });
         });
 
         return json({ ok: true, data: forms, pages: pageSummary, errors });
       }
+
 
       default:
         return json({ error: `Ação desconhecida: ${action}` }, 400);
