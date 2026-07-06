@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import type { MessageReaction } from "@/types/admin";
 import UnifiedLeadPanel from "@/components/leads/UnifiedLeadPanel";
+import { WhatsAppAudioPlayer } from "@/components/admin/whatsapp/WhatsAppAudioPlayer";
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -688,7 +689,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
     if (msg.media_url) {
       if (tipo === "image") return <img src={msg.media_url} alt="" className="rounded-lg max-w-full max-h-72 object-cover mb-1" />;
       if (tipo === "sticker") return <img src={msg.media_url} alt="" className="max-w-[120px] max-h-[120px] mb-1" />;
-      if (tipo === "audio") return <audio controls src={msg.media_url} className="max-w-full" />;
+      if (tipo === "audio") return <WhatsAppAudioPlayer src={msg.media_url} />;
       if (tipo === "video") return <video controls src={msg.media_url} className="rounded-lg max-w-full max-h-72" />;
       if (tipo === "document") return (
         <a href={msg.media_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline">
