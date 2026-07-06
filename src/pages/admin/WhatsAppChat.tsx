@@ -819,58 +819,59 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
 
 
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {loading ? (
-            <div className="flex items-center justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+            <div className="flex items-center justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" style={{ color: "hsl(var(--wa-gold-soft))" }} /></div>
           ) : filteredConversations.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-              <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
-                <MessageCircle className="w-8 h-8 text-muted-foreground" />
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ background: "rgba(201,162,39,0.06)", border: "1px solid var(--wa-hairline)" }}>
+                <MessageCircle className="w-8 h-8" style={{ color: "hsl(var(--wa-gold-soft))" }} />
               </div>
-              <p className="text-muted-foreground text-sm">Nenhuma conversa</p>
+              <p className="text-sm" style={{ color: "#8a8272" }}>Nenhuma conversa</p>
             </div>
           ) : (
             filteredConversations.map(conv => {
               const tags = convTags[conv.id] || [];
-              // tenant badge removed: strict isolation per inbox
+              const selected = selectedConversation?.id === conv.id;
               return (
                 <div key={conv.id} onClick={() => setSelectedConversation(conv)}
-                  className={`group relative flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors border-b border-border/30 ${selectedConversation?.id === conv.id ? "bg-muted/50" : ""}`}>
+                  data-selected={selected ? "true" : undefined}
+                  className="wa-card group relative flex items-start gap-3 px-3 py-3 cursor-pointer">
                   <ContactAvatar name={conv.nome_contato || conv.telefone} photoUrl={conv.foto_url} size={44} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-medium text-foreground truncate">
+                      <h4 className="wa-name text-[15px] font-semibold truncate" style={{ color: "#f0e6c8" }}>
                         {highlight(conv.nome_contato || conv.telefone)}
                       </h4>
-                      <span className="text-[10px] text-muted-foreground shrink-0 ml-2">{formatListTime(conv.ultima_interacao)}</span>
+                      <span className="wa-mono text-[10px] shrink-0 ml-2" style={{ color: "#8a8272" }}>{formatListTime(conv.ultima_interacao)}</span>
                     </div>
                     <div className="flex items-center justify-between mt-0.5 gap-2">
-                      <p className="text-xs text-muted-foreground truncate flex-1">
+                      <p className="wa-body text-xs truncate flex-1" style={{ color: "#9a9384" }}>
                         {highlight(typedPreview(conv.ultima_mensagem))}
                       </p>
                       {conv.nao_lidas > 0 && (
-                        <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-emerald-500 text-white text-[10px] flex items-center justify-center font-bold shrink-0">
+                        <span className="wa-unread shrink-0">
                           {conv.nao_lidas > 99 ? "99+" : conv.nao_lidas}
                         </span>
                       )}
                     </div>
-                    <div className="flex flex-wrap gap-1 mt-1.5 items-center">
+                    <div className="flex flex-wrap gap-1 mt-2 items-center">
                       {conv.lead_id && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/15 text-primary border border-primary/30 flex items-center gap-1">
+                        <span className="wa-badge-lead">
                           <Target className="w-2.5 h-2.5" /> Lead
                         </span>
                       )}
                       {tags.slice(0, 3).map(t => (
-                        <span key={t.id} className="text-[9px] px-1.5 py-0.5 rounded text-white"
-                          style={{ background: t.cor }}>{t.nome}</span>
+                        <span key={t.id} className="wa-tag-chip" data-active="true"
+                          style={{ "--wa-tag-color": t.cor } as React.CSSProperties}>{t.nome}</span>
                       ))}
                     </div>
-
                   </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); setConfirmDelete(conv); }}
                     title="Excluir conversa"
-                    className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md bg-background/80 border border-border hover:bg-rose-500/15 hover:text-rose-300 hover:border-rose-500/40">
+                    className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md"
+                    style={{ background: "#0d0d0d", border: "1px solid var(--wa-hairline)", color: "#c26666" }}>
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
