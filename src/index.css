@@ -719,14 +719,14 @@ html { scroll-behavior: smooth; }
 
 /* Tech header bar */
 .tech-header {
-  background: linear-gradient(180deg, hsl(226 53% 6% / 0.95), hsl(226 53% 9% / 0.85));
-  border-bottom: 1px solid hsl(var(--border));
+  background: linear-gradient(180deg, hsl(0 0% 4% / 0.96), hsl(0 0% 7% / 0.9));
+  border-bottom: 1px solid hsl(var(--tech-cyan) / 0.18);
   backdrop-filter: blur(12px);
 }
 .tech-header::after {
   content: "";
   display: block; height: 1px;
-  background: linear-gradient(90deg, transparent, hsl(var(--tech-cyan) / 0.6), hsl(var(--tech-violet) / 0.6), transparent);
+  background: linear-gradient(90deg, transparent, hsl(var(--tech-gold-soft) / 0.55), hsl(var(--tech-cyan) / 0.55), transparent);
 }
 
 /* Sidebar tech polish */
