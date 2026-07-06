@@ -762,12 +762,14 @@ html { scroll-behavior: smooth; }
 }
 
 /* ==== Floating gold cards inside the admin shell ====
-   Applies to shadcn Card and similar bordered surfaces so Dashboard,
-   Kanban, Leads etc. inherit the WhatsApp Master aesthetic without
-   editing each page. */
-.tech-shell [data-slot="card"],
-.tech-shell .rounded-xl.border.bg-card,
-.tech-shell .rounded-lg.border.bg-card {
+   Broad attribute selectors so shadcn <Card>, wrapper divs with
+   `bg-card`, `bg-card/40`, `bg-background/60`, `bg-muted/40`, etc.
+   all pick up the WhatsApp Master aesthetic without page-by-page edits.
+   Opt-out with `data-no-float` on any element. */
+.tech-shell [data-tech-card],
+.tech-shell [class*="rounded-"][class*="border"][class*="bg-card"]:not([data-no-float]),
+.tech-shell [class*="rounded-"][class*="border"][class*="bg-background/"]:not([data-no-float]),
+.tech-shell [class*="rounded-"][class*="border"][class*="bg-muted/"]:not([data-no-float]) {
   border-color: hsl(var(--tech-cyan) / 0.18) !important;
   box-shadow:
     0 1px 0 hsl(var(--tech-gold-soft) / 0.04) inset,
@@ -775,9 +777,10 @@ html { scroll-behavior: smooth; }
     0 6px 14px -8px rgba(0,0,0,0.6);
   transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
 }
-.tech-shell [data-slot="card"]:hover,
-.tech-shell .rounded-xl.border.bg-card:hover,
-.tech-shell .rounded-lg.border.bg-card:hover {
+.tech-shell [data-tech-card]:hover,
+.tech-shell [class*="rounded-"][class*="border"][class*="bg-card"]:not([data-no-float]):hover,
+.tech-shell [class*="rounded-"][class*="border"][class*="bg-background/"]:not([data-no-float]):hover,
+.tech-shell [class*="rounded-"][class*="border"][class*="bg-muted/"]:not([data-no-float]):hover {
   transform: translateY(-2px);
   border-color: hsl(var(--tech-cyan) / 0.42) !important;
   box-shadow:
@@ -785,8 +788,8 @@ html { scroll-behavior: smooth; }
     0 24px 50px -22px rgba(0,0,0,0.8),
     0 0 24px -8px hsl(var(--tech-cyan) / 0.35);
 }
-.tech-shell [data-slot="card"][data-active="true"],
-.tech-shell .rounded-xl.border.bg-card[data-active="true"] {
+.tech-shell [data-tech-card][data-active="true"],
+.tech-shell [class*="rounded-"][class*="border"][class*="bg-card"][data-active="true"] {
   border-color: hsl(var(--tech-cyan) / 0.55) !important;
   box-shadow: 0 0 0 1px hsl(var(--tech-cyan) / 0.35), 0 0 28px -8px hsl(var(--tech-cyan) / 0.45);
 }
