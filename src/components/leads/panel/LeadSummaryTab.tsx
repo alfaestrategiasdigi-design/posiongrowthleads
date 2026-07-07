@@ -100,7 +100,17 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
         Salvar alterações
       </Button>
 
+      {isTenantContext && lead.source === "lead" && lead.tenantId && (
+        <LeadAppointmentsSection
+          tenantId={lead.tenantId}
+          leadId={lead.id}
+          leadName={lead.name}
+          leadPhone={lead.whatsapp}
+        />
+      )}
+
       {/* Diagnóstico rápido */}
+
       <div className="grid grid-cols-2 gap-2 pt-3 border-t border-border/40 text-sm">
         {!isTenantContext && <Field label="Empresa" value={lead.company} />}
         {!isTenantContext && <Field label={lead.volumeLabel} value={lead.volume} />}
