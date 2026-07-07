@@ -794,7 +794,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "hsl(var(--wa-gold-soft))" }} />
             <Input placeholder="Pesquisar conversas..." value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="wa-input pl-9 h-9 text-sm placeholder:text-[#7a7365]" />
+              className="wa-input pl-9 h-9 text-sm placeholder:text-[#667781]" />
           </div>
           <button
             onClick={() => setOnlyWithLead(v => !v)}
@@ -829,7 +829,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
               <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ background: "rgba(201,162,39,0.06)", border: "1px solid var(--wa-hairline)" }}>
                 <MessageCircle className="w-8 h-8" style={{ color: "hsl(var(--wa-gold-soft))" }} />
               </div>
-              <p className="text-sm" style={{ color: "#8a8272" }}>Nenhuma conversa</p>
+              <p className="text-sm" style={{ color: "#8696a0" }}>Nenhuma conversa</p>
             </div>
           ) : (
             filteredConversations.map(conv => {
@@ -842,13 +842,13 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                   <ContactAvatar name={conv.nome_contato || conv.telefone} photoUrl={conv.foto_url} size={44} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <h4 className="wa-name text-[15px] font-semibold truncate" style={{ color: "#f0e6c8" }}>
+                      <h4 className="wa-name text-[15px] font-semibold truncate" style={{ color: "#e9edef" }}>
                         {highlight(conv.nome_contato || conv.telefone)}
                       </h4>
-                      <span className="wa-mono text-[10px] shrink-0 ml-2" style={{ color: "#8a8272" }}>{formatListTime(conv.ultima_interacao)}</span>
+                      <span className="wa-mono text-[10px] shrink-0 ml-2" style={{ color: "#8696a0" }}>{formatListTime(conv.ultima_interacao)}</span>
                     </div>
                     <div className="flex items-center justify-between mt-0.5 gap-2">
-                      <p className="wa-body text-xs truncate flex-1" style={{ color: "#9a9384" }}>
+                      <p className="wa-body text-xs truncate flex-1" style={{ color: "#8696a0" }}>
                         {highlight(typedPreview(conv.ultima_mensagem))}
                       </p>
                       {conv.nao_lidas > 0 && (
@@ -873,7 +873,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                     onClick={(e) => { e.stopPropagation(); setConfirmDelete(conv); }}
                     title="Excluir conversa"
                     className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md"
-                    style={{ background: "#0d0d0d", border: "1px solid var(--wa-hairline)", color: "#c26666" }}>
+                    style={{ background: "#2a3942", border: "1px solid var(--wa-hairline)", color: "#f15c6d" }}>
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -890,7 +890,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             <div className="flex items-center gap-3">
               <ContactAvatar name={selectedConversation.nome_contato || selectedConversation.telefone} photoUrl={selectedConversation.foto_url} size={40} />
               <div>
-                <h3 className="wa-name text-[16px] font-semibold flex items-center gap-2" style={{ color: "#f2e6c2" }}>
+                <h3 className="wa-name text-[16px] font-semibold flex items-center gap-2" style={{ color: "#e9edef" }}>
                   {selectedConversation.nome_contato || selectedConversation.telefone}
                   {selectedConversation.lead_id && (
                     <button
@@ -903,7 +903,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                   )}
                 </h3>
                 <div className="flex items-center gap-2">
-                  <p className="wa-mono text-xs" style={{ color: "#8a8272" }}>{selectedConversation.telefone}</p>
+                  <p className="wa-mono text-xs" style={{ color: "#8696a0" }}>{selectedConversation.telefone}</p>
                   {(convTags[selectedConversation.id] || []).map(t => (
                     <span key={t.id} className="wa-tag-chip" data-active="true"
                       style={{ "--wa-tag-color": t.cor } as React.CSSProperties}>{t.nome}</span>
@@ -935,7 +935,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
               </Popover>
               <button className="wa-icon-btn" title="Excluir conversa"
                 onClick={() => setConfirmDelete(selectedConversation)}>
-                <Trash2 className="w-4 h-4" style={{ color: "#c26666" }} />
+                <Trash2 className="w-4 h-4" style={{ color: "#f15c6d" }} />
               </button>
               <button className="wa-icon-btn" title="Ligar"><Phone className="w-4 h-4" /></button>
               <button className="wa-icon-btn" title="Mais opções"><MoreVertical className="w-4 h-4" /></button>
@@ -961,7 +961,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                   <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(201,162,39,0.05)", border: "1px solid var(--wa-hairline)" }}>
                     <MessageCircle className="w-10 h-10" style={{ color: "hsl(var(--wa-gold-deep))" }} />
                   </div>
-                  <p className="wa-body text-sm" style={{ color: "#8a8272" }}>Nenhuma mensagem nesta conversa</p>
+                  <p className="wa-body text-sm" style={{ color: "#8696a0" }}>Nenhuma mensagem nesta conversa</p>
                 </div>
               </div>
             ) : (
@@ -994,8 +994,8 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                         )}
                         {renderQuoted(msg)}
                         {renderMessageBody(msg)}
-                        <p className={`wa-mono text-[10px] mt-1 flex items-center justify-end gap-1 ${isOut ? "text-[#1a1208]/60" : ""}`}
-                           style={!isOut ? { color: "#8a8272" } : undefined}>
+                        <p className={`wa-mono text-[10px] mt-1 flex items-center justify-end gap-1 ${isOut ? "text-[#0b141a]/60" : ""}`}
+                           style={!isOut ? { color: "#8696a0" } : undefined}>
                           {formatMessageTime(msg.created_at)} {renderStatus(msg)}
                         </p>
                         {renderReactions(msg)}
@@ -1007,7 +1007,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                             onClick={() => setReplyTo(msg)}
                             title="Responder"
                             className="p-1 rounded-full"
-                            style={{ background: "#0d0d0d", border: "1px solid var(--wa-hairline)", color: "hsl(var(--wa-gold-soft))" }}>
+                            style={{ background: "#2a3942", border: "1px solid var(--wa-hairline)", color: "hsl(var(--wa-gold-soft))" }}>
                             <Reply className="w-3.5 h-3.5" />
                           </button>
                           <Popover>
@@ -1015,7 +1015,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                               <button
                                 title="Reagir"
                                 className="p-1 rounded-full"
-                                style={{ background: "#0d0d0d", border: "1px solid var(--wa-hairline)", color: "hsl(var(--wa-gold-soft))" }}>
+                                style={{ background: "#2a3942", border: "1px solid var(--wa-hairline)", color: "hsl(var(--wa-gold-soft))" }}>
                                 <Smile className="w-3.5 h-3.5" />
                               </button>
                             </PopoverTrigger>
@@ -1032,7 +1032,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                             onClick={() => setReassignMessage(msg)}
                             title="Mover para outra conversa"
                             className="p-1 rounded-full"
-                            style={{ background: "#0d0d0d", border: "1px solid var(--wa-hairline)", color: "hsl(var(--wa-gold-soft))" }}>
+                            style={{ background: "#2a3942", border: "1px solid var(--wa-hairline)", color: "hsl(var(--wa-gold-soft))" }}>
                             <Move className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -1049,11 +1049,11 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
           {/* Reply chip */}
           {replyTo && (
             <div className="wa-panel-2 px-3 pt-2 shrink-0">
-              <div className="flex items-start gap-2 px-3 py-2 rounded-lg" style={{ background: "#0d0d0d", borderLeft: "2px solid hsl(var(--wa-gold))" }}>
+              <div className="flex items-start gap-2 px-3 py-2 rounded-lg" style={{ background: "#2a3942", borderLeft: "2px solid hsl(var(--wa-gold))" }}>
                 <CornerDownRight className="w-4 h-4 mt-0.5" style={{ color: "hsl(var(--wa-gold-soft))" }} />
                 <div className="flex-1 min-w-0">
                   <div className="text-[10px] font-medium uppercase tracking-wide" style={{ color: "hsl(var(--wa-gold-soft))" }}>Respondendo</div>
-                  <div className="text-xs truncate" style={{ color: "#9a9384" }}>{replyTo.conteudo || "mídia"}</div>
+                  <div className="text-xs truncate" style={{ color: "#8696a0" }}>{replyTo.conteudo || "mídia"}</div>
                 </div>
                 <button onClick={() => setReplyTo(null)} className="wa-icon-btn !h-7 !w-7">
                   <X className="w-3.5 h-3.5" />
@@ -1083,7 +1083,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                   accept="image/*,video/*,audio/*,application/pdf" />
                 <Input placeholder="Digite uma mensagem..." value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)} onKeyDown={handleKeyPress}
-                  disabled={sending} className="wa-input flex-1 h-10 placeholder:text-[#7a7365]" />
+                  disabled={sending} className="wa-input flex-1 h-10 placeholder:text-[#667781]" />
                 {newMessage.trim() ? (
                   <button onClick={handleSendMessage} disabled={sending}
                     className="wa-send-btn h-10 w-10 shrink-0 flex items-center justify-center disabled:opacity-50">
@@ -1105,8 +1105,8 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             <div className="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6" style={{ background: "rgba(201,162,39,0.05)", border: "1px solid var(--wa-hairline)" }}>
               <MessageCircle className="w-12 h-12" style={{ color: "hsl(var(--wa-gold-deep))" }} />
             </div>
-            <h2 className="wa-name text-2xl font-semibold mb-2" style={{ color: "#f2e6c2" }}>WhatsApp Inbox</h2>
-            <p className="wa-body text-sm mb-4" style={{ color: "#9a9384" }}>Selecione uma conversa ou configure a Evolution API.</p>
+            <h2 className="wa-name text-2xl font-semibold mb-2" style={{ color: "#e9edef" }}>WhatsApp Inbox</h2>
+            <p className="wa-body text-sm mb-4" style={{ color: "#8696a0" }}>Selecione uma conversa ou configure a Evolution API.</p>
             <Button onClick={() => setCfgOpen(true)} variant="outline" size="sm" className="gap-2">
               <Settings className="w-4 h-4" /> Configurações
             </Button>
