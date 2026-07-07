@@ -373,6 +373,24 @@ async function runFlow(
           const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text: buttonsText });
           ok = r.ok; detail = r.ok ? `opções enviadas (${btns.length}, ${new Set(Object.values(buttonMap)).size} rotas)` : `erro: ${r.error}`;
         }
+        const buttonsText = buildButtonsTextMessage({ title, text, footer, buttons: btns });
+        if (dryRun) detail = `enviaria botões: [${btns.map((b) => b.displayLabel).join(", ")}] → ${new Set(Object.values(buttonMap)).size} rotas`;
+        else {
+          // Try native interactive buttons first. Some WhatsApp accounts / Evolution builds fail
+          // silently ("Aguardando mensagem"), so on any error we fall back to a numbered text menu.
+          let r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "buttons", {
+            title, text, footer, buttons: btns,
+          });
+          let mode = "nativos";
+          if (!r.ok) {
+            const fb = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text: buttonsText });
+            r = fb; mode = `texto numerado (fallback: ${r.ok ? "ok" : "falhou"})`;
+          }
+          ok = r.ok;
+          detail = r.ok
+            ? `botões ${mode} enviados (${btns.length}, ${new Set(Object.values(buttonMap)).size} rotas)`
+            : `erro: ${r.error}`;
+        }
         if (ok && !dryRun) {
           stop = true;
           const newSteps = [...steps, { at: new Date().toISOString(), node_id: node.id, node_type: type, ok, detail }];
