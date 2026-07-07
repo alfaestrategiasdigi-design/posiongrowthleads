@@ -45,6 +45,9 @@ function MultiSelect({ label, options, selected, onChange, getKey = (o: any) => 
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0 max-h-[360px] overflow-auto" align="start">
+        <div className="px-3 py-2 border-b text-[10px] uppercase tracking-wider text-muted-foreground">
+          Selecione uma ou mais opções
+        </div>
         {selected.length > 0 && (
           <div className="px-3 py-2 border-b flex items-center justify-between text-xs">
             <span>{selected.length} selecionado(s)</span>
