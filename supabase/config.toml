@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.invite-accept]
 verify_jwt = false
+
+[functions.automation-dispatch]
+verify_jwt = false

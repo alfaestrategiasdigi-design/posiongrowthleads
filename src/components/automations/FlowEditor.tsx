@@ -102,9 +102,39 @@ export default function FlowEditor({ flowId, onBack }: Props) {
     toast.success(next === "active" ? "Fluxo ativado" : "Fluxo pausado");
   };
 
-  const testFlow = () => {
-    toast.info("Modo teste: enviaria mensagens para o número fictício +55 11 90000-0000");
+  const [testLog, setTestLog] = useState<Array<{ node_id: string; node_type: string; ok: boolean; detail?: string }> | null>(null);
+  const [testing, setTesting] = useState(false);
+  const testFlow = async () => {
+    if (!flow) return;
+    // Save first so dispatcher sees latest nodes/edges
+    await save();
+    setTesting(true);
+    setTestLog([]);
+    const testPhone = window.prompt("Telefone de teste (opcional — só para simular envios):", "5511900000000") || "";
+    const testText = flow.trigger_type === "message_received"
+      ? (window.prompt("Texto simulado da mensagem recebida:", "teste") || "teste")
+      : "";
+    try {
+      const { data, error } = await supabase.functions.invoke("automation-dispatch", {
+        body: {
+          trigger: flow.trigger_type,
+          tenant_id: flow.tenant_id,
+          flow_id: flow.id,
+          dry_run: true,
+          context: { phone: testPhone, name: "Teste", text: testText, form_name: "teste" },
+        },
+      });
+      if (error) throw error;
+      const run = (data as any)?.runs?.[0];
+      setTestLog(run?.steps || []);
+      toast.success(`Simulação concluída (${run?.steps?.length || 0} passos)`);
+    } catch (e: any) {
+      toast.error(`Falha no teste: ${e.message || e}`);
+    } finally {
+      setTesting(false);
+    }
   };
+
 
   if (!flow) {
     return <div className="h-full flex items-center justify-center text-muted-foreground">Carregando…</div>;
@@ -131,7 +161,7 @@ export default function FlowEditor({ flowId, onBack }: Props) {
           {flow.status}
         </Badge>
         <div className="ml-auto flex gap-2">
-          <Button size="sm" variant="outline" onClick={testFlow} className="gap-1"><FlaskConical className="w-4 h-4" /> Testar</Button>
+          <Button size="sm" variant="outline" onClick={testFlow} disabled={testing} className="gap-1"><FlaskConical className="w-4 h-4" /> {testing ? "Testando…" : "Testar"}</Button>
           <Button size="sm" variant="outline" onClick={toggleStatus} className="gap-1">
             {flow.status === "active" ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
             {flow.status === "active" ? "Pausar" : "Ativar"}
@@ -183,7 +213,29 @@ export default function FlowEditor({ flowId, onBack }: Props) {
             onDelete={deleteNode}
           />
         )}
+        {testLog && (
+
+          <aside className="w-[340px] shrink-0 border-l border-border bg-card/40 h-full flex flex-col">
+            <div className="p-3 border-b border-border flex items-center justify-between">
+              <div>
+                <div className="text-xs uppercase text-muted-foreground">Simulação</div>
+                <div className="text-sm font-semibold">{testLog.length} passo(s)</div>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setTestLog(null)}>Fechar</Button>
+            </div>
+            <div className="flex-1 overflow-auto p-3 space-y-2 text-xs">
+              {testLog.length === 0 && <div className="text-muted-foreground">Nenhum passo executado.</div>}
+              {testLog.map((s, i) => (
+                <div key={i} className={`rounded border p-2 ${s.ok ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5"}`}>
+                  <div className="font-mono text-[11px] opacity-70">#{i + 1} · {s.node_type}</div>
+                  <div className="text-[11px]">{s.detail || "(sem detalhe)"}</div>
+                </div>
+              ))}
+            </div>
+          </aside>
+        )}
       </div>
+
     </div>
   );
 }

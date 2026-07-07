@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -375,8 +375,9 @@ function HistoryView({ scope }: { scope: AutomationScope }) {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useState(() => {
+  useEffect(() => {
     (async () => {
+      setLoading(true);
       let q = supabase.from("automation_executions")
         .select("*, automation_flows(name)")
         .order("started_at", { ascending: false }).limit(100);
@@ -386,7 +387,7 @@ function HistoryView({ scope }: { scope: AutomationScope }) {
       setItems(data || []);
       setLoading(false);
     })();
-  });
+  }, [scope.isAdminMaster, scope.tenantId]);
 
   if (loading) return <div className="py-16 flex justify-center"><Loader2 className="w-5 h-5 animate-spin" /></div>;
   if (items.length === 0) return <Card className="p-10 text-center text-sm text-muted-foreground">Nenhuma execução ainda.</Card>;
@@ -398,20 +399,25 @@ function HistoryView({ scope }: { scope: AutomationScope }) {
           <tr>
             <th className="text-left px-3 py-2">Fluxo</th>
             <th className="text-left px-3 py-2">Contato</th>
+            <th className="text-left px-3 py-2">Gatilho</th>
             <th className="text-left px-3 py-2">Status</th>
+            <th className="text-left px-3 py-2">Passos</th>
             <th className="text-left px-3 py-2">Iniciado</th>
           </tr>
         </thead>
         <tbody>
           {items.map((x) => (
-            <tr key={x.id} className="border-t border-border">
+            <tr key={x.id} className="border-t border-border align-top">
               <td className="px-3 py-2 font-medium">{x.automation_flows?.name || "—"}</td>
               <td className="px-3 py-2 text-xs">{x.contact_name || x.contact_phone || "—"}</td>
+              <td className="px-3 py-2 text-xs text-muted-foreground">{x.trigger_type || "—"}</td>
               <td className="px-3 py-2">
                 <Badge variant={x.status === "completed" ? "default" : x.status === "failed" ? "destructive" : "outline"}>
                   {x.status}
                 </Badge>
+                {x.last_error && <div className="text-[10px] text-red-400 mt-1 max-w-[220px] truncate" title={x.last_error}>{x.last_error}</div>}
               </td>
+              <td className="px-3 py-2 text-xs">{Array.isArray(x.steps) ? x.steps.length : 0}</td>
               <td className="px-3 py-2 text-xs text-muted-foreground">
                 {formatDistanceToNow(new Date(x.started_at), { locale: ptBR, addSuffix: true })}
               </td>
@@ -420,5 +426,6 @@ function HistoryView({ scope }: { scope: AutomationScope }) {
         </tbody>
       </table>
     </Card>
+
   );
 }

@@ -1,52 +1,83 @@
+## Diagnóstico
 
-## Objetivo
-Refazer o PDF do Relatório: acabar com páginas em branco quase vazias, unificar o visual dark sofisticado (mesma linguagem dos gráficos do app) e aumentar densidade útil por página.
+Você criou o fluxo no editor, mas ele **não executa** porque o sistema hoje **só salva o JSON** do fluxo em `automation_flows` — não existe nenhum motor que leia esse JSON, escute o gatilho (mensagem, formulário, etc.) e execute as ações (enviar texto, mover Kanban, etc.).
 
-## Diagnóstico do PDF atual
-- Capa dark → páginas seguintes todas brancas (quebra visual).
-- Um gráfico por página, imenso, no meio do branco → 5 páginas gastas só com gráficos.
-- KPIs em tabela vertical de 2 colunas → desperdiça espaço horizontal.
-- Rodapé só na tabela final.
+Evidências:
+- Não há edge function de execução de fluxos (`automation-dispatch`, `automation-run`, nada equivalente).
+- `whatsapp-webhook` não faz nenhuma referência a `automation_flows` — as mensagens recebidas só são gravadas em `conversations/messages`, nunca disparam gatilhos.
+- Não há trigger no banco para `leads` (insert) → `automation_flows(trigger_type='form_submitted')`.
+- `automation_executions` existe na tabela mas nenhum código escreve nela.
+- O botão **Testar** hoje só mostra um `toast.info` — não simula execução real.
 
-## Redesign do PDF (mesma função `exportRelatorioPdf`, sem mudar dados)
+Ou seja, o fluxo está *desenhado*, mas o "cérebro" que interpreta e roda os nós ainda não foi construído.
 
-### Formato base
-- Orientação **paisagem** A4 (842×595pt) — melhor para gráficos lado a lado e tabela larga.
-- Fundo dark `#0B0B12` em **todas** as páginas (pintado no `didDrawPage`).
-- Tipografia: Helvetica (nativa jsPDF), pesos e tamanhos hierarquizados.
-- Paleta: âmbar `#F59E0B` (accent), verde `#10B981` (positivo), vermelho `#EF4444` (negativo), cinzas `#E5E7EB`/`#9CA3AF`/`#374151`.
-- Header fixo em cada página: "POSION · Relatório Comercial" à esquerda, escopo + período à direita, régua âmbar 1pt.
-- Rodapé fixo: data de geração + `pág. X / Y`.
+## O que vou construir
 
-### Página 1 — Capa executiva
-- Título grande "Relatório Comercial", escopo, período, gerado em.
-- Bloco "Filtros aplicados" em cartão translúcido.
-- **4 KPIs de destaque** já na capa (Leads, Ganhos, Valor Ganho, Investimento) em cards grandes com número em âmbar.
+Um motor de automação completo, integrado ao WhatsApp (Evolution), Kanban e Agenda que você já usa.
 
-### Página 2 — Panorama (KPI grid + Funil)
-- Grid **3×3 de KPI cards** (9 indicadores) cobrindo metade superior — cada card com label pequeno em cinza, número grande, sublabel (% ou razão).
-- Metade inferior: **Funil visual** desenhado com barras horizontais decrescentes (retângulos com % ao lado), não tabela.
+### 1. Edge function `automation-dispatch` (novo)
+Ponto único de entrada para qualquer gatilho. Recebe `{ trigger, tenant_id, context }` (context = lead, mensagem, agendamento, etc.), busca fluxos ativos que combinem, e roda cada um passo a passo. Persiste histórico em `automation_executions` (status, current_node_id, variables, erros).
 
-### Páginas 3–4 — Gráficos, 2 por página
-- Renderizo cada `[data-chart-id]` com `html2canvas` mantendo fundo `#0B0B12`, e coloco **2 gráficos por página** em grid 2 colunas (ou 1 em cima + 2 embaixo, dependendo do aspect ratio).
-- Título de cada gráfico em cima do respectivo card, âmbar.
+### 2. Executores de nó (todos os nós da paleta)
 
-### Página 5+ — Detalhamento
-- Tabela `autoTable` com tema custom: header âmbar sobre fundo `#1A1A24`, linhas alternadas `#0F0F18`/`#14141F`, texto `#E5E7EB`, borda `#1F1F2A`.
-- Colunas mais compactas aproveitando paisagem (12 colunas cabem confortavelmente).
-- Zebra sutil, sem grid pesado.
-- Quebra automática de página mantém header repetido.
+| Nó | Ação |
+| --- | --- |
+| `trigger` | ponto de entrada, avança para o próximo |
+| `message` | envia texto via Evolution (ou Cloud API, se configurado) — interpola variáveis |
+| `buttons` | envia mensagem com até 3 botões; próximo passo escolhido pelo texto do botão clicado |
+| `list` | envia lista de opções (Evolution "list message") |
+| `audio` | envia áudio (URL do bucket `whatsapp-media`) |
+| `media` | envia imagem/documento (URL) |
+| `wait_response` | pausa a execução até nova mensagem do mesmo contato; retoma pelo webhook |
+| `wait` | agenda retomada em X min/horas/dias (usa `automation_tasks.scheduled_for` + cron `send-appointment-reminders`-like) |
+| `condition` | avalia expressão simples (`lead.status = 'ganho'`, `lead.origem contains 'facebook'`) — decide caminho |
+| `split` | A/B aleatório 50/50 |
+| `kanban_move` | `UPDATE leads SET status = <coluna>` |
+| `kanban_create` | `INSERT INTO leads` com dados do contexto |
+| `kanban_update` | atualiza campo do lead |
+| `kanban_tag` | grava tag em `leads.observacoes` ou tabela de tags |
+| `appointment_create` | insere em `appointments` vinculado ao lead |
+| `appointment_link` | envia link do formulário público de agenda |
+| `appointment_confirm` / `cancel` | muda `appointments.status` |
+| `notify_team` | envia mensagem para números dos `tenant_users` marcados |
+| `end` | encerra execução, marca `automation_executions.status='completed'` |
 
-## Detalhes técnicos
-- `didDrawPage` global: pinta fundo dark + desenha header/rodapé em toda página nova (inclusive as do autoTable).
-- KPI cards e Funil desenhados via primitivas do jsPDF (rect arredondado com `roundedRect`, `setFillColor`, `setTextColor`) — não precisa de html2canvas para esses blocos.
-- Gráficos continuam via html2canvas com `backgroundColor: "#0B0B12"` e `scale: 2`.
-- Não muda nada em `useRelatorioData`, `aggregators`, `queries` — só o arquivo `exportToPdf.ts`.
+Interpolação de variáveis (`{{lead.nome}}`, `{{lead.whatsapp}}`, `{{lead.email}}`, `{{agendamento.data}}`, `{{clinica.nome}}`) é resolvida com dados do contexto no momento da execução.
 
-## Arquivos afetados
-- `src/components/relatorios/export/exportToPdf.ts` (reescrita completa).
+### 3. Integração dos gatilhos com o resto do sistema
 
-## Fora de escopo
-- CSV, filtros, KPIs, gráficos da tela — nada muda.
-- Não adiciona novas seções nem novos dados; só reorganiza e reveste o PDF.
-- Não muda a página de Relatórios em tela (só o export).
+- **`message_received`** — `whatsapp-webhook` chama `automation-dispatch` sempre que chega mensagem de contato; filtra por `trigger_config.keywords` + `match` (contém / exato / começa com / regex).
+- **`form_submitted` / `lead_entered`** — trigger no banco `after insert on leads` chama a função (ou hook no `facebook-leads-webhook`). Filtro por `form_name` opcional.
+- **`kanban_moved`** — trigger em `leads.status` update.
+- **`appointment_created/confirmed/cancelled`** — trigger em `appointments`.
+- **`lead_won`** — trigger em `leads.status = 'ganho'`.
+- **`birthday`** — cron diário que compara `patients.birth_date`.
+- **`time_delay`** — cron a cada 5 min processando `automation_tasks` com `scheduled_for <= now`.
+- **`manual`** — endpoint HTTP acionado pelo botão **Testar** e por "iniciar fluxo" manual.
+
+### 4. Botão **Testar** funcional
+Envia payload de teste (lead fictício ou o lead selecionado) para `automation-dispatch` com `dry_run=true` → executa nós em memória sem enviar mensagem real e mostra o log passo a passo em um painel lateral no editor.
+
+### 5. Log e observabilidade
+- Nova aba "Execuções" na página de automações listando as últimas rodadas por fluxo (status, contato, tempo, erro).
+- Cada nó executado grava um passo em `automation_executions.steps` (jsonb).
+
+### 6. Aprovação e segurança
+- `automation_tasks.requires_approval` respeitado para envios em massa.
+- Rate limit por tenant (evita loop se fluxo se autodispara).
+- Loop-guard: se `automation_executions` da mesma sessão passar de 50 passos, aborta.
+
+### 7. Correções complementares
+- Diálogo do nó `list`, `audio`, `media`, `notify_team`, `wait_response`, `split`, `kanban_create`, `appointment_*` — hoje só existem edição para `message/buttons/wait/condition/kanban_*`. Vou adicionar os formulários que faltam no `NodeEditorPanel`.
+- Salvar `trigger_config.keywords` como array (hoje é string separada por vírgula) para o motor consumir direto.
+
+## Escopo desta rodada
+
+Entrego todos os itens **1 a 5** e as correções da seção **7** na próxima passagem. Itens 6 (rate limit avançado, aprovação em massa) ficam mínimos: só loop-guard e respeito a `requires_approval` já existente — sem UI de aprovação nova, para caber no ciclo.
+
+## Perguntas rápidas antes de implementar
+
+1. Confirmar que o canal de envio é **Evolution API** (`evolution-send`) — vejo tanto Evolution quanto WhatsApp Cloud API no projeto. Uso o que já estiver conectado no tenant.
+2. Áudio e mídia: aceito que o usuário cole URL pública (ou do bucket `whatsapp-media`) no editor? Ou quer upload direto dentro do nó?
+
+Se as respostas forem "sim, Evolution" e "URL basta por enquanto", parto direto.

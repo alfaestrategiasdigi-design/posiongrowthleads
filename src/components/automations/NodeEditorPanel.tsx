@@ -122,7 +122,106 @@ export default function NodeEditorPanel({ node, onChange, onClose, onDelete }: P
             )}
           </div>
         )}
+
+        {(type === "audio" || type === "media") && (
+          <div className="space-y-2">
+            <div>
+              <Label>URL do arquivo</Label>
+              <Input value={node.data.url || ""} onChange={(e) => patchData({ url: e.target.value })} placeholder="https://…" />
+              <p className="text-[10px] text-muted-foreground mt-1">Cole uma URL pública (bucket `whatsapp-media` também funciona).</p>
+            </div>
+            {type === "media" && (
+              <>
+                <div>
+                  <Label>Tipo</Label>
+                  <select
+                    className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm"
+                    value={node.data.media_type || "image"}
+                    onChange={(e) => patchData({ media_type: e.target.value })}
+                  >
+                    <option value="image">Imagem</option>
+                    <option value="video">Vídeo</option>
+                    <option value="document">Documento</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>Legenda</Label>
+                  <Textarea rows={2} value={node.data.caption || ""} onChange={(e) => patchData({ caption: e.target.value })} />
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {type === "list" && (
+          <div className="space-y-2">
+            <div>
+              <Label>Título</Label>
+              <Input value={node.data.title || ""} onChange={(e) => patchData({ title: e.target.value })} />
+            </div>
+            <div>
+              <Label>Descrição / cabeçalho</Label>
+              <Textarea rows={2} value={node.data.text || ""} onChange={(e) => patchData({ text: e.target.value })} />
+            </div>
+            <div>
+              <Label>Texto do botão</Label>
+              <Input value={node.data.buttonText || "Ver opções"} onChange={(e) => patchData({ buttonText: e.target.value })} />
+            </div>
+            <ListItemsEditor items={node.data.items || []} onChange={(items) => patchData({ items })} />
+          </div>
+        )}
+
+        {type === "notify_team" && (
+          <div className="space-y-2">
+            <div>
+              <Label>Mensagem para equipe</Label>
+              <Textarea rows={3} value={node.data.text || ""} onChange={(e) => patchData({ text: e.target.value })} placeholder="Novo lead {{lead.nome}} — {{lead.whatsapp}}" />
+            </div>
+            <div>
+              <Label>Telefones (separados por vírgula)</Label>
+              <Input value={node.data.phones || ""} onChange={(e) => patchData({ phones: e.target.value })} placeholder="5511999999999, 5511988888888" />
+            </div>
+          </div>
+        )}
+
+        {type === "kanban_create" && (
+          <div className="space-y-2">
+            <div><Label>Nome</Label><Input value={node.data.nome || ""} onChange={(e) => patchData({ nome: e.target.value })} placeholder="{{lead.nome}}" /></div>
+            <div><Label>WhatsApp</Label><Input value={node.data.whatsapp || ""} onChange={(e) => patchData({ whatsapp: e.target.value })} placeholder="{{lead.whatsapp}}" /></div>
+            <div><Label>E-mail</Label><Input value={node.data.email || ""} onChange={(e) => patchData({ email: e.target.value })} /></div>
+            <div><Label>Etapa inicial</Label><Input value={node.data.status || "lead"} onChange={(e) => patchData({ status: e.target.value })} /></div>
+          </div>
+        )}
+
+        {type === "appointment_create" && (
+          <div className="space-y-2">
+            <div><Label>Tipo</Label><Input value={node.data.appointment_type || ""} onChange={(e) => patchData({ appointment_type: e.target.value })} placeholder="Avaliação" /></div>
+            <div><Label>Responsável</Label><Input value={node.data.procedure || ""} onChange={(e) => patchData({ procedure: e.target.value })} /></div>
+            <div><Label>Duração (min)</Label><Input type="number" value={node.data.duration || 60} onChange={(e) => patchData({ duration: Number(e.target.value) })} /></div>
+            <p className="text-[10px] text-muted-foreground">A data/hora usa {"{{agendamento.data}}"} do contexto ou 24h a partir de agora.</p>
+          </div>
+        )}
+
+        {type === "appointment_link" && (
+          <div className="space-y-2">
+            <div><Label>URL do agendamento</Label><Input value={node.data.url || ""} onChange={(e) => patchData({ url: e.target.value })} placeholder="https://…" /></div>
+            <div><Label>Texto que acompanha</Label><Textarea rows={2} value={node.data.text || "Agende sua consulta:"} onChange={(e) => patchData({ text: e.target.value })} /></div>
+          </div>
+        )}
+
+        {type === "wait_response" && (
+          <p className="text-xs text-muted-foreground">O fluxo pausa aqui até o contato responder no WhatsApp. A próxima mensagem retoma o fluxo automaticamente.</p>
+        )}
+
+        {type === "split" && (
+          <p className="text-xs text-muted-foreground">Divide o fluxo A/B 50/50 aleatório. Ligue dois nós posteriores.</p>
+        )}
+
+        {type === "end" && (
+          <p className="text-xs text-muted-foreground">Encerra a execução do fluxo neste ponto.</p>
+        )}
       </div>
+
 
       <div className="p-4 border-t border-border flex justify-between">
         <Button variant="ghost" size="sm" className="text-destructive gap-2" onClick={onDelete}>
@@ -202,3 +301,33 @@ function WaitEditor({ data, onChange }: { data: any; onChange: (p: any) => void 
     </div>
   );
 }
+
+function ListItemsEditor({
+  items, onChange,
+}: { items: { id: string; label: string; description?: string }[]; onChange: (i: any[]) => void }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <Label>Opções da lista</Label>
+        <Button size="sm" variant="outline" onClick={() => onChange([...items, { id: crypto.randomUUID().slice(0, 6), label: "Opção", description: "" }])}>
+          <Plus className="w-3 h-3 mr-1" /> Adicionar
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {items.map((it, i) => (
+          <div key={it.id} className="rounded border border-border p-2 space-y-1">
+            <div className="flex gap-2">
+              <Input value={it.label} placeholder="Título" onChange={(e) => { const c = [...items]; c[i] = { ...it, label: e.target.value }; onChange(c); }} />
+              <Button size="icon" variant="ghost" onClick={() => onChange(items.filter((x) => x.id !== it.id))}>
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+            <Input value={it.description || ""} placeholder="Descrição (opcional)" onChange={(e) => { const c = [...items]; c[i] = { ...it, description: e.target.value }; onChange(c); }} />
+          </div>
+        ))}
+        {items.length === 0 && <p className="text-xs text-muted-foreground">Adicione as opções que o usuário poderá selecionar.</p>}
+      </div>
+    </div>
+  );
+}
+
