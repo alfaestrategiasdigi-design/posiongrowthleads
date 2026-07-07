@@ -5,7 +5,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard, MessageCircle, Kanban, Users, DollarSign, Calendar, Settings,
-  Building2, Zap, Sparkles, Package, UserSearch, Megaphone, PanelLeftClose, PanelLeftOpen,
+  Building2, Zap, Sparkles, Package, UserSearch, Megaphone, PanelLeftClose, PanelLeftOpen, BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Tenant } from "@/hooks/useTenant";
@@ -32,6 +32,7 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
     { title: "Pacientes Ativos", url: `${base}/pacientes`, icon: Users },
     { title: "Agenda", url: `${base}/agenda`, icon: Calendar, comercial: true },
     { title: "Financeiro", url: `${base}/financeiro`, icon: DollarSign },
+    { title: "Relatórios", url: `${base}/relatorios`, icon: BarChart3, comercial: true },
     { title: "Automações", url: `${base}/automacoes`, icon: Zap },
     { title: "Produtos & Serviços", url: `${base}/produtos`, icon: Package, comercial: true },
     { title: "Planos", url: `${base}/planos`, icon: Sparkles },

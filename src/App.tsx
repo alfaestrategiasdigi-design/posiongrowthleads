@@ -41,6 +41,8 @@ import TenantPlans from "./pages/app/TenantPlans";
 import TenantProductsConfig from "./pages/app/TenantProductsConfig";
 import TenantLeads from "./pages/app/TenantLeads";
 import TenantCampaigns from "./pages/app/TenantCampaigns";
+import TenantRelatorios from "./pages/app/TenantRelatorios";
+import RelatoriosPage from "./pages/admin/RelatoriosPage";
 
 const queryClient = new QueryClient();
 
@@ -78,6 +80,7 @@ const App = () => (
           <Route path="/app/:tenantSlug/automacoes" element={<AppLayout><TenantRecall /></AppLayout>} />
           <Route path="/app/:tenantSlug/recall" element={<Navigate to="../automacoes" replace />} />
           <Route path="/app/:tenantSlug/planos" element={<AppLayout><TenantPlans /></AppLayout>} />
+          <Route path="/app/:tenantSlug/relatorios" element={<AppLayout><TenantRelatorios /></AppLayout>} />
 
           {/* Posion master admin */}
           <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
@@ -98,6 +101,7 @@ const App = () => (
           <Route path="/admin/facebook" element={<AdminLayout><FacebookConfigPage /></AdminLayout>} />
           <Route path="/admin/capi" element={<AdminLayout><CapiConfigPage /></AdminLayout>} />
           <Route path="/admin/campanhas" element={<AdminLayout><CampanhasPage /></AdminLayout>} />
+          <Route path="/admin/relatorios" element={<AdminLayout><RelatoriosPage /></AdminLayout>} />
 
           <Route path="/admin/meta-ads" element={<Navigate to="/admin/campanhas" replace />} />
           <Route path="/admin/planos" element={<AdminLayout><SubscriptionsPage /></AdminLayout>} />
