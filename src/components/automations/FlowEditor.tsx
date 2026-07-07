@@ -140,8 +140,16 @@ export default function FlowEditor({ flowId, onBack }: Props) {
         </div>
       </div>
 
+      {/* Trigger configuration */}
+      <TriggerConfig
+        trigger={flow.trigger_type}
+        config={flow.trigger_config || {}}
+        onChange={(cfg) => setFlow({ ...flow, trigger_config: cfg })}
+      />
+
       {/* Body: palette + canvas + editor */}
       <div className="flex-1 flex overflow-hidden">
+
         <NodePalette onAdd={addNode} />
         <div className="flex-1 relative" style={{ background: "#0d0d14" }}>
           <ReactFlowProvider>
