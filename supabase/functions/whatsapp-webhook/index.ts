@@ -1160,8 +1160,10 @@ Deno.serve(async (req) => {
                 tenant_id: tenantId,
                 context: {
                   phone, name: pushName || phone, text,
+                  button_id: buttonReplyId || listReplyId || null,
                   conversation_id: conv.id, wamid,
                 },
+
               }),
             }).catch(() => {});
           } catch (_) { /* ignore */ }
