@@ -2,8 +2,8 @@
 import { useState } from "react";
 
 const COLORS = [
-  "#6366f1", "#8b5cf6", "#ec4899", "#f43f5e", "#f97316",
-  "#eab308", "#22c55e", "#10b981", "#06b6d4", "#3b82f6",
+  "#6b7c85", "#5c8577", "#8a7a5c", "#7d6b8a",
+  "#5f7d8a", "#8a6b6b", "#6b8a7a", "#7a7d8a",
 ];
 
 function hashColor(s: string) {
