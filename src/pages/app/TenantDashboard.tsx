@@ -32,7 +32,7 @@ const FUNNEL_LABELS: Record<string,string> = {
   compareceu: "Compareceu", negociacao: "Negociação", ganho: "Ganho",
   perdido: "Perdido", no_show: "No-show",
 };
-const FUNNEL_COLORS = ["#60A5FA", "#A78BFA", "#6366F1", "#8B5CF6", "#F59E0B", "#34D399"];
+const FUNNEL_COLORS = ["rgba(245,245,245,0.55)", "rgba(245,245,245,0.65)", "rgba(245,245,245,0.75)", "rgba(245,245,245,0.85)", "#E8C468", "#4ADE80"];
 
 export default function TenantDashboard() {
   const { tenant } = useTenant();
