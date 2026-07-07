@@ -439,7 +439,7 @@ export default function Dashboard() {
                     </div>
                   ))}
                   {agencyContracts.length === 0 && (
-                    <div className="text-xs text-muted-foreground text-center py-6">Nenhum ganho ainda.</div>
+                    <div className="text-xs text-center py-6" style={{ color: PALETTE.mutedDim }}>Nenhum ganho ainda.</div>
                   )}
                 </div>
               </TabsContent>
@@ -447,20 +447,20 @@ export default function Dashboard() {
               <TabsContent value="perdas" className="mt-0">
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {agency.perdas.map((l) => (
-                    <div key={l.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border/30 last:border-0 gap-2">
+                    <div key={l.id} className="flex items-center justify-between text-sm py-1.5 border-b border-white/5 last:border-0 gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">{l.nome_clinica}</div>
-                        <div className="text-[10px] text-muted-foreground truncate" title={l.perdido_motivo || ""}>
+                        <div className="truncate font-medium text-white">{l.nome_clinica}</div>
+                        <div className="text-[10px] truncate" style={{ color: PALETTE.mutedDim }} title={l.perdido_motivo || ""}>
                           {l.perdido_motivo || "Sem motivo registrado"}
                         </div>
                       </div>
-                      <span className="text-rose-400 font-semibold text-[10px] font-mono">
+                      <span className="font-semibold text-[10px] font-mono" style={{ color: PALETTE.red }}>
                         {format(new Date(l.updated_at || l.created_at), "dd/MM/yy")}
                       </span>
                     </div>
                   ))}
                   {agency.perdas.length === 0 && (
-                    <div className="text-xs text-muted-foreground text-center py-6">Nenhuma perda no período.</div>
+                    <div className="text-xs text-center py-6" style={{ color: PALETTE.mutedDim }}>Nenhuma perda no período.</div>
                   )}
                 </div>
               </TabsContent>
@@ -468,20 +468,20 @@ export default function Dashboard() {
               <TabsContent value="ativ" className="mt-0">
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {agency.atividade.map((l) => (
-                    <div key={l.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border/30 last:border-0 gap-2">
+                    <div key={l.id} className="flex items-center justify-between text-sm py-1.5 border-b border-white/5 last:border-0 gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">{l.nome_clinica}</div>
-                        <div className="text-[10px] text-muted-foreground">
+                        <div className="truncate font-medium text-white">{l.nome_clinica}</div>
+                        <div className="text-[10px]" style={{ color: PALETTE.mutedDim }}>
                           {STAGE_LABELS[l.stage] || l.stage}
                         </div>
                       </div>
-                      <span className="text-amber-300/80 font-semibold text-[10px] font-mono">
+                      <span className="font-semibold text-[10px] font-mono text-white/70">
                         {format(new Date(l.updated_at || l.created_at), "dd/MM HH:mm")}
                       </span>
                     </div>
                   ))}
                   {agency.atividade.length === 0 && (
-                    <div className="text-xs text-muted-foreground text-center py-6">Sem atividade recente.</div>
+                    <div className="text-xs text-center py-6" style={{ color: PALETTE.mutedDim }}>Sem atividade recente.</div>
                   )}
                 </div>
               </TabsContent>
