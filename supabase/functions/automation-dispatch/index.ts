@@ -146,6 +146,36 @@ async function loadFullContext(tenantId: string | null, ctx: RunContext): Promis
   return vars;
 }
 
+// Cache Evolution version per base URL to avoid a probe on every send.
+const evolutionVersionCache = new Map<string, { version: string; at: number }>();
+const EVO_VERSION_TTL_MS = 10 * 60 * 1000;
+
+async function detectEvolutionVersion(base: string, apiKey: string): Promise<string> {
+  const cached = evolutionVersionCache.get(base);
+  if (cached && Date.now() - cached.at < EVO_VERSION_TTL_MS) return cached.version;
+  let version = "";
+  try {
+    const r = await fetch(`${base}/`, {
+      headers: { apikey: apiKey },
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (r.ok) {
+      const j = await r.json().catch(() => ({}));
+      version = String(j?.version || j?.data?.version || "");
+    }
+  } catch { /* ignore */ }
+  evolutionVersionCache.set(base, { version, at: Date.now() });
+  return version;
+}
+
+function isFoundationVersion(v: string): boolean {
+  // Evolution Foundation forks use v2.2+, and expect the buttonId/buttonText format.
+  const m = /^(\d+)\.(\d+)/.exec(v || "");
+  if (!m) return false;
+  const major = Number(m[1]); const minor = Number(m[2]);
+  return major > 2 || (major === 2 && minor >= 2);
+}
+
 async function sendWhatsapp(
   tenantId: string | null, phone: string, kind: "text" | "buttons" | "list" | "audio" | "media",
   data: any,
@@ -174,26 +204,34 @@ async function sendWhatsapp(
     body.text = data.text || "";
   } else if (kind === "buttons") {
     endpoint = `${base}/message/sendButtons/${inst}`;
-    const buttons = (data.buttons || []).slice(0, 3).map((b: any, i: number) => {
-      const displayText = buttonDisplayText(b.displayLabel || b.label, `Botão ${i + 1}`);
-      return {
+    const rawButtons = (data.buttons || []).slice(0, 3);
+    if (rawButtons.length === 0) return { ok: false, error: "buttons_empty" };
+    const version = await detectEvolutionVersion(base, conn.api_key);
+    const useFoundation = isFoundationVersion(version);
+    const text = compactText(data.text || data.description, "Escolha uma opção");
+    const footer = compactText(data.footer, "");
+    if (useFoundation) {
+      // Evolution Foundation v2.2+ payload
+      const buttons = rawButtons.map((b: any, i: number) => ({
+        buttonId: buttonId(b.id, `btn_${i}`),
+        buttonText: { displayText: buttonDisplayText(b.displayLabel || b.label, `Botão ${i + 1}`) },
+      }));
+      body = { number: digits, text, footerText: footer || undefined, buttons };
+    } else {
+      // Evo API Cloud / v2.1.x payload
+      const buttons = rawButtons.map((b: any, i: number) => ({
         type: "reply",
-        title: displayText,
-        displayText,
+        displayText: buttonDisplayText(b.displayLabel || b.label, `Botão ${i + 1}`),
         id: buttonId(b.id, `btn_${i}`),
+      }));
+      body = {
+        number: digits,
+        title: compactText(data.title, ""),
+        description: text,
+        footer: footer || " ",
+        buttons,
       };
-    }).filter((b: any) => b.displayText && b.id);
-    if (buttons.length === 0) return { ok: false, error: "buttons_empty" };
-    const title = compactText(data.title, "Escolha uma opção");
-    const description = compactText(data.text || data.description, title);
-    body = {
-      number: digits,
-      title,
-      description,
-      footer: compactText(data.footer, " "),
-      buttons,
-    };
-
+    }
   } else if (kind === "list") {
     endpoint = `${base}/message/sendList/${inst}`;
     body = {
