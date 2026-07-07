@@ -91,14 +91,19 @@ async function loadFullContext(tenantId: string | null, ctx: RunContext): Promis
   }
   if (lead) {
     vars.lead = {
-      id: lead.id, nome: lead.nome_completo, whatsapp: lead.whatsapp, email: lead.email,
-      produto: lead.especialidade || lead.facebook_form_name, status: lead.status, origem: lead.origem,
+      id: lead.id,
+      nome: lead.nome_completo || ctx.name || "",
+      whatsapp: lead.whatsapp || ctx.phone || "",
+      email: lead.email || ctx.email || "",
+      produto: lead.especialidade || lead.facebook_form_name,
+      status: lead.status, origem: lead.origem,
       valor: lead.valor_proposta,
     };
     ctx.lead_id = ctx.lead_id ?? lead.id;
   } else {
     vars.lead = { nome: ctx.name ?? "", whatsapp: ctx.phone ?? "", email: ctx.email ?? "" };
   }
+
 
   // Appointment
   if (ctx.appointment_id) {
