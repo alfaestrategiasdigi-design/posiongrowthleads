@@ -30,6 +30,12 @@ export default function RelatoriosContainer({ scope, currentTenantId, scopeLabel
     tenantIds: [], campaigns: [], forms: [], ownerIds: [], origem: "all",
   });
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [density, setDensity] = useState<Density>(() => {
+    if (typeof window === "undefined") return "comfortable";
+    return (window.localStorage.getItem(DENSITY_KEY) as Density) || "comfortable";
+  });
+  useEffect(() => { try { window.localStorage.setItem(DENSITY_KEY, density); } catch {} }, [density]);
+  const isCompact = density === "compact";
   const chartsRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, error } = useRelatorioData(filters, scope, currentTenantId);
