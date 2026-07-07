@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { RelatorioFilters, LeadRow, AppointmentRow, SaleRow, InsightRow } from "./types";
+import type { RelatorioFilters, LeadRow, AppointmentRow, InsightRow, SpendRow } from "./types";
+import { ADMIN_MASTER_TENANT_ID } from "./constants";
 
 const LEAD_FIELDS = `
   id, tenant_id, nome_completo, whatsapp, status, origem, is_organic,
@@ -22,7 +23,7 @@ export async function fetchRelatorio(
   filters: RelatorioFilters,
   scope: "admin" | "tenant",
   currentTenantId: string | null,
-): Promise<{ leads: LeadRow[]; appointments: AppointmentRow[]; sales: SaleRow[]; insights: InsightRow[] }> {
+): Promise<{ leads: LeadRow[]; appointments: AppointmentRow[]; insights: InsightRow[]; spend: SpendRow[] }> {
   const start = toStartOfDay(filters.from);
   const end = toEndOfDay(filters.to);
 
@@ -31,10 +32,12 @@ export async function fetchRelatorio(
     .gte("created_at", start).lte("created_at", end);
 
   if (scope === "tenant") {
-    if (!currentTenantId) return { leads: [], appointments: [], sales: [], insights: [] };
+    if (!currentTenantId) return { leads: [], appointments: [], insights: [], spend: [] };
     leadsQ = leadsQ.eq("tenant_id", currentTenantId);
-  } else if (filters.tenantIds.length > 0) {
-    leadsQ = leadsQ.in("tenant_id", filters.tenantIds);
+  } else {
+    // Admin: nunca inclui o tenant interno Admin Master
+    leadsQ = leadsQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
+    if (filters.tenantIds.length > 0) leadsQ = leadsQ.in("tenant_id", filters.tenantIds);
   }
   if (filters.campaigns.length > 0) leadsQ = leadsQ.in("utm_campaign", filters.campaigns);
   if (filters.forms.length > 0) leadsQ = leadsQ.in("facebook_form_name", filters.forms);
@@ -45,49 +48,55 @@ export async function fetchRelatorio(
   const { data: leads, error: leadsErr } = await leadsQ.order("created_at", { ascending: false }).limit(5000);
   if (leadsErr) throw leadsErr;
   const leadRows = (leads ?? []) as unknown as LeadRow[];
-  const leadIds = leadRows.map(l => l.id);
 
-  // -------- APPOINTMENTS (agendados no período OU vinculados aos leads do período) --------
+  // -------- APPOINTMENTS --------
   let apptQ = supabase.from("appointments").select("id, tenant_id, lead_id, date_time, status");
   if (scope === "tenant") apptQ = apptQ.eq("tenant_id", currentTenantId!);
-  else if (filters.tenantIds.length > 0) apptQ = apptQ.in("tenant_id", filters.tenantIds);
+  else {
+    apptQ = apptQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
+    if (filters.tenantIds.length > 0) apptQ = apptQ.in("tenant_id", filters.tenantIds);
+  }
   apptQ = apptQ.gte("date_time", start).lte("date_time", end);
   const { data: appts } = await apptQ.limit(5000);
 
-  // -------- SALES (join por lead_id dos leads do período) --------
-  let salesRows: SaleRow[] = [];
-  if (leadIds.length > 0) {
-    let salesQ = supabase.from("sales")
-      .select("id, tenant_id, lead_id, amount, amount_paid, amount_pending, sale_date")
-      .in("lead_id", leadIds);
-    if (scope === "tenant") salesQ = salesQ.eq("tenant_id", currentTenantId!);
-    const { data } = await salesQ.limit(5000);
-    salesRows = (data ?? []) as SaleRow[];
-  }
-
-  // -------- INSIGHTS (spend por período) --------
+  // -------- INSIGHTS (spend sincronizado da Meta) --------
   let insQ = supabase.from("campaign_insights")
     .select("tenant_id, campaign_id, campaign_name, spend, leads, cost_per_lead, date_start")
     .gte("date_start", filters.from).lte("date_start", filters.to);
   if (scope === "tenant") insQ = insQ.eq("tenant_id", currentTenantId!);
-  else if (filters.tenantIds.length > 0) insQ = insQ.in("tenant_id", filters.tenantIds);
+  else {
+    insQ = insQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
+    if (filters.tenantIds.length > 0) insQ = insQ.in("tenant_id", filters.tenantIds);
+  }
+  if (filters.campaigns.length > 0) insQ = insQ.in("campaign_name", filters.campaigns);
   const { data: insights } = await insQ.limit(10000);
+
+  // -------- SPEND MANUAL (campaign_spend) --------
+  // Sobreposição de período: period_start <= to AND period_end >= from
+  let spendQ = supabase.from("campaign_spend")
+    .select("tenant_id, campaign_id, campaign_name, amount_spent, period_start, period_end")
+    .lte("period_start", filters.to)
+    .gte("period_end", filters.from);
+  if (scope === "tenant") spendQ = spendQ.eq("tenant_id", currentTenantId!);
+  else {
+    spendQ = spendQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
+    if (filters.tenantIds.length > 0) spendQ = spendQ.in("tenant_id", filters.tenantIds);
+  }
+  if (filters.campaigns.length > 0) spendQ = spendQ.in("campaign_name", filters.campaigns);
+  const { data: spend } = await spendQ.limit(5000);
 
   return {
     leads: leadRows,
     appointments: (appts ?? []) as AppointmentRow[],
-    sales: salesRows,
     insights: (insights ?? []) as InsightRow[],
+    spend: (spend ?? []) as SpendRow[],
   };
 }
 
-export async function fetchFilterOptions(scope: "admin" | "tenant", currentTenantId: string | null) {
-  const [tenants, users] = await Promise.all([
-    scope === "admin"
-      ? supabase.from("tenants").select("id, name").order("name")
-      : Promise.resolve({ data: [] as any[] }),
-    supabase.from("tenant_users").select("user_id, tenants(name)").eq("active", true).limit(500),
-  ]);
+export async function fetchFilterOptions(scope: "admin" | "tenant", _currentTenantId: string | null) {
+  const tenants = scope === "admin"
+    ? await supabase.from("tenants").select("id, name").neq("id", ADMIN_MASTER_TENANT_ID).order("name")
+    : { data: [] as { id: string; name: string }[] };
   return {
     tenants: (tenants.data ?? []) as { id: string; name: string }[],
   };

@@ -1,7 +1,7 @@
 import { format, parseISO, eachDayOfInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type {
-  LeadRow, AppointmentRow, SaleRow, InsightRow,
+  LeadRow, AppointmentRow, InsightRow, SpendRow,
   Kpis, FunilStage, RelatorioData, RelatorioFilters,
 } from "./types";
 
@@ -20,17 +20,22 @@ const STAGE_LABELS: Record<string, string> = {
 const FUNIL_ORDER = ["lead", "qualificado", "reuniao_agendada", "compareceu", "negociacao", "ganho"] as const;
 
 export function buildKpis(
-  leads: LeadRow[], appts: AppointmentRow[], sales: SaleRow[], insights: InsightRow[],
+  leads: LeadRow[], appts: AppointmentRow[], insights: InsightRow[], spend: SpendRow[],
 ): Kpis {
   const total = leads.length;
   const qualificados = leads.filter(l => l.mql || l.sql_qualified || ["qualificado","reuniao_agendada","compareceu","negociacao","ganho"].includes(l.status)).length;
   const agendamentos = appts.length;
   const compareceu = appts.filter(a => (a.status ?? "").toLowerCase() === "realizado" || (a.status ?? "").toLowerCase() === "compareceu").length;
   const noShow = appts.filter(a => (a.status ?? "").toLowerCase() === "no_show" || (a.status ?? "").toLowerCase() === "faltou").length;
-  const ganhos = leads.filter(l => l.status === "ganho").length;
-  const valorGanho = sales.reduce((s, x) => s + (Number(x.amount_paid) || 0) + (Number(x.amount_pending) || 0), 0);
+  const ganhosLeads = leads.filter(l => l.status === "ganho");
+  const ganhos = ganhosLeads.length;
+  // Valor Ganho: Kanban puro — soma valor_proposta dos leads na coluna 'ganho'
+  const valorGanho = ganhosLeads.reduce((s, l) => s + (Number(l.valor_proposta) || 0), 0);
   const valorPerdido = leads.filter(l => l.status === "perdido").reduce((s, l) => s + (Number(l.valor_perdido) || 0), 0);
-  const investimento = insights.reduce((s, i) => s + (Number(i.spend) || 0), 0);
+  // Investimento: insights sincronizados + spend manual
+  const investimentoInsights = insights.reduce((s, i) => s + (Number(i.spend) || 0), 0);
+  const investimentoManual = spend.reduce((s, x) => s + (Number(x.amount_spent) || 0), 0);
+  const investimento = investimentoInsights + investimentoManual;
   const cpl = total > 0 ? investimento / total : 0;
   const cac = ganhos > 0 ? investimento / ganhos : 0;
 
@@ -143,7 +148,7 @@ export function buildOriginSplit(leads: LeadRow[]) {
 
 export function buildRelatorioData(
   filters: RelatorioFilters,
-  leads: LeadRow[], appts: AppointmentRow[], sales: SaleRow[], insights: InsightRow[],
+  leads: LeadRow[], appts: AppointmentRow[], insights: InsightRow[], spend: SpendRow[],
   availableTenants: { id: string; name: string }[],
 ): RelatorioData {
   const availableCampaigns = Array.from(new Set(leads.map(l => l.utm_campaign).filter(Boolean) as string[])).sort();
@@ -153,8 +158,8 @@ export function buildRelatorioData(
   const availableOwners = Array.from(ownersMap.entries()).map(([id, label]) => ({ id, label }));
 
   return {
-    leads, appointments: appts, sales, insights,
-    kpis: buildKpis(leads, appts, sales, insights),
+    leads, appointments: appts, insights, spend,
+    kpis: buildKpis(leads, appts, insights, spend),
     funil: buildFunil(leads),
     leadsByDay: buildLeadsByDay(leads, filters.from, filters.to),
     leadsByCampaign: buildTopBy(leads, l => l.utm_campaign || l.facebook_campaign || null, 10),
