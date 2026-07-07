@@ -375,8 +375,9 @@ function HistoryView({ scope }: { scope: AutomationScope }) {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useState(() => {
+  useEffect(() => {
     (async () => {
+      setLoading(true);
       let q = supabase.from("automation_executions")
         .select("*, automation_flows(name)")
         .order("started_at", { ascending: false }).limit(100);
@@ -386,7 +387,7 @@ function HistoryView({ scope }: { scope: AutomationScope }) {
       setItems(data || []);
       setLoading(false);
     })();
-  });
+  }, [scope.isAdminMaster, scope.tenantId]);
 
   if (loading) return <div className="py-16 flex justify-center"><Loader2 className="w-5 h-5 animate-spin" /></div>;
   if (items.length === 0) return <Card className="p-10 text-center text-sm text-muted-foreground">Nenhuma execução ainda.</Card>;
