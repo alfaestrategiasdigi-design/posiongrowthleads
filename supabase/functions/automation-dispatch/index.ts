@@ -410,25 +410,42 @@ async function runFlow(
       } else if (type === "appointment_create") {
         detail = "criar agendamento";
         if (!dryRun && tenantId) {
-          const when = d.date_time ? new Date(d.date_time).toISOString() : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-          const { error } = await admin.from("appointments").insert({
+          // Accept ISO, "+1d", "+2h", or fallback +24h
+          let when: string;
+          const dt = String(d.date_time || "").trim();
+          const rel = dt.match(/^\+\s*(\d+)\s*([hdm])$/i);
+          if (rel) {
+            const n = Number(rel[1]);
+            const unit = rel[2].toLowerCase();
+            const ms = n * (unit === "d" ? 86400000 : unit === "h" ? 3600000 : 60000);
+            when = new Date(Date.now() + ms).toISOString();
+          } else if (dt) {
+            const parsed = new Date(dt);
+            when = isNaN(parsed.getTime()) ? new Date(Date.now() + 86400000).toISOString() : parsed.toISOString();
+          } else {
+            when = new Date(Date.now() + 86400000).toISOString();
+          }
+          const { data: appt, error } = await admin.from("appointments").insert({
             tenant_id: tenantId, lead_id: ctx.lead_id ?? null,
             client_name: vars.lead.nome || "Paciente",
             client_phone: vars.lead.whatsapp || "",
             date_time: when, duration_minutes: Number(d.duration) || 60,
             appointment_type: d.appointment_type || "consulta",
             procedure: d.procedure || null, status: "agendado",
-          });
+          }).select("id").maybeSingle();
           if (error) { ok = false; detail += ` (erro: ${error.message})`; }
+          else if (appt) { ctx.appointment_id = appt.id; detail += ` (${new Date(when).toLocaleString("pt-BR")})`; }
         }
       } else if (type === "appointment_link") {
         const link = interpolate(String(d.url || ""), vars);
-        detail = `enviaria link ${link}`;
+        const label = interpolate(String(d.text || "Agende sua consulta:"), vars);
+        const text = `${label} ${link}`.trim();
+        detail = `enviaria: "${text.slice(0, 80)}"`;
         if (!dryRun) {
-          const text = interpolate(String(d.text || "Agende sua consulta:") + " " + link, vars);
           const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text });
           ok = r.ok; if (!ok) detail = `erro: ${r.error}`;
         }
+
       } else if (type === "appointment_confirm" || type === "appointment_cancel") {
         const newStatus = type === "appointment_confirm" ? "compareceu" : "cancelado";
         detail = `${type} → ${newStatus}`;
