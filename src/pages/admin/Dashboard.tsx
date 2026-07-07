@@ -239,8 +239,8 @@ export default function Dashboard() {
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-2 font-mono">Receita total combinada</div>
-              <div className="text-4xl font-bold bg-gradient-to-br from-white to-amber-200/90 bg-clip-text text-transparent">{fmt(agency.totalCombinado)}</div>
-              <div className="text-sm text-muted-foreground mt-1">
+              <div className="text-4xl font-bold text-white tracking-tight">{fmt(agency.totalCombinado)}</div>
+              <div className="text-sm mt-1" style={{ color: PALETTE.muted }}>
                 Agência {fmt(agency.receitaAgencia)} + SaaS MRR {fmt(agency.mrr)}/mês
               </div>
             </div>
