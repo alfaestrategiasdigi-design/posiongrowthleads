@@ -67,7 +67,7 @@ export async function fetchRelatorio(
 
   // -------- INSIGHTS (spend sincronizado da Meta) --------
   let insQ = supabase.from("campaign_insights")
-    .select("tenant_id, campaign_id, campaign_name, spend, leads, cost_per_lead, date_start")
+    .select("tenant_id, ad_account_id, campaign_id, campaign_name, spend, leads, cost_per_lead, date_start")
     .gte("date_start", filters.from).lte("date_start", filters.to);
   if (scope === "tenant") insQ = insQ.eq("tenant_id", currentTenantId!);
   else {
@@ -75,6 +75,7 @@ export async function fetchRelatorio(
     else insQ = insQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
   }
   if (filters.campaigns.length > 0) insQ = insQ.in("campaign_name", filters.campaigns);
+  if (filters.adAccountIds.length > 0) insQ = insQ.in("ad_account_id", filters.adAccountIds);
   const { data: insights } = await insQ.limit(10000);
 
   // -------- SPEND MANUAL (campaign_spend) --------
@@ -101,13 +102,48 @@ export async function fetchRelatorio(
   };
 }
 
-export async function fetchFilterOptions(scope: "admin" | "tenant", _currentTenantId: string | null) {
+export async function fetchFilterOptions(scope: "admin" | "tenant", currentTenantId: string | null) {
   // Admin: inclui TODOS os tenants (inclusive Admin Master) para poder tirar
   // relatório da conta interna quando selecionado explicitamente.
-  const tenants = scope === "admin"
-    ? await supabase.from("tenants").select("id, name").order("name")
-    : { data: [] as { id: string; name: string }[] };
+  const tenantsP = scope === "admin"
+    ? supabase.from("tenants").select("id, name").order("name")
+    : Promise.resolve({ data: [] as { id: string; name: string }[] });
+
+  // Formulários: pega TODOS os forms já vistos (não limitado pelo período).
+  let formsQ = supabase.from("leads")
+    .select("facebook_form_name, tenant_id")
+    .not("facebook_form_name", "is", null)
+    .limit(5000);
+  if (scope === "tenant" && currentTenantId) formsQ = formsQ.eq("tenant_id", currentTenantId);
+
+  // Campanhas: idem, pega todas conhecidas por utm_campaign
+  let campQ = supabase.from("leads")
+    .select("utm_campaign, tenant_id")
+    .not("utm_campaign", "is", null)
+    .limit(5000);
+  if (scope === "tenant" && currentTenantId) campQ = campQ.eq("tenant_id", currentTenantId);
+
+  // Contas de anúncio ativas
+  let adQ = supabase.from("tenant_ad_accounts")
+    .select("ad_account_id, label, tenant_id")
+    .eq("active", true);
+  if (scope === "tenant" && currentTenantId) adQ = adQ.eq("tenant_id", currentTenantId);
+
+  const [tenants, formsRes, campRes, adRes] = await Promise.all([tenantsP, formsQ, campQ, adQ]);
+
+  const forms = Array.from(new Set(((formsRes.data ?? []) as any[])
+    .map((r) => r.facebook_form_name as string).filter(Boolean))).sort();
+  const campaigns = Array.from(new Set(((campRes.data ?? []) as any[])
+    .map((r) => r.utm_campaign as string).filter(Boolean))).sort();
+  const adAccounts = ((adRes.data ?? []) as any[]).map((r) => ({
+    id: r.ad_account_id as string,
+    label: (r.label as string) || (r.ad_account_id as string),
+  }));
+
   return {
     tenants: (tenants.data ?? []) as { id: string; name: string }[],
+    forms,
+    campaigns,
+    adAccounts,
   };
 }
