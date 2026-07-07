@@ -365,22 +365,31 @@ async function runFlow(
         branchHandle = Math.random() < 0.5 ? "a" : "b";
         detail = `split → ${branchHandle}`;
       } else if (type === "kanban_move") {
-        detail = `mover para "${d.value || d.column || ""}"`;
-        if (!dryRun && ctx.lead_id) {
-          const { error } = await admin.from("leads").update({ status: d.value || d.column }).eq("id", ctx.lead_id);
+        const target = interpolate(String(d.value || d.column || ""), vars);
+        const allowed = new Set(["lead","qualificado","reuniao","proposta","negociacao","ganho","perdido"]);
+        detail = `mover para "${target}"`;
+        if (!target || !allowed.has(target.toLowerCase())) {
+          ok = false; detail += ` (status inválido)`;
+        } else if (!dryRun && ctx.lead_id) {
+          const { error } = await admin.from("leads").update({ status: target.toLowerCase() }).eq("id", ctx.lead_id);
           if (error) { ok = false; detail += ` (erro: ${error.message})`; }
+        } else if (!ctx.lead_id) {
+          ok = false; detail += ` (sem lead_id no contexto)`;
         }
       } else if (type === "kanban_create") {
         detail = "criar lead";
         if (!dryRun && tenantId) {
-          const { error } = await admin.from("leads").insert({
-            tenant_id: tenantId, nome_completo: interpolate(d.nome || vars.lead.nome || "Lead", vars),
+          const { data: created, error } = await admin.from("leads").insert({
+            tenant_id: tenantId,
+            nome_completo: interpolate(d.nome || vars.lead.nome || "Lead", vars),
             whatsapp: interpolate(d.whatsapp || vars.lead.whatsapp || "", vars),
             email: interpolate(d.email || vars.lead.email || "", vars),
             status: d.status || "lead", origem: "automation",
-          });
+          }).select("id").maybeSingle();
           if (error) { ok = false; detail += ` (erro: ${error.message})`; }
+          else if (created) { ctx.lead_id = created.id; vars.lead.id = created.id; detail += ` (id ${created.id.slice(0,8)})`; }
         }
+
       } else if (type === "kanban_update") {
         detail = `atualizar ${d.value || d.field}=${d.newValue || ""}`;
         if (!dryRun && ctx.lead_id && d.value) {
