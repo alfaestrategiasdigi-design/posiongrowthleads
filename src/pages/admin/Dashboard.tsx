@@ -419,23 +419,23 @@ export default function Dashboard() {
           <div data-no-float className="premium-card rounded-xl p-4">
             <Tabs defaultValue="ganhos" className="w-full">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold">Movimentação</h3>
-                <TabsList className="h-7 bg-muted/40">
-                  <TabsTrigger value="ganhos" className="text-[10px] px-2 h-6 data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-300">Ganhos</TabsTrigger>
-                  <TabsTrigger value="perdas" className="text-[10px] px-2 h-6 data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-300">Perdas</TabsTrigger>
-                  <TabsTrigger value="ativ" className="text-[10px] px-2 h-6 data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-300">Atividade</TabsTrigger>
+                <h3 className="text-sm font-semibold text-white">Movimentação</h3>
+                <TabsList className="h-7 bg-white/5">
+                  <TabsTrigger value="ganhos" className="text-[10px] px-2 h-6 text-zinc-400 data-[state=active]:bg-amber-500/12 data-[state=active]:text-amber-300">Ganhos</TabsTrigger>
+                  <TabsTrigger value="perdas" className="text-[10px] px-2 h-6 text-zinc-400 data-[state=active]:bg-amber-500/12 data-[state=active]:text-amber-300">Perdas</TabsTrigger>
+                  <TabsTrigger value="ativ" className="text-[10px] px-2 h-6 text-zinc-400 data-[state=active]:bg-amber-500/12 data-[state=active]:text-amber-300">Atividade</TabsTrigger>
                 </TabsList>
               </div>
 
               <TabsContent value="ganhos" className="mt-0">
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {agencyContracts.slice(0, 8).map((c) => (
-                    <div key={c.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border/30 last:border-0">
+                    <div key={c.id} className="flex items-center justify-between text-sm py-1.5 border-b border-white/5 last:border-0">
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">{c.cliente_nome}</div>
-                        <div className="text-[10px] text-muted-foreground font-mono">{format(new Date(c.data_assinatura), "dd/MM/yy")}</div>
+                        <div className="truncate font-medium text-white">{c.cliente_nome}</div>
+                        <div className="text-[10px] font-mono" style={{ color: PALETTE.mutedDim }}>{format(new Date(c.data_assinatura), "dd/MM/yy")}</div>
                       </div>
-                      <span className="text-emerald-500 font-semibold text-xs tabular-nums">{fmt(c.valor_total || 0)}</span>
+                      <span className="font-semibold text-xs tabular-nums" style={{ color: PALETTE.green }}>{fmt(c.valor_total || 0)}</span>
                     </div>
                   ))}
                   {agencyContracts.length === 0 && (
