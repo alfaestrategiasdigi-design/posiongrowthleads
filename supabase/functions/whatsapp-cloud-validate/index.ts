@@ -61,7 +61,15 @@ Deno.serve(async (req) => {
       });
       const phoneData = await phoneRes.json();
       checks.phone = { ok: phoneRes.ok, data: phoneData };
-      if (!phoneRes.ok) throw new Error(`Phone check failed: ${JSON.stringify(phoneData)}`);
+      if (!phoneRes.ok) {
+        const message = phoneData?.error?.message ?? JSON.stringify(phoneData);
+        await admin.from("whatsapp_connections").update({
+          status: "error",
+          last_error: message,
+          last_validated_at: new Date().toISOString(),
+        }).eq("id", connection_id);
+        return json({ ok: false, error: message, checks }, 400);
+      }
 
       // 2. WABA info + webhook subscription (if provided)
       let subscribed = false;
