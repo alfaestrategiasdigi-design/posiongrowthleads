@@ -212,8 +212,28 @@ export default function FlowEditor({ flowId, onBack }: Props) {
             onClose={() => setSelectedId(null)}
             onDelete={deleteNode}
           />
+        {testLog && (
+          <aside className="w-[340px] shrink-0 border-l border-border bg-card/40 h-full flex flex-col">
+            <div className="p-3 border-b border-border flex items-center justify-between">
+              <div>
+                <div className="text-xs uppercase text-muted-foreground">Simulação</div>
+                <div className="text-sm font-semibold">{testLog.length} passo(s)</div>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setTestLog(null)}>Fechar</Button>
+            </div>
+            <div className="flex-1 overflow-auto p-3 space-y-2 text-xs">
+              {testLog.length === 0 && <div className="text-muted-foreground">Nenhum passo executado.</div>}
+              {testLog.map((s, i) => (
+                <div key={i} className={`rounded border p-2 ${s.ok ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5"}`}>
+                  <div className="font-mono text-[11px] opacity-70">#{i + 1} · {s.node_type}</div>
+                  <div className="text-[11px]">{s.detail || "(sem detalhe)"}</div>
+                </div>
+              ))}
+            </div>
+          </aside>
         )}
       </div>
+
     </div>
   );
 }
