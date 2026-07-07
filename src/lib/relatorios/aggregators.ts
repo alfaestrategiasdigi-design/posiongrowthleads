@@ -150,16 +150,9 @@ export function buildRelatorioData(
   filters: RelatorioFilters,
   leads: LeadRow[], appts: AppointmentRow[], insights: InsightRow[], spend: SpendRow[],
   availableTenants: { id: string; name: string }[],
-  extraCampaigns: string[] = [],
-  extraForms: string[] = [],
-  availableAdAccounts: { id: string; label: string }[] = [],
 ): RelatorioData {
-  const campaignSet = new Set<string>(extraCampaigns);
-  for (const l of leads) { const v = l.utm_campaign || l.facebook_campaign; if (v) campaignSet.add(v); }
-  const formSet = new Set<string>(extraForms);
-  for (const l of leads) { if (l.facebook_form_name) formSet.add(l.facebook_form_name); }
-  const availableCampaigns = Array.from(campaignSet).sort();
-  const availableForms = Array.from(formSet).sort();
+  const availableCampaigns = Array.from(new Set(leads.map(l => l.utm_campaign).filter(Boolean) as string[])).sort();
+  const availableForms = Array.from(new Set(leads.map(l => l.facebook_form_name).filter(Boolean) as string[])).sort();
   const ownersMap = new Map<string, string>();
   for (const l of leads) if (l.owner_user_id) ownersMap.set(l.owner_user_id, l.owner_user_id.slice(0, 8));
   const availableOwners = Array.from(ownersMap.entries()).map(([id, label]) => ({ id, label }));
@@ -177,7 +170,6 @@ export function buildRelatorioData(
     availableForms,
     availableOwners,
     availableTenants,
-    availableAdAccounts,
   };
 }
 

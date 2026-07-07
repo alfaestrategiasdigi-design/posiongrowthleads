@@ -27,35 +27,22 @@ export async function fetchRelatorio(
   const start = toStartOfDay(filters.from);
   const end = toEndOfDay(filters.to);
 
-  // Se o usuário selecionou contas de anúncio, resolvemos os tenants
-  // correspondentes (campaign_insights.ad_account_id vem NULL, então usamos
-  // o mapeamento em tenant_ad_accounts) e combinamos com o filtro de tenants.
-  let effectiveTenantIds = filters.tenantIds;
-  if (scope === "admin" && filters.adAccountIds.length > 0) {
-    const { data: mapping } = await supabase
-      .from("tenant_ad_accounts")
-      .select("tenant_id")
-      .in("ad_account_id", filters.adAccountIds);
-    const adTenants = Array.from(new Set(((mapping ?? []) as any[]).map((r) => r.tenant_id as string).filter(Boolean)));
-    effectiveTenantIds = filters.tenantIds.length > 0
-      ? filters.tenantIds.filter((t) => adTenants.includes(t))
-      : adTenants;
-    if (effectiveTenantIds.length === 0) {
-      return { leads: [], appointments: [], insights: [], spend: [] };
-    }
-  }
-
   // -------- LEADS --------
   let leadsQ = supabase.from("leads").select(LEAD_FIELDS)
     .gte("created_at", start).lte("created_at", end);
 
-  const adminIncludeMaster = effectiveTenantIds.includes(ADMIN_MASTER_TENANT_ID);
+  // Regra Admin Master:
+  //  - se o usuário selecionou explicitamente algum tenant no filtro,
+  //    respeitamos essa lista (Admin Master entra se ele marcou);
+  //  - se NÃO selecionou nada (agregado padrão), excluímos Admin Master
+  //    para não misturar dados internos com o consolidado das clínicas.
+  const adminIncludeMaster = filters.tenantIds.includes(ADMIN_MASTER_TENANT_ID);
 
   if (scope === "tenant") {
     if (!currentTenantId) return { leads: [], appointments: [], insights: [], spend: [] };
     leadsQ = leadsQ.eq("tenant_id", currentTenantId);
   } else {
-    if (effectiveTenantIds.length > 0) leadsQ = leadsQ.in("tenant_id", effectiveTenantIds);
+    if (filters.tenantIds.length > 0) leadsQ = leadsQ.in("tenant_id", filters.tenantIds);
     else leadsQ = leadsQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
   }
   if (filters.campaigns.length > 0) leadsQ = leadsQ.in("utm_campaign", filters.campaigns);
@@ -72,7 +59,7 @@ export async function fetchRelatorio(
   let apptQ = supabase.from("appointments").select("id, tenant_id, lead_id, date_time, status");
   if (scope === "tenant") apptQ = apptQ.eq("tenant_id", currentTenantId!);
   else {
-    if (effectiveTenantIds.length > 0) apptQ = apptQ.in("tenant_id", effectiveTenantIds);
+    if (filters.tenantIds.length > 0) apptQ = apptQ.in("tenant_id", filters.tenantIds);
     else apptQ = apptQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
   }
   apptQ = apptQ.gte("date_time", start).lte("date_time", end);
@@ -80,24 +67,25 @@ export async function fetchRelatorio(
 
   // -------- INSIGHTS (spend sincronizado da Meta) --------
   let insQ = supabase.from("campaign_insights")
-    .select("tenant_id, ad_account_id, campaign_id, campaign_name, spend, leads, cost_per_lead, date_start")
+    .select("tenant_id, campaign_id, campaign_name, spend, leads, cost_per_lead, date_start")
     .gte("date_start", filters.from).lte("date_start", filters.to);
   if (scope === "tenant") insQ = insQ.eq("tenant_id", currentTenantId!);
   else {
-    if (effectiveTenantIds.length > 0) insQ = insQ.in("tenant_id", effectiveTenantIds);
+    if (filters.tenantIds.length > 0) insQ = insQ.in("tenant_id", filters.tenantIds);
     else insQ = insQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
   }
   if (filters.campaigns.length > 0) insQ = insQ.in("campaign_name", filters.campaigns);
   const { data: insights } = await insQ.limit(10000);
 
   // -------- SPEND MANUAL (campaign_spend) --------
+  // Sobreposição de período: period_start <= to AND period_end >= from
   let spendQ = supabase.from("campaign_spend")
     .select("tenant_id, campaign_id, campaign_name, amount_spent, period_start, period_end")
     .lte("period_start", filters.to)
     .gte("period_end", filters.from);
   if (scope === "tenant") spendQ = spendQ.eq("tenant_id", currentTenantId!);
   else {
-    if (effectiveTenantIds.length > 0) spendQ = spendQ.in("tenant_id", effectiveTenantIds);
+    if (filters.tenantIds.length > 0) spendQ = spendQ.in("tenant_id", filters.tenantIds);
     else spendQ = spendQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
   }
   if (filters.campaigns.length > 0) spendQ = spendQ.in("campaign_name", filters.campaigns);
@@ -113,48 +101,13 @@ export async function fetchRelatorio(
   };
 }
 
-export async function fetchFilterOptions(scope: "admin" | "tenant", currentTenantId: string | null) {
+export async function fetchFilterOptions(scope: "admin" | "tenant", _currentTenantId: string | null) {
   // Admin: inclui TODOS os tenants (inclusive Admin Master) para poder tirar
   // relatório da conta interna quando selecionado explicitamente.
-  const tenantsP = scope === "admin"
-    ? supabase.from("tenants").select("id, name").order("name")
-    : Promise.resolve({ data: [] as { id: string; name: string }[] });
-
-  // Formulários: pega TODOS os forms já vistos (não limitado pelo período).
-  let formsQ = supabase.from("leads")
-    .select("facebook_form_name, tenant_id")
-    .not("facebook_form_name", "is", null)
-    .limit(5000);
-  if (scope === "tenant" && currentTenantId) formsQ = formsQ.eq("tenant_id", currentTenantId);
-
-  // Campanhas: idem, pega todas conhecidas por utm_campaign
-  let campQ = supabase.from("leads")
-    .select("utm_campaign, tenant_id")
-    .not("utm_campaign", "is", null)
-    .limit(5000);
-  if (scope === "tenant" && currentTenantId) campQ = campQ.eq("tenant_id", currentTenantId);
-
-  // Contas de anúncio ativas
-  let adQ = supabase.from("tenant_ad_accounts")
-    .select("ad_account_id, label, tenant_id")
-    .eq("active", true);
-  if (scope === "tenant" && currentTenantId) adQ = adQ.eq("tenant_id", currentTenantId);
-
-  const [tenants, formsRes, campRes, adRes] = await Promise.all([tenantsP, formsQ, campQ, adQ]);
-
-  const forms = Array.from(new Set(((formsRes.data ?? []) as any[])
-    .map((r) => r.facebook_form_name as string).filter(Boolean))).sort();
-  const campaigns = Array.from(new Set(((campRes.data ?? []) as any[])
-    .map((r) => r.utm_campaign as string).filter(Boolean))).sort();
-  const adAccounts = ((adRes.data ?? []) as any[]).map((r) => ({
-    id: r.ad_account_id as string,
-    label: (r.label as string) || (r.ad_account_id as string),
-  }));
-
+  const tenants = scope === "admin"
+    ? await supabase.from("tenants").select("id, name").order("name")
+    : { data: [] as { id: string; name: string }[] };
   return {
     tenants: (tenants.data ?? []) as { id: string; name: string }[],
-    forms,
-    campaigns,
-    adAccounts,
   };
 }
