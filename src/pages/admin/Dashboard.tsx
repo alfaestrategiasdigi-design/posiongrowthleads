@@ -16,13 +16,29 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 const fmt = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v || 0);
 
-const STAGE_COLORS: Record<string, string> = {
-  lead: "#64748b", qualificado: "#06b6d4", reuniao: "#6366f1",
-  proposta: "#8b5cf6", negociacao: "#f59e0b", ganho: "#10b981", perdido: "#f43f5e",
+// Paleta oficial do Dashboard — 4 cores
+const PALETTE = {
+  gold: "#E8C468",
+  white: "#F5F5F5",
+  green: "#4ADE80",
+  red: "#F87171",
+  muted: "#A1A1AA",
+  mutedDim: "#71717A",
 };
+
 const STAGE_LABELS: Record<string, string> = {
   lead: "Lead", qualificado: "Qualificado", reuniao: "Reunião",
   proposta: "Proposta", negociacao: "Negociação", ganho: "Ganho", perdido: "Perdido",
+};
+const STAGE_ORDER = ["lead", "qualificado", "reuniao", "proposta", "negociacao", "ganho", "perdido"];
+const stageColor = (stageKey: string): string => {
+  if (stageKey === "ganho") return PALETTE.green;
+  if (stageKey === "perdido") return PALETTE.red;
+  const idx = STAGE_ORDER.indexOf(stageKey);
+  // opacidade 0.45 -> 0.9 conforme avança no funil (0..4)
+  const t = idx >= 0 ? Math.min(4, idx) / 4 : 0;
+  const alpha = 0.45 + t * 0.45;
+  return `rgba(245,245,245,${alpha.toFixed(2)})`;
 };
 
 const ORIGEM_LABELS: Record<string, string> = {
@@ -107,7 +123,7 @@ export default function Dashboard() {
     const stageCount: Record<string, number> = {};
     leads.forEach((l) => { stageCount[l.stage] = (stageCount[l.stage] || 0) + 1; });
     const stageData = Object.entries(stageCount).map(([stage, count]) => ({
-      stage: STAGE_LABELS[stage] || stage, count, fill: STAGE_COLORS[stage] || "#888",
+      stage: STAGE_LABELS[stage] || stage, count, fill: stageColor(stage),
     }));
 
     // Origem dos leads (dentro do período)
@@ -223,8 +239,8 @@ export default function Dashboard() {
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-2 font-mono">Receita total combinada</div>
-              <div className="text-4xl font-bold bg-gradient-to-br from-white to-amber-200/90 bg-clip-text text-transparent">{fmt(agency.totalCombinado)}</div>
-              <div className="text-sm text-muted-foreground mt-1">
+              <div className="text-4xl font-bold text-white tracking-tight">{fmt(agency.totalCombinado)}</div>
+              <div className="text-sm mt-1" style={{ color: PALETTE.muted }}>
                 Agência {fmt(agency.receitaAgencia)} + SaaS MRR {fmt(agency.mrr)}/mês
               </div>
             </div>
@@ -268,13 +284,12 @@ export default function Dashboard() {
                 {goalPct.toFixed(1)}% atingido
               </span>
             </div>
-            <div className="mt-1.5 h-1.5 bg-muted/40 rounded-full overflow-hidden">
+            <div className="mt-1.5 h-1.5 bg-white/5 rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all"
                 style={{
                   width: `${goalPct}%`,
-                  background: "linear-gradient(90deg, hsl(44 75% 68%), hsl(40 78% 40%))",
-                  boxShadow: "0 0 10px hsl(44 68% 52% / 0.5)",
+                  background: `linear-gradient(90deg, ${PALETTE.gold}, #B8860B)`,
                 }}
               />
             </div>
@@ -282,15 +297,30 @@ export default function Dashboard() {
 
           <div className="h-32 mt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={timelineData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+              <LineChart data={timelineData} margin={{ top: 6, right: 8, bottom: 0, left: -8 }}>
+                <defs>
+                  <linearGradient id="heroArea" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor={PALETTE.gold} stopOpacity={0.22} />
+                    <stop offset="100%" stopColor={PALETTE.gold} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: PALETTE.mutedDim }} stroke="rgba(255,255,255,0.08)" />
+                <YAxis tick={{ fontSize: 10, fill: PALETTE.mutedDim }} stroke="rgba(255,255,255,0.08)" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip
-                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                  contentStyle={{ background: "#0a0a0a", border: "1px solid rgba(232,196,104,0.28)", borderRadius: 8, fontSize: 12, color: PALETTE.white }}
+                  labelStyle={{ color: PALETTE.muted }}
                   formatter={(v: any) => fmt(v)}
                 />
-                <Line type="monotone" dataKey="receita" stroke="hsl(44 75% 55%)" strokeWidth={2} dot={false} />
+                <Line
+                  type="monotone"
+                  dataKey="receita"
+                  stroke={PALETTE.white}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4, fill: PALETTE.gold, stroke: PALETTE.white, strokeWidth: 1 }}
+                  fill="url(#heroArea)"
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -335,44 +365,47 @@ export default function Dashboard() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div data-no-float className="premium-card rounded-xl p-4">
-            <h3 className="text-sm font-semibold mb-3">Distribuição do funil</h3>
+            <h3 className="text-sm font-semibold mb-3 text-white">Distribuição do funil</h3>
             <div className="space-y-2">
               {agency.stageData.map((s) => {
                 const total = agency.stageData.reduce((sum, x) => sum + x.count, 0);
                 const pct = total > 0 ? (s.count / total) * 100 : 0;
                 return (
                   <div key={s.stage} className="flex items-center gap-3">
-                    <span className="text-xs w-24 text-muted-foreground">{s.stage}</span>
-                    <div className="flex-1 h-2 bg-muted/40 rounded-full overflow-hidden">
+                    <span className="text-xs w-24" style={{ color: PALETTE.muted }}>{s.stage}</span>
+                    <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: s.fill }} />
                     </div>
-                    <span className="text-xs font-bold w-10 text-right tabular-nums">{s.count}</span>
+                    <span className="text-xs font-bold w-10 text-right tabular-nums text-white">{s.count}</span>
                   </div>
                 );
               })}
               {agency.stageData.length === 0 && (
-                <div className="text-xs text-muted-foreground text-center py-6">Sem leads no período.</div>
+                <div className="text-xs text-center py-6" style={{ color: PALETTE.mutedDim }}>Sem leads no período.</div>
               )}
             </div>
           </div>
 
           <div data-no-float className="premium-card rounded-xl p-4">
-            <h3 className="text-sm font-semibold mb-3">Origem dos leads</h3>
+            <h3 className="text-sm font-semibold mb-3 text-white">Origem dos leads</h3>
             <div className="space-y-2">
               {(() => {
                 const max = Math.max(1, ...agency.origemData.map((o) => o.count));
-                return agency.origemData.map((o) => {
+                return agency.origemData.map((o, idx) => {
                   const pct = (o.count / max) * 100;
+                  const isTop = idx === 0;
+                  const alpha = 0.35 + (o.count / max) * 0.55;
+                  const bg = isTop ? PALETTE.gold : `rgba(245,245,245,${alpha.toFixed(2)})`;
                   return (
                     <div key={o.label} className="flex items-center gap-3">
-                      <span className="text-xs w-24 text-muted-foreground truncate" title={o.label}>{o.label}</span>
-                      <div className="flex-1 h-2 bg-muted/40 rounded-full overflow-hidden">
+                      <span className="text-xs w-24 truncate" style={{ color: PALETTE.muted }} title={o.label}>{o.label}</span>
+                      <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
                         <div
                           className="h-full rounded-full transition-all"
-                          style={{ width: `${pct}%`, background: "linear-gradient(90deg, hsl(44 75% 68%), hsl(40 78% 40%))" }}
+                          style={{ width: `${pct}%`, background: bg }}
                         />
                       </div>
-                      <span className="text-xs font-bold w-10 text-right tabular-nums">{o.count}</span>
+                      <span className="text-xs font-bold w-10 text-right tabular-nums text-white">{o.count}</span>
                     </div>
                   );
                 });
@@ -386,27 +419,27 @@ export default function Dashboard() {
           <div data-no-float className="premium-card rounded-xl p-4">
             <Tabs defaultValue="ganhos" className="w-full">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold">Movimentação</h3>
-                <TabsList className="h-7 bg-muted/40">
-                  <TabsTrigger value="ganhos" className="text-[10px] px-2 h-6 data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-300">Ganhos</TabsTrigger>
-                  <TabsTrigger value="perdas" className="text-[10px] px-2 h-6 data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-300">Perdas</TabsTrigger>
-                  <TabsTrigger value="ativ" className="text-[10px] px-2 h-6 data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-300">Atividade</TabsTrigger>
+                <h3 className="text-sm font-semibold text-white">Movimentação</h3>
+                <TabsList className="h-7 bg-white/5">
+                  <TabsTrigger value="ganhos" className="text-[10px] px-2 h-6 text-zinc-400 data-[state=active]:bg-amber-500/12 data-[state=active]:text-amber-300">Ganhos</TabsTrigger>
+                  <TabsTrigger value="perdas" className="text-[10px] px-2 h-6 text-zinc-400 data-[state=active]:bg-amber-500/12 data-[state=active]:text-amber-300">Perdas</TabsTrigger>
+                  <TabsTrigger value="ativ" className="text-[10px] px-2 h-6 text-zinc-400 data-[state=active]:bg-amber-500/12 data-[state=active]:text-amber-300">Atividade</TabsTrigger>
                 </TabsList>
               </div>
 
               <TabsContent value="ganhos" className="mt-0">
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {agencyContracts.slice(0, 8).map((c) => (
-                    <div key={c.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border/30 last:border-0">
+                    <div key={c.id} className="flex items-center justify-between text-sm py-1.5 border-b border-white/5 last:border-0">
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">{c.cliente_nome}</div>
-                        <div className="text-[10px] text-muted-foreground font-mono">{format(new Date(c.data_assinatura), "dd/MM/yy")}</div>
+                        <div className="truncate font-medium text-white">{c.cliente_nome}</div>
+                        <div className="text-[10px] font-mono" style={{ color: PALETTE.mutedDim }}>{format(new Date(c.data_assinatura), "dd/MM/yy")}</div>
                       </div>
-                      <span className="text-emerald-500 font-semibold text-xs tabular-nums">{fmt(c.valor_total || 0)}</span>
+                      <span className="font-semibold text-xs tabular-nums" style={{ color: PALETTE.green }}>{fmt(c.valor_total || 0)}</span>
                     </div>
                   ))}
                   {agencyContracts.length === 0 && (
-                    <div className="text-xs text-muted-foreground text-center py-6">Nenhum ganho ainda.</div>
+                    <div className="text-xs text-center py-6" style={{ color: PALETTE.mutedDim }}>Nenhum ganho ainda.</div>
                   )}
                 </div>
               </TabsContent>
@@ -414,20 +447,20 @@ export default function Dashboard() {
               <TabsContent value="perdas" className="mt-0">
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {agency.perdas.map((l) => (
-                    <div key={l.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border/30 last:border-0 gap-2">
+                    <div key={l.id} className="flex items-center justify-between text-sm py-1.5 border-b border-white/5 last:border-0 gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">{l.nome_clinica}</div>
-                        <div className="text-[10px] text-muted-foreground truncate" title={l.perdido_motivo || ""}>
+                        <div className="truncate font-medium text-white">{l.nome_clinica}</div>
+                        <div className="text-[10px] truncate" style={{ color: PALETTE.mutedDim }} title={l.perdido_motivo || ""}>
                           {l.perdido_motivo || "Sem motivo registrado"}
                         </div>
                       </div>
-                      <span className="text-rose-400 font-semibold text-[10px] font-mono">
+                      <span className="font-semibold text-[10px] font-mono" style={{ color: PALETTE.red }}>
                         {format(new Date(l.updated_at || l.created_at), "dd/MM/yy")}
                       </span>
                     </div>
                   ))}
                   {agency.perdas.length === 0 && (
-                    <div className="text-xs text-muted-foreground text-center py-6">Nenhuma perda no período.</div>
+                    <div className="text-xs text-center py-6" style={{ color: PALETTE.mutedDim }}>Nenhuma perda no período.</div>
                   )}
                 </div>
               </TabsContent>
@@ -435,20 +468,20 @@ export default function Dashboard() {
               <TabsContent value="ativ" className="mt-0">
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {agency.atividade.map((l) => (
-                    <div key={l.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border/30 last:border-0 gap-2">
+                    <div key={l.id} className="flex items-center justify-between text-sm py-1.5 border-b border-white/5 last:border-0 gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">{l.nome_clinica}</div>
-                        <div className="text-[10px] text-muted-foreground">
+                        <div className="truncate font-medium text-white">{l.nome_clinica}</div>
+                        <div className="text-[10px]" style={{ color: PALETTE.mutedDim }}>
                           {STAGE_LABELS[l.stage] || l.stage}
                         </div>
                       </div>
-                      <span className="text-amber-300/80 font-semibold text-[10px] font-mono">
+                      <span className="font-semibold text-[10px] font-mono text-white/70">
                         {format(new Date(l.updated_at || l.created_at), "dd/MM HH:mm")}
                       </span>
                     </div>
                   ))}
                   {agency.atividade.length === 0 && (
-                    <div className="text-xs text-muted-foreground text-center py-6">Sem atividade recente.</div>
+                    <div className="text-xs text-center py-6" style={{ color: PALETTE.mutedDim }}>Sem atividade recente.</div>
                   )}
                 </div>
               </TabsContent>
@@ -479,19 +512,21 @@ function KPI({ icon: Icon, label, value, sub }: { icon: any; label: string; valu
   return (
     <div data-no-float className="premium-card rounded-xl p-4">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] uppercase tracking-[0.18em] text-amber-400/70 font-mono">{label}</span>
-        <div className="w-7 h-7 rounded-lg premium-section-icon flex items-center justify-center">
-          <Icon className="w-3.5 h-3.5 text-amber-300" />
+        <span className="text-[10px] uppercase tracking-[0.18em] font-mono" style={{ color: `${PALETTE.gold}b3` }}>{label}</span>
+        <div className="w-7 h-7 rounded-lg premium-kpi-icon flex items-center justify-center">
+          <Icon className="w-3.5 h-3.5 text-white" />
         </div>
       </div>
-      <div className="text-2xl font-bold tabular-nums">{value}</div>
-      {sub && <div className="text-[11px] text-muted-foreground mt-1">{sub}</div>}
+      <div className="text-2xl font-bold tabular-nums text-white">{value}</div>
+      {sub && <div className="text-[11px] mt-1" style={{ color: PALETTE.muted }}>{sub}</div>}
     </div>
   );
 }
 
-/** Sparkline dourado, monocromático, minimalista */
-function Sparkline({ data, width = 92, height = 32 }: { data: number[]; width?: number; height?: number }) {
+/** Sparkline branca por padrão; verde/vermelho quando há semântica de variação */
+function Sparkline({
+  data, width = 92, height = 32, tone = "neutral",
+}: { data: number[]; width?: number; height?: number; tone?: "positive" | "negative" | "neutral" }) {
   if (!data || data.length === 0) return null;
   const max = Math.max(...data, 1);
   const min = Math.min(...data, 0);
@@ -503,20 +538,21 @@ function Sparkline({ data, width = 92, height = 32 }: { data: number[]; width?: 
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(" ");
   const areaPoints = `0,${height} ${points} ${width},${height}`;
-  const gradId = `spark-gold-${Math.random().toString(36).slice(2, 8)}`;
+  const stroke = tone === "negative" ? PALETTE.red : tone === "positive" ? PALETTE.green : PALETTE.white;
+  const gradId = `spark-${Math.random().toString(36).slice(2, 8)}`;
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
       <defs>
         <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="hsl(44 75% 68%)" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="hsl(44 75% 68%)" stopOpacity="0" />
+          <stop offset="0%" stopColor={PALETTE.gold} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={PALETTE.gold} stopOpacity="0" />
         </linearGradient>
       </defs>
       <polygon points={areaPoints} fill={`url(#${gradId})`} />
       <polyline
         points={points}
         fill="none"
-        stroke="hsl(44 75% 60%)"
+        stroke={stroke}
         strokeWidth={1.5}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -534,16 +570,16 @@ function DeltaBadge({ current, previous, isPercent = false }: { current: number;
   }
   const rounded = Math.abs(delta) < 0.05 ? 0 : delta;
   const Icon = rounded > 0 ? ArrowUp : rounded < 0 ? ArrowDown : Minus;
-  const color = rounded > 0 ? "text-emerald-400" : rounded < 0 ? "text-rose-400" : "text-muted-foreground";
+  const color = rounded > 0 ? PALETTE.green : rounded < 0 ? PALETTE.red : PALETTE.mutedDim;
   const sign = rounded > 0 ? "+" : "";
   const label = isPercent
     ? `${sign}${rounded.toFixed(1)} pp`
     : `${sign}${rounded.toFixed(0)}%`;
   return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-mono ${color}`}>
+    <span className="inline-flex items-center gap-1 text-[10px] font-mono" style={{ color }}>
       <Icon className="w-3 h-3" />
       {label}
-      <span className="text-muted-foreground/70">vs. período anterior</span>
+      <span style={{ color: PALETTE.mutedDim }}>vs. período anterior</span>
     </span>
   );
 }
@@ -554,20 +590,22 @@ function MetricCard({
   label: string; value: string; current: number; previous: number; series: number[]; href?: string;
 }) {
   const isPercent = label.toLowerCase().includes("conversão");
+  const delta = isPercent ? current - previous : previous > 0 ? ((current - previous) / previous) * 100 : 0;
+  const tone: "positive" | "negative" | "neutral" = delta > 0.05 ? "positive" : delta < -0.05 ? "negative" : "neutral";
   const inner = (
     <div data-no-float className="premium-card rounded-xl p-4 flex items-center gap-3">
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-amber-400/80 font-mono">{label}</div>
-          {href && <ArrowUpRight className="w-3.5 h-3.5 text-amber-400/60" />}
+          <div className="text-[10px] uppercase tracking-[0.18em] font-mono" style={{ color: `${PALETTE.gold}b3` }}>{label}</div>
+          {href && <ArrowUpRight className="w-3.5 h-3.5" style={{ color: `${PALETTE.gold}99` }} />}
         </div>
-        <div className="text-2xl font-bold text-foreground mt-0.5 tabular-nums">{value}</div>
+        <div className="text-2xl font-bold text-white mt-0.5 tabular-nums">{value}</div>
         <div className="mt-1">
           <DeltaBadge current={current} previous={previous} isPercent={isPercent} />
         </div>
       </div>
       <div className="shrink-0">
-        <Sparkline data={series} />
+        <Sparkline data={series} tone={tone} />
       </div>
     </div>
   );
@@ -578,11 +616,11 @@ function SectionTitle({ icon: Icon, title, subtitle }: { icon: any; title: strin
   return (
     <div className="flex items-center gap-3 mb-4">
       <div className="w-9 h-9 rounded-lg premium-section-icon flex items-center justify-center">
-        <Icon className="w-4 h-4 text-amber-300" />
+        <Icon className="w-4 h-4" style={{ color: PALETTE.gold }} />
       </div>
       <div>
-        <h2 className="text-lg font-bold">{title}</h2>
-        {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+        <h2 className="text-lg font-bold text-white">{title}</h2>
+        {subtitle && <p className="text-xs" style={{ color: PALETTE.muted }}>{subtitle}</p>}
       </div>
     </div>
   );
