@@ -5,35 +5,66 @@ const fmtBRL = (n: number) => n.toLocaleString("pt-BR", { style: "currency", cur
 const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
 const fmtNum = (n: number) => n.toLocaleString("pt-BR");
 
-function Card({ label, value, sub, icon: Icon, tone = "default" }: {
-  label: string; value: string; sub?: string; icon: any; tone?: "default"|"good"|"bad";
+function Kpi({ label, value, sub, icon: Icon, tone = "default", big = false }: {
+  label: string; value: string; sub?: string; icon: any; tone?: "default"|"good"|"bad"|"accent"; big?: boolean;
 }) {
-  const toneCls = tone === "good" ? "text-emerald-400" : tone === "bad" ? "text-rose-400" : "text-foreground";
+  const toneCls =
+    tone === "good"   ? "text-emerald-400" :
+    tone === "bad"    ? "text-rose-400" :
+    tone === "accent" ? "text-accent" : "text-foreground";
+  const iconBg =
+    tone === "good"   ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+    tone === "bad"    ? "bg-rose-500/10 text-rose-400 border-rose-500/20" :
+    tone === "accent" ? "bg-accent/10 text-accent border-accent/25" :
+                        "bg-muted/40 text-muted-foreground border-border";
   return (
-    <div className="card-elevated p-4 flex flex-col gap-2 min-w-0">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground truncate">{label}</span>
-        <Icon className="w-4 h-4 text-accent/70 shrink-0" />
+    <div className="group relative rounded-xl border border-border/60 bg-card/60 hover:bg-card/80 transition-colors p-3.5 md:p-4 flex flex-col gap-2 min-w-0">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[9.5px] uppercase tracking-[0.18em] text-muted-foreground truncate">{label}</span>
+        <span className={`w-7 h-7 shrink-0 rounded-lg border grid place-items-center ${iconBg}`}>
+          <Icon className="w-3.5 h-3.5" />
+        </span>
       </div>
-      <div className={`text-2xl font-display leading-tight tabular-nums ${toneCls}`}>{value}</div>
-      {sub && <div className="text-[11px] text-muted-foreground truncate">{sub}</div>}
+      <div className={`font-display leading-none tabular-nums ${toneCls} ${big ? "text-2xl md:text-3xl" : "text-xl md:text-[22px]"}`}>{value}</div>
+      {sub && <div className="text-[10.5px] text-muted-foreground truncate">{sub}</div>}
+    </div>
+  );
+}
+
+function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-baseline justify-between gap-2 px-0.5">
+        <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">{title}</h3>
+        {hint && <span className="text-[10px] text-muted-foreground/70">{hint}</span>}
+      </div>
+      {children}
     </div>
   );
 }
 
 export default function KpiSummary({ kpis }: { kpis: Kpis }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-      <Card label="Leads no período" value={fmtNum(kpis.totalLeads)} icon={Users} />
-      <Card label="Taxa de qualificação" value={fmtPct(kpis.taxaQualificacao)} sub={`${fmtNum(kpis.qualificados)} / ${fmtNum(kpis.totalLeads)}`} icon={CheckCircle2} />
-      <Card label="Agendamentos" value={fmtNum(kpis.agendamentos)} icon={Calendar} />
-      <Card label="Taxa comparecimento" value={fmtPct(kpis.taxaComparecimento)} sub={`${fmtNum(kpis.compareceu)} de ${fmtNum(kpis.compareceu + kpis.noShow)}`} icon={UserCheck} />
-      <Card label="Ganhos" value={fmtNum(kpis.ganhos)} sub={`Conv. ${fmtPct(kpis.taxaConversao)}`} icon={Trophy} tone="good" />
-      <Card label="Valor ganho" value={fmtBRL(kpis.valorGanho)} icon={DollarSign} tone="good" />
-      <Card label="Valor perdido" value={fmtBRL(kpis.valorPerdido)} icon={TrendingDown} tone="bad" />
-      <Card label="Investimento" value={fmtBRL(kpis.investimento)} icon={Megaphone} />
-      <Card label="CPL médio" value={fmtBRL(kpis.cpl)} icon={TrendingUp} />
-      <Card label="CAC" value={fmtBRL(kpis.cac)} icon={Target} />
+    <div className="space-y-4">
+      <Section title="Resultado" hint="valor e conversão do período">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 md:gap-3">
+          <Kpi label="Valor ganho" value={fmtBRL(kpis.valorGanho)} sub={`${fmtNum(kpis.ganhos)} negócios · ${fmtPct(kpis.taxaConversao)} conv.`} icon={DollarSign} tone="good" big />
+          <Kpi label="Ganhos" value={fmtNum(kpis.ganhos)} sub={`Conv. ${fmtPct(kpis.taxaConversao)}`} icon={Trophy} tone="good" />
+          <Kpi label="Valor perdido" value={fmtBRL(kpis.valorPerdido)} icon={TrendingDown} tone="bad" />
+          <Kpi label="Investimento" value={fmtBRL(kpis.investimento)} sub="Meta + spend manual" icon={Megaphone} tone="accent" />
+        </div>
+      </Section>
+
+      <Section title="Aquisição & funil" hint="topo, meio e fundo">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 md:gap-3">
+          <Kpi label="Leads no período" value={fmtNum(kpis.totalLeads)} icon={Users} />
+          <Kpi label="Qualificação" value={fmtPct(kpis.taxaQualificacao)} sub={`${fmtNum(kpis.qualificados)} / ${fmtNum(kpis.totalLeads)}`} icon={CheckCircle2} />
+          <Kpi label="Agendamentos" value={fmtNum(kpis.agendamentos)} icon={Calendar} />
+          <Kpi label="Comparecimento" value={fmtPct(kpis.taxaComparecimento)} sub={`${fmtNum(kpis.compareceu)} de ${fmtNum(kpis.compareceu + kpis.noShow)}`} icon={UserCheck} />
+          <Kpi label="CPL médio" value={fmtBRL(kpis.cpl)} icon={TrendingUp} />
+          <Kpi label="CAC" value={fmtBRL(kpis.cac)} icon={Target} />
+        </div>
+      </Section>
     </div>
   );
 }

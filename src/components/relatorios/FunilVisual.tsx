@@ -8,28 +8,35 @@ export default function FunilVisual({ funil }: { funil: FunilStage[] }) {
   const maxCount = Math.max(...main.map(s => s.count), 1);
 
   return (
-    <div className="card-elevated p-6 space-y-5">
-      <div className="flex items-baseline justify-between">
-        <h3 className="font-display text-lg text-foreground">Funil de Conversão</h3>
-        <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">% total · % etapa anterior</span>
+    <div className="rounded-xl border border-border/60 bg-card/60 p-4 md:p-5 space-y-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <div>
+          <h3 className="font-display text-base md:text-lg text-foreground leading-tight">Funil de Conversão</h3>
+          <p className="text-[10.5px] text-muted-foreground uppercase tracking-[0.18em] mt-0.5">Estágios cumulativos</p>
+        </div>
+        <span className="text-[9.5px] uppercase tracking-[0.18em] text-muted-foreground/70 text-right hidden sm:block">
+          % do total<br/>% da etapa anterior
+        </span>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {main.map(stage => {
           const w = (stage.count / maxCount) * 100;
           return (
-            <div key={stage.id} className="grid grid-cols-[120px_1fr_auto] items-center gap-3">
-              <span className="text-sm font-medium truncate">{stage.label}</span>
-              <div className="relative h-9 rounded-md bg-muted/30 overflow-hidden">
-                <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-accent to-accent/60 transition-all"
+            <div key={stage.id} className="grid grid-cols-[100px_1fr_auto] md:grid-cols-[140px_1fr_auto] items-center gap-2.5 md:gap-3">
+              <span className="text-[12px] md:text-sm font-medium truncate text-foreground/90">{stage.label}</span>
+              <div className="relative h-8 md:h-9 rounded-md bg-muted/25 overflow-hidden">
+                <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-accent via-accent/80 to-accent/50 transition-all"
                   style={{ width: `${w}%` }} />
-                <div className="absolute inset-0 flex items-center px-3">
-                  <span className="text-sm font-semibold tabular-nums text-foreground/90">{stage.count.toLocaleString("pt-BR")}</span>
+                <div className="absolute inset-0 flex items-center px-2.5 md:px-3">
+                  <span className="text-[12px] md:text-sm font-semibold tabular-nums text-foreground drop-shadow-[0_1px_1px_rgba(0,0,0,0.4)]">
+                    {stage.count.toLocaleString("pt-BR")}
+                  </span>
                 </div>
               </div>
-              <div className="text-right text-xs tabular-nums w-32">
-                <div className="text-foreground/80">{fmtPct(stage.pctTotal)}</div>
-                <div className="text-muted-foreground">{fmtPct(stage.pctPrev)}</div>
+              <div className="text-right text-[10.5px] md:text-xs tabular-nums w-[68px] md:w-24 leading-tight">
+                <div className="text-foreground/85 font-medium">{fmtPct(stage.pctTotal)}</div>
+                <div className="text-muted-foreground/80">{fmtPct(stage.pctPrev)}</div>
               </div>
             </div>
           );
@@ -37,11 +44,11 @@ export default function FunilVisual({ funil }: { funil: FunilStage[] }) {
       </div>
 
       {extras.length > 0 && (
-        <div className="pt-3 border-t border-border grid grid-cols-2 gap-3">
+        <div className="pt-3 border-t border-border/60 grid grid-cols-2 gap-2.5">
           {extras.map(s => (
-            <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded-md bg-rose-500/5 border border-rose-500/20">
-              <span className="text-sm">{s.label}</span>
-              <span className="text-sm font-semibold tabular-nums text-rose-300">{s.count} · {fmtPct(s.pctTotal)}</span>
+            <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded-md bg-rose-500/5 border border-rose-500/15">
+              <span className="text-[12px] md:text-sm text-foreground/90">{s.label}</span>
+              <span className="text-[12px] md:text-sm font-semibold tabular-nums text-rose-300">{s.count} · {fmtPct(s.pctTotal)}</span>
             </div>
           ))}
         </div>

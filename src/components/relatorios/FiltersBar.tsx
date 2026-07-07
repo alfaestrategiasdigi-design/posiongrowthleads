@@ -89,7 +89,7 @@ export default function FiltersBar({ filters, onChange, scope, availableTenants,
     || filters.origem !== "all";
 
   return (
-    <div className="sticky top-0 z-20 -mx-6 md:-mx-8 px-6 md:px-8 py-3 bg-background/95 backdrop-blur border-b border-border">
+    <div className="sticky top-0 z-20 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 py-2.5 bg-background/85 backdrop-blur-xl border-y border-border/60">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1 mr-1">
           <Filter className="w-4 h-4 text-muted-foreground" />

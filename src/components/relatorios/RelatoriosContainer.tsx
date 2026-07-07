@@ -46,58 +46,78 @@ export default function RelatoriosContainer({ scope, currentTenantId, scopeLabel
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-6 animate-fade-in">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.22em] text-accent/90 border border-accent/30 bg-accent/5 px-2.5 py-1 rounded-full mb-2">
-            <Sparkles className="w-3 h-3" /> Relatório Consolidado
-          </span>
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Relatórios</h1>
-          <p className="text-muted-foreground text-sm">{scopeLabel} · {periodLabel}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-2" disabled={!data || !data.leads.length}
-            onClick={() => data && exportLeadsCsv(data.leads, scopeLabel)}>
-            <FileSpreadsheet className="w-4 h-4" /> CSV
-          </Button>
-          <Button size="sm" className="gap-2" disabled={!data || exportingPdf} onClick={handlePdf}>
-            {exportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} PDF
-          </Button>
-        </div>
-      </div>
-
-      <FiltersBar
-        filters={filters}
-        onChange={setFilters}
-        scope={scope}
-        availableTenants={data?.availableTenants ?? []}
-        availableCampaigns={data?.availableCampaigns ?? []}
-        availableForms={data?.availableForms ?? []}
-        availableOwners={data?.availableOwners ?? []}
-      />
-
-      {isLoading && (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-6 h-6 animate-spin text-accent" />
-        </div>
-      )}
-
-      {error && (
-        <div className="card-elevated p-6 text-sm text-rose-400">
-          Erro carregando relatório: {String((error as any).message || error)}
-        </div>
-      )}
-
-      {data && !isLoading && (
-        <>
-          <KpiSummary kpis={data.kpis} />
-          <FunilVisual funil={data.funil} />
-          <div ref={chartsRef}>
-            <ChartsGrid data={data} />
+    <div className="min-h-full bg-gradient-to-b from-background via-background to-background/60">
+      <div className="px-4 md:px-6 lg:px-8 pt-5 md:pt-6 pb-4 space-y-4 animate-fade-in">
+        <div className="flex items-start justify-between flex-wrap gap-3">
+          <div className="min-w-0">
+            <span className="inline-flex items-center gap-1.5 text-[9.5px] uppercase tracking-[0.22em] text-accent/90 border border-accent/30 bg-accent/5 px-2.5 py-0.5 rounded-full mb-2">
+              <Sparkles className="w-3 h-3" /> Relatório Consolidado
+            </span>
+            <h1 className="text-xl md:text-2xl lg:text-[26px] font-display text-foreground leading-tight">Relatórios</h1>
+            <p className="text-muted-foreground text-xs md:text-sm mt-0.5 truncate">
+              {scopeLabel} <span className="text-muted-foreground/50">·</span> {periodLabel}
+            </p>
           </div>
-          <LeadsDetailTable leads={data.leads} />
-        </>
-      )}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-2 h-9" disabled={!data || !data.leads.length}
+              onClick={() => data && exportLeadsCsv(data.leads, scopeLabel)}>
+              <FileSpreadsheet className="w-4 h-4" /> CSV
+            </Button>
+            <Button size="sm" className="gap-2 h-9" disabled={!data || exportingPdf} onClick={handlePdf}>
+              {exportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} PDF
+            </Button>
+          </div>
+        </div>
+
+        <FiltersBar
+          filters={filters}
+          onChange={setFilters}
+          scope={scope}
+          availableTenants={data?.availableTenants ?? []}
+          availableCampaigns={data?.availableCampaigns ?? []}
+          availableForms={data?.availableForms ?? []}
+          availableOwners={data?.availableOwners ?? []}
+        />
+
+        {isLoading && (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="w-6 h-6 animate-spin text-accent" />
+          </div>
+        )}
+
+        {error && (
+          <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-4 text-sm text-rose-300">
+            Erro carregando relatório: {String((error as any).message || error)}
+          </div>
+        )}
+
+        {data && !isLoading && (
+          <div className="space-y-4 md:space-y-5">
+            <KpiSummary kpis={data.kpis} />
+            <div className="grid grid-cols-1 xl:grid-cols-5 gap-3 md:gap-4">
+              <div className="xl:col-span-3"><FunilVisual funil={data.funil} /></div>
+              <div className="xl:col-span-2 rounded-xl border border-border/60 bg-card/60 p-4 md:p-5 flex flex-col justify-between">
+                <div>
+                  <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Resumo do período</h3>
+                  <p className="text-xs text-muted-foreground/80 mt-1">Indicadores-chave consolidados</p>
+                </div>
+                <ul className="text-xs md:text-sm space-y-2 mt-3">
+                  <li className="flex items-center justify-between"><span className="text-muted-foreground">Leads</span><span className="tabular-nums font-medium">{data.kpis.totalLeads.toLocaleString("pt-BR")}</span></li>
+                  <li className="flex items-center justify-between"><span className="text-muted-foreground">Ganhos</span><span className="tabular-nums font-medium text-emerald-400">{data.kpis.ganhos}</span></li>
+                  <li className="flex items-center justify-between"><span className="text-muted-foreground">Valor ganho</span><span className="tabular-nums font-medium text-emerald-400">{data.kpis.valorGanho.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}</span></li>
+                  <li className="flex items-center justify-between"><span className="text-muted-foreground">Investimento</span><span className="tabular-nums font-medium">{data.kpis.investimento.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}</span></li>
+                  <li className="flex items-center justify-between border-t border-border/60 pt-2 mt-1"><span className="text-muted-foreground">ROAS</span><span className="tabular-nums font-semibold">{data.kpis.investimento > 0 ? (data.kpis.valorGanho / data.kpis.investimento).toFixed(2) + "x" : "—"}</span></li>
+                </ul>
+              </div>
+            </div>
+            <div ref={chartsRef}>
+              <ChartsGrid data={data} />
+            </div>
+            <LeadsDetailTable leads={data.leads} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
