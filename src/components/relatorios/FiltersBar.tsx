@@ -77,7 +77,7 @@ function MultiSelect({ label, options, selected, onChange, getKey = (o: any) => 
   );
 }
 
-export default function FiltersBar({ filters, onChange, scope, availableTenants, availableCampaigns, availableForms, availableOwners }: Props) {
+export default function FiltersBar({ filters, onChange, scope, availableTenants, availableCampaigns, availableForms, availableOwners, availableAdAccounts }: Props) {
   const activePreset = useMemo(() => {
     for (const p of PRESETS) {
       const r = p.compute();
