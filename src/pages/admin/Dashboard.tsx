@@ -365,44 +365,47 @@ export default function Dashboard() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div data-no-float className="premium-card rounded-xl p-4">
-            <h3 className="text-sm font-semibold mb-3">Distribuição do funil</h3>
+            <h3 className="text-sm font-semibold mb-3 text-white">Distribuição do funil</h3>
             <div className="space-y-2">
               {agency.stageData.map((s) => {
                 const total = agency.stageData.reduce((sum, x) => sum + x.count, 0);
                 const pct = total > 0 ? (s.count / total) * 100 : 0;
                 return (
                   <div key={s.stage} className="flex items-center gap-3">
-                    <span className="text-xs w-24 text-muted-foreground">{s.stage}</span>
-                    <div className="flex-1 h-2 bg-muted/40 rounded-full overflow-hidden">
+                    <span className="text-xs w-24" style={{ color: PALETTE.muted }}>{s.stage}</span>
+                    <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: s.fill }} />
                     </div>
-                    <span className="text-xs font-bold w-10 text-right tabular-nums">{s.count}</span>
+                    <span className="text-xs font-bold w-10 text-right tabular-nums text-white">{s.count}</span>
                   </div>
                 );
               })}
               {agency.stageData.length === 0 && (
-                <div className="text-xs text-muted-foreground text-center py-6">Sem leads no período.</div>
+                <div className="text-xs text-center py-6" style={{ color: PALETTE.mutedDim }}>Sem leads no período.</div>
               )}
             </div>
           </div>
 
           <div data-no-float className="premium-card rounded-xl p-4">
-            <h3 className="text-sm font-semibold mb-3">Origem dos leads</h3>
+            <h3 className="text-sm font-semibold mb-3 text-white">Origem dos leads</h3>
             <div className="space-y-2">
               {(() => {
                 const max = Math.max(1, ...agency.origemData.map((o) => o.count));
-                return agency.origemData.map((o) => {
+                return agency.origemData.map((o, idx) => {
                   const pct = (o.count / max) * 100;
+                  const isTop = idx === 0;
+                  const alpha = 0.35 + (o.count / max) * 0.55;
+                  const bg = isTop ? PALETTE.gold : `rgba(245,245,245,${alpha.toFixed(2)})`;
                   return (
                     <div key={o.label} className="flex items-center gap-3">
-                      <span className="text-xs w-24 text-muted-foreground truncate" title={o.label}>{o.label}</span>
-                      <div className="flex-1 h-2 bg-muted/40 rounded-full overflow-hidden">
+                      <span className="text-xs w-24 truncate" style={{ color: PALETTE.muted }} title={o.label}>{o.label}</span>
+                      <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
                         <div
                           className="h-full rounded-full transition-all"
-                          style={{ width: `${pct}%`, background: "linear-gradient(90deg, hsl(44 75% 68%), hsl(40 78% 40%))" }}
+                          style={{ width: `${pct}%`, background: bg }}
                         />
                       </div>
-                      <span className="text-xs font-bold w-10 text-right tabular-nums">{o.count}</span>
+                      <span className="text-xs font-bold w-10 text-right tabular-nums text-white">{o.count}</span>
                     </div>
                   );
                 });
