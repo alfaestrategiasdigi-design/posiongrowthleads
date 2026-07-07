@@ -94,7 +94,7 @@ export default function NodeEditorPanel({ node, onChange, onClose, onDelete }: P
               buttons={node.data.buttons || []}
               onChange={(buttons) => patchData({ buttons })}
             />
-            <p className="text-[10px] text-muted-foreground">O fluxo pausa aqui e retoma quando o contato clicar em um botão. Ligue arestas partindo deste nó — a ordem das arestas segue a ordem dos botões.</p>
+            <p className="text-[10px] text-muted-foreground">O fluxo pausa aqui e retoma quando o contato clicar em um botão. Ligue arestas partindo deste nó — a ordem das arestas segue a ordem dos botões. Se o WhatsApp do lead não renderizar os botões nativos, o fluxo envia automaticamente como lista numerada (1, 2, 3) e roteia pela resposta.</p>
           </>
         )}
 
