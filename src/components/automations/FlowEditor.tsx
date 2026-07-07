@@ -161,7 +161,7 @@ export default function FlowEditor({ flowId, onBack }: Props) {
           {flow.status}
         </Badge>
         <div className="ml-auto flex gap-2">
-          <Button size="sm" variant="outline" onClick={testFlow} className="gap-1"><FlaskConical className="w-4 h-4" /> Testar</Button>
+          <Button size="sm" variant="outline" onClick={testFlow} disabled={testing} className="gap-1"><FlaskConical className="w-4 h-4" /> {testing ? "Testando…" : "Testar"}</Button>
           <Button size="sm" variant="outline" onClick={toggleStatus} className="gap-1">
             {flow.status === "active" ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
             {flow.status === "active" ? "Pausar" : "Ativar"}
