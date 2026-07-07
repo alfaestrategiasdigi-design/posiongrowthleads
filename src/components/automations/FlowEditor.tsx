@@ -212,7 +212,9 @@ export default function FlowEditor({ flowId, onBack }: Props) {
             onClose={() => setSelectedId(null)}
             onDelete={deleteNode}
           />
+        )}
         {testLog && (
+
           <aside className="w-[340px] shrink-0 border-l border-border bg-card/40 h-full flex flex-col">
             <div className="p-3 border-b border-border flex items-center justify-between">
               <div>
