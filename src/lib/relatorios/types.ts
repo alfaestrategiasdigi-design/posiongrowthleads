@@ -110,4 +110,5 @@ export interface RelatorioData {
   availableForms: string[];
   availableOwners: { id: string; label: string }[];
   availableTenants: { id: string; name: string }[];
+  availableAdAccounts: { id: string; label: string }[];
 }
