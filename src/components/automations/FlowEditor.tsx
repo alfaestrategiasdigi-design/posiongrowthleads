@@ -102,9 +102,39 @@ export default function FlowEditor({ flowId, onBack }: Props) {
     toast.success(next === "active" ? "Fluxo ativado" : "Fluxo pausado");
   };
 
-  const testFlow = () => {
-    toast.info("Modo teste: enviaria mensagens para o número fictício +55 11 90000-0000");
+  const [testLog, setTestLog] = useState<Array<{ node_id: string; node_type: string; ok: boolean; detail?: string }> | null>(null);
+  const [testing, setTesting] = useState(false);
+  const testFlow = async () => {
+    if (!flow) return;
+    // Save first so dispatcher sees latest nodes/edges
+    await save();
+    setTesting(true);
+    setTestLog([]);
+    const testPhone = window.prompt("Telefone de teste (opcional — só para simular envios):", "5511900000000") || "";
+    const testText = flow.trigger_type === "message_received"
+      ? (window.prompt("Texto simulado da mensagem recebida:", "teste") || "teste")
+      : "";
+    try {
+      const { data, error } = await supabase.functions.invoke("automation-dispatch", {
+        body: {
+          trigger: flow.trigger_type,
+          tenant_id: flow.tenant_id,
+          flow_id: flow.id,
+          dry_run: true,
+          context: { phone: testPhone, name: "Teste", text: testText, form_name: "teste" },
+        },
+      });
+      if (error) throw error;
+      const run = (data as any)?.runs?.[0];
+      setTestLog(run?.steps || []);
+      toast.success(`Simulação concluída (${run?.steps?.length || 0} passos)`);
+    } catch (e: any) {
+      toast.error(`Falha no teste: ${e.message || e}`);
+    } finally {
+      setTesting(false);
+    }
   };
+
 
   if (!flow) {
     return <div className="h-full flex items-center justify-center text-muted-foreground">Carregando…</div>;
