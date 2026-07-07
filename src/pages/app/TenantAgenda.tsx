@@ -3,17 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Calendar as CalIcon, ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
-import { toast } from "sonner";
-import { useTenantApptConfig } from "@/hooks/useTenantApptConfig";
+import AppointmentDialog from "@/components/tenant/AppointmentDialog";
 
 interface Appointment {
   id: string;
+  lead_id: string | null;
   client_name: string;
   client_phone: string;
   date_time: string;
@@ -47,7 +42,9 @@ export default function TenantAgenda() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"mes" | "semana" | "dia">("mes");
   const [cursor, setCursor] = useState(new Date());
-  const [open, setOpen] = useState(false);
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   async function load() {
     if (!tenant) return;
@@ -76,6 +73,9 @@ export default function TenantAgenda() {
     setCursor(d);
   }
 
+  const openCreate = () => { setEditingId(null); setDialogOpen(true); };
+  const openEdit = (id: string) => { setEditingId(id); setDialogOpen(true); };
+
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-[1600px] mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -83,10 +83,7 @@ export default function TenantAgenda() {
           <h1 className="text-3xl font-bold tracking-tight">Agenda</h1>
           <p className="text-muted-foreground">{tenant?.name} · {appts.length} agendamentos</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button className="gap-2"><Plus className="w-4 h-4" /> Novo Agendamento</Button></DialogTrigger>
-          <NewAppointmentDialog tenantId={tenant?.id || ""} onCreated={() => { setOpen(false); load(); }} />
-        </Dialog>
+        <Button className="gap-2" onClick={openCreate}><Plus className="w-4 h-4" /> Novo Agendamento</Button>
       </div>
 
       <Card>
@@ -112,29 +109,46 @@ export default function TenantAgenda() {
           {loading ? (
             <div className="p-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : view === "mes" ? (
-            <MonthView cursor={cursor} byDay={byDay} />
+            <MonthView cursor={cursor} byDay={byDay} onEdit={openEdit} />
           ) : view === "semana" ? (
-            <WeekView cursor={cursor} byDay={byDay} />
+            <WeekView cursor={cursor} byDay={byDay} onEdit={openEdit} />
           ) : (
-            <DayView day={cursor} items={byDay.get(cursor.toDateString()) || []} />
+            <DayView day={cursor} items={byDay.get(cursor.toDateString()) || []} onEdit={openEdit} />
           )}
         </CardContent>
       </Card>
+
+      {tenant && (
+        <AppointmentDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          tenantId={tenant.id}
+          appointmentId={editingId}
+          onSaved={load}
+          onDeleted={load}
+        />
+      )}
     </div>
   );
 }
 
-function ApptChip({ a }: { a: Appointment }) {
+function ApptChip({ a, onEdit }: { a: Appointment; onEdit: (id: string) => void }) {
   const s = STATUS_COLORS[a.status] || STATUS_COLORS.agendado;
   const time = new Date(a.date_time).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   return (
-    <div className="text-[10px] rounded px-1.5 py-0.5 truncate" style={{ background: s.bg, color: s.fg, borderLeft: `2px solid ${s.fg}` }} title={`${time} · ${a.client_name} · ${s.label}`}>
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onEdit(a.id); }}
+      className="w-full text-left text-[10px] rounded px-1.5 py-0.5 truncate hover:brightness-125 transition"
+      style={{ background: s.bg, color: s.fg, borderLeft: `2px solid ${s.fg}` }}
+      title={`${time} · ${a.client_name} · ${s.label} — clique para editar`}
+    >
       <span className="font-semibold">{time}</span> {a.client_name}
-    </div>
+    </button>
   );
 }
 
-function MonthView({ cursor, byDay }: { cursor: Date; byDay: Map<string, Appointment[]> }) {
+function MonthView({ cursor, byDay, onEdit }: { cursor: Date; byDay: Map<string, Appointment[]>; onEdit: (id: string) => void }) {
   const first = startOfMonth(cursor);
   const start = startOfWeek(first);
   const days = Array.from({ length: 42 }, (_, i) => addDays(start, i));
@@ -152,7 +166,7 @@ function MonthView({ cursor, byDay }: { cursor: Date; byDay: Map<string, Appoint
             <div key={i} className={"min-h-[92px] rounded-md p-1.5 border " + (inMonth ? "bg-card border-border" : "bg-muted/20 border-transparent opacity-50")}>
               <div className={"text-[11px] font-semibold mb-1 " + (sameDay(d, today) ? "text-primary" : "text-foreground")}>{d.getDate()}</div>
               <div className="space-y-0.5">
-                {items.slice(0, 3).map((a) => <ApptChip key={a.id} a={a} />)}
+                {items.slice(0, 3).map((a) => <ApptChip key={a.id} a={a} onEdit={onEdit} />)}
                 {items.length > 3 && <div className="text-[10px] text-muted-foreground">+{items.length - 3} mais</div>}
               </div>
             </div>
@@ -163,7 +177,7 @@ function MonthView({ cursor, byDay }: { cursor: Date; byDay: Map<string, Appoint
   );
 }
 
-function WeekView({ cursor, byDay }: { cursor: Date; byDay: Map<string, Appointment[]> }) {
+function WeekView({ cursor, byDay, onEdit }: { cursor: Date; byDay: Map<string, Appointment[]>; onEdit: (id: string) => void }) {
   const start = startOfWeek(cursor);
   return (
     <div className="grid grid-cols-7 gap-2">
@@ -172,7 +186,7 @@ function WeekView({ cursor, byDay }: { cursor: Date; byDay: Map<string, Appointm
         return (
           <div key={d.toISOString()} className="border border-border rounded-md p-2 min-h-[300px]">
             <div className="text-xs font-semibold mb-2">{WEEKDAYS[d.getDay()]} {d.getDate()}</div>
-            <div className="space-y-1">{items.map((a) => <ApptChip key={a.id} a={a} />)}</div>
+            <div className="space-y-1">{items.map((a) => <ApptChip key={a.id} a={a} onEdit={onEdit} />)}</div>
           </div>
         );
       })}
@@ -180,7 +194,7 @@ function WeekView({ cursor, byDay }: { cursor: Date; byDay: Map<string, Appointm
   );
 }
 
-function DayView({ day, items }: { day: Date; items: Appointment[] }) {
+function DayView({ day, items, onEdit }: { day: Date; items: Appointment[]; onEdit: (id: string) => void }) {
   return (
     <div>
       <div className="text-sm font-semibold mb-3">{day.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}</div>
@@ -190,138 +204,22 @@ function DayView({ day, items }: { day: Date; items: Appointment[] }) {
           const s = STATUS_COLORS[a.status] || STATUS_COLORS.agendado;
           const t = new Date(a.date_time);
           return (
-            <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card">
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => onEdit(a.id)}
+              className="w-full text-left flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-muted/40 transition"
+            >
               <div className="text-sm font-mono w-14">{t.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</div>
               <div className="flex-1">
                 <div className="font-medium text-sm">{a.client_name}</div>
-                <div className="text-xs text-muted-foreground">{a.appointment_type} · {a.duration_minutes}min</div>
+                <div className="text-xs text-muted-foreground">{a.appointment_type} · {a.duration_minutes}min{a.procedure ? ` · ${a.procedure}` : ""}</div>
               </div>
               <span className="text-xs px-2 py-1 rounded" style={{ background: s.bg, color: s.fg }}>{s.label}</span>
-            </div>
+            </button>
           );
         })}
       </div>
     </div>
-  );
-}
-
-function NewAppointmentDialog({ tenantId, onCreated }: { tenantId: string; onCreated: () => void }) {
-  const { config } = useTenantApptConfig(tenantId);
-  const today = new Date().toISOString().slice(0, 10);
-  const [f, setF] = useState({
-    client_name: "", client_phone: "", appointment_type: "",
-    date: today, time: "14:00", duration: 60, responsible: "",
-    status: "agendado", notes: "",
-  });
-  const [customType, setCustomType] = useState(false);
-  const [customResp, setCustomResp] = useState(false);
-  const [customDuration, setCustomDuration] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  // Sync defaults when config arrives
-  useEffect(() => {
-    if (!config) return;
-    setF((prev) => ({
-      ...prev,
-      appointment_type: prev.appointment_type || config.appointment_types[0] || "",
-      responsible: prev.responsible || config.team_members[0]?.name || "",
-      duration: prev.duration || config.default_duration_minutes || 60,
-    }));
-  }, [config]);
-
-  async function submit() {
-    if (!tenantId || !f.client_name) { toast.error("Paciente é obrigatório"); return; }
-    setSaving(true);
-    const dt = new Date(`${f.date}T${f.time}:00`).toISOString();
-    const { error } = await supabase.from("appointments").insert({
-      tenant_id: tenantId, client_name: f.client_name, client_phone: f.client_phone || "",
-      date_time: dt, duration_minutes: Number(f.duration),
-      appointment_type: f.appointment_type, procedure: f.responsible,
-      status: f.status, notes: f.notes || null,
-    });
-    setSaving(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Agendamento criado"); onCreated();
-  }
-
-  const types = config?.appointment_types || [];
-  const team = config?.team_members || [];
-
-  return (
-    <DialogContent className="max-w-lg">
-      <DialogHeader><DialogTitle>Novo Agendamento</DialogTitle></DialogHeader>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="col-span-2"><Label>Paciente *</Label><Input value={f.client_name} onChange={(e) => setF({ ...f, client_name: e.target.value })} /></div>
-        <div className="col-span-2"><Label>Telefone</Label><Input value={f.client_phone} onChange={(e) => setF({ ...f, client_phone: e.target.value })} placeholder="(11) 99999-9999" /></div>
-        <div>
-          <Label>Tipo</Label>
-          {customType || types.length === 0 ? (
-            <div className="flex gap-1">
-              <Input value={f.appointment_type} onChange={(e) => setF({ ...f, appointment_type: e.target.value })} placeholder="Ex: Avaliação" />
-              {types.length > 0 && <Button type="button" variant="outline" size="sm" onClick={() => setCustomType(false)}>↺</Button>}
-            </div>
-          ) : (
-            <div className="flex gap-1">
-              <Select value={f.appointment_type} onValueChange={(v) => setF({ ...f, appointment_type: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{types.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-              </Select>
-              <Button type="button" variant="outline" size="sm" onClick={() => setCustomType(true)} title="Digitar manualmente">✎</Button>
-            </div>
-          )}
-        </div>
-        <div>
-          <Label>Responsável</Label>
-          {customResp || team.length === 0 ? (
-            <div className="flex gap-1">
-              <Input value={f.responsible} onChange={(e) => setF({ ...f, responsible: e.target.value })} placeholder="Nome do responsável" />
-              {team.length > 0 && <Button type="button" variant="outline" size="sm" onClick={() => setCustomResp(false)}>↺</Button>}
-            </div>
-          ) : (
-            <div className="flex gap-1">
-              <Select value={f.responsible} onValueChange={(v) => setF({ ...f, responsible: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{team.map((r) => <SelectItem key={r.name} value={r.name}>{r.name}{r.role ? ` — ${r.role}` : ""}</SelectItem>)}</SelectContent>
-              </Select>
-              <Button type="button" variant="outline" size="sm" onClick={() => setCustomResp(true)} title="Digitar manualmente">✎</Button>
-            </div>
-          )}
-        </div>
-        <div><Label>Data</Label><Input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></div>
-        <div><Label>Horário</Label><Input type="time" value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} /></div>
-        <div>
-          <Label>Duração (min)</Label>
-          {customDuration ? (
-            <div className="flex gap-1">
-              <Input type="number" min={5} value={f.duration} onChange={(e) => setF({ ...f, duration: Number(e.target.value) || 0 })} />
-              <Button type="button" variant="outline" size="sm" onClick={() => setCustomDuration(false)}>↺</Button>
-            </div>
-          ) : (
-            <div className="flex gap-1">
-              <Select value={String(f.duration)} onValueChange={(v) => setF({ ...f, duration: Number(v) })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{[15,30,45,60,90,120,180].map((d) => <SelectItem key={d} value={String(d)}>{d} min</SelectItem>)}</SelectContent>
-              </Select>
-              <Button type="button" variant="outline" size="sm" onClick={() => setCustomDuration(true)} title="Digitar manualmente">✎</Button>
-            </div>
-          )}
-        </div>
-        <div>
-          <Label>Status</Label>
-          <Select value={f.status} onValueChange={(v) => setF({ ...f, status: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="agendado">Confirmado</SelectItem>
-              <SelectItem value="compareceu">Compareceu</SelectItem>
-              <SelectItem value="no_show">No-show</SelectItem>
-              <SelectItem value="reagendado">Reagendado</SelectItem>
-              <SelectItem value="cancelado">Cancelado</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="col-span-2"><Label>Observação</Label><Textarea rows={2} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></div>
-      </div>
-      <DialogFooter><Button onClick={submit} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar"}</Button></DialogFooter>
-    </DialogContent>
   );
 }
