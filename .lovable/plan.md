@@ -1,83 +1,90 @@
 ## Objetivo
 
-Deixar os cards do Dashboard mais legíveis e sofisticados em fundo preto, evitando o "bleed" dourado atual (halos, gradientes amber sobrepostos, bordas âmbar em texto). Introduzir uma paleta semântica de 4 cores para organizar os gráficos e indicadores, reduzindo o excesso de dourado.
+Estender o mesmo sistema visual premium (preto profundo + hairline dourado + paleta 4 cores) já aplicado ao Dashboard da Agência para **todas as telas do tenant (clínica)** e para a **experiência do WhatsApp Master**, mantendo a lógica semântica e removendo o excesso de azul/roxo/teal/emerald que ainda existe.
 
-## Paleta oficial (4 cores)
+## Paleta reutilizada (mesma do Dashboard)
 
-| Papel | Uso | Hex |
-|---|---|---|
-| **Dourado (marca)** | Títulos de seção, ícones de destaque, KPI hero, meta atingida | `#E8C468` |
-| **Branco quente** | Números principais, linhas primárias de gráfico, labels de dados | `#F5F5F5` |
-| **Verde** | Ganhos, valores positivos, variação ▲, status "ativo" | `#4ADE80` |
-| **Vermelho** | Perdas, variação ▼, status "perdido" | `#F87171` |
+| Papel | Uso |
+|---|---|
+| **Dourado `#E8C468`** | Cor de marca — títulos de seção, ícones ativos, KPI hero, meta atingida, item ativo da sidebar |
+| **Branco `#F5F5F5`** | Números principais, linhas primárias de gráfico, texto de dados |
+| **Verde `#4ADE80`** | Positivo, faturamento realizado, presença OK, status ativo |
+| **Vermelho `#F87171`** | Negativo, perdas, no-show, offline, cancelamentos |
+| **Cinzas `#A1A1AA` / `#71717A`** | Labels secundárias, eixos, subtítulos |
 
-Cinzas neutros (`#A1A1AA`, `#71717A`) ficam reservados para labels secundárias e eixos — nunca dourado enfraquecido.
+Fim do uso de: cyan (`#06b6d4`), indigo/violet/purple, blue-500, emerald/rose específicos das páginas do tenant.
 
-## Ajustes nos cards (equilíbrio elegante)
+---
 
-**Sombra e borda**
-- Reduzir o glow dourado no hover dos `.premium-card` e `.premium-hero` (trocar `rgba(201,162,39,0.30)` por `rgba(0,0,0,0.6)` + hairline dourado estático mais firme `rgba(201,162,39,0.22)`).
-- Remover o `radial-gradient` dourado do fundo do `.premium-card` — fica só o preto profundo + hairline; o dourado aparece só como fio superior interno de 1px.
-- Aumentar a profundidade da sombra externa (`0 24px 48px -20px rgba(0,0,0,0.9)`) para os cards "flutuarem" sem depender de brilho colorido.
+## Escopo 1 — Tenant (Clínica)
 
-**Tipografia dos cards**
-- Números principais (`text-2xl`, `text-4xl`): `#F5F5F5` puro, não mais gradiente amber.
-- Labels de topo (`RECEITA TOTAL COMBINADA`, `LEADS (PERÍODO)`, etc.): dourado suave `#E8C468/70` — mantém a assinatura editorial.
-- Sublabels (`Agência R$ 88.000 + SaaS MRR…`, `4 leads`, `0 assinaturas`): cinza neutro `#A1A1AA`, não mais `text-muted-foreground` (que hoje puxa levemente dourado).
-- Títulos de seção (`Pipeline & Agência`, `Clientes POSION`): branco `#F5F5F5`; só o ícone e a régua ficam dourados.
+Aplicar `.premium-card` / `.premium-hero` / `.premium-section-icon` / `.premium-kpi-icon` (já existentes no `index.css`) nas telas:
 
-**Ícones dos KPIs**
-- Trocar o quadrado dourado saturado dos KPIs (Em negociação, Contratos, Ticket, MRR) por um quadrado preto com hairline dourado fino e ícone branco. Reserva o dourado sólido só para o ícone hero de `Receita Total Combinada`.
+### TenantDashboard (`src/pages/app/TenantDashboard.tsx`) — maior refactor
+- Trocar todos os cards azuis (`from-blue-…`, `to-emerald-…`, `to-purple-…` — screenshot mostra hero cards com halos azul/emerald/purple) por `.premium-card` / `.premium-hero`.
+- **KPI hero** (Faturamento / Nº Vendas / Ticket / Maior Venda): superfície preta com hairline dourado, número em branco puro, label dourado suave, ícone em quadrado preto com hairline dourado + glyph branco. Faixa fina dourada na base substitui as barras coloridas atuais.
+- **Métricas da Clínica** (Comparecimentos / Faturamento / Ticket Médio): remover os fundos verde-emerald / âmbar / roxo. Todos usam `.premium-card`. Cor semântica só aparece no valor: comparecimentos em verde se ≥ meta / vermelho se < meta, faturamento em branco com sublinha dourada, ticket em branco.
+- **Evolução — últimos 30 dias**: linha **branca** com área dourada 0.18, grid `rgba(255,255,255,0.06)`, ticks cinza `#71717A`. Média diária destacada em dourado no canto.
+- Badges `+0.0% vs jun`: verde/vermelho/cinza da paleta oficial, sem verde-emerald flat.
+- WhatsApp status pill (Online/Offline): verde `#4ADE80` ou vermelho `#F87171`.
 
-## Ajustes nos gráficos
+### TenantLeads / TenantPatients / TenantSales / TenantCampaigns / TenantPlans / TenantAgenda
+- Trocar wrappers `bg-card` / `bg-muted/40` de KPIs por `.premium-card`.
+- Cabeçalhos de seção usam o padrão `SectionTitle` (ícone dourado no quadrado com hairline + título branco + subtítulo cinza).
+- Tabelas: linhas separadas por `border-white/5`, hover `bg-white/[0.03]`, cabeçalho em cinza mono uppercase, valores em branco tabular, valores monetários positivos em verde quando fizer sentido semântico (Sales, Plans).
+- Botões primários mantêm o dourado da marca já configurado em `--primary`.
+- Substituir badges coloridas: status "ativo/pago/confirmado" → verde; "pendente/atraso" → dourado; "cancelado/perdido/no-show" → vermelho; demais → cinza neutro.
 
-**Timeline de Receita (LineChart do hero)**
-- Linha principal (`receita`) passa a ser **branca `#F5F5F5`** com strokeWidth 2.
-- Área sob a linha ganha gradiente dourado bem sutil (`rgba(232,196,104,0.18) → transparent`) para manter identidade sem competir com a linha.
-- Grid mais discreto (`stroke rgba(255,255,255,0.06)`), ticks em cinza `#71717A`.
-- Ponto ativo (tooltip): círculo dourado 4px sobre a linha branca.
+### TenantKanban
+- KanbanColumn: fundo preto (`premium-card`), header com hairline dourado + ícone branco no chip preto, contador em círculo com hairline dourado. Cor da coluna só aparece como fio superior fino (verde para "ganho", vermelho para "perdido", branco para as demais).
+- Cards de lead: `.premium-card` compacto, nome em branco, valor em dourado, tags em cinza pill com hairline.
 
-**Sparklines (Leads / Ganhos / Conversão)**
-- Todas as três sparklines passam para **branco `#F5F5F5`** com preenchimento inferior em amber 0.12.
-- Cor da linha só muda se houver semântica: em "Conversão", se a variação vs. anterior for negativa, a linha fica vermelha `#F87171`; positiva, branca.
+### TenantConfig / TenantProductsConfig / TenantProntuario / TenantRecall
+- Cards de configuração passam para `.premium-card`; inputs mantêm os tokens já usados pelo shadcn (não mexemos em `--input`).
 
-**Distribuição do funil**
-- Barras deixam de usar as cores fixas antigas (`STAGE_COLORS` com cyan/indigo/violeta). Nova regra:
-  - `Ganho` → verde `#4ADE80`
-  - `Perdido` → vermelho `#F87171`
-  - Demais etapas (Lead, Qualificado, Reunião, Proposta, Negociação) → branco `#F5F5F5` com opacidade escalonada (0.45 → 0.9 conforme avança no funil), reforçando progressão.
-- Label do estágio: branco; contador: branco `tabular-nums`.
+### AppLayout + TenantSidebar (tenant)
+- Header do tenant (`bg-card/40`) alinhado ao `.tech-header` já usado no admin: fundo `#050505` neutro, hairline dourado inferior.
+- Sidebar: item ativo em dourado (fundo `rgba(232,196,104,0.10)` + texto dourado + fio dourado à esquerda 2px), hover em cinza claro. Remover o gradiente âmbar do avatar da clínica — substituir por círculo preto com hairline dourado e iniciais em branco.
 
-**Origem dos leads**
-- Barras trocam do gradiente dourado por **branco sólido** com opacidade proporcional ao ranking (mais leads = mais opaco).
-- A origem #1 (top) ganha destaque dourado `#E8C468`. Só uma barra dourada por vez.
+---
 
-**Movimentação (tabs Ganhos / Perdas / Atividade)**
-- Ganhos: valor à direita em verde `#4ADE80` (já é hoje, manter).
-- Perdas: data em vermelho `#F87171` em vez do rose atual.
-- Atividade: timestamp em branco `#F5F5F5/70` em vez de amber.
-- Tab ativo: fundo `rgba(232,196,104,0.12)` + texto dourado; inativos em cinza neutro.
+## Escopo 2 — WhatsApp (Admin Master + tenant)
 
-**DeltaBadge (▲/▼ vs. período anterior)**
-- Positivo: verde `#4ADE80`
-- Negativo: vermelho `#F87171`
-- Neutro: cinza `#71717A`
-- (Já é assim hoje, só padronizar hex exato para bater com a paleta.)
+Ambas as telas (`src/pages/admin/WhatsAppChat.tsx` e `src/pages/app/TenantWhatsApp.tsx`) já usam `.wa-shell`. Ajustes cirúrgicos:
+
+### Lista de conversas (aprovada — manter, apenas reforçar)
+- Pill "Conectado" / "Offline": verde `#4ADE80` / vermelho `#F87171` da paleta oficial (hoje usa emerald flat).
+- Pill "Somente com lead": fundo `rgba(232,196,104,0.10)` + hairline dourado + texto dourado (hoje mistura tons).
+- Pill "Revisar conversas @lid": passar a usar vermelho `#F87171` (é aviso), com hairline vermelho e ícone triângulo — hoje aparece amarelo neon.
+- Avatares circulares coloridos (verde/vermelho/rosa/azul/roxo neon vistos no screenshot) → paleta unificada de 4 tons neutros derivados do hash do nome + hairline dourado sempre. Mantém legibilidade sem parecer "arco-íris".
+- Timestamp da conversa em cinza mono, badge de não lida em dourado (número escuro sobre dourado).
+
+### Empty state (painel direito)
+- Bolha central atual (roxa suave) → ícone dentro de círculo preto com hairline dourado (mesmo `.premium-section-icon`).
+- Título "WhatsApp Inbox" em branco Fraunces; subtítulo em cinza `#A1A1AA`.
+- Botão "Configurações": secundário com hairline dourado, texto dourado.
+
+### Área de conversa aberta (já refeita na iteração anterior)
+- Confirmar consistência: cabeçalho do contato com hairline dourado inferior, bolhas dark aprovadas, `WhatsAppAudioPlayer` gold sobre preto. Sem mudanças estruturais.
+
+### Composer / campo de digitar
+- Fundo preto, hairline dourado inferior no foco, botão de enviar circular em dourado com ícone preto (contraste alto). Ícones de anexo/emoji em cinza `#A1A1AA`, hover branco.
+
+---
 
 ## Onde as mudanças acontecem
 
-- `src/index.css` — ajustar `.premium-card`, `.premium-hero`, `.premium-section-icon` (sombras mais escuras, remover halos dourados, hairline mais firme).
-- `src/pages/admin/Dashboard.tsx`:
-  - Constante nova `PALETTE = { gold, white, green, red, muted }` no topo.
-  - Substituir `STAGE_COLORS` pela nova regra (verde/vermelho + tons de branco).
-  - Ajustar `LineChart` (linha branca, grid neutro, ticks neutros).
-  - Ajustar `Sparkline` (stroke branco, gradiente dourado suave; aceita prop `tone: "positive" | "negative" | "neutral"`).
-  - `KPI`, `MetricCard`, `SectionTitle`: trocar `text-muted-foreground` por cinza fixo, número em branco, ícone com hairline dourado + glyph branco.
-  - `DeltaBadge`: cores fixas da paleta.
-  - Barras em "Distribuição do funil" e "Origem dos leads": cores da paleta em vez do gradiente amber.
+- `src/index.css` — adicionar 2-3 classes utilitárias: `.premium-table-row`, `.premium-badge-*` (positive/negative/neutral/warn), `.premium-avatar` (círculo preto + hairline dourado) — para não repetir estilos inline.
+- `src/components/app/AppLayout.tsx`, `src/components/app/TenantSidebar.tsx` — trocar tokens azul/âmbar antigos por dourado da paleta e header preto neutro.
+- `src/pages/app/TenantDashboard.tsx` — refactor visual completo (paleta, cards, gráfico da evolução, badges).
+- `src/pages/app/{TenantLeads,TenantPatients,TenantSales,TenantCampaigns,TenantPlans,TenantAgenda,TenantConfig,TenantProductsConfig,TenantProntuario,TenantRecall,TenantKanban}.tsx` — swap de classes de card/badge/tabela para a nova paleta. Sem tocar em queries, hooks ou tipos.
+- `src/components/admin/KanbanColumn.tsx` — usar o novo tratamento.
+- `src/pages/admin/WhatsAppChat.tsx`, `src/pages/app/TenantWhatsApp.tsx` — ajustes cirúrgicos em pills, empty state e composer.
+- (Se necessário) `src/components/admin/whatsapp/ContactAvatar.tsx` — nova paleta de 4 tons neutros.
 
 ## Fora do escopo
 
-- Não alteramos dados, queries, layout, estrutura de seções, tabs, filtros de período, ou funcionalidade.
-- Não mexemos em outras páginas do sistema — só o Dashboard (`/admin`).
-- Fontes atuais permanecem; nenhuma instalação nova.
+- Nenhuma mudança em dados, RLS, edge functions, roteamento, autenticação, hooks, integrações (Evolution, Facebook, MP), tipos ou lógica de negócio.
+- Nenhuma reestruturação de layout: mesma grid, mesmos filtros, mesmas tabs, mesmas ações — só troca de tema visual.
+- Nenhuma alteração nos formulários (inputs shadcn continuam intactos).
+- Fontes atuais permanecem (Fraunces / Inter / JetBrains Mono já carregadas).

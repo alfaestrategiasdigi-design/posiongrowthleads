@@ -40,12 +40,12 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
   const items = isComercial ? allItems.filter(i => i.comercial) : allItems;
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" className="tech-sidebar border-r border-sidebar-border bg-sidebar/95 backdrop-blur-xl">
       <SidebarContent>
-        <div className="px-3 py-4 border-b border-sidebar-border">
+        <div className="px-3 py-4 border-b border-amber-500/20">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/25 to-primary/5 border border-primary/30 flex items-center justify-center shrink-0 shadow-[inset_0_1px_0_hsl(42_55%_62%/0.2)]">
-              <Building2 className="w-5 h-5 text-primary" />
+            <div className="w-10 h-10 rounded-xl premium-kpi-icon flex items-center justify-center shrink-0">
+              <Building2 className="w-5 h-5 text-white" />
             </div>
             {!collapsed && (
               <div className="min-w-0">

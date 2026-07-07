@@ -69,22 +69,22 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="min-h-screen flex w-full tech-shell">
         <TenantSidebar tenant={tenant} isSuperAdmin={isSuperAdmin} tenantRole={role} />
         <main className="flex-1 flex flex-col overflow-hidden">
-          <header className="h-16 border-b border-border/60 flex items-center justify-between px-4 md:px-6 bg-card/40 backdrop-blur-md shrink-0">
+          <header className="h-16 tech-header flex items-center justify-between px-4 md:px-6 shrink-0">
             <div className="flex items-center gap-3 md:gap-4">
-              <SidebarTrigger />
+              <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
               <div className="hidden md:flex items-center gap-3">
                 <img src={posionLogo.url} alt="Posion" className="h-7 opacity-90" />
-                <div className="h-5 w-px bg-border" />
+                <div className="h-5 w-px bg-amber-500/25" />
                 <div className="leading-tight">
-                  <div className="text-sm font-medium tracking-tight">{tenant.name}</div>
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Central da Clínica</div>
+                  <div className="text-sm font-medium tracking-tight text-white" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{tenant.name}</div>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-amber-400/70 font-mono">Central da Clínica</div>
                 </div>
               </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-muted-foreground hover:text-foreground">
               <LogOut className="w-4 h-4" />
               <span className="hidden sm:inline">Sair</span>
             </Button>

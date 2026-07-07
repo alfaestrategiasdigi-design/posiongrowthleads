@@ -32,7 +32,7 @@ const FUNNEL_LABELS: Record<string,string> = {
   compareceu: "Compareceu", negociacao: "Negociação", ganho: "Ganho",
   perdido: "Perdido", no_show: "No-show",
 };
-const FUNNEL_COLORS = ["#60A5FA", "#A78BFA", "#6366F1", "#8B5CF6", "#F59E0B", "#34D399"];
+const FUNNEL_COLORS = ["rgba(245,245,245,0.55)", "rgba(245,245,245,0.65)", "rgba(245,245,245,0.75)", "rgba(245,245,245,0.85)", "#E8C468", "#4ADE80"];
 
 export default function TenantDashboard() {
   const { tenant } = useTenant();
@@ -326,11 +326,10 @@ export default function TenantDashboard() {
               <Link
                 to={`/app/${tenant?.slug}/whatsapp`}
                 title={`WhatsApp: ${waStatus.label}`}
-                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border transition ${
-                  waStatus.connected
-                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
-                    : "bg-muted/40 text-muted-foreground border-border/40 hover:bg-muted/60"
-                }`}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border transition"
+                style={waStatus.connected
+                  ? { color: "#4ADE80", background: "rgba(74,222,128,0.10)", borderColor: "rgba(74,222,128,0.35)" }
+                  : { color: "#F87171", background: "rgba(248,113,113,0.10)", borderColor: "rgba(248,113,113,0.35)" }}
               >
                 <MessageCircle className="w-3 h-3" />
                 {waStatus.connected ? "WhatsApp conectado" : "WhatsApp offline"}
