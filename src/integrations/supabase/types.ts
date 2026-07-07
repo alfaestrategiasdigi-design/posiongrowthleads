@@ -320,15 +320,20 @@ export type Database = {
           completed_at: string | null
           contact_name: string | null
           contact_phone: string | null
+          context: Json
           current_node: string | null
           flow_id: string
           id: string
           is_admin_master: boolean
           last_error: string | null
           lead_id: string | null
+          next_node: string | null
+          resume_token: string | null
           started_at: string
           status: string
+          steps: Json
           tenant_id: string | null
+          trigger_type: string | null
           updated_at: string
           variables: Json
           wait_until: string | null
@@ -338,15 +343,20 @@ export type Database = {
           completed_at?: string | null
           contact_name?: string | null
           contact_phone?: string | null
+          context?: Json
           current_node?: string | null
           flow_id: string
           id?: string
           is_admin_master?: boolean
           last_error?: string | null
           lead_id?: string | null
+          next_node?: string | null
+          resume_token?: string | null
           started_at?: string
           status?: string
+          steps?: Json
           tenant_id?: string | null
+          trigger_type?: string | null
           updated_at?: string
           variables?: Json
           wait_until?: string | null
@@ -356,15 +366,20 @@ export type Database = {
           completed_at?: string | null
           contact_name?: string | null
           contact_phone?: string | null
+          context?: Json
           current_node?: string | null
           flow_id?: string
           id?: string
           is_admin_master?: boolean
           last_error?: string | null
           lead_id?: string | null
+          next_node?: string | null
+          resume_token?: string | null
           started_at?: string
           status?: string
+          steps?: Json
           tenant_id?: string | null
+          trigger_type?: string | null
           updated_at?: string
           variables?: Json
           wait_until?: string | null
