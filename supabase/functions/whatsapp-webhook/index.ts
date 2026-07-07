@@ -1133,8 +1133,27 @@ Deno.serve(async (req) => {
           },
 
         });
+
+        // Fire automation dispatcher for inbound text messages (best-effort, non-blocking)
+        if (!fromMe && text && !isPendingLid) {
+          try {
+            fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-dispatch`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                trigger: "message_received",
+                tenant_id: tenantId,
+                context: {
+                  phone, name: pushName || phone, text,
+                  conversation_id: conv.id, wamid,
+                },
+              }),
+            }).catch(() => {});
+          } catch (_) { /* ignore */ }
+        }
       }
     }
+
 
 
     return new Response(JSON.stringify({ ok: true }), {
