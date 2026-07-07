@@ -994,8 +994,9 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                         )}
                         {renderQuoted(msg)}
                         {renderMessageBody(msg)}
-                        <p className={`wa-mono text-[10px] mt-1 flex items-center justify-end gap-1 ${isOut ? "text-[#0b141a]/60" : ""}`}
-                           style={!isOut ? { color: "#8696a0" } : undefined}>
+                        <p className="wa-mono text-[10px] mt-1 flex items-center justify-end gap-1"
+                           style={{ color: isOut ? "rgba(233,237,239,0.6)" : "#8696a0" }}>
+
                           {formatMessageTime(msg.created_at)} {renderStatus(msg)}
                         </p>
                         {renderReactions(msg)}
