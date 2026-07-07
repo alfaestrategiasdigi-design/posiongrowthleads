@@ -15,6 +15,7 @@ interface Props {
   availableCampaigns: string[];
   availableForms: string[];
   availableOwners: { id: string; label: string }[];
+  availableAdAccounts: { id: string; label: string }[];
 }
 
 const PRESETS: Array<{ id: string; label: string; compute: () => { from: string; to: string } }> = [
