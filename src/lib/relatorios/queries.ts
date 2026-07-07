@@ -36,14 +36,14 @@ export async function fetchRelatorio(
   //    respeitamos essa lista (Admin Master entra se ele marcou);
   //  - se NÃO selecionou nada (agregado padrão), excluímos Admin Master
   //    para não misturar dados internos com o consolidado das clínicas.
-  const adminIncludeMaster = filters.tenantIds.includes(ADMIN_MASTER_TENANT_ID);
-
+  // Admin: por padrão inclui TODAS as contas (inclusive Admin Master) para bater
+  // com os números do dashboard consolidado da Posion. Se o usuário selecionar
+  // clínicas específicas no filtro, respeitamos essa lista.
   if (scope === "tenant") {
     if (!currentTenantId) return { leads: [], appointments: [], insights: [], spend: [] };
     leadsQ = leadsQ.eq("tenant_id", currentTenantId);
   } else {
     if (filters.tenantIds.length > 0) leadsQ = leadsQ.in("tenant_id", filters.tenantIds);
-    else leadsQ = leadsQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
   }
   if (filters.campaigns.length > 0) leadsQ = leadsQ.in("utm_campaign", filters.campaigns);
   if (filters.forms.length > 0) leadsQ = leadsQ.in("facebook_form_name", filters.forms);
