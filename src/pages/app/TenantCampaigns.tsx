@@ -243,7 +243,7 @@ export default function TenantCampaigns() {
         <div className="flex items-center gap-2 flex-wrap">
           {/* Period selector */}
           <div className="inline-flex rounded-md border border-white/10 bg-background/40 p-0.5">
-            {[7, 14, 30, 90].map((p) => (
+            {[1, 7, 14, 30, 90].map((p) => (
               <button
                 key={p}
                 onClick={() => setPeriod(p as any)}
@@ -251,7 +251,7 @@ export default function TenantCampaigns() {
                   period === p ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {p}d
+                {p === 1 ? "Hoje" : `${p}d`}
               </button>
             ))}
           </div>
