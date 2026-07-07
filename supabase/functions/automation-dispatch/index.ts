@@ -258,22 +258,48 @@ async function runFlow(
         }
       } else if (type === "buttons") {
         const text = interpolate(String(d.text || ""), vars);
-        if (dryRun) detail = `enviaria botões: "${text.slice(0, 60)}" [${(d.buttons || []).map((b: any) => b.label).join(", ")}]`;
+        const title = interpolate(String(d.title || ""), vars);
+        const footer = interpolate(String(d.footer || ""), vars);
+        const btns = (d.buttons || []).map((b: any, i: number) => ({
+          id: b.id || `btn_${i}`,
+          label: b.label || `Botão ${i + 1}`,
+        }));
+        // Build button_map: id/label -> target node
+        const outEdges = edges.filter((e) => e.source === node.id);
+        const buttonMap: Record<string, string> = {};
+        btns.forEach((b, i) => {
+          const match = outEdges.find((e) =>
+            (e.sourceHandle || "") === b.id ||
+            (e.sourceHandle || "").toLowerCase() === b.label.toLowerCase() ||
+            (e.label || "").toLowerCase() === b.label.toLowerCase()
+          ) || outEdges[i];
+          if (match) {
+            buttonMap[b.id] = match.target;
+            buttonMap[b.label.toLowerCase()] = match.target;
+          }
+        });
+        if (dryRun) detail = `enviaria botões: "${text.slice(0, 60)}" [${btns.map((b) => b.label).join(", ")}] → ${Object.keys(buttonMap).length / 2} rotas`;
         else {
           const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "buttons", {
-            text, buttons: d.buttons || [], title: d.title, footer: d.footer,
+            text, buttons: btns, title, footer,
           });
-          ok = r.ok; detail = r.ok ? "botões enviados" : `erro: ${r.error}`;
+          ok = r.ok; detail = r.ok ? `botões enviados (${btns.length}, ${Object.keys(buttonMap).length / 2} rotas)` : `erro: ${r.error}`;
         }
-        // buttons implies pause waiting for user click (treated as wait_response)
         if (ok && !dryRun) {
           stop = true;
-          if (execId) await admin.from("automation_executions").update({
-            status: "waiting_response", current_node: node.id, next_node: node.id,
-            updated_at: new Date().toISOString(), steps: [...steps, { at: new Date().toISOString(), node_id: node.id, node_type: type, ok, detail }],
-          }).eq("id", execId);
-          return { status: "waiting_response", steps: [...steps, { at: new Date().toISOString(), node_id: node.id, node_type: type, ok, detail }], execId, next: node.id };
+          const newSteps = [...steps, { at: new Date().toISOString(), node_id: node.id, node_type: type, ok, detail }];
+          if (execId) {
+            // Merge button_map into execution context for resume
+            const { data: currentExec } = await admin.from("automation_executions").select("context").eq("id", execId).maybeSingle();
+            const newContext = { ...((currentExec?.context as any) || ctx), button_map: buttonMap };
+            await admin.from("automation_executions").update({
+              status: "waiting_response", current_node: node.id, next_node: null,
+              context: newContext, updated_at: new Date().toISOString(), steps: newSteps,
+            }).eq("id", execId);
+          }
+          return { status: "waiting_response", steps: newSteps, execId, next: null };
         }
+
       } else if (type === "list") {
         const text = interpolate(String(d.text || ""), vars);
         if (dryRun) detail = `enviaria lista com ${(d.items || []).length} opções`;
