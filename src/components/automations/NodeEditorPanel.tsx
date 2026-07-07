@@ -301,3 +301,33 @@ function WaitEditor({ data, onChange }: { data: any; onChange: (p: any) => void 
     </div>
   );
 }
+
+function ListItemsEditor({
+  items, onChange,
+}: { items: { id: string; label: string; description?: string }[]; onChange: (i: any[]) => void }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <Label>Opções da lista</Label>
+        <Button size="sm" variant="outline" onClick={() => onChange([...items, { id: crypto.randomUUID().slice(0, 6), label: "Opção", description: "" }])}>
+          <Plus className="w-3 h-3 mr-1" /> Adicionar
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {items.map((it, i) => (
+          <div key={it.id} className="rounded border border-border p-2 space-y-1">
+            <div className="flex gap-2">
+              <Input value={it.label} placeholder="Título" onChange={(e) => { const c = [...items]; c[i] = { ...it, label: e.target.value }; onChange(c); }} />
+              <Button size="icon" variant="ghost" onClick={() => onChange(items.filter((x) => x.id !== it.id))}>
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+            <Input value={it.description || ""} placeholder="Descrição (opcional)" onChange={(e) => { const c = [...items]; c[i] = { ...it, description: e.target.value }; onChange(c); }} />
+          </div>
+        ))}
+        {items.length === 0 && <p className="text-xs text-muted-foreground">Adicione as opções que o usuário poderá selecionar.</p>}
+      </div>
+    </div>
+  );
+}
+
