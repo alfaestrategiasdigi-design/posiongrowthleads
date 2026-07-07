@@ -86,7 +86,7 @@ export default function FiltersBar({ filters, onChange, scope, availableTenants,
     return "custom";
   }, [filters.from, filters.to]);
 
-  const hasAny = filters.tenantIds.length + filters.campaigns.length + filters.forms.length + filters.ownerIds.length > 0
+  const hasAny = filters.tenantIds.length + filters.campaigns.length + filters.forms.length + filters.ownerIds.length + filters.adAccountIds.length > 0
     || filters.origem !== "all";
 
   return (
