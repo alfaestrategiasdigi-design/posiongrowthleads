@@ -187,3 +187,115 @@ export default function FlowEditor({ flowId, onBack }: Props) {
     </div>
   );
 }
+
+function TriggerConfig({
+  trigger,
+  config,
+  onChange,
+}: {
+  trigger: TriggerKind;
+  config: Record<string, any>;
+  onChange: (cfg: Record<string, any>) => void;
+}) {
+  const patch = (p: Record<string, any>) => onChange({ ...config, ...p });
+
+  const renderBody = () => {
+    if (trigger === "message_received") {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-3">
+          <div>
+            <Label className="text-xs">Palavras / mensagem de ativação</Label>
+            <Textarea
+              rows={2}
+              value={(config.keywords as string) || ""}
+              onChange={(e) => patch({ keywords: e.target.value })}
+              placeholder="Ex.: oi, olá, quero saber, informações"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Separe por vírgula. O fluxo dispara quando a mensagem recebida contiver qualquer uma dessas palavras. Deixe vazio para disparar em qualquer mensagem.
+            </p>
+          </div>
+          <div>
+            <Label className="text-xs">Correspondência</Label>
+            <Select
+              value={(config.match as string) || "contains"}
+              onValueChange={(v) => patch({ match: v })}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="contains">Contém</SelectItem>
+                <SelectItem value="exact">Igual exato</SelectItem>
+                <SelectItem value="starts_with">Começa com</SelectItem>
+                <SelectItem value="regex">Expressão regular</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      );
+    }
+    if (trigger === "form_submitted" || trigger === "lead_entered") {
+      return (
+        <div>
+          <Label className="text-xs">Nome do formulário (opcional)</Label>
+          <Input
+            value={(config.form_name as string) || ""}
+            onChange={(e) => patch({ form_name: e.target.value })}
+            placeholder="Ex.: Formulário Botox — Instagram"
+          />
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Deixe vazio para disparar em qualquer formulário preenchido.
+          </p>
+        </div>
+      );
+    }
+    if (trigger === "kanban_moved") {
+      return (
+        <div>
+          <Label className="text-xs">Ao mover para a coluna</Label>
+          <Input
+            value={(config.column as string) || ""}
+            onChange={(e) => patch({ column: e.target.value })}
+            placeholder="Ex.: Qualificado"
+          />
+        </div>
+      );
+    }
+    if (trigger === "time_delay") {
+      return (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label className="text-xs">Após (horas)</Label>
+            <Input
+              type="number"
+              value={config.hours ?? ""}
+              onChange={(e) => patch({ hours: Number(e.target.value) || undefined })}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Do evento</Label>
+            <Input
+              value={(config.event as string) || ""}
+              onChange={(e) => patch({ event: e.target.value })}
+              placeholder="lead_created, appointment_created…"
+            />
+          </div>
+        </div>
+      );
+    }
+    return (
+      <p className="text-xs text-muted-foreground">
+        Este gatilho não possui configurações adicionais.
+      </p>
+    );
+  };
+
+  return (
+    <div className="border-b border-border bg-card/20 px-4 py-3">
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">
+        Configuração do gatilho
+      </div>
+      {renderBody()}
+    </div>
+  );
+}
+
