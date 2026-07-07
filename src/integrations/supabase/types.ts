@@ -1519,6 +1519,36 @@ export type Database = {
           },
         ]
       }
+      lead_status_events: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          from_status: string | null
+          id: string
+          lead_id: string
+          source: string
+          to_status: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          from_status?: string | null
+          id?: string
+          lead_id: string
+          source?: string
+          to_status: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          from_status?: string | null
+          id?: string
+          lead_id?: string
+          source?: string
+          to_status?: string
+        }
+        Relationships: []
+      }
       lead_task_comments: {
         Row: {
           author_name: string | null
@@ -1665,6 +1695,7 @@ export type Database = {
           num_profissionais: string | null
           observacoes: string | null
           origem: string | null
+          owner_user_id: string | null
           proposta_enviada_em: string | null
           reuniao_agendada_em: string | null
           reuniao_realizada_em: string | null
@@ -1679,6 +1710,7 @@ export type Database = {
           utm_medium: string | null
           utm_source: string | null
           utm_term: string | null
+          valor_perdido: number | null
           valor_proposta: number | null
           whatsapp: string
         }
@@ -1712,6 +1744,7 @@ export type Database = {
           num_profissionais?: string | null
           observacoes?: string | null
           origem?: string | null
+          owner_user_id?: string | null
           proposta_enviada_em?: string | null
           reuniao_agendada_em?: string | null
           reuniao_realizada_em?: string | null
@@ -1726,6 +1759,7 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
+          valor_perdido?: number | null
           valor_proposta?: number | null
           whatsapp: string
         }
@@ -1759,6 +1793,7 @@ export type Database = {
           num_profissionais?: string | null
           observacoes?: string | null
           origem?: string | null
+          owner_user_id?: string | null
           proposta_enviada_em?: string | null
           reuniao_agendada_em?: string | null
           reuniao_realizada_em?: string | null
@@ -1773,6 +1808,7 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
+          valor_perdido?: number | null
           valor_proposta?: number | null
           whatsapp?: string
         }
@@ -2673,6 +2709,7 @@ export type Database = {
           first_contact_date: string | null
           id: string
           international: boolean
+          lead_id: string | null
           metadata: Json
           notes: string | null
           patient_id: string | null
@@ -2708,6 +2745,7 @@ export type Database = {
           first_contact_date?: string | null
           id?: string
           international?: boolean
+          lead_id?: string | null
           metadata?: Json
           notes?: string | null
           patient_id?: string | null
@@ -2743,6 +2781,7 @@ export type Database = {
           first_contact_date?: string | null
           id?: string
           international?: boolean
+          lead_id?: string | null
           metadata?: Json
           notes?: string | null
           patient_id?: string | null
