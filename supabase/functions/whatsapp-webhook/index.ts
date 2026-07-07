@@ -923,14 +923,33 @@ Deno.serve(async (req) => {
         }
 
         // Extract button/list selection (Evolution/Baileys formats)
+        const paramsJsonRaw = msgObj?.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson;
+        let interactiveReplyId: string | null = null;
+        let interactiveReplyText = "";
+        if (paramsJsonRaw) {
+          try {
+            const parsed = typeof paramsJsonRaw === "string" ? JSON.parse(paramsJsonRaw) : paramsJsonRaw;
+            interactiveReplyId = parsed?.id ?? parsed?.button_id ?? parsed?.buttonId ?? parsed?.selectedButtonId ?? null;
+            interactiveReplyText = parsed?.display_text ?? parsed?.displayText ?? parsed?.title ?? parsed?.text ?? "";
+          } catch {
+            interactiveReplyId = String(paramsJsonRaw);
+          }
+        }
         const buttonReplyId: string | null =
           msgObj?.buttonsResponseMessage?.selectedButtonId
+          ?? msgObj?.buttonReplyMessage?.id
           ?? msgObj?.templateButtonReplyMessage?.selectedId
-          ?? msgObj?.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson
+          ?? msgObj?.interactiveResponseMessage?.buttonReply?.id
+          ?? interactiveReplyId
           ?? null;
         const buttonReplyText: string =
           msgObj?.buttonsResponseMessage?.selectedDisplayText
+          ?? msgObj?.buttonReplyMessage?.displayText
+          ?? msgObj?.buttonReplyMessage?.title
           ?? msgObj?.templateButtonReplyMessage?.selectedDisplayText
+          ?? msgObj?.interactiveResponseMessage?.buttonReply?.displayText
+          ?? msgObj?.interactiveResponseMessage?.buttonReply?.title
+          ?? interactiveReplyText
           ?? msgObj?.listResponseMessage?.title
           ?? "";
         const listReplyId: string | null = msgObj?.listResponseMessage?.singleSelectReply?.selectedRowId ?? null;
@@ -941,6 +960,8 @@ Deno.serve(async (req) => {
           ?? msgObj?.videoMessage?.caption
           ?? msgObj?.documentMessage?.caption
           ?? buttonReplyText
+          ?? buttonReplyId
+          ?? listReplyId
           ?? m?.text
           ?? "";
 
