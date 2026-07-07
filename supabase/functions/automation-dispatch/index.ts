@@ -235,6 +235,19 @@ async function sendWhatsapp(
   }
 }
 
+function buildButtonsTextMessage(data: { title?: string; text?: string; footer?: string; buttons: Array<{ label: string; displayLabel?: string }> }) {
+  const lines: string[] = [];
+  const title = compactText(data.title, "");
+  const text = compactText(data.text, "");
+  const footer = compactText(data.footer, "");
+  if (title) lines.push(`*${title}*`);
+  if (text) lines.push(text);
+  const options = data.buttons.slice(0, 3).map((b, i) => `${i + 1}. ${compactText(b.displayLabel || b.label, `Opção ${i + 1}`)}`);
+  if (options.length > 0) lines.push(options.join("\n"));
+  if (footer) lines.push(footer);
+  return lines.filter(Boolean).join("\n\n");
+}
+
 function nextNodeIds(edges: FlowEdge[], from: string, handle?: string | null): string[] {
   return edges
     .filter((e) => e.source === from && (!handle || (e.sourceHandle ?? null) === handle || (e.label ?? null) === handle))
@@ -262,9 +275,10 @@ async function runFlow(
     // Find trigger node, or the first node with no incoming edges if the user forgot the trigger.
     const triggerNode = nodes.find((n) => n.type === "trigger") ?? null;
     const incoming = new Set(edges.map((e) => e.target));
-    const entryNode = nodes
-      .filter((n) => n.type !== "end" && !incoming.has(n.id))
-      .sort((a, b) => ((a.position?.y ?? 0) - (b.position?.y ?? 0)) || ((a.position?.x ?? 0) - (b.position?.x ?? 0)))[0] ?? null;
+    const positionedNodes = [...nodes]
+      .filter((n) => n.type !== "end")
+      .sort((a, b) => ((a.position?.y ?? 0) - (b.position?.y ?? 0)) || ((a.position?.x ?? 0) - (b.position?.x ?? 0)));
+    const entryNode = positionedNodes.find((n) => !incoming.has(n.id)) ?? positionedNodes[0] ?? null;
     current = triggerNode ?? entryNode ?? nodes[0] ?? null;
   }
 
@@ -306,17 +320,20 @@ async function runFlow(
             (e.label || "").toLowerCase() === b.label.toLowerCase()
           ) || outEdges[i];
           if (match) {
+            buttonMap[String(i + 1)] = match.target;
             buttonMap[b.id.toLowerCase()] = match.target;
             buttonMap[b.label.toLowerCase()] = match.target;
             buttonMap[b.displayLabel.toLowerCase()] = match.target;
           }
         });
-        if (dryRun) detail = `enviaria botões: "${text.slice(0, 60)}" [${btns.map((b) => b.displayLabel).join(", ")}] → ${new Set(Object.values(buttonMap)).size} rotas`;
+        const buttonsText = buildButtonsTextMessage({ title, text, footer, buttons: btns });
+        if (dryRun) detail = `enviaria opções: "${buttonsText.slice(0, 80)}" [${btns.map((b) => b.displayLabel).join(", ")}] → ${new Set(Object.values(buttonMap)).size} rotas`;
         else {
-          const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "buttons", {
-            text, buttons: btns, title, footer,
-          });
-          ok = r.ok; detail = r.ok ? `botões enviados (${btns.length}, ${new Set(Object.values(buttonMap)).size} rotas)` : `erro: ${r.error}`;
+          // Baileys/Evolution often returns success for native interactive buttons but WhatsApp shows
+          // "Aguardando mensagem" instead of rendering the choices. Send a numbered menu as plain text
+          // so the contact always receives a usable choice and the flow can route by number or label.
+          const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text: buttonsText });
+          ok = r.ok; detail = r.ok ? `opções enviadas (${btns.length}, ${new Set(Object.values(buttonMap)).size} rotas)` : `erro: ${r.error}`;
         }
         if (ok && !dryRun) {
           stop = true;
