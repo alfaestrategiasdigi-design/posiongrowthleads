@@ -67,6 +67,15 @@ Deno.serve(async (req) => {
           .maybeSingle();
         const tenantId = conn?.tenant_id ?? null;
 
+        // Status callbacks from Cloud API contain wamid + delivery state, not
+        // the original message text. We update already-saved outbound bubbles.
+        for (const st of value.statuses ?? []) {
+          const wamid = st.id;
+          const status = mapCloudStatus(st.status);
+          if (!wamid || !status) continue;
+          await admin.from("messages").update({ status }).eq("wamid", wamid);
+        }
+
         // Contacts (for nome)
         const contactMap: Record<string, string> = {};
         for (const c of value.contacts ?? []) {
@@ -77,15 +86,25 @@ Deno.serve(async (req) => {
           const from = msg.from as string;
           const nome = contactMap[from] ?? from;
           const text = extractText(msg);
-          const tipo = msg.type === "text" ? "text" : msg.type;
+          const rawType = msg.type === "text" ? "text" : msg.type;
+          const tipo = ["text", "image", "audio", "video", "document"].includes(rawType) ? rawType : "text";
+          const preview = text ?? previewFor(rawType);
+          const messageCreatedAt = cloudMessageCreatedAt(msg);
+
+          if (msg.id) {
+            const { data: dup } = await admin.from("messages").select("id").eq("wamid", msg.id).maybeSingle();
+            if (dup) continue;
+          }
 
           // Find or create lead by whatsapp number
           let leadId: string | null = null;
-          const { data: existingLead } = await admin
+          let leadQuery = admin
             .from("leads")
             .select("id")
             .eq("whatsapp", from)
-            .maybeSingle();
+            .limit(1);
+          leadQuery = tenantId ? leadQuery.eq("tenant_id", tenantId) : leadQuery.is("tenant_id", null);
+          const { data: existingLead } = await leadQuery.maybeSingle();
           if (existingLead) {
             leadId = existingLead.id;
             await admin.from("leads").update({ status: "lead" }).eq("id", existingLead.id);
@@ -96,33 +115,36 @@ Deno.serve(async (req) => {
               origem: "whatsapp_cloud",
               status: "lead",
               tenant_id: tenantId,
-              observacoes: `Lead criado automaticamente via WhatsApp Cloud API. Primeira mensagem: ${text?.slice(0, 200) ?? "(mídia)"}`,
+              observacoes: `Lead criado automaticamente via WhatsApp Cloud API. Primeira mensagem: ${preview.slice(0, 200)}`,
             }).select("id").single();
             leadId = newLead?.id ?? null;
           }
 
           // Find or create conversation
           let convId: string | null = null;
-          const { data: existingConv } = await admin
+          let convQuery = admin
             .from("conversations")
             .select("id, nao_lidas")
             .eq("telefone", from)
-            .eq("tenant_id", tenantId)
-            .maybeSingle();
+            .limit(1);
+          convQuery = tenantId ? convQuery.eq("tenant_id", tenantId) : convQuery.is("tenant_id", null);
+          const { data: existingConv } = await convQuery.maybeSingle();
           if (existingConv) {
             convId = existingConv.id;
             await admin.from("conversations").update({
-              ultima_mensagem: text ?? `[${tipo}]`,
-              ultima_interacao: new Date().toISOString(),
+              ultima_mensagem: preview,
+              ultima_interacao: messageCreatedAt,
               nao_lidas: (existingConv.nao_lidas ?? 0) + 1,
             }).eq("id", existingConv.id);
           } else {
             const { data: newConv } = await admin.from("conversations").insert({
               telefone: from,
+              remote_jid: `${from}@s.whatsapp.net`,
+              provider: "cloud",
               nome_contato: nome,
               lead_id: leadId,
-              ultima_mensagem: text ?? `[${tipo}]`,
-              ultima_interacao: new Date().toISOString(),
+              ultima_mensagem: preview,
+              ultima_interacao: messageCreatedAt,
               nao_lidas: 1,
               tenant_id: tenantId,
             }).select("id").single();
@@ -133,11 +155,16 @@ Deno.serve(async (req) => {
             await admin.from("messages").insert({
               conversation_id: convId,
               sender: "cliente",
-              conteudo: text ?? "",
+              conteudo: preview,
               tipo,
+              media_type: rawType === tipo ? null : rawType,
               media_url: extractMediaUrl(msg),
+              direction: "inbound",
+              status: "delivered",
+              wamid: msg.id ?? null,
               lida: false,
               tenant_id: tenantId,
+              created_at: messageCreatedAt,
             });
           }
         }
@@ -166,4 +193,35 @@ function extractText(msg: any): string | null {
 
 function extractMediaUrl(msg: any): string | null {
   return msg.image?.id || msg.video?.id || msg.audio?.id || msg.document?.id || null;
+}
+
+function previewFor(type: string): string {
+  const map: Record<string, string> = {
+    image: "📷 Imagem",
+    video: "🎬 Vídeo",
+    audio: "🎤 Áudio",
+    document: "📄 Documento",
+    sticker: "😊 Figurinha",
+    location: "📍 Localização",
+    contacts: "👤 Contato",
+    interactive: "Resposta interativa",
+    button: "Resposta de botão",
+  };
+  return map[type] ?? `[${type || "mensagem"}]`;
+}
+
+function cloudMessageCreatedAt(msg: any): string {
+  const raw = Number(msg?.timestamp);
+  if (Number.isFinite(raw) && raw > 0) {
+    const ms = raw > 10_000_000_000 ? raw : raw * 1000;
+    const d = new Date(ms);
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+  return new Date().toISOString();
+}
+
+function mapCloudStatus(status: string | undefined): string | null {
+  const normalized = String(status ?? "").toLowerCase();
+  if (["sent", "delivered", "read", "failed"].includes(normalized)) return normalized;
+  return normalized || null;
 }
