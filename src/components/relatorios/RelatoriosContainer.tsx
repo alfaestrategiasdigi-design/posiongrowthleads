@@ -55,19 +55,39 @@ export default function RelatoriosContainer({ scope, currentTenantId, scopeLabel
   };
 
   return (
-    <div className="min-h-full bg-gradient-to-b from-background via-background to-background/60">
-      <div className="px-4 md:px-6 lg:px-8 pt-5 md:pt-6 pb-4 space-y-4 animate-fade-in">
+    <div data-density={density} className="min-h-full bg-gradient-to-b from-background via-background to-background/60">
+      <div className={`px-4 md:px-6 lg:px-8 ${isCompact ? "pt-3 md:pt-4 pb-3 space-y-3" : "pt-5 md:pt-6 pb-4 space-y-4"} animate-fade-in`}>
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div className="min-w-0">
             <span className="inline-flex items-center gap-1.5 text-[9.5px] uppercase tracking-[0.22em] text-accent/90 border border-accent/30 bg-accent/5 px-2.5 py-0.5 rounded-full mb-2">
               <Sparkles className="w-3 h-3" /> Relatório Consolidado
             </span>
-            <h1 className="text-xl md:text-2xl lg:text-[26px] font-display text-foreground leading-tight">Relatórios</h1>
+            <h1 className={`${isCompact ? "text-lg md:text-xl" : "text-xl md:text-2xl lg:text-[26px]"} font-display text-foreground leading-tight`}>Relatórios</h1>
             <p className="text-muted-foreground text-xs md:text-sm mt-0.5 truncate">
               {scopeLabel} <span className="text-muted-foreground/50">·</span> {periodLabel}
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center rounded-md border border-border/60 bg-card/60 p-0.5" role="group" aria-label="Densidade">
+              <button
+                type="button"
+                onClick={() => setDensity("comfortable")}
+                aria-pressed={!isCompact}
+                title="Modo confortável"
+                className={`inline-flex items-center gap-1 px-2 h-8 rounded text-xs transition-colors ${!isCompact ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <Rows2 className="w-3.5 h-3.5" /> Confortável
+              </button>
+              <button
+                type="button"
+                onClick={() => setDensity("compact")}
+                aria-pressed={isCompact}
+                title="Modo compacto"
+                className={`inline-flex items-center gap-1 px-2 h-8 rounded text-xs transition-colors ${isCompact ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <Rows3 className="w-3.5 h-3.5" /> Compacto
+              </button>
+            </div>
             <Button variant="outline" size="sm" className="gap-2 h-9" disabled={!data || !data.leads.length}
               onClick={() => data && exportLeadsCsv(data.leads, scopeLabel)}>
               <FileSpreadsheet className="w-4 h-4" /> CSV
