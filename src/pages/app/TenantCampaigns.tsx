@@ -86,7 +86,7 @@ export default function TenantCampaigns() {
   const [loading, setLoading] = useState(false);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [activeOnly, setActiveOnly] = useState(true);
-  const [period, setPeriod] = useState<7 | 14 | 30 | 90>(30);
+  const [period, setPeriod] = useState<1 | 7 | 14 | 30 | 90>(30);
   const [reason, setReason] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [crmWins, setCrmWins] = useState<Record<string, { count: number; value: number }>>({});
@@ -221,7 +221,7 @@ export default function TenantCampaigns() {
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
   }, [campaigns]);
 
-  const periodLabel = period === 7 ? "últimos 7 dias" : period === 14 ? "últimos 14 dias" : period === 30 ? "últimos 30 dias" : "últimos 90 dias";
+  const periodLabel = period === 1 ? "hoje" : period === 7 ? "últimos 7 dias" : period === 14 ? "últimos 14 dias" : period === 30 ? "últimos 30 dias" : "últimos 90 dias";
 
   if (tLoading || !tenant) {
     return <div className="p-8 flex items-center gap-2 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
@@ -243,7 +243,7 @@ export default function TenantCampaigns() {
         <div className="flex items-center gap-2 flex-wrap">
           {/* Period selector */}
           <div className="inline-flex rounded-md border border-white/10 bg-background/40 p-0.5">
-            {[7, 14, 30, 90].map((p) => (
+            {[1, 7, 14, 30, 90].map((p) => (
               <button
                 key={p}
                 onClick={() => setPeriod(p as any)}
@@ -251,7 +251,7 @@ export default function TenantCampaigns() {
                   period === p ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {p}d
+                {p === 1 ? "Hoje" : `${p}d`}
               </button>
             ))}
           </div>
