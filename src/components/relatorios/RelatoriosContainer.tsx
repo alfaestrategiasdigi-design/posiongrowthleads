@@ -1,12 +1,15 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format, subDays } from "date-fns";
-import { Loader2, FileDown, FileSpreadsheet, Sparkles } from "lucide-react";
+import { Loader2, FileDown, FileSpreadsheet, Sparkles, Rows3, Rows2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRelatorioData } from "@/hooks/useRelatorioData";
 import FiltersBar from "./FiltersBar";
 import KpiSummary from "./KpiSummary";
 import FunilVisual from "./FunilVisual";
 import ChartsGrid from "./ChartsGrid";
+
+type Density = "compact" | "comfortable";
+const DENSITY_KEY = "relatorios.density";
 import LeadsDetailTable from "./LeadsDetailTable";
 import { exportLeadsCsv } from "./export/exportToCsv";
 import { exportRelatorioPdf } from "./export/exportToPdf";
