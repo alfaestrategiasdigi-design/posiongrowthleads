@@ -81,11 +81,23 @@ export default function NodeEditorPanel({ node, onChange, onClose, onDelete }: P
         )}
 
         {type === "buttons" && (
-          <ButtonsEditor
-            buttons={node.data.buttons || []}
-            onChange={(buttons) => patchData({ buttons })}
-          />
+          <>
+            <div>
+              <Label>Título (opcional)</Label>
+              <Input value={node.data.title || ""} onChange={(e) => patchData({ title: e.target.value })} placeholder="Ex.: Podemos te ajudar?" />
+            </div>
+            <div>
+              <Label>Rodapé (opcional)</Label>
+              <Input value={node.data.footer || ""} onChange={(e) => patchData({ footer: e.target.value })} placeholder="Ex.: Clínica XYZ" />
+            </div>
+            <ButtonsEditor
+              buttons={node.data.buttons || []}
+              onChange={(buttons) => patchData({ buttons })}
+            />
+            <p className="text-[10px] text-muted-foreground">O fluxo pausa aqui e retoma quando o contato clicar em um botão. Ligue arestas partindo deste nó — a ordem das arestas segue a ordem dos botões.</p>
+          </>
         )}
+
 
         {type === "wait" && (
           <WaitEditor data={node.data} onChange={patchData} />

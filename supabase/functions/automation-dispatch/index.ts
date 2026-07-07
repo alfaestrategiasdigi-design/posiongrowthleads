@@ -91,14 +91,19 @@ async function loadFullContext(tenantId: string | null, ctx: RunContext): Promis
   }
   if (lead) {
     vars.lead = {
-      id: lead.id, nome: lead.nome_completo, whatsapp: lead.whatsapp, email: lead.email,
-      produto: lead.especialidade || lead.facebook_form_name, status: lead.status, origem: lead.origem,
+      id: lead.id,
+      nome: lead.nome_completo || ctx.name || "",
+      whatsapp: lead.whatsapp || ctx.phone || "",
+      email: lead.email || ctx.email || "",
+      produto: lead.especialidade || lead.facebook_form_name,
+      status: lead.status, origem: lead.origem,
       valor: lead.valor_proposta,
     };
     ctx.lead_id = ctx.lead_id ?? lead.id;
   } else {
     vars.lead = { nome: ctx.name ?? "", whatsapp: ctx.phone ?? "", email: ctx.email ?? "" };
   }
+
 
   // Appointment
   if (ctx.appointment_id) {
@@ -160,10 +165,12 @@ async function sendWhatsapp(
       description: data.text || "",
       footer: data.footer || "",
       buttons: (data.buttons || []).slice(0, 3).map((b: any, i: number) => ({
-        buttonId: b.id || `btn_${i}`, buttonText: { displayText: b.label || `Botão ${i + 1}` },
-        type: 1,
+        type: "reply",
+        displayText: b.label || `Botão ${i + 1}`,
+        id: b.id || `btn_${i}`,
       })),
     };
+
   } else if (kind === "list") {
     endpoint = `${base}/message/sendList/${inst}`;
     body = {
@@ -251,22 +258,48 @@ async function runFlow(
         }
       } else if (type === "buttons") {
         const text = interpolate(String(d.text || ""), vars);
-        if (dryRun) detail = `enviaria botões: "${text.slice(0, 60)}" [${(d.buttons || []).map((b: any) => b.label).join(", ")}]`;
+        const title = interpolate(String(d.title || ""), vars);
+        const footer = interpolate(String(d.footer || ""), vars);
+        const btns = (d.buttons || []).map((b: any, i: number) => ({
+          id: b.id || `btn_${i}`,
+          label: b.label || `Botão ${i + 1}`,
+        }));
+        // Build button_map: id/label -> target node
+        const outEdges = edges.filter((e) => e.source === node.id);
+        const buttonMap: Record<string, string> = {};
+        btns.forEach((b, i) => {
+          const match = outEdges.find((e) =>
+            (e.sourceHandle || "") === b.id ||
+            (e.sourceHandle || "").toLowerCase() === b.label.toLowerCase() ||
+            (e.label || "").toLowerCase() === b.label.toLowerCase()
+          ) || outEdges[i];
+          if (match) {
+            buttonMap[b.id] = match.target;
+            buttonMap[b.label.toLowerCase()] = match.target;
+          }
+        });
+        if (dryRun) detail = `enviaria botões: "${text.slice(0, 60)}" [${btns.map((b) => b.label).join(", ")}] → ${Object.keys(buttonMap).length / 2} rotas`;
         else {
           const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "buttons", {
-            text, buttons: d.buttons || [], title: d.title, footer: d.footer,
+            text, buttons: btns, title, footer,
           });
-          ok = r.ok; detail = r.ok ? "botões enviados" : `erro: ${r.error}`;
+          ok = r.ok; detail = r.ok ? `botões enviados (${btns.length}, ${Object.keys(buttonMap).length / 2} rotas)` : `erro: ${r.error}`;
         }
-        // buttons implies pause waiting for user click (treated as wait_response)
         if (ok && !dryRun) {
           stop = true;
-          if (execId) await admin.from("automation_executions").update({
-            status: "waiting_response", current_node: node.id, next_node: node.id,
-            updated_at: new Date().toISOString(), steps: [...steps, { at: new Date().toISOString(), node_id: node.id, node_type: type, ok, detail }],
-          }).eq("id", execId);
-          return { status: "waiting_response", steps: [...steps, { at: new Date().toISOString(), node_id: node.id, node_type: type, ok, detail }], execId, next: node.id };
+          const newSteps = [...steps, { at: new Date().toISOString(), node_id: node.id, node_type: type, ok, detail }];
+          if (execId) {
+            // Merge button_map into execution context for resume
+            const { data: currentExec } = await admin.from("automation_executions").select("context").eq("id", execId).maybeSingle();
+            const newContext = { ...((currentExec?.context as any) || ctx), button_map: buttonMap };
+            await admin.from("automation_executions").update({
+              status: "waiting_response", current_node: node.id, next_node: null,
+              context: newContext, updated_at: new Date().toISOString(), steps: newSteps,
+            }).eq("id", execId);
+          }
+          return { status: "waiting_response", steps: newSteps, execId, next: null };
         }
+
       } else if (type === "list") {
         const text = interpolate(String(d.text || ""), vars);
         if (dryRun) detail = `enviaria lista com ${(d.items || []).length} opções`;
@@ -332,22 +365,31 @@ async function runFlow(
         branchHandle = Math.random() < 0.5 ? "a" : "b";
         detail = `split → ${branchHandle}`;
       } else if (type === "kanban_move") {
-        detail = `mover para "${d.value || d.column || ""}"`;
-        if (!dryRun && ctx.lead_id) {
-          const { error } = await admin.from("leads").update({ status: d.value || d.column }).eq("id", ctx.lead_id);
+        const target = interpolate(String(d.value || d.column || ""), vars);
+        const allowed = new Set(["lead","qualificado","reuniao","proposta","negociacao","ganho","perdido"]);
+        detail = `mover para "${target}"`;
+        if (!target || !allowed.has(target.toLowerCase())) {
+          ok = false; detail += ` (status inválido)`;
+        } else if (!dryRun && ctx.lead_id) {
+          const { error } = await admin.from("leads").update({ status: target.toLowerCase() }).eq("id", ctx.lead_id);
           if (error) { ok = false; detail += ` (erro: ${error.message})`; }
+        } else if (!ctx.lead_id) {
+          ok = false; detail += ` (sem lead_id no contexto)`;
         }
       } else if (type === "kanban_create") {
         detail = "criar lead";
         if (!dryRun && tenantId) {
-          const { error } = await admin.from("leads").insert({
-            tenant_id: tenantId, nome_completo: interpolate(d.nome || vars.lead.nome || "Lead", vars),
+          const { data: created, error } = await admin.from("leads").insert({
+            tenant_id: tenantId,
+            nome_completo: interpolate(d.nome || vars.lead.nome || "Lead", vars),
             whatsapp: interpolate(d.whatsapp || vars.lead.whatsapp || "", vars),
             email: interpolate(d.email || vars.lead.email || "", vars),
             status: d.status || "lead", origem: "automation",
-          });
+          }).select("id").maybeSingle();
           if (error) { ok = false; detail += ` (erro: ${error.message})`; }
+          else if (created) { ctx.lead_id = created.id; vars.lead.id = created.id; detail += ` (id ${created.id.slice(0,8)})`; }
         }
+
       } else if (type === "kanban_update") {
         detail = `atualizar ${d.value || d.field}=${d.newValue || ""}`;
         if (!dryRun && ctx.lead_id && d.value) {
@@ -368,25 +410,42 @@ async function runFlow(
       } else if (type === "appointment_create") {
         detail = "criar agendamento";
         if (!dryRun && tenantId) {
-          const when = d.date_time ? new Date(d.date_time).toISOString() : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-          const { error } = await admin.from("appointments").insert({
+          // Accept ISO, "+1d", "+2h", or fallback +24h
+          let when: string;
+          const dt = String(d.date_time || "").trim();
+          const rel = dt.match(/^\+\s*(\d+)\s*([hdm])$/i);
+          if (rel) {
+            const n = Number(rel[1]);
+            const unit = rel[2].toLowerCase();
+            const ms = n * (unit === "d" ? 86400000 : unit === "h" ? 3600000 : 60000);
+            when = new Date(Date.now() + ms).toISOString();
+          } else if (dt) {
+            const parsed = new Date(dt);
+            when = isNaN(parsed.getTime()) ? new Date(Date.now() + 86400000).toISOString() : parsed.toISOString();
+          } else {
+            when = new Date(Date.now() + 86400000).toISOString();
+          }
+          const { data: appt, error } = await admin.from("appointments").insert({
             tenant_id: tenantId, lead_id: ctx.lead_id ?? null,
             client_name: vars.lead.nome || "Paciente",
             client_phone: vars.lead.whatsapp || "",
             date_time: when, duration_minutes: Number(d.duration) || 60,
             appointment_type: d.appointment_type || "consulta",
             procedure: d.procedure || null, status: "agendado",
-          });
+          }).select("id").maybeSingle();
           if (error) { ok = false; detail += ` (erro: ${error.message})`; }
+          else if (appt) { ctx.appointment_id = appt.id; detail += ` (${new Date(when).toLocaleString("pt-BR")})`; }
         }
       } else if (type === "appointment_link") {
         const link = interpolate(String(d.url || ""), vars);
-        detail = `enviaria link ${link}`;
+        const label = interpolate(String(d.text || "Agende sua consulta:"), vars);
+        const text = `${label} ${link}`.trim();
+        detail = `enviaria: "${text.slice(0, 80)}"`;
         if (!dryRun) {
-          const text = interpolate(String(d.text || "Agende sua consulta:") + " " + link, vars);
           const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text });
           ok = r.ok; if (!ok) detail = `erro: ${r.error}`;
         }
+
       } else if (type === "appointment_confirm" || type === "appointment_cancel") {
         const newStatus = type === "appointment_confirm" ? "compareceu" : "cancelado";
         detail = `${type} → ${newStatus}`;
@@ -452,22 +511,40 @@ Deno.serve(async (req) => {
         .eq("status", "waiting_response").ilike("contact_phone", `%${digits.slice(-8)}%`);
       rq = tenantId ? rq.eq("tenant_id", tenantId) : rq.is("tenant_id", null);
       const { data: waiting } = await rq.order("updated_at", { ascending: false }).limit(5);
+      const resumedFlowIds = new Set<string>();
       for (const w of waiting || []) {
         const { data: flow } = await admin.from("automation_flows").select("*").eq("id", w.flow_id).maybeSingle();
         if (!flow) continue;
-        const nextNode = w.next_node || w.current_node;
-        if (!nextNode) continue;
         const edges: FlowEdge[] = flow.edges || [];
-        // Route by button/list label if applicable
-        const candidates = edges.filter((e) => e.source === w.current_node);
-        let start = nextNode;
-        const label = (ctx.text || "").toLowerCase().trim();
-        const matched = candidates.find((e) => (e.label || "").toLowerCase().trim() === label);
-        if (matched) start = matched.target;
-        await runFlow(flow, { ...ctx, lead_id: w.lead_id }, tenantId, false, w.id, start, (w.steps as any) || []);
+        const savedCtx = (w.context as any) || {};
+        const buttonMap: Record<string, string> = savedCtx.button_map || {};
+        const buttonId = String(ctx.button_id || "").toLowerCase();
+        const text = String(ctx.text || "").toLowerCase().trim();
+        let start: string | null = null;
+        // 1) button id from webhook payload
+        if (buttonId && buttonMap[buttonId]) start = buttonMap[buttonId];
+        // 2) button label match (case-insensitive)
+        if (!start && text && buttonMap[text]) start = buttonMap[text];
+        // 3) edge label match
+        if (!start) {
+          const candidates = edges.filter((e) => e.source === w.current_node);
+          const matched = candidates.find((e) => (e.label || "").toLowerCase().trim() === text);
+          if (matched) start = matched.target;
+          else if (w.next_node) start = w.next_node;
+          else if (candidates.length === 1) start = candidates[0].target;
+        }
+        if (!start) continue;
+        resumedFlowIds.add(w.flow_id);
+        await runFlow(flow, { ...savedCtx, ...ctx, lead_id: w.lead_id }, tenantId, false, w.id, start, (w.steps as any) || []);
+      }
+      // If we resumed at least one execution, don't also fire new flows for the same trigger
+      // (avoids re-triggering the same flow when user replies to its buttons).
+      if (resumedFlowIds.size > 0 && !explicitFlowId) {
+        return json({ ok: true, resumed: resumedFlowIds.size });
       }
     }
   }
+
 
   // Find matching flows
   let flowsQ = admin.from("automation_flows").select("*").eq("status", "active");

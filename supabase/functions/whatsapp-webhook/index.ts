@@ -922,13 +922,28 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // Extract button/list selection (Evolution/Baileys formats)
+        const buttonReplyId: string | null =
+          msgObj?.buttonsResponseMessage?.selectedButtonId
+          ?? msgObj?.templateButtonReplyMessage?.selectedId
+          ?? msgObj?.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson
+          ?? null;
+        const buttonReplyText: string =
+          msgObj?.buttonsResponseMessage?.selectedDisplayText
+          ?? msgObj?.templateButtonReplyMessage?.selectedDisplayText
+          ?? msgObj?.listResponseMessage?.title
+          ?? "";
+        const listReplyId: string | null = msgObj?.listResponseMessage?.singleSelectReply?.selectedRowId ?? null;
+
         const text: string = msgObj?.conversation
           ?? msgObj?.extendedTextMessage?.text
           ?? msgObj?.imageMessage?.caption
           ?? msgObj?.videoMessage?.caption
           ?? msgObj?.documentMessage?.caption
+          ?? buttonReplyText
           ?? m?.text
           ?? "";
+
 
         const tipo = msgObj?.imageMessage ? "image"
           : msgObj?.audioMessage ? "audio"
@@ -1145,8 +1160,10 @@ Deno.serve(async (req) => {
                 tenant_id: tenantId,
                 context: {
                   phone, name: pushName || phone, text,
+                  button_id: buttonReplyId || listReplyId || null,
                   conversation_id: conv.id, wamid,
                 },
+
               }),
             }).catch(() => {});
           } catch (_) { /* ignore */ }
