@@ -848,6 +848,95 @@ html { scroll-behavior: smooth; }
   box-shadow: inset 0 1px 0 rgba(232,196,104,0.08);
 }
 
+/* ==========================================================
+   TECH-SHELL PALETTE OVERRIDES
+   Scope: inside .tech-shell (AdminLayout + AppLayout),
+   neutralize legacy tailwind color washes (emerald/violet/
+   cyan/purple/indigo/blue/rose alpha borders, backgrounds,
+   gradients and text) so every card lines up with the
+   premium gold-on-black palette.
+   Keeps solid (no-slash) semantic tones like `bg-emerald-400`
+   or `text-emerald-500` untouched so real status colors
+   still work (green = positive, red = negative).
+   ========================================================== */
+.tech-shell [class*="border-emerald-"],
+.tech-shell [class*="border-violet-"],
+.tech-shell [class*="border-cyan-"],
+.tech-shell [class*="border-purple-"],
+.tech-shell [class*="border-indigo-"],
+.tech-shell [class*="border-blue-"],
+.tech-shell [class*="border-rose-"],
+.tech-shell [class*="border-pink-"],
+.tech-shell [class*="border-teal-"],
+.tech-shell [class*="border-sky-"] {
+  border-color: rgba(232,196,104,0.22) !important;
+}
+
+.tech-shell [class*="bg-violet-500/"],
+.tech-shell [class*="bg-cyan-500/"],
+.tech-shell [class*="bg-purple-500/"],
+.tech-shell [class*="bg-indigo-500/"],
+.tech-shell [class*="bg-blue-500/"],
+.tech-shell [class*="bg-pink-500/"],
+.tech-shell [class*="bg-teal-500/"],
+.tech-shell [class*="bg-sky-500/"] {
+  background: #000 !important;
+  border: 1px solid rgba(232,196,104,0.28) !important;
+}
+
+.tech-shell [class*="text-violet-"],
+.tech-shell [class*="text-cyan-"],
+.tech-shell [class*="text-purple-"],
+.tech-shell [class*="text-indigo-"],
+.tech-shell [class*="text-blue-"],
+.tech-shell [class*="text-pink-"],
+.tech-shell [class*="text-teal-"],
+.tech-shell [class*="text-sky-"] { color: #F5F5F5 !important; }
+
+.tech-shell [class*="text-rose-"] { color: #F87171 !important; }
+
+/* Neutralize gradient washes on card wrappers */
+.tech-shell [class*="from-emerald-"],
+.tech-shell [class*="from-violet-"],
+.tech-shell [class*="from-cyan-"],
+.tech-shell [class*="from-purple-"],
+.tech-shell [class*="from-indigo-"],
+.tech-shell [class*="from-blue-"],
+.tech-shell [class*="from-pink-"],
+.tech-shell [class*="from-teal-"],
+.tech-shell [class*="from-sky-"],
+.tech-shell [class*="from-rose-"] {
+  --tw-gradient-from: rgba(232,196,104,0.06) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(0,0,0,0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+.tech-shell [class*="via-emerald-"],
+.tech-shell [class*="via-violet-"],
+.tech-shell [class*="via-cyan-"],
+.tech-shell [class*="via-purple-"],
+.tech-shell [class*="via-indigo-"],
+.tech-shell [class*="via-blue-"],
+.tech-shell [class*="via-pink-"],
+.tech-shell [class*="via-teal-"],
+.tech-shell [class*="via-sky-"],
+.tech-shell [class*="via-rose-"] {
+  --tw-gradient-via: rgba(232,196,104,0.03) var(--tw-gradient-via-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-via), var(--tw-gradient-to) !important;
+}
+.tech-shell [class*="to-emerald-"],
+.tech-shell [class*="to-violet-"],
+.tech-shell [class*="to-cyan-"],
+.tech-shell [class*="to-purple-"],
+.tech-shell [class*="to-indigo-"],
+.tech-shell [class*="to-blue-"],
+.tech-shell [class*="to-pink-"],
+.tech-shell [class*="to-teal-"],
+.tech-shell [class*="to-sky-"],
+.tech-shell [class*="to-rose-"] {
+  --tw-gradient-to: rgba(0,0,0,0) var(--tw-gradient-to-position) !important;
+}
+
+
 /* ===========================================================
    WHATSAPP INBOX — Black & Gold premium floating layer
    Scoped to `.wa-shell`. No global impact.
