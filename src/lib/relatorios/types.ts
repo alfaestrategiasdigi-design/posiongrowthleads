@@ -48,16 +48,6 @@ export interface AppointmentRow {
   status: string | null;
 }
 
-export interface SaleRow {
-  id: string;
-  tenant_id: string | null;
-  lead_id: string | null;
-  amount: number | null;
-  amount_paid: number | null;
-  amount_pending: number | null;
-  sale_date: string;
-}
-
 export interface InsightRow {
   tenant_id: string | null;
   campaign_id: string | null;
@@ -66,6 +56,15 @@ export interface InsightRow {
   leads: number | null;
   cost_per_lead: number | null;
   date_start: string;
+}
+
+export interface SpendRow {
+  tenant_id: string | null;
+  campaign_id: string | null;
+  campaign_name: string | null;
+  amount_spent: number | null;
+  period_start: string;
+  period_end: string;
 }
 
 export interface Kpis {
@@ -96,8 +95,8 @@ export interface FunilStage {
 export interface RelatorioData {
   leads: LeadRow[];
   appointments: AppointmentRow[];
-  sales: SaleRow[];
   insights: InsightRow[];
+  spend: SpendRow[];
   kpis: Kpis;
   funil: FunilStage[];
   leadsByDay: { date: string; count: number }[];
