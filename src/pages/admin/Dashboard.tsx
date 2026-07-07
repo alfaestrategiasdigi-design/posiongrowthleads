@@ -512,19 +512,21 @@ function KPI({ icon: Icon, label, value, sub }: { icon: any; label: string; valu
   return (
     <div data-no-float className="premium-card rounded-xl p-4">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] uppercase tracking-[0.18em] text-amber-400/70 font-mono">{label}</span>
-        <div className="w-7 h-7 rounded-lg premium-section-icon flex items-center justify-center">
-          <Icon className="w-3.5 h-3.5 text-amber-300" />
+        <span className="text-[10px] uppercase tracking-[0.18em] font-mono" style={{ color: `${PALETTE.gold}b3` }}>{label}</span>
+        <div className="w-7 h-7 rounded-lg premium-kpi-icon flex items-center justify-center">
+          <Icon className="w-3.5 h-3.5 text-white" />
         </div>
       </div>
-      <div className="text-2xl font-bold tabular-nums">{value}</div>
-      {sub && <div className="text-[11px] text-muted-foreground mt-1">{sub}</div>}
+      <div className="text-2xl font-bold tabular-nums text-white">{value}</div>
+      {sub && <div className="text-[11px] mt-1" style={{ color: PALETTE.muted }}>{sub}</div>}
     </div>
   );
 }
 
-/** Sparkline dourado, monocromático, minimalista */
-function Sparkline({ data, width = 92, height = 32 }: { data: number[]; width?: number; height?: number }) {
+/** Sparkline branca por padrão; verde/vermelho quando há semântica de variação */
+function Sparkline({
+  data, width = 92, height = 32, tone = "neutral",
+}: { data: number[]; width?: number; height?: number; tone?: "positive" | "negative" | "neutral" }) {
   if (!data || data.length === 0) return null;
   const max = Math.max(...data, 1);
   const min = Math.min(...data, 0);
@@ -536,20 +538,21 @@ function Sparkline({ data, width = 92, height = 32 }: { data: number[]; width?: 
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(" ");
   const areaPoints = `0,${height} ${points} ${width},${height}`;
-  const gradId = `spark-gold-${Math.random().toString(36).slice(2, 8)}`;
+  const stroke = tone === "negative" ? PALETTE.red : tone === "positive" ? PALETTE.green : PALETTE.white;
+  const gradId = `spark-${Math.random().toString(36).slice(2, 8)}`;
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
       <defs>
         <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="hsl(44 75% 68%)" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="hsl(44 75% 68%)" stopOpacity="0" />
+          <stop offset="0%" stopColor={PALETTE.gold} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={PALETTE.gold} stopOpacity="0" />
         </linearGradient>
       </defs>
       <polygon points={areaPoints} fill={`url(#${gradId})`} />
       <polyline
         points={points}
         fill="none"
-        stroke="hsl(44 75% 60%)"
+        stroke={stroke}
         strokeWidth={1.5}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -567,16 +570,16 @@ function DeltaBadge({ current, previous, isPercent = false }: { current: number;
   }
   const rounded = Math.abs(delta) < 0.05 ? 0 : delta;
   const Icon = rounded > 0 ? ArrowUp : rounded < 0 ? ArrowDown : Minus;
-  const color = rounded > 0 ? "text-emerald-400" : rounded < 0 ? "text-rose-400" : "text-muted-foreground";
+  const color = rounded > 0 ? PALETTE.green : rounded < 0 ? PALETTE.red : PALETTE.mutedDim;
   const sign = rounded > 0 ? "+" : "";
   const label = isPercent
     ? `${sign}${rounded.toFixed(1)} pp`
     : `${sign}${rounded.toFixed(0)}%`;
   return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-mono ${color}`}>
+    <span className="inline-flex items-center gap-1 text-[10px] font-mono" style={{ color }}>
       <Icon className="w-3 h-3" />
       {label}
-      <span className="text-muted-foreground/70">vs. período anterior</span>
+      <span style={{ color: PALETTE.mutedDim }}>vs. período anterior</span>
     </span>
   );
 }
@@ -587,20 +590,22 @@ function MetricCard({
   label: string; value: string; current: number; previous: number; series: number[]; href?: string;
 }) {
   const isPercent = label.toLowerCase().includes("conversão");
+  const delta = isPercent ? current - previous : previous > 0 ? ((current - previous) / previous) * 100 : 0;
+  const tone: "positive" | "negative" | "neutral" = delta > 0.05 ? "positive" : delta < -0.05 ? "negative" : "neutral";
   const inner = (
     <div data-no-float className="premium-card rounded-xl p-4 flex items-center gap-3">
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-amber-400/80 font-mono">{label}</div>
-          {href && <ArrowUpRight className="w-3.5 h-3.5 text-amber-400/60" />}
+          <div className="text-[10px] uppercase tracking-[0.18em] font-mono" style={{ color: `${PALETTE.gold}b3` }}>{label}</div>
+          {href && <ArrowUpRight className="w-3.5 h-3.5" style={{ color: `${PALETTE.gold}99` }} />}
         </div>
-        <div className="text-2xl font-bold text-foreground mt-0.5 tabular-nums">{value}</div>
+        <div className="text-2xl font-bold text-white mt-0.5 tabular-nums">{value}</div>
         <div className="mt-1">
           <DeltaBadge current={current} previous={previous} isPercent={isPercent} />
         </div>
       </div>
       <div className="shrink-0">
-        <Sparkline data={series} />
+        <Sparkline data={series} tone={tone} />
       </div>
     </div>
   );
@@ -611,11 +616,11 @@ function SectionTitle({ icon: Icon, title, subtitle }: { icon: any; title: strin
   return (
     <div className="flex items-center gap-3 mb-4">
       <div className="w-9 h-9 rounded-lg premium-section-icon flex items-center justify-center">
-        <Icon className="w-4 h-4 text-amber-300" />
+        <Icon className="w-4 h-4" style={{ color: PALETTE.gold }} />
       </div>
       <div>
-        <h2 className="text-lg font-bold">{title}</h2>
-        {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+        <h2 className="text-lg font-bold text-white">{title}</h2>
+        {subtitle && <p className="text-xs" style={{ color: PALETTE.muted }}>{subtitle}</p>}
       </div>
     </div>
   );
