@@ -86,7 +86,7 @@ export default function TenantCampaigns() {
   const [loading, setLoading] = useState(false);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [activeOnly, setActiveOnly] = useState(true);
-  const [period, setPeriod] = useState<7 | 14 | 30 | 90>(30);
+  const [period, setPeriod] = useState<1 | 7 | 14 | 30 | 90>(30);
   const [reason, setReason] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [crmWins, setCrmWins] = useState<Record<string, { count: number; value: number }>>({});
