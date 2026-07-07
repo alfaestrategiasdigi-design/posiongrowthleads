@@ -275,9 +275,10 @@ async function runFlow(
     // Find trigger node, or the first node with no incoming edges if the user forgot the trigger.
     const triggerNode = nodes.find((n) => n.type === "trigger") ?? null;
     const incoming = new Set(edges.map((e) => e.target));
-    const entryNode = nodes
-      .filter((n) => n.type !== "end" && !incoming.has(n.id))
-      .sort((a, b) => ((a.position?.y ?? 0) - (b.position?.y ?? 0)) || ((a.position?.x ?? 0) - (b.position?.x ?? 0)))[0] ?? null;
+    const positionedNodes = [...nodes]
+      .filter((n) => n.type !== "end")
+      .sort((a, b) => ((a.position?.y ?? 0) - (b.position?.y ?? 0)) || ((a.position?.x ?? 0) - (b.position?.x ?? 0)));
+    const entryNode = positionedNodes.find((n) => !incoming.has(n.id)) ?? positionedNodes[0] ?? null;
     current = triggerNode ?? entryNode ?? nodes[0] ?? null;
   }
 
