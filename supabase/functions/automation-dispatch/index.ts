@@ -165,10 +165,12 @@ async function sendWhatsapp(
       description: data.text || "",
       footer: data.footer || "",
       buttons: (data.buttons || []).slice(0, 3).map((b: any, i: number) => ({
-        buttonId: b.id || `btn_${i}`, buttonText: { displayText: b.label || `Botão ${i + 1}` },
-        type: 1,
+        type: "reply",
+        displayText: b.label || `Botão ${i + 1}`,
+        id: b.id || `btn_${i}`,
       })),
     };
+
   } else if (kind === "list") {
     endpoint = `${base}/message/sendList/${inst}`;
     body = {
