@@ -57,7 +57,7 @@ const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated }: Props) =
                     <Badge variant="outline" className="text-[10px] uppercase">{lead.stage}</Badge>
                     {lead.origem && <Badge variant="secondary" className="text-[10px]">{lead.origem}</Badge>}
                     <Badge variant="outline" className="text-[10px] uppercase">
-                      {lead.source === "lead" ? "Formulário" : "POSION"}
+                      {lead.source === "lead" ? "Formulário" : "Agência"}
                     </Badge>
                   </div>
                 </div>
