@@ -365,15 +365,6 @@ async function runFlow(
           }
         });
         const buttonsText = buildButtonsTextMessage({ title, text, footer, buttons: btns });
-        if (dryRun) detail = `enviaria opções: "${buttonsText.slice(0, 80)}" [${btns.map((b) => b.displayLabel).join(", ")}] → ${new Set(Object.values(buttonMap)).size} rotas`;
-        else {
-          // Baileys/Evolution often returns success for native interactive buttons but WhatsApp shows
-          // "Aguardando mensagem" instead of rendering the choices. Send a numbered menu as plain text
-          // so the contact always receives a usable choice and the flow can route by number or label.
-          const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text: buttonsText });
-          ok = r.ok; detail = r.ok ? `opções enviadas (${btns.length}, ${new Set(Object.values(buttonMap)).size} rotas)` : `erro: ${r.error}`;
-        }
-        const buttonsText = buildButtonsTextMessage({ title, text, footer, buttons: btns });
         if (dryRun) detail = `enviaria botões: [${btns.map((b) => b.displayLabel).join(", ")}] → ${new Set(Object.values(buttonMap)).size} rotas`;
         else {
           // Try native interactive buttons first. Some WhatsApp accounts / Evolution builds fail
