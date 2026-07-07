@@ -50,6 +50,21 @@ function interpolate(tpl: string, vars: Record<string, any>): string {
   });
 }
 
+function compactText(value: unknown, fallback: string): string {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  return text || fallback;
+}
+
+function buttonDisplayText(value: unknown, fallback: string): string {
+  // WhatsApp quick-reply buttons are very strict; keep labels short and clean.
+  return compactText(value, fallback).slice(0, 20);
+}
+
+function buttonId(value: unknown, fallback: string): string {
+  const safe = String(value ?? "").trim().replace(/[^\w-]/g, "_").slice(0, 64);
+  return safe || fallback;
+}
+
 function normalizeMatch(mode: string, source: string, target: string): boolean {
   if (!target) return false;
   const s = (source || "").toLowerCase().trim();
@@ -159,16 +174,24 @@ async function sendWhatsapp(
     body.text = data.text || "";
   } else if (kind === "buttons") {
     endpoint = `${base}/message/sendButtons/${inst}`;
+    const buttons = (data.buttons || []).slice(0, 3).map((b: any, i: number) => {
+      const displayText = buttonDisplayText(b.displayLabel || b.label, `Botão ${i + 1}`);
+      return {
+        type: "reply",
+        title: displayText,
+        displayText,
+        id: buttonId(b.id, `btn_${i}`),
+      };
+    }).filter((b: any) => b.displayText && b.id);
+    if (buttons.length === 0) return { ok: false, error: "buttons_empty" };
+    const title = compactText(data.title, "Escolha uma opção");
+    const description = compactText(data.text || data.description, title);
     body = {
       number: digits,
-      title: data.title || "",
-      description: data.text || "",
-      footer: data.footer || "",
-      buttons: (data.buttons || []).slice(0, 3).map((b: any, i: number) => ({
-        type: "reply",
-        displayText: b.label || `Botão ${i + 1}`,
-        id: b.id || `btn_${i}`,
-      })),
+      title,
+      description,
+      footer: compactText(data.footer, " "),
+      buttons,
     };
 
   } else if (kind === "list") {
@@ -199,13 +222,16 @@ async function sendWhatsapp(
   }
 
   try {
-    const r = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body) });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) return { ok: false, error: `evolution_${r.status}: ${JSON.stringify(j).slice(0, 200)}` };
+    const r = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(20_000) });
+    const raw = await r.text();
+    let j: any = {};
+    try { j = raw ? JSON.parse(raw) : {}; } catch { j = { raw }; }
+    if (!r.ok) return { ok: false, error: `evolution_${r.status}: ${JSON.stringify(j).slice(0, 300)}` };
     const wamid = j?.key?.id ?? j?.messageId ?? null;
     return { ok: true, wamid };
   } catch (e) {
-    return { ok: false, error: `network: ${String(e).slice(0, 200)}` };
+    const msg = e instanceof DOMException && e.name === "TimeoutError" ? "timeout_20s" : String(e).slice(0, 200);
+    return { ok: false, error: `network: ${msg}` };
   }
 }
 
@@ -233,8 +259,13 @@ async function runFlow(
   if (startNodeId) {
     current = findNode(startNodeId);
   } else {
-    // Find trigger node, or the first node (buttons/message) if the user forgot the trigger.
-    current = nodes.find((n) => n.type === "trigger") ?? nodes[0] ?? null;
+    // Find trigger node, or the first node with no incoming edges if the user forgot the trigger.
+    const triggerNode = nodes.find((n) => n.type === "trigger") ?? null;
+    const incoming = new Set(edges.map((e) => e.target));
+    const entryNode = nodes
+      .filter((n) => n.type !== "end" && !incoming.has(n.id))
+      .sort((a, b) => ((a.position?.y ?? 0) - (b.position?.y ?? 0)) || ((a.position?.x ?? 0) - (b.position?.x ?? 0)))[0] ?? null;
+    current = triggerNode ?? entryNode ?? nodes[0] ?? null;
   }
 
   let count = 0;
@@ -261,8 +292,9 @@ async function runFlow(
         const title = interpolate(String(d.title || ""), vars);
         const footer = interpolate(String(d.footer || ""), vars);
         const btns = (d.buttons || []).map((b: any, i: number) => ({
-          id: b.id || `btn_${i}`,
+          id: buttonId(b.id, `btn_${i}`),
           label: b.label || `Botão ${i + 1}`,
+          displayLabel: buttonDisplayText(b.label, `Botão ${i + 1}`),
         }));
         // Build button_map: id/label -> target node
         const outEdges = edges.filter((e) => e.source === node.id);
@@ -274,16 +306,17 @@ async function runFlow(
             (e.label || "").toLowerCase() === b.label.toLowerCase()
           ) || outEdges[i];
           if (match) {
-            buttonMap[b.id] = match.target;
+            buttonMap[b.id.toLowerCase()] = match.target;
             buttonMap[b.label.toLowerCase()] = match.target;
+            buttonMap[b.displayLabel.toLowerCase()] = match.target;
           }
         });
-        if (dryRun) detail = `enviaria botões: "${text.slice(0, 60)}" [${btns.map((b) => b.label).join(", ")}] → ${Object.keys(buttonMap).length / 2} rotas`;
+        if (dryRun) detail = `enviaria botões: "${text.slice(0, 60)}" [${btns.map((b) => b.displayLabel).join(", ")}] → ${new Set(Object.values(buttonMap)).size} rotas`;
         else {
           const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "buttons", {
             text, buttons: btns, title, footer,
           });
-          ok = r.ok; detail = r.ok ? `botões enviados (${btns.length}, ${Object.keys(buttonMap).length / 2} rotas)` : `erro: ${r.error}`;
+          ok = r.ok; detail = r.ok ? `botões enviados (${btns.length}, ${new Set(Object.values(buttonMap)).size} rotas)` : `erro: ${r.error}`;
         }
         if (ok && !dryRun) {
           stop = true;
@@ -471,6 +504,24 @@ async function runFlow(
     }
 
     steps.push({ at: new Date().toISOString(), node_id: node.id, node_type: type, ok, detail });
+    if (execId && !dryRun) {
+      await admin.from("automation_executions").update({
+        current_node: node.id,
+        steps,
+        updated_at: new Date().toISOString(),
+      }).eq("id", execId);
+    }
+    if (!ok) {
+      if (execId && !dryRun) {
+        await admin.from("automation_executions").update({
+          status: "failed",
+          steps,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", execId);
+      }
+      return { status: "failed", steps, execId };
+    }
     if (stop) break;
 
     // Advance
