@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { RelatorioFilters, LeadRow, AppointmentRow, InsightRow, SpendRow } from "./types";
-import { ADMIN_MASTER_TENANT_ID } from "./constants";
+
 
 const LEAD_FIELDS = `
   id, tenant_id, nome_completo, whatsapp, status, origem, is_organic,
