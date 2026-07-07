@@ -123,7 +123,7 @@ export default function Dashboard() {
     const stageCount: Record<string, number> = {};
     leads.forEach((l) => { stageCount[l.stage] = (stageCount[l.stage] || 0) + 1; });
     const stageData = Object.entries(stageCount).map(([stage, count]) => ({
-      stage: STAGE_LABELS[stage] || stage, count, fill: STAGE_COLORS[stage] || "#888",
+      stage: STAGE_LABELS[stage] || stage, count, fill: stageColor(stage),
     }));
 
     // Origem dos leads (dentro do período)
