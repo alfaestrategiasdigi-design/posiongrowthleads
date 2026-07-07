@@ -84,7 +84,7 @@ export async function fetchRelatorio(
 export async function fetchFilterOptions(scope: "admin" | "tenant", currentTenantId: string | null) {
   const [tenants, users] = await Promise.all([
     scope === "admin"
-      ? supabase.from("tenants").select("id, name").eq("active", true).order("name")
+      ? supabase.from("tenants").select("id, name").order("name")
       : Promise.resolve({ data: [] as any[] }),
     supabase.from("tenant_users").select("user_id, tenants(name)").eq("active", true).limit(500),
   ]);
