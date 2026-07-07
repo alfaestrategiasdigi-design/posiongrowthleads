@@ -809,7 +809,8 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
           {lidPendingCount > 0 && (
             <button
               onClick={() => setLidReviewOpen(true)}
-              className="w-full text-[11px] flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-300 px-2 py-1.5 hover:bg-amber-500/20"
+              className="w-full text-[11px] flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 transition"
+              style={{ borderColor: "rgba(248,113,113,0.4)", background: "rgba(248,113,113,0.08)", color: "#F87171" }}
               title="Conversas com identificador provisório (@lid) aguardando confirmação"
             >
               <span className="flex items-center gap-1.5"><AlertTriangle className="w-3 h-3" /> Revisar conversas @lid</span>
