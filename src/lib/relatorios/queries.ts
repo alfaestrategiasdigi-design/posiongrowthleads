@@ -27,22 +27,35 @@ export async function fetchRelatorio(
   const start = toStartOfDay(filters.from);
   const end = toEndOfDay(filters.to);
 
+  // Se o usuário selecionou contas de anúncio, resolvemos os tenants
+  // correspondentes (campaign_insights.ad_account_id vem NULL, então usamos
+  // o mapeamento em tenant_ad_accounts) e combinamos com o filtro de tenants.
+  let effectiveTenantIds = filters.tenantIds;
+  if (scope === "admin" && filters.adAccountIds.length > 0) {
+    const { data: mapping } = await supabase
+      .from("tenant_ad_accounts")
+      .select("tenant_id")
+      .in("ad_account_id", filters.adAccountIds);
+    const adTenants = Array.from(new Set(((mapping ?? []) as any[]).map((r) => r.tenant_id as string).filter(Boolean)));
+    effectiveTenantIds = filters.tenantIds.length > 0
+      ? filters.tenantIds.filter((t) => adTenants.includes(t))
+      : adTenants;
+    if (effectiveTenantIds.length === 0) {
+      return { leads: [], appointments: [], insights: [], spend: [] };
+    }
+  }
+
   // -------- LEADS --------
   let leadsQ = supabase.from("leads").select(LEAD_FIELDS)
     .gte("created_at", start).lte("created_at", end);
 
-  // Regra Admin Master:
-  //  - se o usuário selecionou explicitamente algum tenant no filtro,
-  //    respeitamos essa lista (Admin Master entra se ele marcou);
-  //  - se NÃO selecionou nada (agregado padrão), excluímos Admin Master
-  //    para não misturar dados internos com o consolidado das clínicas.
-  const adminIncludeMaster = filters.tenantIds.includes(ADMIN_MASTER_TENANT_ID);
+  const adminIncludeMaster = effectiveTenantIds.includes(ADMIN_MASTER_TENANT_ID);
 
   if (scope === "tenant") {
     if (!currentTenantId) return { leads: [], appointments: [], insights: [], spend: [] };
     leadsQ = leadsQ.eq("tenant_id", currentTenantId);
   } else {
-    if (filters.tenantIds.length > 0) leadsQ = leadsQ.in("tenant_id", filters.tenantIds);
+    if (effectiveTenantIds.length > 0) leadsQ = leadsQ.in("tenant_id", effectiveTenantIds);
     else leadsQ = leadsQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
   }
   if (filters.campaigns.length > 0) leadsQ = leadsQ.in("utm_campaign", filters.campaigns);
@@ -59,7 +72,7 @@ export async function fetchRelatorio(
   let apptQ = supabase.from("appointments").select("id, tenant_id, lead_id, date_time, status");
   if (scope === "tenant") apptQ = apptQ.eq("tenant_id", currentTenantId!);
   else {
-    if (filters.tenantIds.length > 0) apptQ = apptQ.in("tenant_id", filters.tenantIds);
+    if (effectiveTenantIds.length > 0) apptQ = apptQ.in("tenant_id", effectiveTenantIds);
     else apptQ = apptQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
   }
   apptQ = apptQ.gte("date_time", start).lte("date_time", end);
@@ -71,22 +84,20 @@ export async function fetchRelatorio(
     .gte("date_start", filters.from).lte("date_start", filters.to);
   if (scope === "tenant") insQ = insQ.eq("tenant_id", currentTenantId!);
   else {
-    if (filters.tenantIds.length > 0) insQ = insQ.in("tenant_id", filters.tenantIds);
+    if (effectiveTenantIds.length > 0) insQ = insQ.in("tenant_id", effectiveTenantIds);
     else insQ = insQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
   }
   if (filters.campaigns.length > 0) insQ = insQ.in("campaign_name", filters.campaigns);
-  if (filters.adAccountIds.length > 0) insQ = insQ.in("ad_account_id", filters.adAccountIds);
   const { data: insights } = await insQ.limit(10000);
 
   // -------- SPEND MANUAL (campaign_spend) --------
-  // Sobreposição de período: period_start <= to AND period_end >= from
   let spendQ = supabase.from("campaign_spend")
     .select("tenant_id, campaign_id, campaign_name, amount_spent, period_start, period_end")
     .lte("period_start", filters.to)
     .gte("period_end", filters.from);
   if (scope === "tenant") spendQ = spendQ.eq("tenant_id", currentTenantId!);
   else {
-    if (filters.tenantIds.length > 0) spendQ = spendQ.in("tenant_id", filters.tenantIds);
+    if (effectiveTenantIds.length > 0) spendQ = spendQ.in("tenant_id", effectiveTenantIds);
     else spendQ = spendQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
   }
   if (filters.campaigns.length > 0) spendQ = spendQ.in("campaign_name", filters.campaigns);
