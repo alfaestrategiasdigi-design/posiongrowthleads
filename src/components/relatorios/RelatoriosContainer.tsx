@@ -74,6 +74,7 @@ export default function RelatoriosContainer({ scope, currentTenantId, scopeLabel
         availableCampaigns={data?.availableCampaigns ?? []}
         availableForms={data?.availableForms ?? []}
         availableOwners={data?.availableOwners ?? []}
+        availableAdAccounts={data?.availableAdAccounts ?? []}
       />
 
       {isLoading && (
