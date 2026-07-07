@@ -34,7 +34,17 @@ export function buildKpis(
   const valorPerdido = leads.filter(l => l.status === "perdido").reduce((s, l) => s + (Number(l.valor_perdido) || 0), 0);
   // Investimento: insights sincronizados + spend manual
   const investimentoInsights = insights.reduce((s, i) => s + (Number(i.spend) || 0), 0);
-  const investimentoManual = spend.reduce((s, x) => s + (Number(x.amount_spent) || 0), 0);
+  // campaign_spend é populado como snapshots diários de janela móvel — a mesma
+  // campanha aparece várias vezes no período. Deduplicamos por campanha
+  // mantendo o snapshot mais recente (period_end) para evitar contagem múltipla.
+  const latestByCampaign = new Map<string, SpendRow>();
+  for (const s of spend) {
+    const key = `${s.tenant_id ?? ""}::${s.campaign_id ?? s.campaign_name ?? ""}`;
+    const cur = latestByCampaign.get(key);
+    if (!cur || (s.period_end ?? "") > (cur.period_end ?? "")) latestByCampaign.set(key, s);
+  }
+  const investimentoManual = Array.from(latestByCampaign.values())
+    .reduce((s, x) => s + (Number(x.amount_spent) || 0), 0);
   const investimento = investimentoInsights + investimentoManual;
   const cpl = total > 0 ? investimento / total : 0;
   const cac = ganhos > 0 ? investimento / ganhos : 0;
