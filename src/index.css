@@ -938,217 +938,219 @@ html { scroll-behavior: smooth; }
 
 
 /* ===========================================================
-   WHATSAPP INBOX — Black & Gold premium floating layer
+   WHATSAPP INBOX — WhatsApp Web-inspired dark theme
+   Palette: deep teal/graphite surfaces + emerald accents,
+   preserving the app's premium finish (subtle gold hairline
+   accents remain via `--wa-accent-warm`).
    Scoped to `.wa-shell`. No global impact.
    =========================================================== */
 .wa-shell {
-  --wa-gold: 44 55% 47%;         /* #C9A227 muted antique gold */
-  --wa-gold-soft: 44 55% 60%;
-  --wa-gold-deep: 44 55% 34%;
-  --wa-bg: #000000;
-  --wa-surface: #0b0b0b;
-  --wa-surface-2: #121212;
-  --wa-surface-3: #171717;
-  --wa-hairline: rgba(201,162,39,0.18);
-  --wa-hairline-strong: rgba(201,162,39,0.42);
+  /* Core surfaces (WhatsApp Web dark) */
+  --wa-bg: #0b141a;
+  --wa-surface: #111b21;      /* sidebar */
+  --wa-surface-2: #202c33;    /* header, search, input */
+  --wa-surface-3: #2a3942;    /* hover / selected */
+  --wa-surface-4: #1f2c33;
+
+  /* Text */
+  --wa-text: #e9edef;
+  --wa-text-strong: #ffffff;
+  --wa-muted: #8696a0;
+  --wa-muted-soft: #667781;
+
+  /* Accents */
+  --wa-accent: 160 100% 33%;      /* #00a884 emerald */
+  --wa-accent-soft: 160 60% 45%;
+  --wa-accent-deep: 165 100% 20%; /* #005c4b out bubble */
+  --wa-accent-warm: 44 55% 55%;   /* subtle gold for premium accents */
+
+  /* Compat aliases (kept so legacy inline styles still render) */
+  --wa-gold: var(--wa-accent);
+  --wa-gold-soft: var(--wa-accent-soft);
+  --wa-gold-deep: var(--wa-accent-deep);
+
+  --wa-hairline: rgba(134,150,160,0.14);
+  --wa-hairline-strong: rgba(0,168,132,0.45);
 
   background: var(--wa-bg);
-  color: #efe9d8;
-  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--wa-text);
+  font-family: 'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif;
 }
-.wa-shell ::selection { background: hsl(var(--wa-gold) / 0.4); color: #fff; }
+.wa-shell ::selection { background: hsl(var(--wa-accent) / 0.45); color: #fff; }
 
 /* Fonts */
-.wa-name    { font-family: 'Fraunces', 'Playfair Display', ui-serif, Georgia, serif; letter-spacing: -0.005em; }
-.wa-mono    { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; font-weight: 400; letter-spacing: 0.01em; }
-.wa-body    { font-family: 'Inter', system-ui, sans-serif; }
+.wa-name { font-family: 'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif; font-weight: 600; letter-spacing: -0.005em; color: var(--wa-text); }
+.wa-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; font-weight: 400; letter-spacing: 0.01em; }
+.wa-body { font-family: 'Inter', system-ui, sans-serif; }
 
 /* Surfaces */
 .wa-panel {
   background: var(--wa-surface);
-  border-right: 1px solid var(--wa-hairline);
+  border-right: 1px solid rgba(0,0,0,0.4);
 }
 .wa-panel-2 {
-  background: var(--wa-surface-2);
-  border-bottom: 1px solid var(--wa-hairline);
+  background: var(--wa-surface);
+  border-bottom: 1px solid rgba(0,0,0,0.35);
 }
 .wa-header-bar {
-  background: linear-gradient(180deg, #0d0d0d, #060606);
-  border-bottom: 1px solid var(--wa-hairline);
+  background: var(--wa-surface-2);
+  border-bottom: 1px solid rgba(0,0,0,0.35);
 }
+/* Chat background: subtle WA doodle pattern over deep graphite */
 .wa-chat-bg {
-  background:
-    radial-gradient(ellipse 60% 40% at 20% 0%, rgba(201,162,39,0.06), transparent 60%),
-    radial-gradient(ellipse 50% 40% at 90% 100%, rgba(201,162,39,0.04), transparent 60%),
-    #000000;
+  background-color: #0b141a;
+  background-image:
+    radial-gradient(ellipse 60% 50% at 20% 0%, rgba(0,168,132,0.05), transparent 60%),
+    radial-gradient(ellipse 40% 40% at 90% 100%, rgba(201,162,39,0.035), transparent 60%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'><g fill='none' stroke='%23ffffff' stroke-opacity='0.025' stroke-width='1'><circle cx='40' cy='40' r='16'/><circle cx='160' cy='90' r='22'/><path d='M20 180 q30 -30 60 0 t60 0'/><path d='M110 30 l14 8 l-14 8 z'/><circle cx='210' cy='200' r='10'/><path d='M60 110 h30 v20 h-30 z'/></g></svg>");
+  background-repeat: no-repeat, no-repeat, repeat;
 }
 
-/* Floating card (conversation item) */
+/* Conversation row (flat, dense — WhatsApp Web style) */
 .wa-card {
   position: relative;
-  background: linear-gradient(180deg, #101010 0%, #0b0b0b 100%);
-  border: 1px solid var(--wa-hairline);
-  border-radius: 10px;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.02) inset,
-    0 8px 20px -14px rgba(0,0,0,0.9);
-  transition: transform 220ms cubic-bezier(.2,.7,.2,1),
-              border-color 220ms ease,
-              box-shadow 220ms ease,
-              background 220ms ease;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding-left: 8px;
+  padding-right: 8px;
+  border-bottom: 1px solid rgba(134,150,160,0.08);
+  transition: background 140ms ease;
 }
 .wa-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--wa-hairline-strong);
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.03) inset,
-    0 18px 32px -18px rgba(0,0,0,0.95),
-    0 0 22px -6px hsl(var(--wa-gold) / 0.28);
+  background: rgba(42,57,66,0.55);
 }
 .wa-card[data-selected="true"] {
-  border-color: hsl(var(--wa-gold) / 0.55);
-  background: linear-gradient(180deg, #141108 0%, #0d0a04 100%);
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.04) inset,
-    0 18px 32px -18px rgba(0,0,0,0.95),
-    0 0 28px -6px hsl(var(--wa-gold) / 0.4);
+  background: var(--wa-surface-3);
 }
 
-/* Message bubbles — subtle depth, distinção por alinhamento + tom (não por saturação) */
+/* Message bubbles — WhatsApp Web green out / graphite in */
 .wa-bubble {
   position: relative;
-  border-radius: 14px;
-  padding: 8px 12px;
-  color: #efe9d8;
-  transition: transform 220ms cubic-bezier(.2,.7,.2,1), border-color 220ms ease;
-  box-shadow: 0 8px 20px -14px rgba(0,0,0,0.8);
+  border-radius: 8px;
+  padding: 6px 10px 8px;
+  color: var(--wa-text);
+  box-shadow: 0 1px 0.5px rgba(0,0,0,0.35);
+  font-size: 14.2px;
+  line-height: 1.4;
 }
-.wa-bubble:hover { transform: translateY(-1px); }
 .wa-bubble-out {
-  background: #1a1712;
-  border: 1px solid rgba(201,162,39,0.32);
-  border-bottom-right-radius: 4px;
-  box-shadow:
-    0 8px 20px -14px rgba(0,0,0,0.85),
-    inset 0 1px 0 rgba(201,162,39,0.12);
+  background: #005c4b;
+  border: none;
+  border-top-right-radius: 0;
 }
-.wa-bubble-out:hover { border-color: rgba(201,162,39,0.5); }
 .wa-bubble-in {
-  background: #0f0f0f;
-  border: 1px solid rgba(201,162,39,0.14);
-  border-bottom-left-radius: 4px;
+  background: var(--wa-surface-2);
+  border: none;
+  border-top-left-radius: 0;
 }
-.wa-bubble-in:hover { border-color: rgba(201,162,39,0.28); }
 
-/* Outlined tag chip (gold hairline, fills when active) */
+/* Tag chip — flat, emerald when active */
 .wa-tag-chip {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 10px;
   padding: 2px 8px;
   border-radius: 999px;
   background: transparent;
-  border: 1px solid var(--wa-hairline-strong);
-  color: hsl(var(--wa-gold-soft));
+  border: 1px solid rgba(134,150,160,0.35);
+  color: var(--wa-muted);
   font-family: 'Inter', sans-serif;
   letter-spacing: 0.01em;
-  transition: background 180ms, color 180ms, border-color 180ms;
+  transition: background 160ms, color 160ms, border-color 160ms;
   white-space: nowrap;
 }
+.wa-tag-chip:hover { color: var(--wa-text); border-color: rgba(0,168,132,0.5); }
 .wa-tag-chip[data-active="true"] {
-  background: var(--wa-tag-color, hsl(var(--wa-gold) / 0.9));
-  color: #0a0a0a;
+  background: var(--wa-tag-color, hsl(var(--wa-accent)));
+  color: #061510;
   border-color: transparent;
   font-weight: 600;
 }
 .wa-tag-chip .wa-tag-dot {
   width: 6px; height: 6px; border-radius: 999px;
-  background: var(--wa-tag-color, hsl(var(--wa-gold)));
-  box-shadow: 0 0 6px var(--wa-tag-color, hsl(var(--wa-gold) / 0.6));
+  background: var(--wa-tag-color, hsl(var(--wa-accent)));
 }
 .wa-tag-chip[data-active="true"] .wa-tag-dot { display: none; }
 
-/* Lead badge */
+/* Lead badge — subtle gold ribbon for premium accent */
 .wa-badge-lead {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 10px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(201,162,39,0.14), rgba(201,162,39,0.06));
-  border: 1px solid var(--wa-hairline-strong);
-  color: hsl(var(--wa-gold-soft));
+  background: rgba(201,162,39,0.10);
+  border: 1px solid rgba(201,162,39,0.35);
+  color: hsl(var(--wa-accent-warm));
   font-family: 'Inter', sans-serif;
 }
 .wa-badge-lead:hover {
-  background: linear-gradient(180deg, rgba(201,162,39,0.22), rgba(201,162,39,0.12));
-  color: #f2dfa1;
+  background: rgba(201,162,39,0.18);
+  color: #f0d78c;
 }
 
-/* Unread pill — gold, mono */
+/* Unread pill — emerald */
 .wa-unread {
   min-width: 20px; height: 18px;
   padding: 0 6px;
   border-radius: 999px;
-  background: linear-gradient(180deg, #d4b356, #a88526);
-  color: #1a1208;
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  background: hsl(var(--wa-accent));
+  color: #061510;
+  font-family: 'Inter', system-ui, sans-serif;
   font-weight: 700;
-  font-size: 10px;
+  font-size: 11px;
   display: inline-flex; align-items: center; justify-content: center;
-  box-shadow: 0 0 12px -2px hsl(var(--wa-gold) / 0.5);
 }
 
 /* Inputs & buttons */
 .wa-input {
-  background: #0e0e0e;
-  border: 1px solid var(--wa-hairline);
-  color: #efe9d8;
-  border-radius: 10px;
-  transition: border-color 180ms, box-shadow 180ms;
+  background: var(--wa-surface-2);
+  border: 1px solid transparent;
+  color: var(--wa-text);
+  border-radius: 8px;
+  transition: border-color 180ms, box-shadow 180ms, background 180ms;
 }
 .wa-input:focus-visible {
-  border-color: hsl(var(--wa-gold) / 0.6);
-  box-shadow: 0 0 0 3px hsl(var(--wa-gold) / 0.15);
+  border-color: hsl(var(--wa-accent) / 0.6);
+  box-shadow: 0 0 0 2px hsl(var(--wa-accent) / 0.18);
   outline: none;
 }
+.wa-input::placeholder { color: var(--wa-muted-soft); }
 
 .wa-icon-btn {
   height: 34px; width: 34px;
-  border-radius: 10px;
-  color: hsl(var(--wa-gold-soft));
+  border-radius: 999px;
+  color: var(--wa-muted);
   background: transparent;
-  border: 1px solid transparent;
+  border: none;
   display: inline-flex; align-items: center; justify-content: center;
-  transition: all 180ms;
+  transition: background 160ms, color 160ms;
 }
 .wa-icon-btn:hover {
-  background: rgba(201,162,39,0.08);
-  border-color: var(--wa-hairline);
-  color: #f2dfa1;
+  background: rgba(134,150,160,0.14);
+  color: var(--wa-text);
 }
 
 .wa-send-btn {
-  background: linear-gradient(180deg, #d4b356, #a88526);
-  color: #1a1208;
-  border: 1px solid rgba(201,162,39,0.7);
+  background: hsl(var(--wa-accent));
+  color: #061510;
+  border: none;
   border-radius: 999px;
-  box-shadow: 0 8px 22px -8px hsl(var(--wa-gold) / 0.55);
-  transition: transform 160ms, box-shadow 160ms;
+  transition: background 160ms, transform 160ms;
 }
 .wa-send-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 26px -8px hsl(var(--wa-gold) / 0.7);
+  background: hsl(var(--wa-accent-soft));
 }
 
 /* "Enviado de outro dispositivo" indicator */
 .wa-otherdev {
   display: inline-flex; align-items: center; gap: 3px;
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   font-size: 9px;
-  color: rgba(26,18,8,0.7);
+  color: rgba(233,237,239,0.75);
   padding: 1px 5px;
   border-radius: 4px;
-  background: rgba(26,18,8,0.10);
-  border: 1px solid rgba(26,18,8,0.15);
+  background: rgba(0,0,0,0.20);
+  border: 1px solid rgba(255,255,255,0.06);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -1156,5 +1158,5 @@ html { scroll-behavior: smooth; }
 /* Divider hairline */
 .wa-hairline {
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--wa-hairline-strong), transparent);
+  background: linear-gradient(90deg, transparent, rgba(134,150,160,0.25), transparent);
 }
