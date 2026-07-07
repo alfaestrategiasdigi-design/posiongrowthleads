@@ -179,7 +179,7 @@ export default function ConexaoWhatsappPage() {
     setSending(true);
     try {
       const { data, error } = await supabase.functions.invoke("whatsapp-cloud-send", {
-        body: { connection_id: conn.id, to, type: "text", text: { body: testMsg } },
+        body: { connection_id: conn.id, to, type: "text", text: testMsg },
       });
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error ?? "Falha ao enviar");

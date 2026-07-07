@@ -27,7 +27,14 @@ Deno.serve(async (req) => {
     );
 
     const body = await req.json();
-    const { connection_id, to, text, template, conversation_id } = body;
+    const { connection_id, to, template, conversation_id } = body;
+    const textBody = typeof body.text === "string"
+      ? body.text
+      : typeof body.text?.body === "string"
+        ? body.text.body
+        : typeof body.body === "string"
+          ? body.body
+          : "";
     if (!connection_id || !to) return json({ error: "connection_id and to required" }, 400);
 
     const { data: conn } = await admin
@@ -59,7 +66,8 @@ Deno.serve(async (req) => {
       payload.template = template; // { name, language: { code }, components: [...] }
     } else {
       payload.type = "text";
-      payload.text = { body: String(text ?? "") };
+      if (!textBody.trim()) return json({ error: "text required" }, 400);
+      payload.text = { body: textBody };
     }
 
     const res = await fetch(`${GRAPH}/${conn.phone_number_id}/messages`, {
@@ -73,20 +81,50 @@ Deno.serve(async (req) => {
     const data = await res.json();
     if (!res.ok) return json({ ok: false, error: data }, res.status);
 
-    // Log outgoing message
-    if (conversation_id) {
+    // Log outgoing message immediately. Webhook status callbacks only carry
+    // delivery/read state, not enough text to reconstruct the bubble later.
+    const toPhone = String(to).replace(/\D/g, "");
+    let convId = conversation_id || null;
+    if (!convId) {
+      let existingQ = admin.from("conversations")
+        .select("id")
+        .eq("telefone", toPhone)
+        .limit(1);
+      existingQ = conn.tenant_id ? existingQ.eq("tenant_id", conn.tenant_id) : existingQ.is("tenant_id", null);
+      const { data: existingConv } = await existingQ.maybeSingle();
+      convId = existingConv?.id ?? null;
+      if (!convId) {
+        const { data: newConv } = await admin.from("conversations").insert({
+          telefone: toPhone,
+          nome_contato: toPhone,
+          ultima_mensagem: textBody || `[template:${template?.name ?? "whatsapp"}]`,
+          ultima_interacao: new Date().toISOString(),
+          nao_lidas: 0,
+          tenant_id: conn.tenant_id,
+          provider: "cloud",
+        }).select("id").single();
+        convId = newConv?.id ?? null;
+      }
+    }
+
+    if (convId) {
+      const wamid = data?.messages?.[0]?.id ?? null;
       await admin.from("messages").insert({
-        conversation_id,
-        sender: "atendente",
-        conteudo: text ?? `[template:${template?.name}]`,
-        tipo: template ? "template" : "text",
+        conversation_id: convId,
+        sender: "usuario",
+        conteudo: textBody || `[template:${template?.name ?? "whatsapp"}]`,
+        tipo: "text",
+        direction: "outbound",
+        status: "sent",
+        wamid,
         lida: true,
         tenant_id: conn.tenant_id,
       });
       await admin.from("conversations").update({
-        ultima_mensagem: text ?? `[template]`,
+        ultima_mensagem: textBody || `[template:${template?.name ?? "whatsapp"}]`,
         ultima_interacao: new Date().toISOString(),
-      }).eq("id", conversation_id);
+        nao_lidas: 0,
+      }).eq("id", convId);
     }
 
     return json({ ok: true, data });
