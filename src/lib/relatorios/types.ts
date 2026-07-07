@@ -51,6 +51,7 @@ export interface AppointmentRow {
 
 export interface InsightRow {
   tenant_id: string | null;
+  ad_account_id: string | null;
   campaign_id: string | null;
   campaign_name: string | null;
   spend: number | null;
