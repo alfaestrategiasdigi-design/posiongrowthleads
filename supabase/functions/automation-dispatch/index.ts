@@ -485,22 +485,40 @@ Deno.serve(async (req) => {
         .eq("status", "waiting_response").ilike("contact_phone", `%${digits.slice(-8)}%`);
       rq = tenantId ? rq.eq("tenant_id", tenantId) : rq.is("tenant_id", null);
       const { data: waiting } = await rq.order("updated_at", { ascending: false }).limit(5);
+      const resumedFlowIds = new Set<string>();
       for (const w of waiting || []) {
         const { data: flow } = await admin.from("automation_flows").select("*").eq("id", w.flow_id).maybeSingle();
         if (!flow) continue;
-        const nextNode = w.next_node || w.current_node;
-        if (!nextNode) continue;
         const edges: FlowEdge[] = flow.edges || [];
-        // Route by button/list label if applicable
-        const candidates = edges.filter((e) => e.source === w.current_node);
-        let start = nextNode;
-        const label = (ctx.text || "").toLowerCase().trim();
-        const matched = candidates.find((e) => (e.label || "").toLowerCase().trim() === label);
-        if (matched) start = matched.target;
-        await runFlow(flow, { ...ctx, lead_id: w.lead_id }, tenantId, false, w.id, start, (w.steps as any) || []);
+        const savedCtx = (w.context as any) || {};
+        const buttonMap: Record<string, string> = savedCtx.button_map || {};
+        const buttonId = String(ctx.button_id || "").toLowerCase();
+        const text = String(ctx.text || "").toLowerCase().trim();
+        let start: string | null = null;
+        // 1) button id from webhook payload
+        if (buttonId && buttonMap[buttonId]) start = buttonMap[buttonId];
+        // 2) button label match (case-insensitive)
+        if (!start && text && buttonMap[text]) start = buttonMap[text];
+        // 3) edge label match
+        if (!start) {
+          const candidates = edges.filter((e) => e.source === w.current_node);
+          const matched = candidates.find((e) => (e.label || "").toLowerCase().trim() === text);
+          if (matched) start = matched.target;
+          else if (w.next_node) start = w.next_node;
+          else if (candidates.length === 1) start = candidates[0].target;
+        }
+        if (!start) continue;
+        resumedFlowIds.add(w.flow_id);
+        await runFlow(flow, { ...savedCtx, ...ctx, lead_id: w.lead_id }, tenantId, false, w.id, start, (w.steps as any) || []);
+      }
+      // If we resumed at least one execution, don't also fire new flows for the same trigger
+      // (avoids re-triggering the same flow when user replies to its buttons).
+      if (resumedFlowIds.size > 0 && !explicitFlowId) {
+        return json({ ok: true, resumed: resumedFlowIds.size });
       }
     }
   }
+
 
   // Find matching flows
   let flowsQ = admin.from("automation_flows").select("*").eq("status", "active");
