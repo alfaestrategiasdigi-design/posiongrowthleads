@@ -284,13 +284,12 @@ export default function Dashboard() {
                 {goalPct.toFixed(1)}% atingido
               </span>
             </div>
-            <div className="mt-1.5 h-1.5 bg-muted/40 rounded-full overflow-hidden">
+            <div className="mt-1.5 h-1.5 bg-white/5 rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all"
                 style={{
                   width: `${goalPct}%`,
-                  background: "linear-gradient(90deg, hsl(44 75% 68%), hsl(40 78% 40%))",
-                  boxShadow: "0 0 10px hsl(44 68% 52% / 0.5)",
+                  background: `linear-gradient(90deg, ${PALETTE.gold}, #B8860B)`,
                 }}
               />
             </div>
@@ -298,15 +297,30 @@ export default function Dashboard() {
 
           <div className="h-32 mt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={timelineData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+              <LineChart data={timelineData} margin={{ top: 6, right: 8, bottom: 0, left: -8 }}>
+                <defs>
+                  <linearGradient id="heroArea" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor={PALETTE.gold} stopOpacity={0.22} />
+                    <stop offset="100%" stopColor={PALETTE.gold} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: PALETTE.mutedDim }} stroke="rgba(255,255,255,0.08)" />
+                <YAxis tick={{ fontSize: 10, fill: PALETTE.mutedDim }} stroke="rgba(255,255,255,0.08)" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip
-                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                  contentStyle={{ background: "#0a0a0a", border: "1px solid rgba(232,196,104,0.28)", borderRadius: 8, fontSize: 12, color: PALETTE.white }}
+                  labelStyle={{ color: PALETTE.muted }}
                   formatter={(v: any) => fmt(v)}
                 />
-                <Line type="monotone" dataKey="receita" stroke="hsl(44 75% 55%)" strokeWidth={2} dot={false} />
+                <Line
+                  type="monotone"
+                  dataKey="receita"
+                  stroke={PALETTE.white}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4, fill: PALETTE.gold, stroke: PALETTE.white, strokeWidth: 1 }}
+                  fill="url(#heroArea)"
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
