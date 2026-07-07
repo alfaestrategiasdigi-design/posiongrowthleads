@@ -58,10 +58,7 @@ export async function fetchRelatorio(
   // -------- APPOINTMENTS --------
   let apptQ = supabase.from("appointments").select("id, tenant_id, lead_id, date_time, status");
   if (scope === "tenant") apptQ = apptQ.eq("tenant_id", currentTenantId!);
-  else {
-    if (filters.tenantIds.length > 0) apptQ = apptQ.in("tenant_id", filters.tenantIds);
-    else apptQ = apptQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
-  }
+  else if (filters.tenantIds.length > 0) apptQ = apptQ.in("tenant_id", filters.tenantIds);
   apptQ = apptQ.gte("date_time", start).lte("date_time", end);
   const { data: appts } = await apptQ.limit(5000);
 
@@ -70,10 +67,7 @@ export async function fetchRelatorio(
     .select("tenant_id, campaign_id, campaign_name, spend, leads, cost_per_lead, date_start")
     .gte("date_start", filters.from).lte("date_start", filters.to);
   if (scope === "tenant") insQ = insQ.eq("tenant_id", currentTenantId!);
-  else {
-    if (filters.tenantIds.length > 0) insQ = insQ.in("tenant_id", filters.tenantIds);
-    else insQ = insQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
-  }
+  else if (filters.tenantIds.length > 0) insQ = insQ.in("tenant_id", filters.tenantIds);
   if (filters.campaigns.length > 0) insQ = insQ.in("campaign_name", filters.campaigns);
   const { data: insights } = await insQ.limit(10000);
 
@@ -84,14 +78,10 @@ export async function fetchRelatorio(
     .lte("period_start", filters.to)
     .gte("period_end", filters.from);
   if (scope === "tenant") spendQ = spendQ.eq("tenant_id", currentTenantId!);
-  else {
-    if (filters.tenantIds.length > 0) spendQ = spendQ.in("tenant_id", filters.tenantIds);
-    else spendQ = spendQ.neq("tenant_id", ADMIN_MASTER_TENANT_ID);
-  }
+  else if (filters.tenantIds.length > 0) spendQ = spendQ.in("tenant_id", filters.tenantIds);
   if (filters.campaigns.length > 0) spendQ = spendQ.in("campaign_name", filters.campaigns);
   const { data: spend } = await spendQ.limit(5000);
 
-  void adminIncludeMaster;
 
   return {
     leads: leadRows,
