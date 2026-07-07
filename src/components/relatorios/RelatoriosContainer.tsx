@@ -24,7 +24,7 @@ export default function RelatoriosContainer({ scope, currentTenantId, scopeLabel
   const [filters, setFilters] = useState<RelatorioFilters>({
     from: format(subDays(new Date(), 29), "yyyy-MM-dd"),
     to: today(),
-    tenantIds: [], campaigns: [], forms: [], ownerIds: [], origem: "all",
+    tenantIds: [], campaigns: [], forms: [], ownerIds: [], adAccountIds: [], origem: "all",
   });
   const [exportingPdf, setExportingPdf] = useState(false);
   const chartsRef = useRef<HTMLDivElement>(null);
