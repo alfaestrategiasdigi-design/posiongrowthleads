@@ -7,6 +7,7 @@ export interface RelatorioFilters {
   campaigns: string[];     // utm_campaign ou facebook_campaign
   forms: string[];         // facebook_form_name
   ownerIds: string[];      // owner_user_id
+  adAccountIds: string[];  // tenant_ad_accounts.ad_account_id
   origem: "all" | "paid" | "organic";
 }
 
