@@ -63,7 +63,8 @@ Deno.serve(async (req) => {
       checks.phone = { ok: phoneRes.ok, data: phoneData };
       if (!phoneRes.ok) throw new Error(`Phone check failed: ${JSON.stringify(phoneData)}`);
 
-      // 2. WABA info (if provided)
+      // 2. WABA info + webhook subscription (if provided)
+      let subscribed = false;
       if (wabaId) {
         const wabaRes = await fetch(`${GRAPH}/${wabaId}?fields=name,currency,timezone_id,message_template_namespace`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -71,28 +72,52 @@ Deno.serve(async (req) => {
         const wabaData = await wabaRes.json();
         checks.waba = { ok: wabaRes.ok, data: wabaData };
 
-        // 3. Subscribed apps (webhook)
-        const subRes = await fetch(`${GRAPH}/${wabaId}/subscribed_apps`, {
+        // 3. Subscribed apps (webhook). If not subscribed yet, try to subscribe
+        // the current Meta app automatically so future inbound/status events hit
+        // whatsapp-cloud-webhook. Historical messages are not replayed by Meta.
+        const beforeSubRes = await fetch(`${GRAPH}/${wabaId}/subscribed_apps`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const subData = await subRes.json();
-        checks.subscribed_apps = { ok: subRes.ok, data: subData };
+        const beforeSubData = await beforeSubRes.json();
+        checks.subscribed_apps_before = { ok: beforeSubRes.ok, data: beforeSubData };
+        subscribed = !!(beforeSubData?.data?.length);
+
+        if (!subscribed) {
+          const subscribeRes = await fetch(`${GRAPH}/${wabaId}/subscribed_apps`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          });
+          const subscribeData = await subscribeRes.json().catch(() => ({}));
+          checks.subscribe_attempt = { ok: subscribeRes.ok, data: subscribeData };
+
+          const afterSubRes = await fetch(`${GRAPH}/${wabaId}/subscribed_apps`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const afterSubData = await afterSubRes.json();
+          checks.subscribed_apps_after = { ok: afterSubRes.ok, data: afterSubData };
+          subscribed = subscribeRes.ok || !!(afterSubData?.data?.length);
+        }
+      } else {
+        checks.subscribed_apps = { ok: false, error: "waba_id ausente" };
       }
 
       const businessName = checks.phone?.data?.verified_name || checks.waba?.data?.name;
       const displayPhone = checks.phone?.data?.display_phone_number;
-      const subscribed = !!(checks.subscribed_apps?.data?.data?.length);
+      const webhookError = subscribed ? null : "Webhook ainda não assinado na Meta: confira Callback URL, Verify Token e campo messages.";
 
       await admin.from("whatsapp_connections").update({
         status: "connected",
         display_phone_number: displayPhone,
         business_account_name: businessName,
         webhook_subscribed: subscribed,
-        last_error: null,
+        last_error: webhookError,
         last_validated_at: new Date().toISOString(),
       }).eq("id", connection_id);
 
-      return json({ ok: true, checks, summary: { displayPhone, businessName, subscribed } });
+      return json({ ok: true, checks, summary: { displayPhone, businessName, subscribed, webhookError } });
     }
 
     if (conn.provider === "zapi") {
