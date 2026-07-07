@@ -15,6 +15,7 @@ interface Props {
   availableCampaigns: string[];
   availableForms: string[];
   availableOwners: { id: string; label: string }[];
+  availableAdAccounts: { id: string; label: string }[];
 }
 
 const PRESETS: Array<{ id: string; label: string; compute: () => { from: string; to: string } }> = [
@@ -76,7 +77,7 @@ function MultiSelect({ label, options, selected, onChange, getKey = (o: any) => 
   );
 }
 
-export default function FiltersBar({ filters, onChange, scope, availableTenants, availableCampaigns, availableForms, availableOwners }: Props) {
+export default function FiltersBar({ filters, onChange, scope, availableTenants, availableCampaigns, availableForms, availableOwners, availableAdAccounts }: Props) {
   const activePreset = useMemo(() => {
     for (const p of PRESETS) {
       const r = p.compute();
@@ -85,7 +86,7 @@ export default function FiltersBar({ filters, onChange, scope, availableTenants,
     return "custom";
   }, [filters.from, filters.to]);
 
-  const hasAny = filters.tenantIds.length + filters.campaigns.length + filters.forms.length + filters.ownerIds.length > 0
+  const hasAny = filters.tenantIds.length + filters.campaigns.length + filters.forms.length + filters.ownerIds.length + filters.adAccountIds.length > 0
     || filters.origem !== "all";
 
   return (
@@ -120,6 +121,12 @@ export default function FiltersBar({ filters, onChange, scope, availableTenants,
               onChange={(v) => onChange({ ...filters, tenantIds: v })}
               getKey={(o) => o.id} getLabel={(o) => o.name} />
           )}
+          {availableAdAccounts.length > 0 && (
+            <MultiSelect label="Conta de anúncio" options={availableAdAccounts}
+              selected={filters.adAccountIds}
+              onChange={(v) => onChange({ ...filters, adAccountIds: v })}
+              getKey={(o) => o.id} getLabel={(o) => o.label} />
+          )}
           <MultiSelect label="Campanha" options={availableCampaigns}
             selected={filters.campaigns} onChange={(v) => onChange({ ...filters, campaigns: v })} />
           <MultiSelect label="Formulário" options={availableForms}
@@ -139,7 +146,7 @@ export default function FiltersBar({ filters, onChange, scope, availableTenants,
 
           {hasAny && (
             <Button size="sm" variant="ghost" className="h-9 text-xs gap-1"
-              onClick={() => onChange({ ...filters, tenantIds: [], campaigns: [], forms: [], ownerIds: [], origem: "all" })}>
+              onClick={() => onChange({ ...filters, tenantIds: [], campaigns: [], forms: [], ownerIds: [], adAccountIds: [], origem: "all" })}>
               <X className="w-3.5 h-3.5" /> Limpar
             </Button>
           )}

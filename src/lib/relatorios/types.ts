@@ -7,6 +7,7 @@ export interface RelatorioFilters {
   campaigns: string[];     // utm_campaign ou facebook_campaign
   forms: string[];         // facebook_form_name
   ownerIds: string[];      // owner_user_id
+  adAccountIds: string[];  // tenant_ad_accounts.ad_account_id
   origem: "all" | "paid" | "organic";
 }
 
@@ -50,6 +51,7 @@ export interface AppointmentRow {
 
 export interface InsightRow {
   tenant_id: string | null;
+  ad_account_id: string | null;
   campaign_id: string | null;
   campaign_name: string | null;
   spend: number | null;
@@ -109,4 +111,5 @@ export interface RelatorioData {
   availableForms: string[];
   availableOwners: { id: string; label: string }[];
   availableTenants: { id: string; name: string }[];
+  availableAdAccounts: { id: string; label: string }[];
 }

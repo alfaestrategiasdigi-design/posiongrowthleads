@@ -11,7 +11,7 @@ export function useRelatorioData(filters: RelatorioFilters, scope: Scope, curren
         fetchRelatorio(filters, scope, currentTenantId),
         fetchFilterOptions(scope, currentTenantId),
       ]);
-      return buildRelatorioData(filters, leads, appointments, insights, spend, opts.tenants);
+      return buildRelatorioData(filters, leads, appointments, insights, spend, opts.tenants, opts.campaigns, opts.forms, opts.adAccounts);
     },
     staleTime: 30_000,
   });
