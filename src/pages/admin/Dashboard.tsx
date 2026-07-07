@@ -16,13 +16,29 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 const fmt = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v || 0);
 
-const STAGE_COLORS: Record<string, string> = {
-  lead: "#64748b", qualificado: "#06b6d4", reuniao: "#6366f1",
-  proposta: "#8b5cf6", negociacao: "#f59e0b", ganho: "#10b981", perdido: "#f43f5e",
+// Paleta oficial do Dashboard — 4 cores
+const PALETTE = {
+  gold: "#E8C468",
+  white: "#F5F5F5",
+  green: "#4ADE80",
+  red: "#F87171",
+  muted: "#A1A1AA",
+  mutedDim: "#71717A",
 };
+
 const STAGE_LABELS: Record<string, string> = {
   lead: "Lead", qualificado: "Qualificado", reuniao: "Reunião",
   proposta: "Proposta", negociacao: "Negociação", ganho: "Ganho", perdido: "Perdido",
+};
+const STAGE_ORDER = ["lead", "qualificado", "reuniao", "proposta", "negociacao", "ganho", "perdido"];
+const stageColor = (stageKey: string): string => {
+  if (stageKey === "ganho") return PALETTE.green;
+  if (stageKey === "perdido") return PALETTE.red;
+  const idx = STAGE_ORDER.indexOf(stageKey);
+  // opacidade 0.45 -> 0.9 conforme avança no funil (0..4)
+  const t = idx >= 0 ? Math.min(4, idx) / 4 : 0;
+  const alpha = 0.45 + t * 0.45;
+  return `rgba(245,245,245,${alpha.toFixed(2)})`;
 };
 
 const ORIGEM_LABELS: Record<string, string> = {
