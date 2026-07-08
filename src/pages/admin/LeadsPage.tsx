@@ -496,6 +496,12 @@ const LeadsPage = () => {
       </div>
 
       <LeadDetailModal lead={selectedLead} open={!!selectedLead} onClose={() => setSelectedLead(null)} />
+      <LeadsReportModal
+        leads={filtered}
+        open={showReport}
+        onClose={() => setShowReport(false)}
+        filtersLabel={`${filtered.length} leads · status: ${statusFilter === "all" ? "todos" : statusFilter} · origem: ${originFilter === "all" ? "todas" : originFilter} · formulário: ${formFilter === "all" ? "todos" : formFilter}${searchQuery ? ` · busca: "${searchQuery}"` : ""}`}
+      />
     </div>
   );
 };
