@@ -13,12 +13,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Play, Pause, FlaskConical } from "lucide-react";
+import { ArrowLeft, Save, Play, Pause, FlaskConical, LayoutGrid } from "lucide-react";
 import { nodeTypes } from "@/components/automations/FlowNodes";
 import NodePalette from "@/components/automations/NodePalette";
 import NodeEditorPanel from "@/components/automations/NodeEditorPanel";
 import { TRIGGERS, type AutomationFlow, type FlowNode, type NodeKind, type TriggerKind } from "@/lib/automations/types";
 import { sanitizeButtonLabel } from "@/lib/automations/buttonLabels";
+import { layoutLR, looksVertical } from "@/lib/automations/layout";
 
 interface Props {
   flowId: string;
@@ -38,8 +39,12 @@ export default function FlowEditor({ flowId, onBack }: Props) {
       if (error || !data) { toast.error("Fluxo não encontrado"); return; }
       const f = data as any as AutomationFlow;
       setFlow(f);
-      setNodes((f.nodes || []).map((n) => ({ id: n.id, type: n.type, position: n.position, data: n.data })));
-      setEdges((f.edges || []).map((e) => ({ id: e.id, source: e.source, target: e.target, label: e.label })));
+      const rawNodes: Node[] = (f.nodes || []).map((n) => ({ id: n.id, type: n.type, position: n.position, data: n.data }));
+      const rawEdges: Edge[] = (f.edges || []).map((e) => ({ id: e.id, source: e.source, target: e.target, label: e.label }));
+      // Migração automática: fluxos antigos em orientação vertical viram LR sem perder as arestas.
+      const migrated = looksVertical(rawNodes, rawEdges) ? layoutLR(rawNodes, rawEdges) : rawNodes;
+      setNodes(migrated);
+      setEdges(rawEdges);
     })();
   }, [flowId]);
 
@@ -52,13 +57,19 @@ export default function FlowEditor({ flowId, onBack }: Props) {
 
   const addNode = (kind: NodeKind, label: string) => {
     const id = crypto.randomUUID().slice(0, 8);
-    const newNode: Node = {
-      id, type: kind,
-      position: { x: 300 + Math.random() * 100, y: 200 + Math.random() * 100 },
-      data: { label },
-    };
+    // Coloca o novo nó à direita do último (fluxo horizontal).
+    const last = nodes[nodes.length - 1];
+    const pos = last
+      ? { x: (last.position?.x ?? 0) + 300, y: (last.position?.y ?? 0) }
+      : { x: 80, y: 120 };
+    const newNode: Node = { id, type: kind, position: pos, data: { label } };
     setNodes((n) => [...n, newNode]);
     setSelectedId(id);
+  };
+
+  const autoLayout = () => {
+    setNodes((ns) => layoutLR(ns, edges));
+    toast.success("Fluxo organizado horizontalmente");
   };
 
   const onNodesChange = useCallback((c: NodeChange[]) => setNodes((n) => applyNodeChanges(c, n)), []);
@@ -173,6 +184,7 @@ export default function FlowEditor({ flowId, onBack }: Props) {
           {flow.status}
         </Badge>
         <div className="ml-auto flex gap-2">
+          <Button size="sm" variant="outline" onClick={autoLayout} className="gap-1"><LayoutGrid className="w-4 h-4" /> Organizar</Button>
           <Button size="sm" variant="outline" onClick={testFlow} disabled={testing} className="gap-1"><FlaskConical className="w-4 h-4" /> {testing ? "Testando…" : "Testar"}</Button>
           <Button size="sm" variant="outline" onClick={toggleStatus} className="gap-1">
             {flow.status === "active" ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -205,6 +217,8 @@ export default function FlowEditor({ flowId, onBack }: Props) {
               onNodeClick={(_, n) => setSelectedId(n.id)}
               onPaneClick={() => setSelectedId(null)}
               fitView
+              panOnScroll
+              panOnScrollMode={"horizontal" as any}
               defaultEdgeOptions={{ style: { stroke: "hsl(220 20% 50%)", strokeWidth: 2 } }}
             >
               <Background gap={20} size={1} color="hsl(220 15% 20%)" />
