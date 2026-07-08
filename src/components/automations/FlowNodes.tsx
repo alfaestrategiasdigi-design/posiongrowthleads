@@ -38,12 +38,12 @@ function Base({
       )}
       style={{ borderColor: color }}
     >
-      {hasTarget && <Handle type="target" position={Position.Top} style={{ background: color }} />}
+      {hasTarget && <Handle type="target" position={Position.Left} style={{ background: color }} />}
       <div className="px-3 py-2 rounded-t-md text-xs font-semibold text-white" style={{ background: color }}>
         {data.label || type}
       </div>
       <div className="p-3 text-xs text-foreground/90">{children}</div>
-      {hasSource && <Handle type="source" position={Position.Bottom} style={{ background: color }} />}
+      {hasSource && <Handle type="source" position={Position.Right} style={{ background: color }} />}
     </div>
   );
 }
