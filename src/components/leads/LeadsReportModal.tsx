@@ -298,7 +298,6 @@ const LeadsReportModal = ({
       head: [["Status", "Qtd", "%"]],
       body: aggregate.byStatus.map(([s, c]) => [STATUS_LABEL[s] ?? s, String(c), `${((c / (aggregate.total || 1)) * 100).toFixed(1)}%`]),
       columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
-      didDrawPage: paintBackground,
     });
     y = (doc as any).lastAutoTable.finalY + 20;
 
@@ -312,7 +311,6 @@ const LeadsReportModal = ({
       head: [["Formulário", "Qtd", "%"]],
       body: aggregate.byForm.map(([f, c]) => [f, String(c), `${((c / (aggregate.total || 1)) * 100).toFixed(1)}%`]),
       columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
-      didDrawPage: paintBackground,
     });
 
     // Um bloco por lead — nova página cada
@@ -388,7 +386,6 @@ const LeadsReportModal = ({
           ...(r.finalStatusAt ? [[`Data ${STATUS_LABEL[l.status]}`, format(new Date(r.finalStatusAt), "dd/MM/yyyy HH:mm", { locale: ptBR })]] : []),
         ],
         columnStyles: { 0: { cellWidth: 160, textColor: MUTED, fontStyle: "bold" }, 1: { textColor: TEXT } },
-        didDrawPage: paintBackground,
       });
       cy = (doc as any).lastAutoTable.finalY + 16;
 
@@ -404,7 +401,6 @@ const LeadsReportModal = ({
           head: [["Pergunta", "Resposta"]],
           body: r.formFields.map(f => [f.label || f.name || "—", stringifyValue(f.value)]),
           columnStyles: { 0: { cellWidth: 220, textColor: MUTED, fontStyle: "bold" }, 1: { textColor: TEXT } },
-          didDrawPage: paintBackground,
         });
         cy = (doc as any).lastAutoTable.finalY + 16;
       }
@@ -427,7 +423,6 @@ const LeadsReportModal = ({
             e.source ?? "—",
           ]),
           columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 120 }, 2: { cellWidth: 120, fontStyle: "bold" } },
-          didDrawPage: paintBackground,
         });
       }
     }
