@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTenant } from "@/hooks/useTenant";
 import { supabase } from "@/integrations/supabase/client";
-import { Check, Sparkles, Loader2, ShieldCheck, FileText, CreditCard, RefreshCw, ExternalLink, Clock, Lock, Users } from "lucide-react";
+import { Check, Sparkles, Loader2, ShieldCheck, FileText, CreditCard, RefreshCw, ExternalLink, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
