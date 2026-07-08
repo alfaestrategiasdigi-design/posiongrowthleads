@@ -410,13 +410,14 @@ async function runFlow(
         }
 
       } else if (type === "list") {
+        // Mesma abordagem do "buttons": envia menu numerado em texto e aguarda resposta.
         const title = interpolate(String(d.title || "Opções"), vars);
         const text = interpolate(String(d.text || d.description || "Escolha uma opção"), vars);
         const footer = interpolate(String(d.footer || ""), vars);
         const items = (d.items || []).map((it: any, i: number) => ({
           id: buttonId(it.id, `row_${i}`),
           label: menuOptionText(it.label, `Opção ${i + 1}`),
-          description: menuOptionText(it.description || it.label || "Toque para selecionar", "Toque para selecionar"),
+          displayLabel: menuOptionText(it.label, `Opção ${i + 1}`),
         }));
         const outEdges = edges.filter((e) => e.source === node.id);
         const listMap: Record<string, string> = {};
@@ -432,24 +433,27 @@ async function runFlow(
             listMap[it.label.toLowerCase()] = match.target;
           }
         });
-        if (dryRun) detail = `enviaria lista com ${items.length} opções → ${new Set(Object.values(listMap)).size} rotas`;
+        const menuText = buildButtonsTextMessage({ title, text, footer, buttons: items });
+        if (dryRun) detail = `enviaria lista numerada (${items.length}) → ${new Set(Object.values(listMap)).size} rotas`;
         else {
-          const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "list", { text, items, title, buttonText: d.buttonText, footer });
+          const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text: menuText });
           ok = r.ok;
-          detail = r.ok ? `lista enviada (${items.length}, ${new Set(Object.values(listMap)).size} rotas)` : `erro: ${r.error}`;
+          detail = r.ok
+            ? `lista numerada enviada (${items.length}, ${new Set(Object.values(listMap)).size} rotas)`
+            : `erro: ${r.error}`;
         }
         if (ok && !dryRun) {
-          const nexts = nextNodeIds(edges, node.id);
+          stop = true;
           const newSteps = [...steps, { at: new Date().toISOString(), node_id: node.id, node_type: type, ok, detail }];
           if (execId) {
             const { data: currentExec } = await admin.from("automation_executions").select("context").eq("id", execId).maybeSingle();
             const newContext = { ...((currentExec?.context as any) || ctx), button_map: listMap };
             await admin.from("automation_executions").update({
-              status: "waiting_response", current_node: node.id, next_node: nexts[0] || null,
+              status: "waiting_response", current_node: node.id, next_node: null,
               context: newContext, updated_at: new Date().toISOString(), steps: newSteps,
             }).eq("id", execId);
           }
-          return { status: "waiting_response", steps: newSteps, execId, next: nexts[0] || null };
+          return { status: "waiting_response", steps: newSteps, execId, next: null };
         }
       } else if (type === "audio") {
         if (dryRun) detail = `enviaria áudio: ${d.url || "(sem url)"}`;
@@ -534,20 +538,33 @@ async function runFlow(
         }
 
       } else if (type === "kanban_update") {
-        detail = `atualizar ${d.value || d.field}=${d.newValue || ""}`;
-        if (!dryRun && ctx.lead_id && d.value) {
-          const patch: any = {}; patch[d.value] = interpolate(String(d.newValue || ""), vars);
+        // Whitelist de campos permitidos para evitar UPDATE em coluna inexistente.
+        const ALLOWED_LEAD_FIELDS = new Set([
+          "nome_completo","whatsapp","email","status","especialidade","origem",
+          "valor_proposta","observacoes","motivo_perda","cidade_estado","nome_empresa",
+          "cnpj","facebook_form_name","utm_campaign","utm_source","utm_medium",
+        ]);
+        const field = String(d.value || d.field || "").trim();
+        detail = `atualizar ${field}=${d.newValue || ""}`;
+        if (!ALLOWED_LEAD_FIELDS.has(field)) {
+          ok = false; detail += ` (campo inválido)`;
+        } else if (!dryRun && ctx.lead_id) {
+          const patch: any = {}; patch[field] = interpolate(String(d.newValue || ""), vars);
           const { error } = await admin.from("leads").update(patch).eq("id", ctx.lead_id);
           if (error) { ok = false; detail += ` (erro: ${error.message})`; }
         }
       } else if (type === "kanban_tag") {
-        detail = `tag: ${d.value || ""}`;
-        if (!dryRun && ctx.lead_id) {
-          const { data: lead } = await admin.from("leads").select("observacoes").eq("id", ctx.lead_id).maybeSingle();
-          const tag = String(d.value || "").trim();
-          if (tag) {
-            const obs = (lead?.observacoes || "") + `\n[tag:${tag}]`;
-            await admin.from("leads").update({ observacoes: obs }).eq("id", ctx.lead_id);
+        const tag = String(d.value || "").trim();
+        detail = `tag: ${tag}`;
+        if (!tag) { ok = false; detail = "tag vazia"; }
+        else if (!dryRun && ctx.lead_id) {
+          const { data: lead } = await admin.from("leads").select("extras").eq("id", ctx.lead_id).maybeSingle();
+          const extras = (lead?.extras as any) || {};
+          const current: string[] = Array.isArray(extras.tags) ? extras.tags : [];
+          if (!current.includes(tag)) {
+            const next = { ...extras, tags: [...current, tag] };
+            const { error } = await admin.from("leads").update({ extras: next }).eq("id", ctx.lead_id);
+            if (error) { ok = false; detail += ` (erro: ${error.message})`; }
           }
         }
       } else if (type === "appointment_create") {
@@ -590,7 +607,7 @@ async function runFlow(
         }
 
       } else if (type === "appointment_confirm" || type === "appointment_cancel") {
-        const newStatus = type === "appointment_confirm" ? "compareceu" : "cancelado";
+        const newStatus = type === "appointment_confirm" ? "confirmado" : "cancelado";
         detail = `${type} → ${newStatus}`;
         if (!dryRun && ctx.appointment_id) {
           await admin.from("appointments").update({ status: newStatus }).eq("id", ctx.appointment_id);
@@ -664,6 +681,19 @@ Deno.serve(async (req) => {
 
   if (!trigger && !explicitFlowId) return json({ error: "trigger_or_flow_id_required" }, 400);
 
+  // Resume path pelo scheduler (nó "Aguardar X horas/dias" cujo wait_until já passou)
+  const resumeExecId: string | null = payload.resume_execution_id ?? null;
+  const startNodeOverride: string | null = payload.start_node ?? null;
+  if (resumeExecId && startNodeOverride && !dryRun) {
+    const { data: exec } = await admin.from("automation_executions").select("*").eq("id", resumeExecId).maybeSingle();
+    if (!exec) return json({ error: "execution_not_found" }, 404);
+    const { data: flow } = await admin.from("automation_flows").select("*").eq("id", exec.flow_id).maybeSingle();
+    if (!flow) return json({ error: "flow_not_found" }, 404);
+    const savedCtx = (exec.context as any) || {};
+    const res = await runFlow(flow, { ...savedCtx, ...ctx, lead_id: exec.lead_id }, exec.tenant_id, false, resumeExecId, startNodeOverride, (exec.steps as any) || []);
+    return json({ ok: true, resumed: 1, ...res });
+  }
+
   // Resume path: incoming message may resume waiting executions
   if (trigger === "message_received" && !dryRun) {
     const digits = onlyDigits(ctx.phone || "");
@@ -680,13 +710,30 @@ Deno.serve(async (req) => {
         const savedCtx = (w.context as any) || {};
         const buttonMap: Record<string, string> = savedCtx.button_map || {};
         const buttonId = String(ctx.button_id || "").toLowerCase();
-        const text = String(ctx.text || "").toLowerCase().trim();
+        const rawText = String(ctx.text || "").trim();
+        const text = rawText.toLowerCase();
         let start: string | null = null;
-        // 1) button id from webhook payload
+        // 1) button id vindo do webhook (interactive nativo, quando existir)
         if (buttonId && buttonMap[buttonId]) start = buttonMap[buttonId];
-        // 2) button label match (case-insensitive)
+        // 2) match exato de rótulo/id
         if (!start && text && buttonMap[text]) start = buttonMap[text];
-        // 3) edge label match
+        // 3) primeiro dígito na resposta ("1", "opção 2", "quero a 3.")
+        if (!start && rawText) {
+          const digitMatch = rawText.match(/\d+/);
+          if (digitMatch && buttonMap[digitMatch[0]]) start = buttonMap[digitMatch[0]];
+        }
+        // 4) fuzzy: qualquer chave (rótulo) contida no texto ou vice-versa, ignorando acentos
+        if (!start && text) {
+          const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+          const nText = norm(rawText);
+          const entries = Object.entries(buttonMap).filter(([k]) => !/^\d+$/.test(k) && k.length >= 3);
+          const hit = entries.find(([k]) => {
+            const nk = norm(k);
+            return nText.includes(nk) || nk.includes(nText);
+          });
+          if (hit) start = hit[1];
+        }
+        // 5) fallback pelas arestas / next_node
         if (!start) {
           const candidates = edges.filter((e) => e.source === w.current_node);
           const matched = candidates.find((e) => (e.label || "").toLowerCase().trim() === text);
