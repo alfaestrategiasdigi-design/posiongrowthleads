@@ -697,13 +697,30 @@ Deno.serve(async (req) => {
         const savedCtx = (w.context as any) || {};
         const buttonMap: Record<string, string> = savedCtx.button_map || {};
         const buttonId = String(ctx.button_id || "").toLowerCase();
-        const text = String(ctx.text || "").toLowerCase().trim();
+        const rawText = String(ctx.text || "").trim();
+        const text = rawText.toLowerCase();
         let start: string | null = null;
-        // 1) button id from webhook payload
+        // 1) button id vindo do webhook (interactive nativo, quando existir)
         if (buttonId && buttonMap[buttonId]) start = buttonMap[buttonId];
-        // 2) button label match (case-insensitive)
+        // 2) match exato de rótulo/id
         if (!start && text && buttonMap[text]) start = buttonMap[text];
-        // 3) edge label match
+        // 3) primeiro dígito na resposta ("1", "opção 2", "quero a 3.")
+        if (!start && rawText) {
+          const digitMatch = rawText.match(/\d+/);
+          if (digitMatch && buttonMap[digitMatch[0]]) start = buttonMap[digitMatch[0]];
+        }
+        // 4) fuzzy: qualquer chave (rótulo) contida no texto ou vice-versa, ignorando acentos
+        if (!start && text) {
+          const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+          const nText = norm(rawText);
+          const entries = Object.entries(buttonMap).filter(([k]) => !/^\d+$/.test(k) && k.length >= 3);
+          const hit = entries.find(([k]) => {
+            const nk = norm(k);
+            return nText.includes(nk) || nk.includes(nText);
+          });
+          if (hit) start = hit[1];
+        }
+        // 5) fallback pelas arestas / next_node
         if (!start) {
           const candidates = edges.filter((e) => e.source === w.current_node);
           const matched = candidates.find((e) => (e.label || "").toLowerCase().trim() === text);
