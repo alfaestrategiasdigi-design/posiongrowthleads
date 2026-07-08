@@ -378,7 +378,21 @@ const LeadsPage = () => {
             {origins.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
         </div>
+        <div className="flex items-center gap-2 bg-card/40 border border-border/60 rounded-full px-3 py-1.5">
+          <Filter className="w-3.5 h-3.5 text-accent" />
+          <select
+            value={formFilter}
+            onChange={e => setFormFilter(e.target.value)}
+            className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer max-w-[220px]"
+          >
+            <option value="all">Todos formulários</option>
+            {availableForms.map(f => (
+              <option key={f.form_id} value={f.form_id}>{f.form_name || `Formulário ${f.form_id}`}</option>
+            ))}
+          </select>
+        </div>
       </div>
+
 
       {/* Tabela */}
       <div className="card-elevated overflow-hidden">
