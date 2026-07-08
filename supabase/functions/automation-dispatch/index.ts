@@ -381,7 +381,7 @@ async function runFlow(
           }
         });
         const buttonsText = buildButtonsTextMessage({ title, text, footer, buttons: btns });
-        if (dryRun) detail = `enviaria botões: [${btns.map((b) => b.displayLabel).join(", ")}] → ${new Set(Object.values(buttonMap)).size} rotas`;
+        if (dryRun) detail = `enviaria menu numerado: [${btns.map((b) => b.displayLabel).join(", ")}] → ${new Set(Object.values(buttonMap)).size} rotas`;
         else {
           // Native interactive buttons are inconsistent across Evolution builds/devices and can
           // render as "Aguardando mensagem". Send a deterministic numbered menu instead.
