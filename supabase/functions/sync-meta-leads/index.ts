@@ -75,29 +75,60 @@ Deno.serve(async (req) => {
   const token = cfg?.user_access_token || cfg?.page_access_token || FB_TOKEN_ENV;
   if (!token) return json({ error: "Token Facebook ausente" }, 400);
 
-  // Discover all lead forms for the page (so we can iterate per-form leads)
-  if (!cfg?.page_id) return json({ error: "page_id não configurado" }, 400);
-  const formsRes = await fetch(`https://graph.facebook.com/v21.0/${cfg.page_id}/leadgen_forms?fields=id,name&limit=100&access_token=${encodeURIComponent(token)}`);
-  const formsJson = await formsRes.json();
-  if (!formsRes.ok) return json({ error: "Falha listando forms", detail: formsJson }, 502);
-  const forms: any[] = formsJson.data ?? [];
+  // Descobre TODAS as páginas configuradas em lead_routing_rules (+ a page do cfg).
+  // Antes só sincronizávamos a page do cfg — leads de outras contas nunca chegavam.
+  const pageIdsSet = new Set<string>();
+  if (cfg?.page_id) pageIdsSet.add(String(cfg.page_id));
+  const { data: routingPages } = await admin
+    .from("lead_routing_rules")
+    .select("page_id")
+    .eq("active", true)
+    .not("page_id", "is", null);
+  for (const r of routingPages ?? []) {
+    if (r.page_id) pageIdsSet.add(String(r.page_id));
+  }
 
-  // ISOLAMENTO ESTRITO: default_tenant_id NÃO é usado como fallback.
-  // Cada lead precisa de uma regra explícita em lead_routing_rules.
+  // Busca page access tokens do usuário (necessário p/ ler leads de cada page).
+  const pageTokens: Record<string, string> = {};
+  try {
+    let accUrl = `https://graph.facebook.com/v21.0/me/accounts?fields=id,access_token&limit=100&access_token=${encodeURIComponent(token)}`;
+    while (accUrl) {
+      const ar = await fetch(accUrl);
+      const aj = await ar.json();
+      if (!ar.ok) break;
+      for (const p of (aj.data ?? [])) {
+        if (p?.id && p?.access_token) pageTokens[String(p.id)] = String(p.access_token);
+      }
+      accUrl = aj?.paging?.next ?? "";
+    }
+  } catch { /* segue com token do usuário */ }
+
   const adAccountId: string | null = (cfg as any)?.ad_account_id ?? null;
-  const pageId: string | null = (cfg as any)?.page_id ?? null;
   let inserted = 0, deduped = 0, errors = 0, unrouted = 0;
   const perForm: any[] = [];
+  const pageErrors: any[] = [];
 
-  for (const f of forms) {
-    let url = `https://graph.facebook.com/v21.0/${f.id}/leads?fields=id,created_time,field_data,ad_id,adset_id,campaign_id,form_id&limit=${limitPerPage}&access_token=${encodeURIComponent(token)}`;
-    let pages = 0, fIns = 0, fDup = 0, fErr = 0, fUnr = 0;
-    while (url && pages < maxPages) {
-      pages++;
-      const r = await fetch(url);
-      const j = await r.json();
-      if (!r.ok) { fErr++; errors++; break; }
-      for (const lead of (j.data ?? [])) {
+  for (const pageId of pageIdsSet) {
+    const pageToken = pageTokens[pageId] || cfg?.page_access_token || token;
+    const formsRes = await fetch(`https://graph.facebook.com/v21.0/${pageId}/leadgen_forms?fields=id,name&limit=100&access_token=${encodeURIComponent(pageToken)}`);
+    const formsJson = await formsRes.json();
+    if (!formsRes.ok) {
+      pageErrors.push({ page_id: pageId, error: formsJson });
+      errors++;
+      continue;
+    }
+    const forms: any[] = formsJson.data ?? [];
+
+    for (const f of forms) {
+      let url = `https://graph.facebook.com/v21.0/${f.id}/leads?fields=id,created_time,field_data,ad_id,adset_id,campaign_id,form_id&limit=${limitPerPage}&access_token=${encodeURIComponent(pageToken)}`;
+      let pages = 0, fIns = 0, fDup = 0, fErr = 0, fUnr = 0;
+      while (url && pages < maxPages) {
+        pages++;
+        const r = await fetch(url);
+        const j = await r.json();
+        if (!r.ok) { fErr++; errors++; break; }
+        for (const lead of (j.data ?? [])) {
+
         const fbId = String(lead.id);
         const dup = await admin.from("leads").select("id").eq("facebook_lead_id", fbId).maybeSingle();
         if (dup.data) { fDup++; deduped++; continue; }
