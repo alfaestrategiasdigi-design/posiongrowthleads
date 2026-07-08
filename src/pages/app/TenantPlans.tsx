@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTenant } from "@/hooks/useTenant";
 import { supabase } from "@/integrations/supabase/client";
-import { Check, Sparkles, Loader2, ShieldCheck, FileText, CreditCard, RefreshCw, ExternalLink, Clock, Lock, Users } from "lucide-react";
+import { Check, Sparkles, Loader2, ShieldCheck, FileText, CreditCard, RefreshCw, ExternalLink, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -321,73 +321,8 @@ export default function TenantPlans() {
   );
 }
 
-function TrialGate({ tenant, children }: { tenant: any; children: React.ReactNode }) {
-  const active = !!tenant?.trial_active;
-  const endsAt = tenant?.trial_ends_at ? new Date(tenant.trial_ends_at) : null;
-  const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    if (!active) return;
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, [active]);
-
-  if (!active) return <>{children}</>;
-
-  const diffMs = endsAt ? endsAt.getTime() - now.getTime() : 0;
-  const expired = endsAt ? diffMs <= 0 : false;
-  const totalSec = Math.max(0, Math.floor(diffMs / 1000));
-  const days = Math.floor(totalSec / 86400);
-  const hours = Math.floor((totalSec % 86400) / 3600);
-  const mins = Math.floor((totalSec % 3600) / 60);
-  const secs = totalSec % 60;
-
-  return (
-    <div className="relative">
-      <div className="pointer-events-none select-none blur-md opacity-40" aria-hidden>
-        {children}
-      </div>
-      <div className="absolute inset-0 flex items-center justify-center p-6">
-        <div className="max-w-xl w-full rounded-2xl border border-primary/30 bg-[#0E1730]/95 backdrop-blur-xl p-8 text-center shadow-2xl">
-          <div className="w-14 h-14 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center mx-auto mb-4">
-            <Lock className="w-6 h-6 text-primary" />
-          </div>
-          <div className="text-[10px] uppercase tracking-[0.22em] text-primary/80 font-mono mb-2">Período de teste ativo</div>
-          <h3 className="font-display text-2xl mb-2">
-            {expired ? "Seu período de teste expirou" : "Você está usando o Posion em teste"}
-          </h3>
-          <p className="text-sm text-muted-foreground mb-6">
-            {expired
-              ? "Fale com o suporte Posion para ativar seu plano e continuar aproveitando a plataforma."
-              : "Os planos serão liberados automaticamente ao fim do período de teste. Fale com o suporte se precisar antecipar."}
-          </p>
-
-          {endsAt && (
-            <div className="mb-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-              <Clock className="w-3.5 h-3.5" />
-              {expired ? "Expirado em " : "Expira em "}
-              {endsAt.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
-            </div>
-          )}
-
-          {endsAt && !expired && (
-            <div className="grid grid-cols-4 gap-2 mt-4">
-              {[
-                { v: days, l: "dias" },
-                { v: hours, l: "horas" },
-                { v: mins, l: "min" },
-                { v: secs, l: "seg" },
-              ].map((t) => (
-                <div key={t.l} className="rounded-lg border border-white/10 bg-black/40 py-3">
-                  <div className="font-display text-2xl tabular-nums">{String(t.v).padStart(2, "0")}</div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{t.l}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+function TrialGate({ tenant: _tenant, children }: { tenant: any; children: React.ReactNode }) {
+  // Sempre exibe os planos normalmente — o período de teste não bloqueia mais a seleção.
+  return <>{children}</>;
 }
 
