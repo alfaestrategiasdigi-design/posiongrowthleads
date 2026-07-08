@@ -3,12 +3,15 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Search, Download, Loader2, Phone, Mail, Building2, MapPin, Facebook, Bug,
-  Sparkles, Users, CheckCircle2, Trophy, Flame, Filter, FileText,
+  Sparkles, Users, CheckCircle2, Trophy, Flame, Filter, FileText, Calendar as CalendarIcon, X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 import LeadDetailModal from "@/components/admin/LeadDetailModal";
 import LeadsReportModal from "@/components/leads/LeadsReportModal";
 import type { Lead } from "@/types/admin";
