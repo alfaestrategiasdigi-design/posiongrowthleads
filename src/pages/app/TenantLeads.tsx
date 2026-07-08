@@ -289,6 +289,9 @@ export default function TenantLeads() {
           <Button variant="outline" onClick={handleExportCSV} disabled={filtered.length === 0} className="gap-2 text-sm rounded-full">
             <Download className="w-4 h-4" /> Exportar CSV
           </Button>
+          <Button onClick={() => setShowReport(true)} disabled={filtered.length === 0} className="gap-2 text-sm rounded-full">
+            <FileText className="w-4 h-4" /> Gerar Relatório
+          </Button>
         </div>
       </div>
 
