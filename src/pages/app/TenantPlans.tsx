@@ -18,6 +18,8 @@ const PLAN_META = {
     "Recall automatizado por WhatsApp",
     "Funil de avaliações + relatórios completos",
     "Integração com Meta Ads",
+    "API de Conversão (Meta CAPI) server-side",
+    "Rastreio 100% automático da origem dos leads",
     "Agenda e prontuário",
     "Suporte prioritário",
   ],
