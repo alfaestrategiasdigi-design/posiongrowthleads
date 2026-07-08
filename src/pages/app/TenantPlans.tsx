@@ -1,28 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTenant } from "@/hooks/useTenant";
 import { supabase } from "@/integrations/supabase/client";
-import { Check, Sparkles, Crown, Rocket, Loader2, ShieldCheck, FileText, CreditCard, RefreshCw, ExternalLink, Clock, Lock } from "lucide-react";
+import { Check, Sparkles, Loader2, ShieldCheck, FileText, CreditCard, RefreshCw, ExternalLink, Clock, Lock, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 
-const PLAN_META: Record<string, { icon: any; tagline: string; features: string[] }> = {
-  starter: {
-    icon: Rocket,
-    tagline: "Para clínicas começando a estruturar gestão",
-    features: ["Dashboard de faturamento e metas", "CRM Kanban (até 500 leads/mês)", "WhatsApp integrado (1 número)", "Agenda e prontuário básico", "Suporte por e-mail"],
-  },
-  pro: {
-    icon: Sparkles,
-    tagline: "Operação completa com automação e recall",
-    features: ["Tudo do Starter, sem limite de leads", "Recall automatizado por WhatsApp", "Funil de avaliações + relatórios", "Até 5 usuários", "Integração com Meta Ads", "Suporte prioritário"],
-  },
-  scale: {
-    icon: Crown,
-    tagline: "Para redes e clínicas de alta performance",
-    features: ["Tudo do Pro, usuários ilimitados", "Multi-unidades em um único painel", "API + tokens por unidade", "Agente de IA 24/7", "Onboarding dedicado + CS", "SLA 99,9%"],
-  },
+const REFERENCE_MONTHLY_CENTS = 45000; // R$ 450/mês (valor de referência para ancoragem)
+
+const PLAN_META = {
+  tagline: "Tudo do POSION em um único plano — usuários ilimitados",
+  features: [
+    "Usuários ilimitados",
+    "CRM Kanban sem limite de leads",
+    "WhatsApp integrado",
+    "Recall automatizado por WhatsApp",
+    "Funil de avaliações + relatórios completos",
+    "Integração com Meta Ads",
+    "Agenda e prontuário",
+    "Suporte prioritário",
+  ],
 };
 
 const BRL = (cents: number, cur = "brl") =>
