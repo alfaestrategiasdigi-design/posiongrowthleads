@@ -69,7 +69,7 @@ export interface SpendRow {
 
 export interface SaleRow {
   id: string;
-  tenant_id: string;
+  tenant_id: string | null;
   seller_name: string | null;
   product: string | null;
   procedure_name: string | null;
@@ -79,6 +79,16 @@ export interface SaleRow {
   sale_date: string;
   first_contact_date: string | null;
   patient_id: string | null;
+}
+
+export interface AgencyContractRow {
+  id: string;
+  agency_lead_id: string | null;
+  tenant_id: string | null;
+  cliente_nome: string;
+  valor_total: number;
+  data_assinatura: string;
+  status: string;
 }
 
 export interface GoalRow {
@@ -138,6 +148,7 @@ export interface RelatorioData {
   insights: InsightRow[];
   spend: SpendRow[];
   sales: SaleRow[];
+  agencyContracts: AgencyContractRow[];
   goals: GoalRow[];
   kpis: Kpis;
   funil: FunilStage[];

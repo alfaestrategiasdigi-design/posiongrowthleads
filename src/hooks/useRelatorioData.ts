@@ -7,11 +7,11 @@ export function useRelatorioData(filters: RelatorioFilters, scope: Scope, curren
   return useQuery({
     queryKey: ["relatorio", scope, currentTenantId, filters],
     queryFn: async () => {
-      const [{ leads, appointments, insights, spend, sales, goals }, opts] = await Promise.all([
+      const [{ leads, appointments, insights, spend, sales, agencyContracts, goals }, opts] = await Promise.all([
         fetchRelatorio(filters, scope, currentTenantId),
         fetchFilterOptions(scope, currentTenantId),
       ]);
-      return buildRelatorioData(filters, leads, appointments, insights, spend, sales, goals, opts.tenants);
+      return buildRelatorioData(filters, leads, appointments, insights, spend, sales, agencyContracts, goals, opts.tenants);
     },
     staleTime: 30_000,
   });

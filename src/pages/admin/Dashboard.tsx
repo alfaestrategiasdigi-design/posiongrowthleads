@@ -63,6 +63,7 @@ interface AgencyLead {
   nome_clinica: string; plano_interesse: string | null;
   origem: string | null; ganho_at: string | null; perdido_motivo: string | null;
   updated_at: string | null;
+  source_lead_id?: string | null;
 }
 interface AgencyContract { id: string; agency_lead_id: string | null; tenant_id: string | null; cliente_nome: string; valor_total: number; data_assinatura: string; status: string }
 interface SaasContract { id: string; tenant_id: string | null; mrr: number; status: string; started_at: string }
@@ -85,16 +86,38 @@ export default function Dashboard() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [l, ac, sc, t] = await Promise.all([
-        supabase.from("agency_leads").select("id,stage,valor_proposta,created_at,updated_at,nome_clinica,plano_interesse,origem,ganho_at,perdido_motivo,tenant_id_criado"),
-        supabase
-          .from("agency_contracts")
-          .select("id,agency_lead_id,tenant_id,cliente_nome,valor_total,data_assinatura,status")
-          .is("tenant_id", null)
-          .order("data_assinatura", { ascending: false }),
+      const [{ data: rules }, sc, t] = await Promise.all([
+        (supabase as any)
+          .from("lead_routing_rules")
+          .select("match_value")
+          .eq("match_type", "form_id")
+          .eq("is_admin_master", true)
+          .eq("active", true),
         supabase.from("saas_contracts").select("id,tenant_id,mrr,status,started_at"),
         supabase.from("tenants").select("id,name,status,created_at"),
       ]);
+      const masterFormIds = (rules ?? []).map((r: any) => String(r.match_value)).filter(Boolean);
+      let masterSourceIds: string[] = [];
+      if (masterFormIds.length > 0) {
+        const { data: srcLeads } = await supabase
+          .from("leads")
+          .select("id")
+          .eq("origem", "facebook_ads")
+          .is("tenant_id", null)
+          .in("facebook_form_id", masterFormIds)
+          .limit(10000);
+        masterSourceIds = (srcLeads ?? []).map((l: any) => l.id).filter(Boolean);
+      }
+      const l = masterSourceIds.length > 0 ? await supabase
+        .from("agency_leads")
+        .select("id,source_lead_id,stage,valor_proposta,created_at,updated_at,nome_clinica,plano_interesse,origem,ganho_at,perdido_motivo,tenant_id_criado")
+        .in("source_lead_id", masterSourceIds) : { data: [] };
+      const agencyLeadIds = ((l.data ?? []) as any[]).map((lead) => lead.id).filter(Boolean);
+      const ac = agencyLeadIds.length > 0 ? await supabase
+        .from("agency_contracts")
+        .select("id,agency_lead_id,tenant_id,cliente_nome,valor_total,data_assinatura,status")
+        .in("agency_lead_id", agencyLeadIds)
+        .order("data_assinatura", { ascending: false }) : { data: [] };
       setLeads((l.data || []) as AgencyLead[]);
       setAgencyContracts((ac.data || []) as AgencyContract[]);
       setSaasContracts((sc.data || []) as SaasContract[]);
@@ -113,7 +136,9 @@ export default function Dashboard() {
   const agency = useMemo(() => {
     const leadsPeriodo = leads.filter((l) => inRange(l.created_at));
     const leadsPrev = leads.filter((l) => inPrev(l.created_at));
-    const emNegociacao = leads.filter((l) => ["proposta", "negociacao"].includes(l.stage));
+    const contractedLeadIds = new Set(agencyContracts.map((c) => c.agency_lead_id).filter(Boolean) as string[]);
+    const kanbanLeads = leads.map((l) => contractedLeadIds.has(l.id) ? { ...l, stage: "ganho" } : l);
+    const emNegociacao = kanbanLeads.filter((l) => ["proposta", "negociacao"].includes(l.stage));
     const contratosPeriodo = agencyContracts.filter((c) => inRange(c.data_assinatura));
     const contratosPrev = agencyContracts.filter((c) => inPrev(c.data_assinatura));
 
@@ -121,7 +146,7 @@ export default function Dashboard() {
     const mrr = saasContracts.filter((s) => s.status === "active").reduce((s, c) => s + Number(c.mrr || 0), 0);
 
     const stageCount: Record<string, number> = {};
-    leads.forEach((l) => { stageCount[l.stage] = (stageCount[l.stage] || 0) + 1; });
+    kanbanLeads.forEach((l) => { stageCount[l.stage] = (stageCount[l.stage] || 0) + 1; });
     const stageData = Object.entries(stageCount).map(([stage, count]) => ({
       stage: STAGE_LABELS[stage] || stage, count, fill: stageColor(stage),
     }));
@@ -160,16 +185,17 @@ export default function Dashboard() {
 
     // Perdas + atividade
     const perdas = leads
+      .map((l) => contractedLeadIds.has(l.id) ? { ...l, stage: "ganho" } : l)
       .filter((l) => l.stage === "perdido" && (l.updated_at ? inRange(l.updated_at) : inRange(l.created_at)))
       .sort((a, b) => (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at))
       .slice(0, 8);
-    const atividade = [...leads]
+    const atividade = [...kanbanLeads]
       .filter((l) => l.updated_at && inRange(l.updated_at))
       .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
       .slice(0, 8);
 
     return {
-      leadsPeriodo: leadsPeriodo.length,
+      leadsPeriodo: leads.length,
       leadsPrev: leadsPrev.length,
       ganhos: contratosPeriodo.length,
       ganhosPrev: contratosPrev.length,
@@ -328,7 +354,7 @@ export default function Dashboard() {
 
         <div className="space-y-3">
           <MetricCard
-            label="Leads (período)"
+            label="Leads no pipeline"
             value={String(agency.leadsPeriodo)}
             current={agency.leadsPeriodo}
             previous={agency.leadsPrev}

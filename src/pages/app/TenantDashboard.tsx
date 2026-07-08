@@ -145,6 +145,7 @@ export default function TenantDashboard() {
       const idx = stageIndex(l.stage);
       if (idx >= 0) for (let i = 0; i <= idx; i++) counts[FUNNEL_ORDER[i]]++;
     }
+    counts.lead = monthLeads.length;
     const top = counts[FUNNEL_ORDER[0]] || 1;
     const chart = FUNNEL_ORDER.map((stage, i) => ({
       stage: FUNNEL_LABELS[stage],

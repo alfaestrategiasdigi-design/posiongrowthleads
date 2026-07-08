@@ -1,7 +1,7 @@
 import { format, parseISO, eachDayOfInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type {
-  LeadRow, AppointmentRow, InsightRow, SpendRow, SaleRow, GoalRow,
+  LeadRow, AppointmentRow, InsightRow, SpendRow, SaleRow, GoalRow, AgencyContractRow,
   Kpis, FunilStage, RelatorioData, RelatorioFilters, RankingItem,
 } from "./types";
 
@@ -26,7 +26,7 @@ function inRange(dateStr: string | null | undefined, from: string, to: string) {
 
 export function buildKpis(
   leads: LeadRow[], appts: AppointmentRow[], insights: InsightRow[], spend: SpendRow[],
-  sales: SaleRow[], goals: GoalRow[], from: string, to: string,
+  sales: SaleRow[], agencyContracts: AgencyContractRow[], goals: GoalRow[], from: string, to: string,
 ): Kpis {
   const total = leads.length;
   const qualificados = leads.filter(l => l.mql || l.sql_qualified || ["qualificado","reuniao_agendada","compareceu","negociacao","ganho"].includes(l.status)).length;
@@ -34,7 +34,8 @@ export function buildKpis(
   const compareceu = appts.filter(a => (a.status ?? "").toLowerCase() === "realizado" || (a.status ?? "").toLowerCase() === "compareceu").length;
   const noShow = appts.filter(a => (a.status ?? "").toLowerCase() === "no_show" || (a.status ?? "").toLowerCase() === "faltou").length;
   const ganhosLeads = leads.filter(l => l.status === "ganho");
-  const ganhos = ganhosLeads.length;
+  const ganhosContratos = agencyContracts.filter(c => c.status !== "cancelado" && c.status !== "encerrado");
+  const ganhos = ganhosContratos.length > 0 ? ganhosContratos.length : ganhosLeads.length;
   const valorGanhoLeads = ganhosLeads.reduce((s, l) => s + (Number(l.valor_proposta) || 0), 0);
   const valorPerdido = leads.filter(l => l.status === "perdido").reduce((s, l) => s + (Number(l.valor_perdido) || 0), 0);
 
@@ -52,8 +53,10 @@ export function buildKpis(
   const cac = ganhos > 0 ? investimento / ganhos : 0;
 
   // ---- Novos KPIs ----
-  const vendasTotal = sales.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-  const vendasQtd = sales.length;
+  const contratosTotal = ganhosContratos.reduce((s, r) => s + (Number(r.valor_total) || 0), 0);
+  const vendasTotalSales = sales.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const vendasTotal = contratosTotal > 0 ? contratosTotal : vendasTotalSales;
+  const vendasQtd = ganhosContratos.length > 0 ? ganhosContratos.length : sales.length;
   const novaVenda = sales
     .filter(r => inRange(r.first_contact_date, from, to))
     .reduce((s, r) => s + (Number(r.amount) || 0), 0);
@@ -109,7 +112,7 @@ export function buildFunil(leads: LeadRow[]): FunilStage[] {
   const RANK: Record<string, number> = { lead: 0, qualificado: 1, reuniao_agendada: 2, compareceu: 3, negociacao: 4, ganho: 5, perdido: -1, no_show: -1 };
   for (const stage of FUNIL_ORDER) {
     const rank = RANK[stage];
-    counts[stage] = leads.filter(l => {
+    counts[stage] = stage === "lead" ? total : leads.filter(l => {
       const r = RANK[l.status] ?? 0;
       return r >= rank && r >= 0;
     }).length;
@@ -326,7 +329,7 @@ export function buildChannelSql(leads: LeadRow[]) {
 export function buildRelatorioData(
   filters: RelatorioFilters,
   leads: LeadRow[], appts: AppointmentRow[], insights: InsightRow[], spend: SpendRow[],
-  sales: SaleRow[], goals: GoalRow[],
+  sales: SaleRow[], agencyContracts: AgencyContractRow[], goals: GoalRow[],
   availableTenants: { id: string; name: string }[],
 ): RelatorioData {
   const availableCampaigns = Array.from(new Set(leads.map(l => l.utm_campaign).filter(Boolean) as string[])).sort();
@@ -336,8 +339,8 @@ export function buildRelatorioData(
   const availableOwners = Array.from(ownersMap.entries()).map(([id, label]) => ({ id, label }));
 
   return {
-    leads, appointments: appts, insights, spend, sales, goals,
-    kpis: buildKpis(leads, appts, insights, spend, sales, goals, filters.from, filters.to),
+    leads, appointments: appts, insights, spend, sales, agencyContracts, goals,
+    kpis: buildKpis(leads, appts, insights, spend, sales, agencyContracts, goals, filters.from, filters.to),
     funil: buildFunil(leads),
     biFunnel: buildBiFunnel(leads),
     leadsByDay: buildLeadsByDay(leads, filters.from, filters.to),
