@@ -483,7 +483,7 @@ const LeadsPage = () => {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={9} className="p-12 text-center text-muted-foreground text-sm">Nenhum lead encontrado com os filtros atuais</td></tr>
+                <tr><td colSpan={10} className="p-12 text-center text-muted-foreground text-sm">Nenhum lead encontrado com os filtros atuais</td></tr>
               )}
             </tbody>
           </table>
