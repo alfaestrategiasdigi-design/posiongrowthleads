@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Loader2, Lock, ShieldCheck } from "lucide-react";
 import { getPostLoginRedirect } from "@/lib/auth/post-login-redirect";
+import { trackView, getFbCookies } from "@/lib/tracking/capi";
 import logoAsset from "@/assets/posion/logo-posion.png.asset.json";
 
 export default function Index() {
@@ -11,6 +12,10 @@ export default function Index() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    // Capture fbclid → _fbc and fire ViewContent (server-side CAPI + Pixel)
+    getFbCookies();
+    trackView({ tenantSlug: "public", contentName: "Central do Cliente" });
+
     let alive = true;
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
