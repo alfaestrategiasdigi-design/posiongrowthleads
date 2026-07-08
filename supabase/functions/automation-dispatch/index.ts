@@ -681,6 +681,19 @@ Deno.serve(async (req) => {
 
   if (!trigger && !explicitFlowId) return json({ error: "trigger_or_flow_id_required" }, 400);
 
+  // Resume path pelo scheduler (nó "Aguardar X horas/dias" cujo wait_until já passou)
+  const resumeExecId: string | null = payload.resume_execution_id ?? null;
+  const startNodeOverride: string | null = payload.start_node ?? null;
+  if (resumeExecId && startNodeOverride && !dryRun) {
+    const { data: exec } = await admin.from("automation_executions").select("*").eq("id", resumeExecId).maybeSingle();
+    if (!exec) return json({ error: "execution_not_found" }, 404);
+    const { data: flow } = await admin.from("automation_flows").select("*").eq("id", exec.flow_id).maybeSingle();
+    if (!flow) return json({ error: "flow_not_found" }, 404);
+    const savedCtx = (exec.context as any) || {};
+    const res = await runFlow(flow, { ...savedCtx, ...ctx, lead_id: exec.lead_id }, exec.tenant_id, false, resumeExecId, startNodeOverride, (exec.steps as any) || []);
+    return json({ ok: true, resumed: 1, ...res });
+  }
+
   // Resume path: incoming message may resume waiting executions
   if (trigger === "message_received" && !dryRun) {
     const digits = onlyDigits(ctx.phone || "");
