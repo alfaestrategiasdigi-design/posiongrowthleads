@@ -65,6 +65,21 @@ export default function KpiSummary({ kpis }: { kpis: Kpis }) {
           <Kpi label="CAC" value={fmtBRL(kpis.cac)} icon={Target} />
         </div>
       </Section>
+
+      <Section title="Financeiro" hint="vendas, meta e custos por conversão">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 md:gap-3">
+          <Kpi label="Vendas" value={fmtBRL(kpis.vendasTotal)} sub={`${fmtNum(kpis.vendasQtd)} venda(s)`} icon={ShoppingCart} tone="good" />
+          <Kpi label="Nova venda" value={fmtBRL(kpis.novaVenda)} sub="1º contato no período" icon={Sparkles} />
+          <Kpi label="Monetização" value={fmtBRL(kpis.monetizacao)} sub="Recompra do mesmo paciente" icon={Repeat} />
+          <Kpi label="Meta" value={fmtBRL(kpis.meta)} sub={kpis.meta > 0 ? `${fmtPct(kpis.vendasTotal / kpis.meta)} atingido` : "Sem meta cadastrada"} icon={Flag} tone="accent" />
+          <Kpi label="Não realizado" value={fmtBRL(kpis.naoRealizado)} sub="Meta − Vendas" icon={TrendingDown} tone={kpis.naoRealizado > 0 ? "bad" : "good"} />
+          <Kpi label="Ticket médio" value={fmtBRL(kpis.ticketMedio)} icon={Wallet} />
+          <Kpi label="CPA" value={fmtBRL(kpis.cpa)} sub="Invest. / vendas" icon={Target} />
+          <Kpi label="CPL" value={fmtBRL(kpis.cpl)} icon={TrendingUp} />
+          <Kpi label="CPMQL" value={fmtBRL(kpis.cpmql)} sub="Invest. / MQL" icon={Percent} />
+          <Kpi label="CPSQL" value={fmtBRL(kpis.cpsql)} sub="Invest. / SQL" icon={Percent} />
+        </div>
+      </Section>
     </div>
   );
 }
