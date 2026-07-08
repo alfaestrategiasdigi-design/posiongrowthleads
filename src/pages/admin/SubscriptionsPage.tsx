@@ -295,8 +295,7 @@ export default function SubscriptionsPage() {
         <Tabs defaultValue="tenants">
           <TabsList className="bg-[#0B1224] border border-white/10">
             <TabsTrigger value="tenants" className="gap-2"><Layers className="w-4 h-4" /> Clínicas</TabsTrigger>
-            <TabsTrigger value="catalog" className="gap-2"><Sparkles className="w-4 h-4" /> Catálogo</TabsTrigger>
-            <TabsTrigger value="invoices" className="gap-2"><FileText className="w-4 h-4" /> Faturas</TabsTrigger>
+            <TabsTrigger value="catalog" className="gap-2"><Sparkles className="w-4 h-4" /> Planos & Faturas</TabsTrigger>
             <TabsTrigger value="mercadopago" className="gap-2"><Settings2 className="w-4 h-4" /> Mercado Pago</TabsTrigger>
           </TabsList>
 
