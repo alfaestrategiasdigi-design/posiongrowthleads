@@ -162,9 +162,24 @@ export default function TenantLeads() {
     return Array.from(set);
   }, [leads]);
 
+  const availableForms = useMemo(() => {
+    const seen = new Map<string, string | null>();
+    for (const l of leads as any[]) {
+      const fid = l.facebook_form_id ? String(l.facebook_form_id) : null;
+      if (fid && !seen.has(fid)) seen.set(fid, l.facebook_form_name ?? null);
+    }
+    return Array.from(seen.entries()).map(([form_id, form_name]) => ({ form_id, form_name }));
+  }, [leads]);
+
   const filtered = leads.filter(l => {
     if (statusFilter !== "all" && l.status !== statusFilter) return false;
     if (originFilter !== "all" && (l.origem || "outro") !== originFilter) return false;
+    if (formFilter !== "all" && String((l as any).facebook_form_id || "") !== formFilter) return false;
+    if (dateFrom || dateTo) {
+      const t = new Date(l.created_at).getTime();
+      if (dateFrom && t < new Date(dateFrom).setHours(0, 0, 0, 0)) return false;
+      if (dateTo && t > new Date(dateTo).setHours(23, 59, 59, 999)) return false;
+    }
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
