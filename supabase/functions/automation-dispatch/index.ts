@@ -410,13 +410,14 @@ async function runFlow(
         }
 
       } else if (type === "list") {
+        // Mesma abordagem do "buttons": envia menu numerado em texto e aguarda resposta.
         const title = interpolate(String(d.title || "Opções"), vars);
         const text = interpolate(String(d.text || d.description || "Escolha uma opção"), vars);
         const footer = interpolate(String(d.footer || ""), vars);
         const items = (d.items || []).map((it: any, i: number) => ({
           id: buttonId(it.id, `row_${i}`),
           label: menuOptionText(it.label, `Opção ${i + 1}`),
-          description: menuOptionText(it.description || it.label || "Toque para selecionar", "Toque para selecionar"),
+          displayLabel: menuOptionText(it.label, `Opção ${i + 1}`),
         }));
         const outEdges = edges.filter((e) => e.source === node.id);
         const listMap: Record<string, string> = {};
@@ -432,24 +433,27 @@ async function runFlow(
             listMap[it.label.toLowerCase()] = match.target;
           }
         });
-        if (dryRun) detail = `enviaria lista com ${items.length} opções → ${new Set(Object.values(listMap)).size} rotas`;
+        const menuText = buildButtonsTextMessage({ title, text, footer, buttons: items });
+        if (dryRun) detail = `enviaria lista numerada (${items.length}) → ${new Set(Object.values(listMap)).size} rotas`;
         else {
-          const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "list", { text, items, title, buttonText: d.buttonText, footer });
+          const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text: menuText });
           ok = r.ok;
-          detail = r.ok ? `lista enviada (${items.length}, ${new Set(Object.values(listMap)).size} rotas)` : `erro: ${r.error}`;
+          detail = r.ok
+            ? `lista numerada enviada (${items.length}, ${new Set(Object.values(listMap)).size} rotas)`
+            : `erro: ${r.error}`;
         }
         if (ok && !dryRun) {
-          const nexts = nextNodeIds(edges, node.id);
+          stop = true;
           const newSteps = [...steps, { at: new Date().toISOString(), node_id: node.id, node_type: type, ok, detail }];
           if (execId) {
             const { data: currentExec } = await admin.from("automation_executions").select("context").eq("id", execId).maybeSingle();
             const newContext = { ...((currentExec?.context as any) || ctx), button_map: listMap };
             await admin.from("automation_executions").update({
-              status: "waiting_response", current_node: node.id, next_node: nexts[0] || null,
+              status: "waiting_response", current_node: node.id, next_node: null,
               context: newContext, updated_at: new Date().toISOString(), steps: newSteps,
             }).eq("id", execId);
           }
-          return { status: "waiting_response", steps: newSteps, execId, next: nexts[0] || null };
+          return { status: "waiting_response", steps: newSteps, execId, next: null };
         }
       } else if (type === "audio") {
         if (dryRun) detail = `enviaria áudio: ${d.url || "(sem url)"}`;
@@ -534,20 +538,33 @@ async function runFlow(
         }
 
       } else if (type === "kanban_update") {
-        detail = `atualizar ${d.value || d.field}=${d.newValue || ""}`;
-        if (!dryRun && ctx.lead_id && d.value) {
-          const patch: any = {}; patch[d.value] = interpolate(String(d.newValue || ""), vars);
+        // Whitelist de campos permitidos para evitar UPDATE em coluna inexistente.
+        const ALLOWED_LEAD_FIELDS = new Set([
+          "nome_completo","whatsapp","email","status","especialidade","origem",
+          "valor_proposta","observacoes","motivo_perda","cidade_estado","nome_empresa",
+          "cnpj","facebook_form_name","utm_campaign","utm_source","utm_medium",
+        ]);
+        const field = String(d.value || d.field || "").trim();
+        detail = `atualizar ${field}=${d.newValue || ""}`;
+        if (!ALLOWED_LEAD_FIELDS.has(field)) {
+          ok = false; detail += ` (campo inválido)`;
+        } else if (!dryRun && ctx.lead_id) {
+          const patch: any = {}; patch[field] = interpolate(String(d.newValue || ""), vars);
           const { error } = await admin.from("leads").update(patch).eq("id", ctx.lead_id);
           if (error) { ok = false; detail += ` (erro: ${error.message})`; }
         }
       } else if (type === "kanban_tag") {
-        detail = `tag: ${d.value || ""}`;
-        if (!dryRun && ctx.lead_id) {
-          const { data: lead } = await admin.from("leads").select("observacoes").eq("id", ctx.lead_id).maybeSingle();
-          const tag = String(d.value || "").trim();
-          if (tag) {
-            const obs = (lead?.observacoes || "") + `\n[tag:${tag}]`;
-            await admin.from("leads").update({ observacoes: obs }).eq("id", ctx.lead_id);
+        const tag = String(d.value || "").trim();
+        detail = `tag: ${tag}`;
+        if (!tag) { ok = false; detail = "tag vazia"; }
+        else if (!dryRun && ctx.lead_id) {
+          const { data: lead } = await admin.from("leads").select("extras").eq("id", ctx.lead_id).maybeSingle();
+          const extras = (lead?.extras as any) || {};
+          const current: string[] = Array.isArray(extras.tags) ? extras.tags : [];
+          if (!current.includes(tag)) {
+            const next = { ...extras, tags: [...current, tag] };
+            const { error } = await admin.from("leads").update({ extras: next }).eq("id", ctx.lead_id);
+            if (error) { ok = false; detail += ` (erro: ${error.message})`; }
           }
         }
       } else if (type === "appointment_create") {
@@ -590,7 +607,7 @@ async function runFlow(
         }
 
       } else if (type === "appointment_confirm" || type === "appointment_cancel") {
-        const newStatus = type === "appointment_confirm" ? "compareceu" : "cancelado";
+        const newStatus = type === "appointment_confirm" ? "confirmado" : "cancelado";
         detail = `${type} → ${newStatus}`;
         if (!dryRun && ctx.appointment_id) {
           await admin.from("appointments").update({ status: newStatus }).eq("id", ctx.appointment_id);
