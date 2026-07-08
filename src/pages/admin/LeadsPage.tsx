@@ -425,8 +425,11 @@ const LeadsPage = () => {
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">{lead.nome_completo}</p>
                           {lead.origem === "facebook_ads" && (
-                            <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                              <Facebook className="w-2.5 h-2.5 text-sky-400" /> Facebook Ads
+                            <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5 truncate" title={(lead as any).facebook_form_name || (lead as any).facebook_form_id || "Facebook Ads"}>
+                              <Facebook className="w-2.5 h-2.5 text-sky-400 shrink-0" />
+                              <span className="truncate">
+                                Facebook Ads{((lead as any).facebook_form_name || (lead as any).facebook_form_id) ? ` · ${(lead as any).facebook_form_name || (lead as any).facebook_form_id}` : ""}
+                              </span>
                             </p>
                           )}
                         </div>
@@ -440,6 +443,20 @@ const LeadsPage = () => {
                     </td>
                     <td className="p-4">
                       {lead.nome_empresa && <p className="text-sm text-foreground flex items-center gap-1.5"><Building2 className="w-3 h-3 text-accent/70" /> {lead.nome_empresa}</p>}
+                    </td>
+                    <td className="p-4">
+                      {(lead as any).facebook_form_name || (lead as any).facebook_form_id ? (
+                        <div className="min-w-0 max-w-[220px]">
+                          <p className="text-xs text-foreground truncate" title={(lead as any).facebook_form_name || ""}>
+                            {(lead as any).facebook_form_name || `Formulário ${(lead as any).facebook_form_id}`}
+                          </p>
+                          {(lead as any).facebook_form_id && (
+                            <p className="text-[10px] text-muted-foreground/70 font-mono truncate">{(lead as any).facebook_form_id}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </td>
                     <td className="p-4">
                       {lead.cidade_estado && <p className="text-sm text-muted-foreground flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {lead.cidade_estado}</p>}
