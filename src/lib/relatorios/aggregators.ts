@@ -134,21 +134,25 @@ export function buildFunil(leads: LeadRow[]): FunilStage[] {
   return stages;
 }
 
-// Funil no formato do BI antigo: LEADS -> LEADS QLF -> RA -> RR -> SQL -> VENDAS
+// Funil baseado nas etapas do Kanban (PIPELINE_STAGES) — progressão cumulativa
 export function buildBiFunnel(leads: LeadRow[]): FunilStage[] {
   const total = leads.length;
-  const qlf = leads.filter(l => l.mql || l.sql_qualified || ["qualificado","reuniao_agendada","compareceu","negociacao","ganho"].includes(l.status)).length;
-  const ra = leads.filter(l => l.reuniao_agendada_em || ["reuniao_agendada","compareceu","negociacao","ganho"].includes(l.status)).length;
-  const rr = leads.filter(l => l.reuniao_realizada_em || ["compareceu","negociacao","ganho"].includes(l.status)).length;
-  const sql = leads.filter(l => l.sql_qualified || ["negociacao","ganho"].includes(l.status)).length;
-  const vendas = leads.filter(l => l.status === "ganho").length;
+  // Ordem progressiva do kanban (perdido/no_show ficam fora do funil de conversão)
+  const order = ["lead", "qualificado", "reuniao_agendada", "compareceu", "negociacao", "ganho"];
+  const rankOf = (s: string) => order.indexOf(s);
+  const countAtOrBeyond = (idx: number) =>
+    leads.filter(l => {
+      const r = rankOf(l.status);
+      return r >= idx;
+    }).length;
+
   const rows = [
-    { id: "leads", label: "Leads", count: total },
-    { id: "leads_qlf", label: "Leads QLF", count: qlf },
-    { id: "ra", label: "RA (R. Agendada)", count: ra },
-    { id: "rr", label: "RR (R. Realizada)", count: rr },
-    { id: "sql", label: "SQL", count: sql },
-    { id: "vendas", label: "Vendas", count: vendas },
+    { id: "lead",             label: "Lead",              count: total },
+    { id: "qualificado",      label: "Qualificado",       count: countAtOrBeyond(1) },
+    { id: "reuniao_agendada", label: "Consulta Agendada", count: countAtOrBeyond(2) },
+    { id: "compareceu",       label: "Compareceu",        count: countAtOrBeyond(3) },
+    { id: "negociacao",       label: "Negociação",        count: countAtOrBeyond(4) },
+    { id: "ganho",            label: "Ganho",             count: countAtOrBeyond(5) },
   ];
   return rows.map((r, i) => {
     const prev = i > 0 ? rows[i - 1].count : null;
