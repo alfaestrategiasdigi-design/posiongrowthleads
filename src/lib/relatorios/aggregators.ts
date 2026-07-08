@@ -93,7 +93,7 @@ export function buildKpis(
     taxaComparecimento: (compareceu + noShow) > 0 ? compareceu / (compareceu + noShow) : 0,
     ganhos,
     taxaConversao: total > 0 ? ganhos / total : 0,
-    valorGanho,
+    valorGanho: vendasTotal > 0 ? vendasTotal : valorGanhoLeads,
     valorPerdido,
     investimento,
     cpl,
