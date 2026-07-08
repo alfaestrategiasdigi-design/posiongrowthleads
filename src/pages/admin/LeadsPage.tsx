@@ -149,6 +149,7 @@ const LeadsPage = () => {
   const filtered = leads.filter(l => {
     if (statusFilter !== "all" && l.status !== statusFilter) return false;
     if (originFilter !== "all" && (l.origem || "outro") !== originFilter) return false;
+    if (formFilter !== "all" && String((l as any).facebook_form_id || "") !== formFilter) return false;
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
