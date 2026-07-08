@@ -192,118 +192,229 @@ const LeadsReportModal = ({
     if (rows.length === 0) return;
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const pageW = doc.internal.pageSize.getWidth();
-    let y = 40;
+    const pageH = doc.internal.pageSize.getHeight();
+    const NAVY: [number, number, number] = [1, 8, 60];
+    const GOLD: [number, number, number] = [201, 162, 39];
+    const DARK: [number, number, number] = [15, 18, 40];
+    const TEXT: [number, number, number] = [230, 232, 240];
+    const MUTED: [number, number, number] = [150, 155, 175];
+    const CARD: [number, number, number] = [26, 30, 55];
+    const CARD_ALT: [number, number, number] = [34, 38, 65];
 
-    // Cabeçalho
-    doc.setFillColor(1, 8, 60);
-    doc.rect(0, 0, pageW, 60, "F");
+    const statusColor = (s: string): [number, number, number] => {
+      switch (s) {
+        case "ganho": return [46, 160, 100];
+        case "perdido": return [200, 60, 80];
+        case "qualificado": return [70, 140, 220];
+        case "reuniao_agendada":
+        case "compareceu": return [130, 90, 220];
+        case "negociacao": return [220, 160, 40];
+        default: return [110, 120, 145];
+      }
+    };
+
+    // Pinta o fundo dark em toda página nova (chamado antes de qualquer conteúdo)
+    const paintBackground = () => {
+      doc.setFillColor(...DARK);
+      doc.rect(0, 0, pageW, pageH, "F");
+    };
+
+    const drawFooter = (pageNum: number, total: number) => {
+      doc.setDrawColor(...GOLD);
+      doc.setLineWidth(0.5);
+      doc.line(40, pageH - 32, pageW - 40, pageH - 32);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(...MUTED);
+      doc.text("Relatório de Leads · POSION", 40, pageH - 18);
+      doc.text(`Página ${pageNum} de ${total}`, pageW - 40, pageH - 18, { align: "right" });
+    };
+
+    // Página 1 — capa/resumo
+    paintBackground();
+    doc.setFillColor(...NAVY);
+    doc.rect(0, 0, pageW, 90, "F");
+    doc.setDrawColor(...GOLD);
+    doc.setLineWidth(1);
+    doc.line(0, 90, pageW, 90);
+
+    doc.setTextColor(...GOLD);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text("RELATÓRIO", 40, 32);
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
-    doc.text("Relatório de Leads", 40, 30);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text("Relatório de Leads", 40, 58);
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.text(`Gerado em ${format(new Date(), "dd/MM/yyyy HH:mm", { locale: ptBR })}  ·  ${filtersLabel}`, 40, 48);
+    doc.setTextColor(...MUTED);
+    doc.text(`Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, 40, 76);
 
-    y = 90;
-    doc.setTextColor(20, 20, 20);
-    doc.setFontSize(11);
-    doc.text("Resumo geral", 40, y);
-    y += 6;
+    // Filtros aplicados
+    doc.setTextColor(...TEXT);
+    doc.setFontSize(9);
+    const filtroLines = doc.splitTextToSize(filtersLabel, pageW - 80);
+    doc.text(filtroLines, 40, 112);
 
-    autoTable(doc, {
-      startY: y + 4,
-      theme: "grid",
-      styles: { fontSize: 9, cellPadding: 4 },
-      headStyles: { fillColor: [1, 8, 60], textColor: 255 },
-      head: [["Métrica", "Valor"]],
-      body: [
-        ["Total de leads", String(aggregate.total)],
-        ["Parados > 5 dias", String(aggregate.stuckCount)],
-        ["Ganhos", String(aggregate.won)],
-        ["Taxa de conversão", `${aggregate.convRate.toFixed(1)}%`],
-      ],
-      margin: { left: 40, right: 40 },
+    // KPIs em cartões
+    const cardY = 130 + filtroLines.length * 12;
+    const cardW = (pageW - 80 - 3 * 10) / 4;
+    const kpiData: Array<[string, string, [number, number, number]]> = [
+      ["TOTAL DE LEADS", String(aggregate.total), TEXT],
+      ["GANHOS", String(aggregate.won), [120, 220, 170]],
+      ["PARADOS > 5 DIAS", String(aggregate.stuckCount), [230, 130, 150]],
+      ["CONVERSÃO", `${aggregate.convRate.toFixed(1)}%`, [130, 190, 240]],
+    ];
+    kpiData.forEach(([label, value, color], i) => {
+      const x = 40 + i * (cardW + 10);
+      doc.setFillColor(...CARD);
+      doc.roundedRect(x, cardY, cardW, 60, 6, 6, "F");
+      doc.setTextColor(...MUTED);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.text(label, x + 10, cardY + 18);
+      doc.setTextColor(...color);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.text(value, x + 10, cardY + 44);
     });
-    y = (doc as any).lastAutoTable.finalY + 12;
 
+    const tableStyles = {
+      styles: { fontSize: 9, cellPadding: 5, textColor: TEXT, fillColor: CARD, lineColor: [55, 60, 90] as [number, number, number], lineWidth: 0.3 },
+      alternateRowStyles: { fillColor: CARD_ALT },
+      headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold" as const, fontSize: 9 },
+      margin: { left: 40, right: 40 },
+    };
+
+    let y = cardY + 82;
+    doc.setTextColor(...GOLD);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.text("DISTRIBUIÇÃO POR STATUS", 40, y);
     autoTable(doc, {
-      startY: y,
-      theme: "grid",
-      styles: { fontSize: 9, cellPadding: 4 },
-      headStyles: { fillColor: [40, 40, 60], textColor: 255 },
+      ...tableStyles,
+      startY: y + 6,
       head: [["Status", "Qtd", "%"]],
       body: aggregate.byStatus.map(([s, c]) => [STATUS_LABEL[s] ?? s, String(c), `${((c / (aggregate.total || 1)) * 100).toFixed(1)}%`]),
-      margin: { left: 40, right: 40 },
+      columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
     });
-    y = (doc as any).lastAutoTable.finalY + 12;
+    y = (doc as any).lastAutoTable.finalY + 20;
 
+    doc.setTextColor(...GOLD);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text("DISTRIBUIÇÃO POR FORMULÁRIO", 40, y);
     autoTable(doc, {
-      startY: y,
-      theme: "grid",
-      styles: { fontSize: 9, cellPadding: 4 },
-      headStyles: { fillColor: [40, 40, 60], textColor: 255 },
+      ...tableStyles,
+      startY: y + 6,
       head: [["Formulário", "Qtd", "%"]],
       body: aggregate.byForm.map(([f, c]) => [f, String(c), `${((c / (aggregate.total || 1)) * 100).toFixed(1)}%`]),
-      margin: { left: 40, right: 40 },
+      columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
     });
 
-    // Um bloco por lead
+    // Um bloco por lead — nova página cada
     for (const r of rows) {
       doc.addPage();
+      paintBackground();
       const l = r.lead as any;
-      doc.setFillColor(1, 8, 60);
-      doc.rect(0, 0, pageW, 50, "F");
+      const sColor = statusColor(l.status);
+
+      // Header do lead
+      doc.setFillColor(...NAVY);
+      doc.rect(0, 0, pageW, 70, "F");
+      doc.setDrawColor(...GOLD);
+      doc.setLineWidth(1);
+      doc.line(0, 70, pageW, 70);
+
+      doc.setTextColor(...GOLD);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.text("LEAD", 40, 22);
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(13);
-      doc.text(l.nome_completo || "Lead", 40, 24);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      const nameLine = doc.splitTextToSize(l.nome_completo || "Lead", pageW - 220)[0];
+      doc.text(nameLine, 40, 42);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(...MUTED);
+      doc.text(`${l.whatsapp || "—"}  ·  ${l.email || "sem e-mail"}  ·  ${l.origem || "—"}`, 40, 58);
+
+      // Status badge no header (canto direito)
+      const badge = STATUS_LABEL[l.status] ?? l.status;
+      doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
-      doc.text(
-        `${l.whatsapp || ""}  ·  ${l.email || "sem e-mail"}  ·  ${STATUS_LABEL[l.status] ?? l.status}`,
-        40, 40,
-      );
+      const bw = doc.getTextWidth(badge) + 20;
+      doc.setFillColor(...sColor);
+      doc.roundedRect(pageW - 40 - bw, 30, bw, 20, 10, 10, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.text(badge, pageW - 40 - bw / 2, 44, { align: "center" });
 
-      let cy = 72;
-      doc.setTextColor(20, 20, 20);
+      // Alertas
+      let cy = 88;
+      if (r.stuck) {
+        doc.setFillColor(60, 20, 35);
+        doc.setDrawColor(230, 90, 120);
+        doc.setLineWidth(0.5);
+        doc.roundedRect(40, cy, pageW - 80, 24, 4, 4, "FD");
+        doc.setTextColor(230, 130, 150);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.text(`ALERTA · Parado há ${r.daysInCurrentStatus} dias sem movimentação`, 52, cy + 16);
+        cy += 32;
+      }
 
+      // Dados cadastrais
+      doc.setTextColor(...GOLD);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.text("DADOS CADASTRAIS", 40, cy);
+      cy += 6;
       autoTable(doc, {
+        ...tableStyles,
         startY: cy,
-        theme: "grid",
-        styles: { fontSize: 9, cellPadding: 4 },
-        headStyles: { fillColor: [40, 40, 60], textColor: 255 },
         head: [["Campo", "Valor"]],
         body: [
           ["Origem", l.origem || "—"],
           ["Formulário", l.facebook_form_name || l.facebook_form_id || "—"],
           ["Data de entrada", format(new Date(l.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })],
-          ["Dias desde entrada", String(r.daysSinceEntry)],
-          ["Dias no status atual", String(r.daysInCurrentStatus)],
+          ["Dias na base", `${r.daysSinceEntry} dias`],
+          ["Dias no status atual", `${r.daysInCurrentStatus} dias`],
           ["Interações registradas", String(r.interactionsCount)],
           ["Última interação", r.lastInteractionAt ? `${format(new Date(r.lastInteractionAt), "dd/MM/yyyy HH:mm", { locale: ptBR })} — ${r.lastInteractionType}` : "—"],
           ...(r.finalStatusAt ? [[`Data ${STATUS_LABEL[l.status]}`, format(new Date(r.finalStatusAt), "dd/MM/yyyy HH:mm", { locale: ptBR })]] : []),
-          ...(r.stuck ? [["⚠ ALERTA", `Parado há ${r.daysInCurrentStatus} dias sem movimentação`]] : []),
         ],
-        margin: { left: 40, right: 40 },
+        columnStyles: { 0: { cellWidth: 160, textColor: MUTED, fontStyle: "bold" }, 1: { textColor: TEXT } },
       });
-      cy = (doc as any).lastAutoTable.finalY + 12;
+      cy = (doc as any).lastAutoTable.finalY + 16;
 
       if (r.formFields.length > 0) {
+        doc.setTextColor(...GOLD);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.text("RESPOSTAS DO FORMULÁRIO", 40, cy);
+        cy += 6;
         autoTable(doc, {
+          ...tableStyles,
           startY: cy,
-          theme: "striped",
-          styles: { fontSize: 9, cellPadding: 4 },
-          headStyles: { fillColor: [180, 140, 40], textColor: 255 },
           head: [["Pergunta", "Resposta"]],
           body: r.formFields.map(f => [f.label || f.name || "—", stringifyValue(f.value)]),
-          margin: { left: 40, right: 40 },
+          columnStyles: { 0: { cellWidth: 220, textColor: MUTED, fontStyle: "bold" }, 1: { textColor: TEXT } },
         });
-        cy = (doc as any).lastAutoTable.finalY + 12;
+        cy = (doc as any).lastAutoTable.finalY + 16;
       }
 
       if (r.events.length > 0) {
+        doc.setTextColor(...GOLD);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.text("LINHA DO TEMPO", 40, cy);
+        cy += 6;
         autoTable(doc, {
+          ...tableStyles,
           startY: cy,
-          theme: "grid",
-          styles: { fontSize: 8, cellPadding: 3 },
-          headStyles: { fillColor: [80, 80, 100], textColor: 255 },
+          styles: { ...tableStyles.styles, fontSize: 8, cellPadding: 4 },
           head: [["Quando", "De", "Para", "Origem"]],
           body: r.events.map(e => [
             format(new Date(e.changed_at), "dd/MM/yy HH:mm", { locale: ptBR }),
@@ -311,9 +422,16 @@ const LeadsReportModal = ({
             STATUS_LABEL[e.to_status] ?? e.to_status,
             e.source ?? "—",
           ]),
-          margin: { left: 40, right: 40 },
+          columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 120 }, 2: { cellWidth: 120, fontStyle: "bold" } },
         });
       }
+    }
+
+    // Footer em todas as páginas
+    const total = doc.getNumberOfPages();
+    for (let i = 1; i <= total; i++) {
+      doc.setPage(i);
+      drawFooter(i, total);
     }
 
     doc.save(`relatorio-leads-${new Date().toISOString().split("T")[0]}.pdf`);
