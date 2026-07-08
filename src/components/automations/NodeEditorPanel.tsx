@@ -115,24 +115,62 @@ export default function NodeEditorPanel({ node, onChange, onClose, onDelete }: P
           </div>
         )}
 
-        {(type === "kanban_move" || type === "kanban_update" || type === "kanban_tag") && (
+        {type === "kanban_move" && (
+          <div>
+            <Label>Coluna destino</Label>
+            <select
+              className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm"
+              value={node.data.value || ""}
+              onChange={(e) => patchData({ value: e.target.value })}
+            >
+              <option value="">Selecione…</option>
+              {["lead","qualificado","reuniao","proposta","negociacao","ganho","perdido"].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {type === "kanban_tag" && (
+          <div>
+            <Label>Tag</Label>
+            <Input value={node.data.value || ""} onChange={(e) => patchData({ value: e.target.value })} placeholder="Ex.: vip, retorno, urgente" />
+            <p className="text-[10px] text-muted-foreground mt-1">A tag fica salva em <code>leads.extras.tags</code> e pode ser usada em filtros e relatórios.</p>
+          </div>
+        )}
+        {type === "kanban_update" && (
           <div className="space-y-2">
             <div>
-              <Label>{type === "kanban_move" ? "Coluna destino" : type === "kanban_tag" ? "Tag" : "Campo"}</Label>
-              <Input
+              <Label>Campo</Label>
+              <select
+                className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm"
                 value={node.data.value || ""}
                 onChange={(e) => patchData({ value: e.target.value })}
-              />
+              >
+                <option value="">Selecione…</option>
+                {[
+                  ["nome_completo","Nome completo"],
+                  ["whatsapp","WhatsApp"],
+                  ["email","E-mail"],
+                  ["status","Status/Coluna"],
+                  ["especialidade","Especialidade/Produto"],
+                  ["origem","Origem"],
+                  ["valor_proposta","Valor da proposta"],
+                  ["observacoes","Observações"],
+                  ["motivo_perda","Motivo da perda"],
+                  ["cidade_estado","Cidade / Estado"],
+                  ["nome_empresa","Nome da empresa"],
+                  ["cnpj","CNPJ"],
+                  ["facebook_form_name","Nome do formulário FB"],
+                  ["utm_campaign","UTM campaign"],
+                  ["utm_source","UTM source"],
+                  ["utm_medium","UTM medium"],
+                ].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
             </div>
-            {type === "kanban_update" && (
-              <div>
-                <Label>Novo valor</Label>
-                <Input
-                  value={node.data.newValue || ""}
-                  onChange={(e) => patchData({ newValue: e.target.value })}
-                />
-              </div>
-            )}
+            <div>
+              <Label>Novo valor</Label>
+              <Input value={node.data.newValue || ""} onChange={(e) => patchData({ newValue: e.target.value })} placeholder="Aceita variáveis: {{lead.nome}}" />
+            </div>
           </div>
         )}
 
