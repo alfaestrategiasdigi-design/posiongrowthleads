@@ -3,12 +3,15 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Search, Download, Loader2, Phone, Mail, Building2, MapPin, Facebook, Bug,
-  Sparkles, Users, CheckCircle2, Trophy, Flame, Filter, FileText,
+  Sparkles, Users, CheckCircle2, Trophy, Flame, Filter, FileText, Calendar as CalendarIcon, X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 import LeadDetailModal from "@/components/admin/LeadDetailModal";
 import LeadsReportModal from "@/components/leads/LeadsReportModal";
 import type { Lead } from "@/types/admin";
@@ -34,6 +37,8 @@ const LeadsPage = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [originFilter, setOriginFilter] = useState<string>("all");
   const [formFilter, setFormFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [lastLeadsSync, setLastLeadsSync] = useState<string | null>(null);
   const [masterForms, setMasterForms] = useState<Array<{ id: string; form_id: string; label: string | null; active: boolean }>>([]);
@@ -152,6 +157,11 @@ const LeadsPage = () => {
     if (statusFilter !== "all" && l.status !== statusFilter) return false;
     if (originFilter !== "all" && (l.origem || "outro") !== originFilter) return false;
     if (formFilter !== "all" && String((l as any).facebook_form_id || "") !== formFilter) return false;
+    if (dateFrom || dateTo) {
+      const t = new Date(l.created_at).getTime();
+      if (dateFrom && t < dateFrom.setHours(0, 0, 0, 0)) return false;
+      if (dateTo && t > new Date(dateTo).setHours(23, 59, 59, 999)) return false;
+    }
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -396,7 +406,46 @@ const LeadsPage = () => {
             ))}
           </select>
         </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className={cn(
+              "flex items-center gap-2 bg-card/40 border border-border/60 rounded-full px-3 py-1.5 text-xs hover:bg-card/60 transition",
+              (dateFrom || dateTo) ? "text-accent border-accent/50" : "text-foreground"
+            )}>
+              <CalendarIcon className="w-3.5 h-3.5 text-accent" />
+              {dateFrom || dateTo ? (
+                <span>
+                  {dateFrom ? format(dateFrom, "dd/MM/yy") : "…"} → {dateTo ? format(dateTo, "dd/MM/yy") : "…"}
+                </span>
+              ) : (
+                <span>Período</span>
+              )}
+              {(dateFrom || dateTo) && (
+                <span
+                  role="button"
+                  onClick={(e) => { e.stopPropagation(); setDateFrom(undefined); setDateTo(undefined); }}
+                  className="ml-1 hover:text-rose-400"
+                >
+                  <X className="w-3 h-3" />
+                </span>
+              )}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-3 pointer-events-auto" align="start">
+            <div className="flex gap-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">De</p>
+                <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} locale={ptBR} className="p-0 pointer-events-auto" />
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Até</p>
+                <Calendar mode="single" selected={dateTo} onSelect={setDateTo} locale={ptBR} className="p-0 pointer-events-auto" />
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
+
 
 
       {/* Tabela */}
