@@ -141,7 +141,7 @@ export default function RelatoriosContainer({ scope, currentTenantId, scopeLabel
                 </ul>
               </div>
             </div>
-            <BiFunnel funil={data.biFunnel} />
+            
             <RankingsGrid closers={data.rankingClosers} sdrs={data.rankingSdrs} />
             <div ref={chartsRef}>
               <ChartsGrid data={data} />
