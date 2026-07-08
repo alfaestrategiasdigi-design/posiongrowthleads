@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { RelatorioFilters, LeadRow, AppointmentRow, InsightRow, SpendRow } from "./types";
+import type { RelatorioFilters, LeadRow, AppointmentRow, InsightRow, SpendRow, SaleRow, GoalRow } from "./types";
 
 
 const LEAD_FIELDS = `
@@ -12,35 +12,37 @@ const LEAD_FIELDS = `
   created_at
 `;
 
-function toEndOfDay(d: string) {
-  return `${d}T23:59:59.999Z`;
-}
-function toStartOfDay(d: string) {
-  return `${d}T00:00:00.000Z`;
+const SALE_FIELDS = `id, tenant_id, seller_name, product, procedure_name, channel, channel_origin, amount, sale_date, first_contact_date, patient_id`;
+
+function toEndOfDay(d: string) { return `${d}T23:59:59.999Z`; }
+function toStartOfDay(d: string) { return `${d}T00:00:00.000Z`; }
+
+function monthsInRange(from: string, to: string): { year: number; month: number }[] {
+  const start = new Date(from + "T00:00:00Z");
+  const end = new Date(to + "T00:00:00Z");
+  const out: { year: number; month: number }[] = [];
+  const cur = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+  const endM = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+  while (cur <= endM) {
+    out.push({ year: cur.getUTCFullYear(), month: cur.getUTCMonth() + 1 });
+    cur.setUTCMonth(cur.getUTCMonth() + 1);
+  }
+  return out;
 }
 
 export async function fetchRelatorio(
   filters: RelatorioFilters,
   scope: "admin" | "tenant",
   currentTenantId: string | null,
-): Promise<{ leads: LeadRow[]; appointments: AppointmentRow[]; insights: InsightRow[]; spend: SpendRow[] }> {
+): Promise<{ leads: LeadRow[]; appointments: AppointmentRow[]; insights: InsightRow[]; spend: SpendRow[]; sales: SaleRow[]; goals: GoalRow[] }> {
   const start = toStartOfDay(filters.from);
   const end = toEndOfDay(filters.to);
 
   // -------- LEADS --------
   let leadsQ = supabase.from("leads").select(LEAD_FIELDS)
     .gte("created_at", start).lte("created_at", end);
-
-  // Regra Admin Master:
-  //  - se o usuário selecionou explicitamente algum tenant no filtro,
-  //    respeitamos essa lista (Admin Master entra se ele marcou);
-  //  - se NÃO selecionou nada (agregado padrão), excluímos Admin Master
-  //    para não misturar dados internos com o consolidado das clínicas.
-  // Admin: por padrão inclui TODAS as contas (inclusive Admin Master) para bater
-  // com os números do dashboard consolidado da Posion. Se o usuário selecionar
-  // clínicas específicas no filtro, respeitamos essa lista.
   if (scope === "tenant") {
-    if (!currentTenantId) return { leads: [], appointments: [], insights: [], spend: [] };
+    if (!currentTenantId) return { leads: [], appointments: [], insights: [], spend: [], sales: [], goals: [] };
     leadsQ = leadsQ.eq("tenant_id", currentTenantId);
   } else {
     if (filters.tenantIds.length > 0) leadsQ = leadsQ.in("tenant_id", filters.tenantIds);
@@ -62,7 +64,7 @@ export async function fetchRelatorio(
   apptQ = apptQ.gte("date_time", start).lte("date_time", end);
   const { data: appts } = await apptQ.limit(5000);
 
-  // -------- INSIGHTS (spend sincronizado da Meta) --------
+  // -------- INSIGHTS --------
   let insQ = supabase.from("campaign_insights")
     .select("tenant_id, campaign_id, campaign_name, spend, leads, cost_per_lead, date_start")
     .gte("date_start", filters.from).lte("date_start", filters.to);
@@ -71,8 +73,7 @@ export async function fetchRelatorio(
   if (filters.campaigns.length > 0) insQ = insQ.in("campaign_name", filters.campaigns);
   const { data: insights } = await insQ.limit(10000);
 
-  // -------- SPEND MANUAL (campaign_spend) --------
-  // Sobreposição de período: period_start <= to AND period_end >= from
+  // -------- SPEND MANUAL --------
   let spendQ = supabase.from("campaign_spend")
     .select("tenant_id, campaign_id, campaign_name, amount_spent, period_start, period_end")
     .lte("period_start", filters.to)
@@ -82,18 +83,38 @@ export async function fetchRelatorio(
   if (filters.campaigns.length > 0) spendQ = spendQ.in("campaign_name", filters.campaigns);
   const { data: spend } = await spendQ.limit(5000);
 
+  // -------- SALES --------
+  let salesQ = supabase.from("sales").select(SALE_FIELDS)
+    .gte("sale_date", filters.from).lte("sale_date", filters.to);
+  if (scope === "tenant") salesQ = salesQ.eq("tenant_id", currentTenantId!);
+  else if (filters.tenantIds.length > 0) salesQ = salesQ.in("tenant_id", filters.tenantIds);
+  const { data: sales } = await salesQ.limit(10000);
+
+  // -------- GOALS (para "Meta") --------
+  const months = monthsInRange(filters.from, filters.to);
+  let goals: GoalRow[] = [];
+  if (months.length > 0) {
+    let goalsQ = supabase.from("monthly_goals").select("tenant_id, year, month, goal_1, goal_2, goal_3");
+    if (scope === "tenant") goalsQ = goalsQ.eq("tenant_id", currentTenantId!);
+    else if (filters.tenantIds.length > 0) goalsQ = goalsQ.in("tenant_id", filters.tenantIds);
+    const yearsSet = Array.from(new Set(months.map(m => m.year)));
+    goalsQ = goalsQ.in("year", yearsSet);
+    const { data: g } = await goalsQ.limit(2000);
+    const monthKeys = new Set(months.map(m => `${m.year}-${m.month}`));
+    goals = ((g ?? []) as GoalRow[]).filter(r => monthKeys.has(`${r.year}-${r.month}`));
+  }
 
   return {
     leads: leadRows,
     appointments: (appts ?? []) as AppointmentRow[],
     insights: (insights ?? []) as InsightRow[],
     spend: (spend ?? []) as SpendRow[],
+    sales: (sales ?? []) as SaleRow[],
+    goals,
   };
 }
 
 export async function fetchFilterOptions(scope: "admin" | "tenant", _currentTenantId: string | null) {
-  // Admin: inclui TODOS os tenants (inclusive Admin Master) para poder tirar
-  // relatório da conta interna quando selecionado explicitamente.
   const tenants = scope === "admin"
     ? await supabase.from("tenants").select("id, name").order("name")
     : { data: [] as { id: string; name: string }[] };

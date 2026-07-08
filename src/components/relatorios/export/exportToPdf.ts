@@ -276,6 +276,102 @@ export async function exportRelatorioPdf({ scopeLabel, filters, data, chartsRoot
   });
 
   // ============================================================
+  // PÁGINA 3 — FINANCEIRO + FUNIL DE VENDAS (BI) + RANKINGS
+  // ============================================================
+  newPage();
+  setText(AMBER);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(8);
+  pdf.text("FINANCEIRO", M, CONTENT_TOP + 8);
+  setText(TEXT);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(16);
+  pdf.text("Vendas, Meta e Custos", M, CONTENT_TOP + 28);
+
+  // Grid financeiro 5 x 2
+  const finKpis: Array<{ l: string; v: string; s?: string; c?: readonly [number, number, number] }> = [
+    { l: "Vendas",        v: BRL(k.vendasTotal), s: `${NUM(k.vendasQtd)} venda(s)`,          c: GREEN },
+    { l: "Nova venda",    v: BRL(k.novaVenda),   s: "1º contato no período" },
+    { l: "Monetização",   v: BRL(k.monetizacao), s: "Recompra do paciente" },
+    { l: "Meta",          v: BRL(k.meta),        s: k.meta > 0 ? `${PCT(k.vendasTotal / k.meta)} atingido` : "Sem meta cadastrada", c: AMBER },
+    { l: "Não realizado", v: BRL(k.naoRealizado),s: "Meta − Vendas",                          c: k.naoRealizado > 0 ? RED : GREEN },
+    { l: "Ticket médio",  v: BRL(k.ticketMedio) },
+    { l: "CPA",           v: BRL(k.cpa),         s: "Invest. / vendas" },
+    { l: "CPL",           v: BRL(k.cpl) },
+    { l: "CPMQL",         v: BRL(k.cpmql),       s: "Invest. / MQL" },
+    { l: "CPSQL",         v: BRL(k.cpsql),       s: "Invest. / SQL" },
+  ];
+  const fRows = 2, fCols = 5;
+  const fGap = 8;
+  const fTop = CONTENT_TOP + 46;
+  const fH = 82;
+  const fCellW = (W - M * 2 - fGap * (fCols - 1)) / fCols;
+  for (let i = 0; i < finKpis.length; i++) {
+    const r = Math.floor(i / fCols), c = i % fCols;
+    const x = M + c * (fCellW + fGap);
+    const y = fTop + r * (fH + fGap);
+    kpiCard(x, y, fCellW, fH, finKpis[i].l, finKpis[i].v, finKpis[i].s, finKpis[i].c ?? AMBER);
+  }
+
+  // Funil BI + Rankings lado a lado
+  const secY = fTop + fRows * (fH + fGap) + 14;
+  const secH = CONTENT_BOTTOM - secY - 10;
+  const halfW = (W - M * 2 - 16) / 2;
+
+  // Bi Funnel (esquerda)
+  card(M, secY, halfW, secH);
+  setText(AMBER); pdf.setFont("helvetica", "bold"); pdf.setFontSize(9);
+  pdf.text("FUNIL DE VENDAS", M + 14, secY + 18);
+  setText(TEXT); pdf.setFont("helvetica", "bold"); pdf.setFontSize(11);
+  pdf.text("Leads → Vendas", M + 14, secY + 34);
+  const biStages = data.biFunnel;
+  const biMax = Math.max(...biStages.map(s => s.count), 1);
+  const biRowH = Math.min(24, (secH - 50) / biStages.length);
+  const biLabelW = 82;
+  const biBarMax = halfW - 40 - biLabelW - 70;
+  biStages.forEach((s, i) => {
+    const y = secY + 46 + i * (biRowH + 4);
+    setText(TEXT); pdf.setFont("helvetica", "bold"); pdf.setFontSize(8);
+    pdf.text(s.label, M + 14, y + biRowH / 2 + 3);
+    setFill(SURFACE_2);
+    pdf.roundedRect(M + 14 + biLabelW, y, biBarMax, biRowH, 3, 3, "F");
+    const bw = (s.count / biMax) * biBarMax;
+    setFill(AMBER);
+    pdf.roundedRect(M + 14 + biLabelW, y, Math.max(bw, 2), biRowH, 3, 3, "F");
+    setText(TEXT); pdf.setFont("helvetica", "bold"); pdf.setFontSize(9);
+    pdf.text(NUM(s.count), M + 14 + biLabelW + biBarMax + 6, y + biRowH / 2 + 3);
+    setText(MUTED); pdf.setFont("helvetica", "normal"); pdf.setFontSize(7);
+    pdf.text(s.pctPrev != null ? PCT(s.pctPrev) : "—", M + 14 + biLabelW + biBarMax + 40, y + biRowH / 2 + 3);
+  });
+
+  // Rankings (direita) — closer em cima, sdr embaixo
+  const rx = M + halfW + 16;
+  const rankH = (secH - 12) / 2;
+  const drawRanking = (title: string, subtitle: string, items: typeof data.rankingClosers, y: number) => {
+    card(rx, y, halfW, rankH);
+    setText(AMBER); pdf.setFont("helvetica", "bold"); pdf.setFontSize(9);
+    pdf.text(title.toUpperCase(), rx + 14, y + 18);
+    setText(MUTED); pdf.setFont("helvetica", "normal"); pdf.setFontSize(7);
+    pdf.text(subtitle, rx + 14, y + 30);
+    if (items.length === 0) {
+      setText(DIM); pdf.setFont("helvetica", "normal"); pdf.setFontSize(9);
+      pdf.text("Sem dados no período", rx + 14, y + rankH / 2);
+      return;
+    }
+    const top = items.slice(0, 6);
+    const rowH = Math.min(18, (rankH - 44) / top.length);
+    top.forEach((it, i) => {
+      const yy = y + 44 + i * rowH;
+      setText(i === 0 ? AMBER : TEXT); pdf.setFont("helvetica", "bold"); pdf.setFontSize(8);
+      pdf.text(`${i + 1}º`, rx + 14, yy + 10);
+      setText(TEXT); pdf.setFont("helvetica", "normal"); pdf.setFontSize(9);
+      pdf.text(it.name.length > 24 ? it.name.slice(0, 24) + "…" : it.name, rx + 34, yy + 10);
+      setText(GREEN); pdf.setFont("helvetica", "bold"); pdf.setFontSize(9);
+      pdf.text(BRL(it.total), rx + halfW - 14, yy + 10, { align: "right" });
+    });
+  };
+  drawRanking("Ranking Closer", "Faturamento por vendedor", data.rankingClosers, secY);
+  drawRanking("Ranking SDR", "Leads ganhos por responsável", data.rankingSdrs, secY + rankH + 12);
   // PÁGINAS 3+ — GRÁFICOS (2 por página, horizontal)
   // ============================================================
   if (chartsRoot) {

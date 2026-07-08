@@ -67,6 +67,29 @@ export interface SpendRow {
   period_end: string;
 }
 
+export interface SaleRow {
+  id: string;
+  tenant_id: string;
+  seller_name: string | null;
+  product: string | null;
+  procedure_name: string | null;
+  channel: string | null;
+  channel_origin: string | null;
+  amount: number;
+  sale_date: string;
+  first_contact_date: string | null;
+  patient_id: string | null;
+}
+
+export interface GoalRow {
+  tenant_id: string;
+  year: number;
+  month: number;
+  goal_1: number;
+  goal_2: number;
+  goal_3: number;
+}
+
 export interface Kpis {
   totalLeads: number;
   qualificados: number;
@@ -82,6 +105,17 @@ export interface Kpis {
   investimento: number;
   cpl: number;
   cac: number;
+  // ---- Novos KPIs financeiros (BI antigo) ----
+  vendasTotal: number;         // soma sales.amount no período
+  vendasQtd: number;           // contagem de sales
+  novaVenda: number;           // vendas onde first_contact_date está no período
+  monetizacao: number;         // vendas de recompra (patient_id já teve venda anterior)
+  meta: number;                // soma de monthly_goals (goal_3) dos meses no período
+  naoRealizado: number;        // max(meta - vendasTotal, 0)
+  ticketMedio: number;         // vendasTotal / vendasQtd
+  cpa: number;                 // investimento / vendasQtd
+  cpmql: number;               // investimento / qtd mql
+  cpsql: number;               // investimento / qtd sql_qualified
 }
 
 export interface FunilStage {
@@ -92,18 +126,34 @@ export interface FunilStage {
   pctPrev: number | null;
 }
 
+export interface RankingItem {
+  name: string;
+  total: number;
+  count: number;
+}
+
 export interface RelatorioData {
   leads: LeadRow[];
   appointments: AppointmentRow[];
   insights: InsightRow[];
   spend: SpendRow[];
+  sales: SaleRow[];
+  goals: GoalRow[];
   kpis: Kpis;
   funil: FunilStage[];
+  biFunnel: FunilStage[];
   leadsByDay: { date: string; count: number }[];
   leadsByCampaign: { name: string; count: number }[];
   leadsByForm: { name: string; count: number }[];
   attendanceByWeekday: { day: string; compareceu: number; noShow: number }[];
   originSplit: { name: string; value: number }[];
+  // BI antigo
+  rankingClosers: RankingItem[];
+  rankingSdrs: RankingItem[];
+  salesByProduct: { name: string; total: number }[];
+  monetizedByProduct: { name: string; total: number }[];
+  channelConversion: { name: string; rate: number; sales: number; leads: number }[];
+  channelSql: { name: string; rate: number; sql: number; leads: number }[];
   // opções pra popular filtros
   availableCampaigns: string[];
   availableForms: string[];
