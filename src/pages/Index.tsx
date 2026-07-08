@@ -12,6 +12,10 @@ export default function Index() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    // Capture fbclid → _fbc and fire ViewContent (server-side CAPI + Pixel)
+    getFbCookies();
+    trackView({ tenantSlug: "public", contentName: "Central do Cliente" });
+
     let alive = true;
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
