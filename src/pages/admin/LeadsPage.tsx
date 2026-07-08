@@ -3,13 +3,14 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Search, Download, Loader2, Phone, Mail, Building2, MapPin, Facebook, Bug,
-  Sparkles, Users, CheckCircle2, Trophy, Flame, Filter,
+  Sparkles, Users, CheckCircle2, Trophy, Flame, Filter, FileText,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import LeadDetailModal from "@/components/admin/LeadDetailModal";
+import LeadsReportModal from "@/components/leads/LeadsReportModal";
 import type { Lead } from "@/types/admin";
 
 const statusLabels: Record<string, { label: string; color: string; dot: string }> = {
@@ -38,6 +39,7 @@ const LeadsPage = () => {
   const [masterForms, setMasterForms] = useState<Array<{ id: string; form_id: string; label: string | null; active: boolean }>>([]);
   const [availableForms, setAvailableForms] = useState<Array<{ form_id: string; form_name: string | null }>>([]);
   const [showFormManager, setShowFormManager] = useState(false);
+  const [showReport, setShowReport] = useState(false);
 
   const loadMasterForms = async () => {
     const { data } = await (supabase as any)
@@ -201,6 +203,9 @@ const LeadsPage = () => {
           </Button>
           <Button variant="outline" onClick={handleExportCSV} disabled={filtered.length === 0} className="gap-2 text-sm rounded-full">
             <Download className="w-4 h-4" /> Exportar CSV
+          </Button>
+          <Button onClick={() => setShowReport(true)} disabled={filtered.length === 0} className="gap-2 text-sm rounded-full">
+            <FileText className="w-4 h-4" /> Gerar Relatório
           </Button>
         </div>
       </div>
@@ -491,6 +496,12 @@ const LeadsPage = () => {
       </div>
 
       <LeadDetailModal lead={selectedLead} open={!!selectedLead} onClose={() => setSelectedLead(null)} />
+      <LeadsReportModal
+        leads={filtered}
+        open={showReport}
+        onClose={() => setShowReport(false)}
+        filtersLabel={`${filtered.length} leads · status: ${statusFilter === "all" ? "todos" : statusFilter} · origem: ${originFilter === "all" ? "todas" : originFilter} · formulário: ${formFilter === "all" ? "todos" : formFilter}${searchQuery ? ` · busca: "${searchQuery}"` : ""}`}
+      />
     </div>
   );
 };
