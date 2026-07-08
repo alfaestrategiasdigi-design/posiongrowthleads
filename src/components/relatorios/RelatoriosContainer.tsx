@@ -6,7 +6,7 @@ import { useRelatorioData } from "@/hooks/useRelatorioData";
 import FiltersBar from "./FiltersBar";
 import KpiSummary from "./KpiSummary";
 import FunilVisual from "./FunilVisual";
-import BiFunnel from "./BiFunnel";
+
 import RankingsGrid from "./RankingsGrid";
 import ChartsGrid from "./ChartsGrid";
 
