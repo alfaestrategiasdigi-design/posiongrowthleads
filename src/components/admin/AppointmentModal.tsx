@@ -226,22 +226,30 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
             />
             <div className="mt-2 relative">
               <Input
-                placeholder="🔍 Buscar lead POSION (clínica ou responsável)…"
+                placeholder="🔍 Buscar lead POSION ou contato do WhatsApp…"
                 value={leadQuery}
                 onChange={(e) => setLeadQuery(e.target.value)}
                 className="text-xs"
               />
               {leadQuery && filteredLeads.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
-                  {filteredLeads.slice(0, 8).map((l) => (
+                <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-56 overflow-y-auto">
+                  {filteredLeads.slice(0, 12).map((l) => (
                     <button
-                      key={l.id}
+                      key={`${l.source}-${l.id}`}
                       type="button"
                       onClick={() => pickLead(l)}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex justify-between"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex justify-between items-center gap-2"
                     >
-                      <span>{l.responsavel || l.nome_clinica}<span className="text-muted-foreground"> · {l.nome_clinica}</span></span>
-                      <span className="text-muted-foreground">{l.whatsapp}</span>
+                      <span className="min-w-0 truncate">
+                        <span className={`inline-block text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded mr-2 ${l.source === "whatsapp" ? "bg-green-500/15 text-green-400" : "bg-primary/15 text-primary"}`}>
+                          {l.source === "whatsapp" ? "WhatsApp" : "POSION"}
+                        </span>
+                        {l.responsavel || l.nome_clinica}
+                        {l.source === "agency" && l.nome_clinica && (
+                          <span className="text-muted-foreground"> · {l.nome_clinica}</span>
+                        )}
+                      </span>
+                      <span className="text-muted-foreground shrink-0">{l.whatsapp}</span>
                     </button>
                   ))}
                 </div>
