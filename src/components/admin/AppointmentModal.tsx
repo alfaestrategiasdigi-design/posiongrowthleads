@@ -88,13 +88,45 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
   useEffect(() => {
     if (!open) return;
     (async () => {
-      // Admin Master: leads da agência POSION (agency_leads)
-      const { data } = await supabase
-        .from("agency_leads")
-        .select("id, nome_clinica, responsavel, whatsapp")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      setLeads(data || []);
+      // Combina leads da agência (agency_leads) + contatos de conversas WhatsApp (Admin Master)
+      const [{ data: agency }, { data: convs }] = await Promise.all([
+        supabase
+          .from("agency_leads")
+          .select("id, nome_clinica, responsavel, whatsapp")
+          .order("created_at", { ascending: false })
+          .limit(200),
+        supabase
+          .from("conversations")
+          .select("id, nome_contato, telefone, lead_id")
+          .is("tenant_id", null)
+          .order("ultima_interacao", { ascending: false })
+          .limit(200),
+      ]);
+
+      const items: any[] = (agency || []).map((l) => ({
+        source: "agency" as const,
+        id: l.id,
+        nome_clinica: l.nome_clinica,
+        responsavel: l.responsavel,
+        whatsapp: l.whatsapp,
+      }));
+
+      const seenPhones = new Set(
+        items.map((i) => (i.whatsapp || "").replace(/\D/g, "")).filter(Boolean),
+      );
+      for (const c of convs || []) {
+        const digits = (c.telefone || "").replace(/\D/g, "");
+        if (!digits || seenPhones.has(digits)) continue;
+        seenPhones.add(digits);
+        items.push({
+          source: "whatsapp" as const,
+          id: c.id,
+          nome_clinica: "WhatsApp",
+          responsavel: c.nome_contato || c.telefone,
+          whatsapp: c.telefone,
+        });
+      }
+      setLeads(items);
     })();
   }, [open]);
 
@@ -103,7 +135,8 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
     const q = leadQuery.toLowerCase();
     return (
       l.nome_clinica?.toLowerCase().includes(q) ||
-      l.responsavel?.toLowerCase().includes(q)
+      l.responsavel?.toLowerCase().includes(q) ||
+      (l.whatsapp || "").toLowerCase().includes(q)
     );
   });
 
@@ -111,7 +144,7 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
     setForm((f) => ({
       ...f,
       lead_id: null,
-      agency_lead_id: lead.id,
+      agency_lead_id: lead.source === "agency" ? lead.id : null,
       client_name: lead.responsavel || lead.nome_clinica || "",
       client_phone: maskPhone(lead.whatsapp || ""),
     }));
