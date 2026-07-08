@@ -332,7 +332,7 @@ export default function SubscriptionsPage() {
                               {sub ? (
                                 <div className="flex items-center gap-2">
                                   <Badge variant="outline" className="capitalize">{sub.plan_code}</Badge>
-                                  <span className="text-xs text-muted-foreground">{sub.interval === "quarter" ? "trimestral" : "mensal"}</span>
+                                  <span className="text-xs text-muted-foreground">{sub.interval === "semester" ? "semestral" : sub.interval === "quarter" ? "trimestral" : "mensal"}</span>
                                 </div>
                               ) : <span className="text-xs text-muted-foreground italic">sem assinatura</span>}
                             </TableCell>
