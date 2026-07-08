@@ -88,13 +88,45 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
   useEffect(() => {
     if (!open) return;
     (async () => {
-      // Admin Master: leads da agência POSION (agency_leads)
-      const { data } = await supabase
-        .from("agency_leads")
-        .select("id, nome_clinica, responsavel, whatsapp")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      setLeads(data || []);
+      // Combina leads da agência (agency_leads) + contatos de conversas WhatsApp (Admin Master)
+      const [{ data: agency }, { data: convs }] = await Promise.all([
+        supabase
+          .from("agency_leads")
+          .select("id, nome_clinica, responsavel, whatsapp")
+          .order("created_at", { ascending: false })
+          .limit(200),
+        supabase
+          .from("conversations")
+          .select("id, nome_contato, telefone, lead_id")
+          .is("tenant_id", null)
+          .order("ultima_interacao", { ascending: false })
+          .limit(200),
+      ]);
+
+      const items: any[] = (agency || []).map((l) => ({
+        source: "agency" as const,
+        id: l.id,
+        nome_clinica: l.nome_clinica,
+        responsavel: l.responsavel,
+        whatsapp: l.whatsapp,
+      }));
+
+      const seenPhones = new Set(
+        items.map((i) => (i.whatsapp || "").replace(/\D/g, "")).filter(Boolean),
+      );
+      for (const c of convs || []) {
+        const digits = (c.telefone || "").replace(/\D/g, "");
+        if (!digits || seenPhones.has(digits)) continue;
+        seenPhones.add(digits);
+        items.push({
+          source: "whatsapp" as const,
+          id: c.id,
+          nome_clinica: "WhatsApp",
+          responsavel: c.nome_contato || c.telefone,
+          whatsapp: c.telefone,
+        });
+      }
+      setLeads(items);
     })();
   }, [open]);
 
@@ -103,7 +135,8 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
     const q = leadQuery.toLowerCase();
     return (
       l.nome_clinica?.toLowerCase().includes(q) ||
-      l.responsavel?.toLowerCase().includes(q)
+      l.responsavel?.toLowerCase().includes(q) ||
+      (l.whatsapp || "").toLowerCase().includes(q)
     );
   });
 
@@ -111,7 +144,7 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
     setForm((f) => ({
       ...f,
       lead_id: null,
-      agency_lead_id: lead.id,
+      agency_lead_id: lead.source === "agency" ? lead.id : null,
       client_name: lead.responsavel || lead.nome_clinica || "",
       client_phone: maskPhone(lead.whatsapp || ""),
     }));
@@ -193,22 +226,30 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
             />
             <div className="mt-2 relative">
               <Input
-                placeholder="🔍 Buscar lead POSION (clínica ou responsável)…"
+                placeholder="🔍 Buscar lead POSION ou contato do WhatsApp…"
                 value={leadQuery}
                 onChange={(e) => setLeadQuery(e.target.value)}
                 className="text-xs"
               />
               {leadQuery && filteredLeads.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
-                  {filteredLeads.slice(0, 8).map((l) => (
+                <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-56 overflow-y-auto">
+                  {filteredLeads.slice(0, 12).map((l) => (
                     <button
-                      key={l.id}
+                      key={`${l.source}-${l.id}`}
                       type="button"
                       onClick={() => pickLead(l)}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex justify-between"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex justify-between items-center gap-2"
                     >
-                      <span>{l.responsavel || l.nome_clinica}<span className="text-muted-foreground"> · {l.nome_clinica}</span></span>
-                      <span className="text-muted-foreground">{l.whatsapp}</span>
+                      <span className="min-w-0 truncate">
+                        <span className={`inline-block text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded mr-2 ${l.source === "whatsapp" ? "bg-green-500/15 text-green-400" : "bg-primary/15 text-primary"}`}>
+                          {l.source === "whatsapp" ? "WhatsApp" : "POSION"}
+                        </span>
+                        {l.responsavel || l.nome_clinica}
+                        {l.source === "agency" && l.nome_clinica && (
+                          <span className="text-muted-foreground"> · {l.nome_clinica}</span>
+                        )}
+                      </span>
+                      <span className="text-muted-foreground shrink-0">{l.whatsapp}</span>
                     </button>
                   ))}
                 </div>
