@@ -5,13 +5,17 @@ import { useTenant } from "@/hooks/useTenant";
 import {
   Search, Download, Loader2, Phone, Mail, Building2, MapPin, Facebook,
   Sparkles, Users, CheckCircle2, Trophy, Flame, Filter, RefreshCw, ShieldAlert,
-  Kanban as KanbanIcon,
+  Kanban as KanbanIcon, FileText, Calendar as CalendarIcon, X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 import LeadDetailModal from "@/components/admin/LeadDetailModal";
+import LeadsReportModal from "@/components/leads/LeadsReportModal";
 import type { Lead } from "@/types/admin";
 import { toast } from "sonner";
 
@@ -36,6 +40,10 @@ export default function TenantLeads() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [originFilter, setOriginFilter] = useState<string>("all");
+  const [formFilter, setFormFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [showReport, setShowReport] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -154,9 +162,24 @@ export default function TenantLeads() {
     return Array.from(set);
   }, [leads]);
 
+  const availableForms = useMemo(() => {
+    const seen = new Map<string, string | null>();
+    for (const l of leads as any[]) {
+      const fid = l.facebook_form_id ? String(l.facebook_form_id) : null;
+      if (fid && !seen.has(fid)) seen.set(fid, l.facebook_form_name ?? null);
+    }
+    return Array.from(seen.entries()).map(([form_id, form_name]) => ({ form_id, form_name }));
+  }, [leads]);
+
   const filtered = leads.filter(l => {
     if (statusFilter !== "all" && l.status !== statusFilter) return false;
     if (originFilter !== "all" && (l.origem || "outro") !== originFilter) return false;
+    if (formFilter !== "all" && String((l as any).facebook_form_id || "") !== formFilter) return false;
+    if (dateFrom || dateTo) {
+      const t = new Date(l.created_at).getTime();
+      if (dateFrom && t < new Date(dateFrom).setHours(0, 0, 0, 0)) return false;
+      if (dateTo && t > new Date(dateTo).setHours(23, 59, 59, 999)) return false;
+    }
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -266,6 +289,9 @@ export default function TenantLeads() {
           <Button variant="outline" onClick={handleExportCSV} disabled={filtered.length === 0} className="gap-2 text-sm rounded-full">
             <Download className="w-4 h-4" /> Exportar CSV
           </Button>
+          <Button onClick={() => setShowReport(true)} disabled={filtered.length === 0} className="gap-2 text-sm rounded-full">
+            <FileText className="w-4 h-4" /> Gerar Relatório
+          </Button>
         </div>
       </div>
 
@@ -370,9 +396,60 @@ export default function TenantLeads() {
             {origins.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
         </div>
+        <div className="flex items-center gap-2 bg-card/40 border border-border/60 rounded-full px-3 py-1.5">
+          <Filter className="w-3.5 h-3.5 text-accent" />
+          <select
+            value={formFilter}
+            onChange={e => setFormFilter(e.target.value)}
+            className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer max-w-[220px]"
+          >
+            <option value="all">Todos formulários</option>
+            {availableForms.map(f => (
+              <option key={f.form_id} value={f.form_id}>{f.form_name || `Formulário ${f.form_id}`}</option>
+            ))}
+          </select>
+        </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className={cn(
+              "flex items-center gap-2 bg-card/40 border border-border/60 rounded-full px-3 py-1.5 text-xs hover:bg-card/60 transition",
+              (dateFrom || dateTo) ? "text-accent border-accent/50" : "text-foreground"
+            )}>
+              <CalendarIcon className="w-3.5 h-3.5 text-accent" />
+              {dateFrom || dateTo ? (
+                <span>
+                  {dateFrom ? format(dateFrom, "dd/MM/yy") : "…"} → {dateTo ? format(dateTo, "dd/MM/yy") : "…"}
+                </span>
+              ) : (
+                <span>Período</span>
+              )}
+              {(dateFrom || dateTo) && (
+                <span
+                  role="button"
+                  onClick={(e) => { e.stopPropagation(); setDateFrom(undefined); setDateTo(undefined); }}
+                  className="ml-1 hover:text-rose-400"
+                >
+                  <X className="w-3 h-3" />
+                </span>
+              )}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-3 pointer-events-auto" align="start">
+            <div className="flex gap-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">De</p>
+                <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} locale={ptBR} className="p-0 pointer-events-auto" />
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Até</p>
+                <Calendar mode="single" selected={dateTo} onSelect={setDateTo} locale={ptBR} className="p-0 pointer-events-auto" />
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
-      {/* Tabela */}
+
       <div className="card-elevated overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -442,6 +519,12 @@ export default function TenantLeads() {
       </div>
 
       <LeadDetailModal lead={selectedLead} open={!!selectedLead} onClose={() => setSelectedLead(null)} onUpdated={load} />
+      <LeadsReportModal
+        leads={filtered}
+        open={showReport}
+        onClose={() => setShowReport(false)}
+        filtersLabel={`${filtered.length} leads · status: ${statusFilter === "all" ? "todos" : statusFilter} · origem: ${originFilter === "all" ? "todas" : originFilter} · formulário: ${formFilter === "all" ? "todos" : formFilter}${searchQuery ? ` · busca: "${searchQuery}"` : ""}`}
+      />
     </div>
   );
 }
