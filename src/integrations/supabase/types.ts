@@ -882,6 +882,38 @@ export type Database = {
           },
         ]
       }
+      capi_events_sent: {
+        Row: {
+          event_id: string
+          event_name: string
+          lead_id: string | null
+          sent_at: string
+          tenant_id: string | null
+        }
+        Insert: {
+          event_id: string
+          event_name: string
+          lead_id?: string | null
+          sent_at?: string
+          tenant_id?: string | null
+        }
+        Update: {
+          event_id?: string
+          event_name?: string
+          lead_id?: string | null
+          sent_at?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capi_events_sent_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channels: {
         Row: {
           active: boolean
@@ -1688,6 +1720,7 @@ export type Database = {
       leads: {
         Row: {
           campaign_id_manual: string | null
+          cep: string | null
           cidade_estado: string | null
           cnpj: string | null
           created_at: string | null
@@ -1709,6 +1742,8 @@ export type Database = {
           investiu_trafego: string | null
           is_organic: boolean
           ja_realizou_procedimento: string | null
+          meta_fbc: string | null
+          meta_fbp: string | null
           motivo_perda: string | null
           mql: boolean | null
           nome_completo: string
@@ -1733,10 +1768,12 @@ export type Database = {
           utm_term: string | null
           valor_perdido: number | null
           valor_proposta: number | null
+          visitor_id: string | null
           whatsapp: string
         }
         Insert: {
           campaign_id_manual?: string | null
+          cep?: string | null
           cidade_estado?: string | null
           cnpj?: string | null
           created_at?: string | null
@@ -1758,6 +1795,8 @@ export type Database = {
           investiu_trafego?: string | null
           is_organic?: boolean
           ja_realizou_procedimento?: string | null
+          meta_fbc?: string | null
+          meta_fbp?: string | null
           motivo_perda?: string | null
           mql?: boolean | null
           nome_completo: string
@@ -1782,10 +1821,12 @@ export type Database = {
           utm_term?: string | null
           valor_perdido?: number | null
           valor_proposta?: number | null
+          visitor_id?: string | null
           whatsapp: string
         }
         Update: {
           campaign_id_manual?: string | null
+          cep?: string | null
           cidade_estado?: string | null
           cnpj?: string | null
           created_at?: string | null
@@ -1807,6 +1848,8 @@ export type Database = {
           investiu_trafego?: string | null
           is_organic?: boolean
           ja_realizou_procedimento?: string | null
+          meta_fbc?: string | null
+          meta_fbp?: string | null
           motivo_perda?: string | null
           mql?: boolean | null
           nome_completo?: string
@@ -1831,6 +1874,7 @@ export type Database = {
           utm_term?: string | null
           valor_perdido?: number | null
           valor_proposta?: number | null
+          visitor_id?: string | null
           whatsapp?: string
         }
         Relationships: [
