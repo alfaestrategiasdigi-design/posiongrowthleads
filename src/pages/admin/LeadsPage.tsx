@@ -157,6 +157,11 @@ const LeadsPage = () => {
     if (statusFilter !== "all" && l.status !== statusFilter) return false;
     if (originFilter !== "all" && (l.origem || "outro") !== originFilter) return false;
     if (formFilter !== "all" && String((l as any).facebook_form_id || "") !== formFilter) return false;
+    if (dateFrom || dateTo) {
+      const t = new Date(l.created_at).getTime();
+      if (dateFrom && t < dateFrom.setHours(0, 0, 0, 0)) return false;
+      if (dateTo && t > new Date(dateTo).setHours(23, 59, 59, 999)) return false;
+    }
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
