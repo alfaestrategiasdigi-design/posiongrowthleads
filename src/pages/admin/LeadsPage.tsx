@@ -177,7 +177,7 @@ const LeadsPage = () => {
   const handleExportCSV = () => {
     if (filtered.length === 0) return;
     const headers = ["Responsável","WhatsApp","E-mail","Clínica","CNPJ","Cidade","Especialidade","Nº Profissionais","Investiu Tráfego","Faturamento","Status","Data"];
-    const csv = [headers.join(";"), ...filtered.map(l => [l.nome_completo, l.whatsapp, l.email||"", l.nome_empresa||"", l.cnpj||"", l.cidade_estado||"", l.especialidade||"", l.num_profissionais||"", l.investiu_trafego||"", l.faturamento_mensal||"", l.status, new Date(l.created_at).toLocaleString("pt-BR")].join(";"))].join("\n");
+    const csv = [headers.join(";"), ...filtered.map(l => [l.nome_completo, l.whatsapp, l.email||"", l.nome_empresa||"", l.cnpj||"", l.cidade_estado||"", l.especialidade||"", l.num_profissionais||"", l.investiu_trafego||"", formatFaturamentoValue(extractFaturamentoRaw(l as any)), l.status, new Date(l.created_at).toLocaleString("pt-BR")].join(";"))].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
