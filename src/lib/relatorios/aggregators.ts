@@ -1,8 +1,8 @@
 import { format, parseISO, eachDayOfInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type {
-  LeadRow, AppointmentRow, InsightRow, SpendRow,
-  Kpis, FunilStage, RelatorioData, RelatorioFilters,
+  LeadRow, AppointmentRow, InsightRow, SpendRow, SaleRow, GoalRow,
+  Kpis, FunilStage, RelatorioData, RelatorioFilters, RankingItem,
 } from "./types";
 
 const STAGE_LABELS: Record<string, string> = {
@@ -16,11 +16,17 @@ const STAGE_LABELS: Record<string, string> = {
   no_show: "Não Comparecimento",
 };
 
-// Ordem do funil principal (perdido/no_show ficam à parte)
 const FUNIL_ORDER = ["lead", "qualificado", "reuniao_agendada", "compareceu", "negociacao", "ganho"] as const;
+
+function inRange(dateStr: string | null | undefined, from: string, to: string) {
+  if (!dateStr) return false;
+  const d = dateStr.slice(0, 10);
+  return d >= from && d <= to;
+}
 
 export function buildKpis(
   leads: LeadRow[], appts: AppointmentRow[], insights: InsightRow[], spend: SpendRow[],
+  sales: SaleRow[], goals: GoalRow[], from: string, to: string,
 ): Kpis {
   const total = leads.length;
   const qualificados = leads.filter(l => l.mql || l.sql_qualified || ["qualificado","reuniao_agendada","compareceu","negociacao","ganho"].includes(l.status)).length;
@@ -29,14 +35,10 @@ export function buildKpis(
   const noShow = appts.filter(a => (a.status ?? "").toLowerCase() === "no_show" || (a.status ?? "").toLowerCase() === "faltou").length;
   const ganhosLeads = leads.filter(l => l.status === "ganho");
   const ganhos = ganhosLeads.length;
-  // Valor Ganho: Kanban puro — soma valor_proposta dos leads na coluna 'ganho'
   const valorGanho = ganhosLeads.reduce((s, l) => s + (Number(l.valor_proposta) || 0), 0);
   const valorPerdido = leads.filter(l => l.status === "perdido").reduce((s, l) => s + (Number(l.valor_perdido) || 0), 0);
-  // Investimento: insights sincronizados + spend manual
+
   const investimentoInsights = insights.reduce((s, i) => s + (Number(i.spend) || 0), 0);
-  // campaign_spend é populado como snapshots diários de janela móvel — a mesma
-  // campanha aparece várias vezes no período. Deduplicamos por campanha
-  // mantendo o snapshot mais recente (period_end) para evitar contagem múltipla.
   const latestByCampaign = new Map<string, SpendRow>();
   for (const s of spend) {
     const key = `${s.tenant_id ?? ""}::${s.campaign_id ?? s.campaign_name ?? ""}`;
@@ -48,6 +50,38 @@ export function buildKpis(
   const investimento = investimentoInsights + investimentoManual;
   const cpl = total > 0 ? investimento / total : 0;
   const cac = ganhos > 0 ? investimento / ganhos : 0;
+
+  // ---- Novos KPIs ----
+  const vendasTotal = sales.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const vendasQtd = sales.length;
+  const novaVenda = sales
+    .filter(r => inRange(r.first_contact_date, from, to))
+    .reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
+  // Monetização: vendas cujo patient_id já teve venda anterior a esta (fora ou dentro do período)
+  // Aproximação com base apenas nos dados no período: se um patient_id tem >1 venda, todas menos a primeira são monetização.
+  const salesByPatient = new Map<string, SaleRow[]>();
+  for (const r of sales) {
+    if (!r.patient_id) continue;
+    const arr = salesByPatient.get(r.patient_id) ?? [];
+    arr.push(r);
+    salesByPatient.set(r.patient_id, arr);
+  }
+  let monetizacao = 0;
+  for (const arr of salesByPatient.values()) {
+    if (arr.length < 2) continue;
+    const sorted = arr.slice().sort((a, b) => (a.sale_date > b.sale_date ? 1 : -1));
+    for (let i = 1; i < sorted.length; i++) monetizacao += Number(sorted[i].amount) || 0;
+  }
+
+  const meta = goals.reduce((s, g) => s + (Number(g.goal_3) || Number(g.goal_2) || Number(g.goal_1) || 0), 0);
+  const naoRealizado = Math.max(meta - vendasTotal, 0);
+  const ticketMedio = vendasQtd > 0 ? vendasTotal / vendasQtd : 0;
+  const cpa = vendasQtd > 0 ? investimento / vendasQtd : 0;
+  const mqlQtd = leads.filter(l => l.mql).length;
+  const sqlQtd = leads.filter(l => l.sql_qualified).length;
+  const cpmql = mqlQtd > 0 ? investimento / mqlQtd : 0;
+  const cpsql = sqlQtd > 0 ? investimento / sqlQtd : 0;
 
   return {
     totalLeads: total,
@@ -64,23 +98,22 @@ export function buildKpis(
     investimento,
     cpl,
     cac,
+    vendasTotal, vendasQtd, novaVenda, monetizacao, meta, naoRealizado,
+    ticketMedio, cpa, cpmql, cpsql,
   };
 }
 
 export function buildFunil(leads: LeadRow[]): FunilStage[] {
   const total = leads.length;
-  // Cumulativo: quem chegou em X, obrigatoriamente passou por lead. Usamos "todos que estão em X ou depois".
   const counts: Record<string, number> = {};
   const RANK: Record<string, number> = { lead: 0, qualificado: 1, reuniao_agendada: 2, compareceu: 3, negociacao: 4, ganho: 5, perdido: -1, no_show: -1 };
   for (const stage of FUNIL_ORDER) {
     const rank = RANK[stage];
     counts[stage] = leads.filter(l => {
       const r = RANK[l.status] ?? 0;
-      // ganho conta em todos os anteriores; perdido/no_show contam só onde estavam
       return r >= rank && r >= 0;
     }).length;
   }
-
   const stages: FunilStage[] = FUNIL_ORDER.map((id, idx) => {
     const count = counts[id];
     const prev = idx > 0 ? counts[FUNIL_ORDER[idx - 1]] : null;
@@ -92,16 +125,41 @@ export function buildFunil(leads: LeadRow[]): FunilStage[] {
       pctPrev: prev !== null && prev > 0 ? count / prev : null,
     };
   });
-
-  // Adiciona perdido e no_show ao final como referência (não cumulativos)
   const perdido = leads.filter(l => l.status === "perdido").length;
   const noShow = leads.filter(l => l.status === "no_show").length;
   stages.push(
     { id: "perdido", label: STAGE_LABELS.perdido, count: perdido, pctTotal: total > 0 ? perdido / total : 0, pctPrev: null },
     { id: "no_show", label: STAGE_LABELS.no_show, count: noShow, pctTotal: total > 0 ? noShow / total : 0, pctPrev: null },
   );
-
   return stages;
+}
+
+// Funil no formato do BI antigo: LEADS -> LEADS QLF -> RA -> RR -> SQL -> VENDAS
+export function buildBiFunnel(leads: LeadRow[]): FunilStage[] {
+  const total = leads.length;
+  const qlf = leads.filter(l => l.mql || l.sql_qualified || ["qualificado","reuniao_agendada","compareceu","negociacao","ganho"].includes(l.status)).length;
+  const ra = leads.filter(l => l.reuniao_agendada_em || ["reuniao_agendada","compareceu","negociacao","ganho"].includes(l.status)).length;
+  const rr = leads.filter(l => l.reuniao_realizada_em || ["compareceu","negociacao","ganho"].includes(l.status)).length;
+  const sql = leads.filter(l => l.sql_qualified || ["negociacao","ganho"].includes(l.status)).length;
+  const vendas = leads.filter(l => l.status === "ganho").length;
+  const rows = [
+    { id: "leads", label: "Leads", count: total },
+    { id: "leads_qlf", label: "Leads QLF", count: qlf },
+    { id: "ra", label: "RA (R. Agendada)", count: ra },
+    { id: "rr", label: "RR (R. Realizada)", count: rr },
+    { id: "sql", label: "SQL", count: sql },
+    { id: "vendas", label: "Vendas", count: vendas },
+  ];
+  return rows.map((r, i) => {
+    const prev = i > 0 ? rows[i - 1].count : null;
+    return {
+      id: r.id,
+      label: r.label,
+      count: r.count,
+      pctTotal: total > 0 ? r.count / total : 0,
+      pctPrev: prev != null && prev > 0 ? r.count / prev : null,
+    };
+  });
 }
 
 export function buildLeadsByDay(leads: LeadRow[], from: string, to: string) {
@@ -156,9 +214,115 @@ export function buildOriginSplit(leads: LeadRow[]) {
   ];
 }
 
+// ---- Rankings (BI antigo) ----
+export function buildClosersRanking(sales: SaleRow[]): RankingItem[] {
+  const map = new Map<string, RankingItem>();
+  for (const s of sales) {
+    const key = (s.seller_name || "").trim() || "(sem closer)";
+    const cur = map.get(key) ?? { name: key, total: 0, count: 0 };
+    cur.total += Number(s.amount) || 0;
+    cur.count += 1;
+    map.set(key, cur);
+  }
+  return Array.from(map.values()).sort((a, b) => b.total - a.total).slice(0, 10);
+}
+
+export function buildSdrsRanking(leads: LeadRow[], ownersLabels: Map<string, string>): RankingItem[] {
+  const map = new Map<string, RankingItem>();
+  for (const l of leads) {
+    if (l.status !== "ganho") continue;
+    const key = l.owner_user_id || "(sem SDR)";
+    const label = l.owner_user_id ? (ownersLabels.get(l.owner_user_id) || l.owner_user_id.slice(0, 8)) : "(sem SDR)";
+    const cur = map.get(key) ?? { name: label, total: 0, count: 0 };
+    cur.total += Number(l.valor_proposta) || 0;
+    cur.count += 1;
+    map.set(key, cur);
+  }
+  return Array.from(map.values()).sort((a, b) => b.total - a.total).slice(0, 10);
+}
+
+// ---- Produtos (BI antigo) ----
+export function buildSalesByProduct(sales: SaleRow[]) {
+  const map = new Map<string, number>();
+  for (const s of sales) {
+    const key = ((s.product || s.procedure_name || "").trim()) || "(sem produto)";
+    map.set(key, (map.get(key) || 0) + (Number(s.amount) || 0));
+  }
+  return Array.from(map.entries())
+    .map(([name, total]) => ({ name, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 10);
+}
+
+export function buildMonetizedByProduct(sales: SaleRow[]) {
+  // Vendas de recompra por patient_id
+  const salesByPatient = new Map<string, SaleRow[]>();
+  for (const r of sales) {
+    if (!r.patient_id) continue;
+    const arr = salesByPatient.get(r.patient_id) ?? [];
+    arr.push(r);
+    salesByPatient.set(r.patient_id, arr);
+  }
+  const monetized: SaleRow[] = [];
+  for (const arr of salesByPatient.values()) {
+    if (arr.length < 2) continue;
+    const sorted = arr.slice().sort((a, b) => (a.sale_date > b.sale_date ? 1 : -1));
+    for (let i = 1; i < sorted.length; i++) monetized.push(sorted[i]);
+  }
+  return buildSalesByProduct(monetized);
+}
+
+// ---- Taxa por canal ----
+function normalizeChannel(v?: string | null) {
+  const s = (v || "").toString().trim().toLowerCase();
+  if (!s) return "(sem canal)";
+  if (s.includes("facebook") || s.includes("meta")) return "Meta";
+  if (s.includes("insta")) return "Instagram";
+  if (s.includes("google")) return "Google";
+  if (s.includes("indica")) return "Indicação";
+  if (s.includes("network")) return "Network";
+  if (s.includes("organ")) return "Orgânico";
+  return v || "(sem canal)";
+}
+
+export function buildChannelConversion(leads: LeadRow[], sales: SaleRow[]) {
+  const leadsByCh = new Map<string, number>();
+  for (const l of leads) {
+    const k = normalizeChannel(l.origem);
+    leadsByCh.set(k, (leadsByCh.get(k) || 0) + 1);
+  }
+  const salesByCh = new Map<string, number>();
+  for (const s of sales) {
+    const k = normalizeChannel(s.channel_origin || s.channel);
+    salesByCh.set(k, (salesByCh.get(k) || 0) + 1);
+  }
+  const keys = new Set<string>([...leadsByCh.keys(), ...salesByCh.keys()]);
+  return Array.from(keys).map(name => {
+    const l = leadsByCh.get(name) || 0;
+    const v = salesByCh.get(name) || 0;
+    return { name, sales: v, leads: l, rate: l > 0 ? v / l : 0 };
+  }).sort((a, b) => b.rate - a.rate);
+}
+
+export function buildChannelSql(leads: LeadRow[]) {
+  const totalByCh = new Map<string, number>();
+  const sqlByCh = new Map<string, number>();
+  for (const l of leads) {
+    const k = normalizeChannel(l.origem);
+    totalByCh.set(k, (totalByCh.get(k) || 0) + 1);
+    if (l.sql_qualified) sqlByCh.set(k, (sqlByCh.get(k) || 0) + 1);
+  }
+  return Array.from(totalByCh.keys()).map(name => {
+    const t = totalByCh.get(name) || 0;
+    const s = sqlByCh.get(name) || 0;
+    return { name, sql: s, leads: t, rate: t > 0 ? s / t : 0 };
+  }).sort((a, b) => b.rate - a.rate);
+}
+
 export function buildRelatorioData(
   filters: RelatorioFilters,
   leads: LeadRow[], appts: AppointmentRow[], insights: InsightRow[], spend: SpendRow[],
+  sales: SaleRow[], goals: GoalRow[],
   availableTenants: { id: string; name: string }[],
 ): RelatorioData {
   const availableCampaigns = Array.from(new Set(leads.map(l => l.utm_campaign).filter(Boolean) as string[])).sort();
@@ -168,14 +332,21 @@ export function buildRelatorioData(
   const availableOwners = Array.from(ownersMap.entries()).map(([id, label]) => ({ id, label }));
 
   return {
-    leads, appointments: appts, insights, spend,
-    kpis: buildKpis(leads, appts, insights, spend),
+    leads, appointments: appts, insights, spend, sales, goals,
+    kpis: buildKpis(leads, appts, insights, spend, sales, goals, filters.from, filters.to),
     funil: buildFunil(leads),
+    biFunnel: buildBiFunnel(leads),
     leadsByDay: buildLeadsByDay(leads, filters.from, filters.to),
     leadsByCampaign: buildTopBy(leads, l => l.utm_campaign || l.facebook_campaign || null, 10),
     leadsByForm: buildTopBy(leads, l => l.facebook_form_name, 8),
     attendanceByWeekday: buildAttendanceByWeekday(appts),
     originSplit: buildOriginSplit(leads),
+    rankingClosers: buildClosersRanking(sales),
+    rankingSdrs: buildSdrsRanking(leads, ownersMap),
+    salesByProduct: buildSalesByProduct(sales),
+    monetizedByProduct: buildMonetizedByProduct(sales),
+    channelConversion: buildChannelConversion(leads, sales),
+    channelSql: buildChannelSql(leads),
     availableCampaigns,
     availableForms,
     availableOwners,
