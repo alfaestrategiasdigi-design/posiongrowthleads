@@ -13,6 +13,7 @@ import ChartsGrid from "./ChartsGrid";
 type Density = "compact" | "comfortable";
 const DENSITY_KEY = "relatorios.density";
 import LeadsDetailTable from "./LeadsDetailTable";
+import FormLeadsAuditCard from "@/components/shared/FormLeadsAuditCard";
 import { exportLeadsCsv } from "./export/exportToCsv";
 import { exportRelatorioPdf } from "./export/exportToPdf";
 import type { RelatorioFilters, Scope } from "@/lib/relatorios/types";
