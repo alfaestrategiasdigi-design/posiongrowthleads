@@ -359,8 +359,8 @@ export default function SubscriptionsPage() {
             </Card>
           </TabsContent>
 
-          {/* ─── CATALOG ─── */}
-          <TabsContent value="catalog" className="mt-4">
+          {/* ─── CATALOG + INVOICES ─── */}
+          <TabsContent value="catalog" className="mt-4 space-y-6">
             <Card className="bg-[#0E1730] border-white/10">
               <CardHeader>
                 <CardTitle className="text-base">Catálogo POSION</CardTitle>
