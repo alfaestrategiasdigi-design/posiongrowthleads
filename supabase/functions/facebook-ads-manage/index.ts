@@ -302,12 +302,23 @@ Deno.serve(async (req) => {
         // Agrega formulários de TODAS as Páginas acessíveis pelo user token:
         // /me/accounts + owned_pages/client_pages de cada Business Manager.
         const pagesMap = new Map<string, { id: string; name: string; access_token?: string }>();
+        const bmList: any[] = [];
         const errors: any[] = [];
         let hadRateLimit = false;
+        let bizRateLimited = false;
         const isRateLimit = (b: any) => {
           const c = Number(b?.error?.code ?? 0);
           return [4, 17, 32, 613, 80004].includes(c);
         };
+
+        // Carrega cache antigo cedo — usado como fallback quando a Meta rate-limita.
+        const { data: cachedRow } = await admin
+          .from("facebook_lead_forms_cache")
+          .select("data, pages, pages_full, bm_list, updated_at")
+          .eq("id", 1)
+          .maybeSingle();
+        const cachedPagesFull = (cachedRow?.pages_full ?? []) as any[];
+        const cachedBmList = (cachedRow?.bm_list ?? []) as any[];
 
         const meAcc = await fbGet(`me/accounts`, token, {
           fields: "id,name,access_token", limit: "200",
@@ -320,26 +331,40 @@ Deno.serve(async (req) => {
         }
 
         const biz = await fbGet(`me/businesses`, token, { fields: "id,name", limit: "200" });
+        let bmsToScan: any[] = [];
         if (!biz.ok) {
-          if (isRateLimit(biz.body)) hadRateLimit = true;
+          if (isRateLimit(biz.body)) { hadRateLimit = true; bizRateLimited = true; }
           errors.push({ page_id: "me/businesses", page_name: "Business Managers (/me/businesses)", error: biz.body?.error?.message ?? "Erro Graph" });
+          // Fallback: usa a lista de BMs em cache para não perder os forms das outras BMs.
+          bmsToScan = cachedBmList;
         } else {
-          for (const b of biz.body?.data ?? []) {
-            for (const edge of ["owned_pages", "client_pages"]) {
-              const r = await fbGet(`${b.id}/${edge}`, token, {
-                fields: "id,name,access_token", limit: "200",
+          bmsToScan = biz.body?.data ?? [];
+          for (const b of bmsToScan) bmList.push({ id: b.id, name: b.name });
+        }
+
+        for (const b of bmsToScan) {
+          for (const edge of ["owned_pages", "client_pages"]) {
+            const r = await fbGet(`${b.id}/${edge}`, token, {
+              fields: "id,name,access_token", limit: "200",
+            });
+            if (r.ok) {
+              for (const p of r.body?.data ?? []) if (!pagesMap.has(p.id)) pagesMap.set(p.id, p);
+            } else {
+              if (isRateLimit(r.body)) hadRateLimit = true;
+              errors.push({
+                page_id: `${b.id}/${edge}`,
+                page_name: `BM ${b.name ?? b.id} · ${edge}`,
+                error: r.body?.error?.message ?? "Erro Graph",
               });
-              if (r.ok) {
-                for (const p of r.body?.data ?? []) if (!pagesMap.has(p.id)) pagesMap.set(p.id, p);
-              } else {
-                if (isRateLimit(r.body)) hadRateLimit = true;
-                errors.push({
-                  page_id: `${b.id}/${edge}`,
-                  page_name: `BM ${b.name ?? b.id} · ${edge}`,
-                  error: r.body?.error?.message ?? "Erro Graph",
-                });
-              }
             }
+          }
+        }
+
+        // Fallback extra: se ainda ficamos com pouquíssimas páginas (rate limit em massa),
+        // recompõe a partir do cache de pages_full para não sumir com formulários.
+        if (hadRateLimit && cachedPagesFull.length > 0) {
+          for (const p of cachedPagesFull) {
+            if (!pagesMap.has(p.id)) pagesMap.set(p.id, p);
           }
         }
 
@@ -374,13 +399,6 @@ Deno.serve(async (req) => {
           pageSummary.push({ id: p.id, name: pageName, forms_count: data.length });
         });
 
-        // Load previous cache (used for stale-fallback and merge)
-        const { data: cachedRow } = await admin
-          .from("facebook_lead_forms_cache")
-          .select("data, pages, updated_at")
-          .eq("id", 1)
-          .maybeSingle();
-
         // Success = we managed to actually enumerate pages beyond the cfg fallback,
         // and we did not hit a rate limit that hid BMs.
         const enumeratedFresh = pages.length > (cfgPageId ? 1 : 0);
@@ -391,16 +409,29 @@ Deno.serve(async (req) => {
             id: 1,
             data: forms,
             pages: pageSummary,
+            pages_full: pages,
+            bm_list: bmList,
             updated_at: new Date().toISOString(),
           });
           return json({ ok: true, data: forms, pages: pageSummary, errors, stale: false });
+        }
+
+        // Atualização parcial do cache: preserva BMs/Páginas que reconseguimos ver.
+        if (!bizRateLimited && bmList.length > 0) {
+          await admin.from("facebook_lead_forms_cache").upsert({
+            id: 1,
+            data: cachedRow?.data ?? forms,
+            pages: cachedRow?.pages ?? pageSummary,
+            pages_full: pages.length > cachedPagesFull.length ? pages : cachedPagesFull,
+            bm_list: bmList,
+            updated_at: cachedRow?.updated_at ?? new Date().toISOString(),
+          });
         }
 
         // Not healthy: serve cache if we have one, so BMs don't "disappear" for the user.
         if (cachedRow?.data) {
           const cachedForms = cachedRow.data as any[];
           const cachedPages = (cachedRow.pages ?? []) as any[];
-          // Merge: prefer fresh forms for pages we DID reach; keep cached forms for pages we missed.
           const freshPageIds = new Set(pageSummary.filter(p => !p.error).map(p => p.id));
           const merged = [
             ...forms,
@@ -432,6 +463,7 @@ Deno.serve(async (req) => {
 
         return json({ ok: true, data: forms, pages: pageSummary, errors, stale: false, rate_limited: hadRateLimit });
       }
+
 
 
 
