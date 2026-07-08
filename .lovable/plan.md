@@ -1,42 +1,65 @@
-## Novo catálogo POSION Pro
+## Fluxo CAPI completo (ViewContent → InitiateCheckout → Lead → Purchase)
 
-Valor de referência: **R$ 450/mês** · usuários ilimitados · sem agente de IA · sem cobrança mensal avulsa (compromisso mínimo trimestral).
+Hoje só existe disparo **Purchase** quando o lead vira "ganho" no Kanban. Vou expandir para cobrir toda a jornada com deduplicação server↔browser via `event_id` estável por lead.
 
-| Plano | Ciclo | Preço cheio | Desconto | Preço final | Equivalente/mês |
-|---|---|---|---|---|---|
-| POSION Pro Trimestral | 3 meses | R$ 1.350 | **–10%** | **R$ 1.215** | R$ 405 |
-| POSION Pro Semestral | 6 meses | R$ 2.700 | **–20%** | **R$ 2.160** | R$ 360 |
+### Mapeamento de etapas
 
-## Escopo da mudança
+| Etapa do funil       | Evento Meta         | Quando dispara                                              | event_id (dedup)                     |
+| -------------------- | ------------------- | ----------------------------------------------------------- | ------------------------------------ |
+| Visita da página     | `ViewContent`       | Client-side (Pixel) + servidor (CAPI) ao abrir a landing    | `view:{tenant}:{visitor_id}:{path}`  |
+| Início do formulário | `InitiateCheckout`  | Client-side + CAPI no primeiro `focus`/`input` do form      | `form_start:{tenant}:{visitor_id}`   |
+| Envio do lead        | `Lead`              | Server-side no INSERT em `public.leads` (trigger)           | `lead:{lead_id}`                     |
+| Conversão fechada    | `Purchase`          | Server-side quando `leads.status → 'ganho'` (já existe)     | `purchase:{lead_id}`                 |
 
-### 1. Banco (`plan_catalog`) — via migration
-- Marcar como `active = false` todas as linhas atuais (Starter/Pro/Scale mensal e trimestral). Assinaturas ativas seguem funcionando no valor antigo até renovarem/cancelarem — histórico preservado.
-- Inserir 2 novas linhas:
-  - `code = 'pro'`, `interval = 'quarter'`, `name = 'POSION Pro Trimestral'`, `amount_cents = 121500`, `currency = 'brl'`, `lookup_key = 'pro_quarter_v_new'`, `mp_preapproval_plan_id = NULL`, `sort_order = 1`, `active = true`, `mp_reason = 'POSION Pro Trimestral'`.
-  - `code = 'pro'`, `interval = 'semester'`, `name = 'POSION Pro Semestral'`, `amount_cents = 216000`, `currency = 'brl'`, `lookup_key = 'pro_semester_v1'`, `mp_preapproval_plan_id = NULL`, `sort_order = 2`, `active = true`, `mp_reason = 'POSION Pro Semestral'`.
-- O plano MP será criado automaticamente no primeiro checkout (fluxo já implementado em `mp-subscription-checkout` + `ensureMpPreapprovalPlan`).
+`event_id` idêntico entre browser (Pixel) e servidor (CAPI) → Meta deduplica automaticamente. Cada `event_id` é gravado em `capi_events_sent` para bloquear reenvios no servidor.
 
-### 2. Suporte a intervalo semestral
-Hoje o helper `ensureMpPreapprovalPlan` e a UI só reconhecem `month` e `quarter`. Ajustar para aceitar `semester`:
-- `supabase/functions/_shared/mercadopago.ts`: `frequency = interval === 'semester' ? 6 : interval === 'quarter' ? 3 : 1`.
-- `src/pages/app/TenantPlans.tsx` e `src/pages/admin/SubscriptionsPage.tsx`: label "Semestral" para `interval === 'semester'`, cálculo de MRR dividindo por 6.
+### Mapeamento de campos (user_data)
 
-### 3. UI — `src/pages/app/TenantPlans.tsx` (cliente)
-- Remover cards Starter/Pro/Scale. Renderizar apenas **um card POSION Pro** com dois botões (Trimestral / Semestral).
-- Texto de features: "Usuários ilimitados", "CRM Kanban", "WhatsApp integrado", "Recall automatizado", "Meta Ads", "Suporte prioritário". **Não** mencionar agente de IA.
-- Mostrar equivalente/mês ao lado do preço (ancoragem em R$ 450/mês).
-- Selo "–20%" no semestral, "–10%" no trimestral.
+Enviados server-side, todos hasheados SHA-256 quando exigido:
 
-### 4. UI — `src/pages/admin/SubscriptionsPage.tsx`
-- Aba "Planos & Faturas" passa a listar apenas os 2 planos ativos (o filtro já vem da query; só precisa garantir ordenação).
-- Ajustar MRR: `s.interval === 'semester' ? amount/6 : s.interval === 'quarter' ? amount/3 : amount`.
+- `em` ← `leads.email`
+- `ph` ← `leads.whatsapp` (dígitos, com DDI 55)
+- `fn` / `ln` ← primeiro / último nome de `nome_completo`
+- `ct` / `st` ← cidade / UF extraídos de `cidade_estado`
+- `zp` ← `leads.cep` quando existir
+- `country` ← "br"
+- `fbp` / `fbc` ← cookies capturados no browser (repassados ao webhook via URL na origem `formulario`; persistidos em `leads.meta_fbp` / `meta_fbc`)
+- `client_ip_address` / `client_user_agent` ← do request original (webhook client-events)
+- `external_id` ← `leads.id` (hash)
 
-### 5. Detalhes técnicos
-- `subscriptions.interval` já é texto livre, aceita `'semester'` sem migration adicional.
-- Assinaturas antigas continuam válidas — não mexer em `subscriptions` existentes.
-- Nenhuma alteração em RLS/GRANT (tabelas já existem).
+`custom_data` inclui `value`, `currency: BRL`, `content_name`, `content_category` (especialidade quando houver) e `order_id` no Purchase.
 
-## Fora de escopo
-- Migração forçada de clientes atuais para os novos valores (fazer manualmente caso a caso).
-- Integração de novo gateway (segue Mercado Pago).
-- Página pública de pricing / landing (só painel admin e área do tenant).
+### Mudanças
+
+**Banco**
+- Adicionar em `leads`: `meta_fbp text`, `meta_fbc text`, `visitor_id text`, `cep text`.
+- Nova tabela `capi_events_sent` (`event_id text PK, tenant_id, lead_id, event_name, sent_at`) para dedup no servidor. Grants + RLS (só service_role escreve; tenant lê os seus).
+- Trigger `fire_capi_on_lead` no INSERT de `public.leads` → dispara `facebook-capi-event` com `event_name='Lead'`.
+- Manter o trigger `fire_capi_on_won` (Purchase).
+
+**Edge functions**
+- `facebook-capi-event` (existente): aceitar `event_name` = `ViewContent | InitiateCheckout | Lead | Purchase`, receber `event_id`, `visitor_id`, `fbp`, `fbc`, `client_ip`, `client_ua`, `custom_data` extra; buscar `leads` só quando faz sentido; gravar em `capi_events_sent` (insert `ON CONFLICT DO NOTHING` — se já existe, retorna `deduped: true` sem chamar Graph API).
+- Nova função pública `capi-client-event` (sem JWT): recebe eventos do browser (`ViewContent`, `InitiateCheckout`), resolve `tenant_id` pelo slug/rota, injeta `client_ip_address` do request e chama `facebook-capi-event` internamente. Isso evita expor o service key ao browser.
+
+**Front-end**
+- Novo helper `src/lib/tracking/capi.ts`:
+  - Gera/persiste `visitor_id` (uuid em `localStorage`).
+  - Lê cookies `_fbp` / `_fbc` (grava `_fbc` a partir de `?fbclid=` na URL se ausente).
+  - `trackView(tenantSlug)` e `trackFormStart(tenantSlug)` que POST-am para `capi-client-event` com `event_id` estável.
+  - Se o Pixel do tenant estiver carregado no browser, também dispara `fbq('track', ..., { eventID })` com o mesmo `event_id`.
+- Hook `usePixel(tenantSlug)` que injeta `<script>` do Meta Pixel só quando `tenant_capi_config.pixel_id` estiver configurado (busca via edge function pública read-only ou embutido no HTML da landing).
+- Instrumentar:
+  - `src/pages/Index.tsx` → `trackView` no mount.
+  - Qualquer formulário público de captação de lead → `trackFormStart` no primeiro foco/input, `visitor_id` + `fbp`/`fbc` incluídos no payload de criação do lead.
+- No webhook `facebook-leads-webhook` e nos inserts de `leads` originados do site, persistir `meta_fbp`, `meta_fbc`, `visitor_id` recebidos.
+
+### Deduplicação — resumo
+
+1. **Browser Pixel** dispara `fbq('track', 'Lead', {...}, { eventID: 'lead:<lead_id>' })`.
+2. **Servidor CAPI** envia o mesmo evento com `event_id: 'lead:<lead_id>'`.
+3. Meta descarta o duplicado (janela de 48h).
+4. `capi_events_sent` garante que a nossa própria edge function não reenvie o mesmo `event_id`, mesmo em retries do webhook ou re-execução do trigger.
+
+### Não incluído nesta rodada
+- UI para o tenant visualizar a taxa de match / EMQ (fica para depois).
+- Advanced Matching automático via SDK do Pixel (podemos adicionar depois se necessário).
