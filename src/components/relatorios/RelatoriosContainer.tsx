@@ -6,7 +6,7 @@ import { useRelatorioData } from "@/hooks/useRelatorioData";
 import FiltersBar from "./FiltersBar";
 import KpiSummary from "./KpiSummary";
 import FunilVisual from "./FunilVisual";
-import BiFunnel from "./BiFunnel";
+
 import RankingsGrid from "./RankingsGrid";
 import ChartsGrid from "./ChartsGrid";
 
@@ -141,7 +141,7 @@ export default function RelatoriosContainer({ scope, currentTenantId, scopeLabel
                 </ul>
               </div>
             </div>
-            <BiFunnel funil={data.biFunnel} />
+            
             <RankingsGrid closers={data.rankingClosers} sdrs={data.rankingSdrs} />
             <div ref={chartsRef}>
               <ChartsGrid data={data} />

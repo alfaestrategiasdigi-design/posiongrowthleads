@@ -35,7 +35,7 @@ export function buildKpis(
   const noShow = appts.filter(a => (a.status ?? "").toLowerCase() === "no_show" || (a.status ?? "").toLowerCase() === "faltou").length;
   const ganhosLeads = leads.filter(l => l.status === "ganho");
   const ganhos = ganhosLeads.length;
-  const valorGanho = ganhosLeads.reduce((s, l) => s + (Number(l.valor_proposta) || 0), 0);
+  const valorGanhoLeads = ganhosLeads.reduce((s, l) => s + (Number(l.valor_proposta) || 0), 0);
   const valorPerdido = leads.filter(l => l.status === "perdido").reduce((s, l) => s + (Number(l.valor_perdido) || 0), 0);
 
   const investimentoInsights = insights.reduce((s, i) => s + (Number(i.spend) || 0), 0);
@@ -93,7 +93,7 @@ export function buildKpis(
     taxaComparecimento: (compareceu + noShow) > 0 ? compareceu / (compareceu + noShow) : 0,
     ganhos,
     taxaConversao: total > 0 ? ganhos / total : 0,
-    valorGanho,
+    valorGanho: vendasTotal > 0 ? vendasTotal : valorGanhoLeads,
     valorPerdido,
     investimento,
     cpl,
