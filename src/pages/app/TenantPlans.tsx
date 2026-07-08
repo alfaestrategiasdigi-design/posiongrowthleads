@@ -120,7 +120,7 @@ export default function TenantPlans() {
               Plano da <span className="gold-gradient-text">{tenant?.name ?? "sua clínica"}</span>
             </h1>
             <p className="text-muted-foreground text-sm max-w-2xl">
-              POSION Pro — usuários ilimitados. Escolha entre Trimestral ou Semestral e pague com cartão pelo Mercado Pago.
+              POSION Pro — usuários ilimitados. Escolha Mensal, Trimestral ou Semestral e pague com cartão pelo Mercado Pago.
             </p>
           </div>
           <Button variant="outline" onClick={refresh} className="gap-2"><RefreshCw className="w-4 h-4" /> Atualizar</Button>
