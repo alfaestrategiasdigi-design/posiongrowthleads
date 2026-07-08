@@ -205,12 +205,13 @@ export default function TenantPlans() {
                   ))}
                 </ul>
 
-                <div className="grid sm:grid-cols-2 gap-3 pt-4 border-t border-white/5">
-                  {(["quarter", "semester"] as const).map((interval) => {
+                <div className="grid sm:grid-cols-3 gap-3 pt-4 border-t border-white/5">
+                  {(["month", "quarter", "semester"] as const).map((interval) => {
                     const plan = planByInterval[interval];
                     if (!plan) return null;
                     const isCurrent = hasActiveSub && sub.plan_code === plan.code && sub.interval === interval;
-                    const discount = interval === "semester" ? "-20%" : "-10%";
+                    const discount =
+                      interval === "semester" ? "-20%" : interval === "quarter" ? "-10%" : null;
                     const perMonth = monthlyEquivalent(plan.amount_cents, interval);
                     return (
                       <div
@@ -223,17 +224,28 @@ export default function TenantPlans() {
                       >
                         <div className="flex items-center justify-between">
                           <div className="font-semibold">{intervalLabel(interval)}</div>
-                          <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                            {discount}
-                          </Badge>
+                          {discount ? (
+                            <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                              {discount}
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-white/5 text-muted-foreground border border-white/10">
+                              Sem fidelidade
+                            </Badge>
+                          )}
                         </div>
                         <div>
                           <div className="font-display text-3xl tabular-nums">
                             {BRL(plan.amount_cents, plan.currency)}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {intervalUnit(interval)} · equivale a{" "}
-                            <span className="text-foreground font-medium">{BRL(perMonth)}/mês</span>
+                            {intervalUnit(interval)}
+                            {interval !== "month" && (
+                              <>
+                                {" "}· equivale a{" "}
+                                <span className="text-foreground font-medium">{BRL(perMonth)}/mês</span>
+                              </>
+                            )}
                           </div>
                         </div>
                         <Button
