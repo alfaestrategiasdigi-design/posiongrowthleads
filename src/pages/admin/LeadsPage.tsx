@@ -39,6 +39,7 @@ const LeadsPage = () => {
   const [masterForms, setMasterForms] = useState<Array<{ id: string; form_id: string; label: string | null; active: boolean }>>([]);
   const [availableForms, setAvailableForms] = useState<Array<{ form_id: string; form_name: string | null }>>([]);
   const [showFormManager, setShowFormManager] = useState(false);
+  const [showReport, setShowReport] = useState(false);
 
   const loadMasterForms = async () => {
     const { data } = await (supabase as any)
