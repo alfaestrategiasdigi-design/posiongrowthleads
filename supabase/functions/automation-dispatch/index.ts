@@ -60,6 +60,22 @@ function buttonDisplayText(value: unknown, fallback: string): string {
   return compactText(value, fallback).slice(0, 20);
 }
 
+function stripDiacritics(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function isGenericButtonArtifact(value: string): boolean {
+  const key = stripDiacritics(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+  // Covers old/default labels that sometimes arrived in WhatsApp as "Botão~pp".
+  return key === "botao" || /^botaop[cps]*$/.test(key);
+}
+
+function menuOptionText(value: unknown, fallback: string): string {
+  const text = compactText(value, fallback).replace(/[\u0000-\u001F\u007F]/g, "").trim();
+  if (!text || isGenericButtonArtifact(text)) return fallback;
+  return text.slice(0, 60);
+}
+
 function buttonId(value: unknown, fallback: string): string {
   const safe = String(value ?? "").trim().replace(/[^\w-]/g, "_").slice(0, 64);
   return safe || fallback;
@@ -280,7 +296,7 @@ function buildButtonsTextMessage(data: { title?: string; text?: string; footer?:
   const footer = compactText(data.footer, "");
   if (title) lines.push(`*${title}*`);
   if (text) lines.push(text);
-  const options = data.buttons.slice(0, 3).map((b, i) => `${i + 1}. ${compactText(b.displayLabel || b.label, `Opção ${i + 1}`)}`);
+  const options = data.buttons.slice(0, 3).map((b, i) => `${i + 1}. ${menuOptionText(b.displayLabel || b.label, `Opção ${i + 1}`)}`);
   if (options.length > 0) lines.push(options.join("\n"));
   if (footer) lines.push(footer);
   return lines.filter(Boolean).join("\n\n");
@@ -345,8 +361,8 @@ async function runFlow(
         const footer = interpolate(String(d.footer || ""), vars);
         const btns = (d.buttons || []).map((b: any, i: number) => ({
           id: buttonId(b.id, `btn_${i}`),
-          label: b.label || `Botão ${i + 1}`,
-          displayLabel: buttonDisplayText(b.label, `Botão ${i + 1}`),
+          label: b.label || `Opção ${i + 1}`,
+          displayLabel: menuOptionText(b.label, `Opção ${i + 1}`),
         }));
         // Build button_map: id/label -> target node
         const outEdges = edges.filter((e) => e.source === node.id);
@@ -367,19 +383,12 @@ async function runFlow(
         const buttonsText = buildButtonsTextMessage({ title, text, footer, buttons: btns });
         if (dryRun) detail = `enviaria botões: [${btns.map((b) => b.displayLabel).join(", ")}] → ${new Set(Object.values(buttonMap)).size} rotas`;
         else {
-          // Try native interactive buttons first. Some WhatsApp accounts / Evolution builds fail
-          // silently ("Aguardando mensagem"), so on any error we fall back to a numbered text menu.
-          let r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "buttons", {
-            title, text, footer, buttons: btns,
-          });
-          let mode = "nativos";
-          if (!r.ok) {
-            const fb = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text: buttonsText });
-            r = fb; mode = `texto numerado (fallback: ${r.ok ? "ok" : "falhou"})`;
-          }
+          // Native interactive buttons are inconsistent across Evolution builds/devices and can
+          // render as "Aguardando mensagem". Send a deterministic numbered menu instead.
+          const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text: buttonsText });
           ok = r.ok;
           detail = r.ok
-            ? `botões ${mode} enviados (${btns.length}, ${new Set(Object.values(buttonMap)).size} rotas)`
+            ? `menu numerado enviado (${btns.length}, ${new Set(Object.values(buttonMap)).size} rotas)`
             : `erro: ${r.error}`;
         }
         if (ok && !dryRun) {
