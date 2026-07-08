@@ -63,6 +63,7 @@ interface AgencyLead {
   nome_clinica: string; plano_interesse: string | null;
   origem: string | null; ganho_at: string | null; perdido_motivo: string | null;
   updated_at: string | null;
+  source_lead_id?: string | null;
 }
 interface AgencyContract { id: string; agency_lead_id: string | null; tenant_id: string | null; cliente_nome: string; valor_total: number; data_assinatura: string; status: string }
 interface SaasContract { id: string; tenant_id: string | null; mrr: number; status: string; started_at: string }
@@ -107,17 +108,16 @@ export default function Dashboard() {
           .limit(10000);
         masterSourceIds = (srcLeads ?? []).map((l: any) => l.id).filter(Boolean);
       }
-      const [l, ac] = masterSourceIds.length > 0 ? await Promise.all([
-        supabase
-          .from("agency_leads")
-          .select("id,stage,valor_proposta,created_at,updated_at,nome_clinica,plano_interesse,origem,ganho_at,perdido_motivo,tenant_id_criado")
-          .in("source_lead_id", masterSourceIds),
-        supabase
-          .from("agency_contracts")
-          .select("id,agency_lead_id,tenant_id,cliente_nome,valor_total,data_assinatura,status")
-          .in("agency_lead_id", masterSourceIds)
-          .order("data_assinatura", { ascending: false }),
-      ]) : [{ data: [] }, { data: [] }];
+      const l = masterSourceIds.length > 0 ? await supabase
+        .from("agency_leads")
+        .select("id,source_lead_id,stage,valor_proposta,created_at,updated_at,nome_clinica,plano_interesse,origem,ganho_at,perdido_motivo,tenant_id_criado")
+        .in("source_lead_id", masterSourceIds) : { data: [] };
+      const agencyLeadIds = ((l.data ?? []) as any[]).map((lead) => lead.id).filter(Boolean);
+      const ac = agencyLeadIds.length > 0 ? await supabase
+        .from("agency_contracts")
+        .select("id,agency_lead_id,tenant_id,cliente_nome,valor_total,data_assinatura,status")
+        .in("agency_lead_id", agencyLeadIds)
+        .order("data_assinatura", { ascending: false }) : { data: [] };
       setLeads((l.data || []) as AgencyLead[]);
       setAgencyContracts((ac.data || []) as AgencyContract[]);
       setSaasContracts((sc.data || []) as SaasContract[]);

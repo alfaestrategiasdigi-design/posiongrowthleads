@@ -128,10 +128,17 @@ export async function fetchRelatorio(
   // -------- CONTRATOS DA AGÊNCIA (Admin Master) --------
   let agencyContracts: AgencyContractRow[] = [];
   if (isAdminMasterView) {
+    const { data: agencyLeadLinks, error: agencyLeadLinksErr } = await (supabase as any)
+      .from("agency_leads")
+      .select("id")
+      .in("source_lead_id", masterSourceIds)
+      .limit(10000);
+    if (agencyLeadLinksErr) throw agencyLeadLinksErr;
+    const agencyLeadIds = (agencyLeadLinks ?? []).map((l: any) => l.id).filter(Boolean);
     const { data: ac, error: acErr } = await supabase
       .from("agency_contracts")
       .select(AGENCY_CONTRACT_FIELDS)
-      .in("agency_lead_id", masterSourceIds)
+      .in("agency_lead_id", agencyLeadIds.length > 0 ? agencyLeadIds : masterSourceIds)
       .gte("data_assinatura", filters.from)
       .lte("data_assinatura", filters.to)
       .order("data_assinatura", { ascending: false })
