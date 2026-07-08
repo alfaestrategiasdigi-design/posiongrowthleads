@@ -32,6 +32,7 @@ const LeadsPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [originFilter, setOriginFilter] = useState<string>("all");
+  const [formFilter, setFormFilter] = useState<string>("all");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [lastLeadsSync, setLastLeadsSync] = useState<string | null>(null);
   const [masterForms, setMasterForms] = useState<Array<{ id: string; form_id: string; label: string | null; active: boolean }>>([]);
@@ -148,6 +149,7 @@ const LeadsPage = () => {
   const filtered = leads.filter(l => {
     if (statusFilter !== "all" && l.status !== statusFilter) return false;
     if (originFilter !== "all" && (l.origem || "outro") !== originFilter) return false;
+    if (formFilter !== "all" && String((l as any).facebook_form_id || "") !== formFilter) return false;
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -376,7 +378,21 @@ const LeadsPage = () => {
             {origins.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
         </div>
+        <div className="flex items-center gap-2 bg-card/40 border border-border/60 rounded-full px-3 py-1.5">
+          <Filter className="w-3.5 h-3.5 text-accent" />
+          <select
+            value={formFilter}
+            onChange={e => setFormFilter(e.target.value)}
+            className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer max-w-[220px]"
+          >
+            <option value="all">Todos formulários</option>
+            {availableForms.map(f => (
+              <option key={f.form_id} value={f.form_id}>{f.form_name || `Formulário ${f.form_id}`}</option>
+            ))}
+          </select>
+        </div>
       </div>
+
 
       {/* Tabela */}
       <div className="card-elevated overflow-hidden">
@@ -387,6 +403,7 @@ const LeadsPage = () => {
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Nome</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Contato</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Clínica</th>
+                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Formulário</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Cidade</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Especialidade</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Faturamento</th>
@@ -408,8 +425,11 @@ const LeadsPage = () => {
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">{lead.nome_completo}</p>
                           {lead.origem === "facebook_ads" && (
-                            <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                              <Facebook className="w-2.5 h-2.5 text-sky-400" /> Facebook Ads
+                            <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5 truncate" title={(lead as any).facebook_form_name || (lead as any).facebook_form_id || "Facebook Ads"}>
+                              <Facebook className="w-2.5 h-2.5 text-sky-400 shrink-0" />
+                              <span className="truncate">
+                                Facebook Ads{((lead as any).facebook_form_name || (lead as any).facebook_form_id) ? ` · ${(lead as any).facebook_form_name || (lead as any).facebook_form_id}` : ""}
+                              </span>
                             </p>
                           )}
                         </div>
@@ -423,6 +443,20 @@ const LeadsPage = () => {
                     </td>
                     <td className="p-4">
                       {lead.nome_empresa && <p className="text-sm text-foreground flex items-center gap-1.5"><Building2 className="w-3 h-3 text-accent/70" /> {lead.nome_empresa}</p>}
+                    </td>
+                    <td className="p-4">
+                      {(lead as any).facebook_form_name || (lead as any).facebook_form_id ? (
+                        <div className="min-w-0 max-w-[220px]">
+                          <p className="text-xs text-foreground truncate" title={(lead as any).facebook_form_name || ""}>
+                            {(lead as any).facebook_form_name || `Formulário ${(lead as any).facebook_form_id}`}
+                          </p>
+                          {(lead as any).facebook_form_id && (
+                            <p className="text-[10px] text-muted-foreground/70 font-mono truncate">{(lead as any).facebook_form_id}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </td>
                     <td className="p-4">
                       {lead.cidade_estado && <p className="text-sm text-muted-foreground flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {lead.cidade_estado}</p>}
@@ -449,7 +483,7 @@ const LeadsPage = () => {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={9} className="p-12 text-center text-muted-foreground text-sm">Nenhum lead encontrado com os filtros atuais</td></tr>
+                <tr><td colSpan={10} className="p-12 text-center text-muted-foreground text-sm">Nenhum lead encontrado com os filtros atuais</td></tr>
               )}
             </tbody>
           </table>
