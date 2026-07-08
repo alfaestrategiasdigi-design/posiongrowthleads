@@ -40,6 +40,10 @@ export default function TenantLeads() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [originFilter, setOriginFilter] = useState<string>("all");
+  const [formFilter, setFormFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [showReport, setShowReport] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
   const [syncing, setSyncing] = useState(false);
