@@ -112,7 +112,7 @@ export function buildFunil(leads: LeadRow[]): FunilStage[] {
   const RANK: Record<string, number> = { lead: 0, qualificado: 1, reuniao_agendada: 2, compareceu: 3, negociacao: 4, ganho: 5, perdido: -1, no_show: -1 };
   for (const stage of FUNIL_ORDER) {
     const rank = RANK[stage];
-    counts[stage] = leads.filter(l => {
+    counts[stage] = stage === "lead" ? total : leads.filter(l => {
       const r = RANK[l.status] ?? 0;
       return r >= rank && r >= 0;
     }).length;
