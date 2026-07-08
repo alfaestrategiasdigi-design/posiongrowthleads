@@ -379,6 +379,8 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <FormLeadsAuditCard from={range.from} to={range.to} scope="admin" currentTenantId={null} detailsHref="/admin/relatorios" />
+
       {/* AGÊNCIA */}
       <section>
         <SectionTitle icon={GitBranch} title="Pipeline & Agência" subtitle="Funil de vendas POSION → clínicas" />
