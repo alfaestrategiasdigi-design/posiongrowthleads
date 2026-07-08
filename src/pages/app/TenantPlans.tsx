@@ -18,6 +18,8 @@ const PLAN_META = {
     "Recall automatizado por WhatsApp",
     "Funil de avaliações + relatórios completos",
     "Integração com Meta Ads",
+    "API de Conversão (Meta CAPI) server-side",
+    "Rastreio 100% automático da origem dos leads",
     "Agenda e prontuário",
     "Suporte prioritário",
   ],
@@ -167,29 +169,29 @@ export default function TenantPlans() {
 
         <TrialGate tenant={tenant as any}>
           <div>
-            <h2 className="font-display text-xl mb-4">{hasActiveSub ? "Trocar de plano" : "Escolha seu compromisso"}</h2>
+            <h2 className="font-display text-xl mb-6">{hasActiveSub ? "Trocar de plano" : "Escolha seu compromisso"}</h2>
 
-            <Card className="bg-[#0E1730] border-primary/30 relative overflow-hidden">
-              <div className="absolute -top-2 left-6 text-[10px] uppercase tracking-widest bg-primary text-primary-foreground px-2 py-0.5 rounded">
+            <Card className="bg-[#0E1730] border-primary/30 relative overflow-visible mt-3">
+              <div className="absolute -top-3 left-6 text-[10px] uppercase tracking-widest bg-primary text-primary-foreground px-2.5 py-1 rounded shadow-lg z-10">
                 Plano único
               </div>
-              <CardHeader className="pt-8">
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+              <CardHeader className="pt-10 pb-4">
+                <div className="flex items-start justify-between gap-6 flex-wrap">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
                       <Sparkles className="w-6 h-6 text-primary" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <CardTitle className="text-2xl">POSION Pro</CardTitle>
                       <p className="text-sm text-muted-foreground">{PLAN_META.tagline}</p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Referência</div>
-                    <div className="font-display text-2xl tabular-nums">
+                    <div className="font-display text-2xl tabular-nums leading-tight">
                       {BRL(REFERENCE_MONTHLY_CENTS)}<span className="text-sm text-muted-foreground">/mês</span>
                     </div>
-                    <div className="text-[10px] text-primary/80 inline-flex items-center gap-1 mt-0.5">
+                    <div className="text-[10px] text-primary/80 inline-flex items-center gap-1 mt-1">
                       <Users className="w-3 h-3" /> usuários ilimitados
                     </div>
                   </div>
