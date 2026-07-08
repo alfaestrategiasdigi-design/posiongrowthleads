@@ -85,16 +85,39 @@ export default function Dashboard() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [l, ac, sc, t] = await Promise.all([
-        supabase.from("agency_leads").select("id,stage,valor_proposta,created_at,updated_at,nome_clinica,plano_interesse,origem,ganho_at,perdido_motivo,tenant_id_criado"),
-        supabase
-          .from("agency_contracts")
-          .select("id,agency_lead_id,tenant_id,cliente_nome,valor_total,data_assinatura,status")
-          .is("tenant_id", null)
-          .order("data_assinatura", { ascending: false }),
+      const [{ data: rules }, sc, t] = await Promise.all([
+        (supabase as any)
+          .from("lead_routing_rules")
+          .select("match_value")
+          .eq("match_type", "form_id")
+          .eq("is_admin_master", true)
+          .eq("active", true),
         supabase.from("saas_contracts").select("id,tenant_id,mrr,status,started_at"),
         supabase.from("tenants").select("id,name,status,created_at"),
       ]);
+      const masterFormIds = (rules ?? []).map((r: any) => String(r.match_value)).filter(Boolean);
+      let masterSourceIds: string[] = [];
+      if (masterFormIds.length > 0) {
+        const { data: srcLeads } = await supabase
+          .from("leads")
+          .select("id")
+          .eq("origem", "facebook_ads")
+          .is("tenant_id", null)
+          .in("facebook_form_id", masterFormIds)
+          .limit(10000);
+        masterSourceIds = (srcLeads ?? []).map((l: any) => l.id).filter(Boolean);
+      }
+      const [l, ac] = masterSourceIds.length > 0 ? await Promise.all([
+        supabase
+          .from("agency_leads")
+          .select("id,stage,valor_proposta,created_at,updated_at,nome_clinica,plano_interesse,origem,ganho_at,perdido_motivo,tenant_id_criado")
+          .in("source_lead_id", masterSourceIds),
+        supabase
+          .from("agency_contracts")
+          .select("id,agency_lead_id,tenant_id,cliente_nome,valor_total,data_assinatura,status")
+          .in("agency_lead_id", masterSourceIds)
+          .order("data_assinatura", { ascending: false }),
+      ]) : [{ data: [] }, { data: [] }];
       setLeads((l.data || []) as AgencyLead[]);
       setAgencyContracts((ac.data || []) as AgencyContract[]);
       setSaasContracts((sc.data || []) as SaasContract[]);
@@ -169,7 +192,7 @@ export default function Dashboard() {
       .slice(0, 8);
 
     return {
-      leadsPeriodo: leadsPeriodo.length,
+      leadsPeriodo: leads.length,
       leadsPrev: leadsPrev.length,
       ganhos: contratosPeriodo.length,
       ganhosPrev: contratosPrev.length,
@@ -328,7 +351,7 @@ export default function Dashboard() {
 
         <div className="space-y-3">
           <MetricCard
-            label="Leads (período)"
+            label="Leads no pipeline"
             value={String(agency.leadsPeriodo)}
             current={agency.leadsPeriodo}
             previous={agency.leadsPrev}
