@@ -1,0 +1,1 @@
+DELETE FROM public.plan_catalog WHERE active = false;
