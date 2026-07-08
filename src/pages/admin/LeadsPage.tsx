@@ -3,13 +3,14 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Search, Download, Loader2, Phone, Mail, Building2, MapPin, Facebook, Bug,
-  Sparkles, Users, CheckCircle2, Trophy, Flame, Filter,
+  Sparkles, Users, CheckCircle2, Trophy, Flame, Filter, FileText,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import LeadDetailModal from "@/components/admin/LeadDetailModal";
+import LeadsReportModal from "@/components/leads/LeadsReportModal";
 import type { Lead } from "@/types/admin";
 
 const statusLabels: Record<string, { label: string; color: string; dot: string }> = {
