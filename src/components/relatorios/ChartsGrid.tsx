@@ -97,6 +97,62 @@ export default function ChartsGrid({ data }: { data: RelatorioData }) {
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>
+
+      <ChartCard title="Faturamento por Produto" subtitle="Top produtos (vendas do período)" id="chart-products" className="md:col-span-2">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data.salesByProduct} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false}
+              tickFormatter={(v) => `R$ ${Math.round(Number(v) / 1000)}k`} />
+            <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} width={140} tickLine={false} axisLine={false} />
+            <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,255,255,0.03)" }}
+              formatter={(v: any) => Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })} />
+            <Bar dataKey="total" fill="#f59e0b" radius={[0, 4, 4, 0]} maxBarSize={18} />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <ChartCard title="Monetizados por Produto" subtitle="Recompra (2ª venda ou mais)" id="chart-monetized">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data.monetizedByProduct} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false}
+              tickFormatter={(v) => `R$ ${Math.round(Number(v) / 1000)}k`} />
+            <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} width={120} tickLine={false} axisLine={false} />
+            <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,255,255,0.03)" }}
+              formatter={(v: any) => Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })} />
+            <Bar dataKey="total" fill="#10b981" radius={[0, 4, 4, 0]} maxBarSize={18} />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <ChartCard title="Taxa Conversão / Canal" subtitle="Vendas ÷ Leads por canal" id="chart-channel-conv">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data.channelConversion} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis dataKey="name" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={38}
+              tickFormatter={(v) => `${(Number(v) * 100).toFixed(0)}%`} />
+            <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,255,255,0.03)" }}
+              formatter={(v: any) => `${(Number(v) * 100).toFixed(1)}%`} />
+            <Bar dataKey="rate" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={36} />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <ChartCard title="Taxa SQL / Canal" subtitle="SQL ÷ Leads por canal" id="chart-channel-sql">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data.channelSql} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis dataKey="name" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} width={38}
+              tickFormatter={(v) => `${(Number(v) * 100).toFixed(0)}%`} />
+            <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,255,255,0.03)" }}
+              formatter={(v: any) => `${(Number(v) * 100).toFixed(1)}%`} />
+            <Bar dataKey="rate" fill="#8b5cf6" radius={[4, 4, 0, 0]} maxBarSize={36} />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
     </div>
   );
 }
