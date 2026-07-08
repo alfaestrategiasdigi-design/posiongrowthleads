@@ -396,9 +396,60 @@ export default function TenantLeads() {
             {origins.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
         </div>
+        <div className="flex items-center gap-2 bg-card/40 border border-border/60 rounded-full px-3 py-1.5">
+          <Filter className="w-3.5 h-3.5 text-accent" />
+          <select
+            value={formFilter}
+            onChange={e => setFormFilter(e.target.value)}
+            className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer max-w-[220px]"
+          >
+            <option value="all">Todos formulários</option>
+            {availableForms.map(f => (
+              <option key={f.form_id} value={f.form_id}>{f.form_name || `Formulário ${f.form_id}`}</option>
+            ))}
+          </select>
+        </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className={cn(
+              "flex items-center gap-2 bg-card/40 border border-border/60 rounded-full px-3 py-1.5 text-xs hover:bg-card/60 transition",
+              (dateFrom || dateTo) ? "text-accent border-accent/50" : "text-foreground"
+            )}>
+              <CalendarIcon className="w-3.5 h-3.5 text-accent" />
+              {dateFrom || dateTo ? (
+                <span>
+                  {dateFrom ? format(dateFrom, "dd/MM/yy") : "…"} → {dateTo ? format(dateTo, "dd/MM/yy") : "…"}
+                </span>
+              ) : (
+                <span>Período</span>
+              )}
+              {(dateFrom || dateTo) && (
+                <span
+                  role="button"
+                  onClick={(e) => { e.stopPropagation(); setDateFrom(undefined); setDateTo(undefined); }}
+                  className="ml-1 hover:text-rose-400"
+                >
+                  <X className="w-3 h-3" />
+                </span>
+              )}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-3 pointer-events-auto" align="start">
+            <div className="flex gap-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">De</p>
+                <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} locale={ptBR} className="p-0 pointer-events-auto" />
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Até</p>
+                <Calendar mode="single" selected={dateTo} onSelect={setDateTo} locale={ptBR} className="p-0 pointer-events-auto" />
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
-      {/* Tabela */}
+
       <div className="card-elevated overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
