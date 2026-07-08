@@ -12,6 +12,7 @@ import {
 import { format, eachDayOfInterval, differenceInCalendarDays, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import FormLeadsAuditCard from "@/components/shared/FormLeadsAuditCard";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v || 0);
