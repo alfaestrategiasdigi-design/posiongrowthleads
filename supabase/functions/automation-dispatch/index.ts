@@ -258,9 +258,12 @@ async function sendWhatsapp(
       footerText: data.footer || "",
       sections: [{
         title: data.sectionTitle || "Opções",
-        rows: (data.items || []).map((it: any, i: number) => ({
-          rowId: it.id || `row_${i}`, title: it.label || `Opção ${i + 1}`, description: it.description || "",
-        })),
+    rows: (data.items || []).map((it: any, i: number) => ({
+      rowId: buttonId(it.id, `row_${i}`),
+      title: menuOptionText(it.label, `Opção ${i + 1}`).slice(0, 24),
+      // Evolution rejects list rows when description is empty.
+      description: menuOptionText(it.description || it.label || "Toque para selecionar", "Toque para selecionar"),
+    })),
       }],
     };
   } else if (kind === "audio") {
@@ -407,12 +410,46 @@ async function runFlow(
         }
 
       } else if (type === "list") {
-        const text = interpolate(String(d.text || ""), vars);
-        if (dryRun) detail = `enviaria lista com ${(d.items || []).length} opções`;
+        const title = interpolate(String(d.title || "Opções"), vars);
+        const text = interpolate(String(d.text || d.description || "Escolha uma opção"), vars);
+        const footer = interpolate(String(d.footer || ""), vars);
+        const items = (d.items || []).map((it: any, i: number) => ({
+          id: buttonId(it.id, `row_${i}`),
+          label: menuOptionText(it.label, `Opção ${i + 1}`),
+          description: menuOptionText(it.description || it.label || "Toque para selecionar", "Toque para selecionar"),
+        }));
+        const outEdges = edges.filter((e) => e.source === node.id);
+        const listMap: Record<string, string> = {};
+        items.forEach((it, i) => {
+          const match = outEdges.find((e) =>
+            (e.sourceHandle || "") === it.id ||
+            (e.sourceHandle || "").toLowerCase() === it.label.toLowerCase() ||
+            (e.label || "").toLowerCase() === it.label.toLowerCase()
+          ) || outEdges[i] || (outEdges.length === 1 ? outEdges[0] : null);
+          if (match) {
+            listMap[String(i + 1)] = match.target;
+            listMap[it.id.toLowerCase()] = match.target;
+            listMap[it.label.toLowerCase()] = match.target;
+          }
+        });
+        if (dryRun) detail = `enviaria lista com ${items.length} opções → ${new Set(Object.values(listMap)).size} rotas`;
         else {
-          const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "list", { text, items: d.items || [], title: d.title, buttonText: d.buttonText, footer: d.footer });
-          ok = r.ok; detail = r.ok ? "lista enviada" : `erro: ${r.error}`;
-          if (ok) stop = true;
+          const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "list", { text, items, title, buttonText: d.buttonText, footer });
+          ok = r.ok;
+          detail = r.ok ? `lista enviada (${items.length}, ${new Set(Object.values(listMap)).size} rotas)` : `erro: ${r.error}`;
+        }
+        if (ok && !dryRun) {
+          const nexts = nextNodeIds(edges, node.id);
+          const newSteps = [...steps, { at: new Date().toISOString(), node_id: node.id, node_type: type, ok, detail }];
+          if (execId) {
+            const { data: currentExec } = await admin.from("automation_executions").select("context").eq("id", execId).maybeSingle();
+            const newContext = { ...((currentExec?.context as any) || ctx), button_map: listMap };
+            await admin.from("automation_executions").update({
+              status: "waiting_response", current_node: node.id, next_node: nexts[0] || null,
+              context: newContext, updated_at: new Date().toISOString(), steps: newSteps,
+            }).eq("id", execId);
+          }
+          return { status: "waiting_response", steps: newSteps, execId, next: nexts[0] || null };
         }
       } else if (type === "audio") {
         if (dryRun) detail = `enviaria áudio: ${d.url || "(sem url)"}`;
