@@ -64,9 +64,10 @@ export default function TenantPlans() {
   useEffect(() => { refresh(); }, [tenant?.id]);
 
   const planByInterval = useMemo(() => {
-    const by: { quarter?: Plan; semester?: Plan } = {};
+    const by: { month?: Plan; quarter?: Plan; semester?: Plan } = {};
     for (const p of plans) {
-      if (p.interval === "quarter") by.quarter = p;
+      if (p.interval === "month") by.month = p;
+      else if (p.interval === "quarter") by.quarter = p;
       else if (p.interval === "semester") by.semester = p;
     }
     return by;
@@ -119,7 +120,7 @@ export default function TenantPlans() {
               Plano da <span className="gold-gradient-text">{tenant?.name ?? "sua clínica"}</span>
             </h1>
             <p className="text-muted-foreground text-sm max-w-2xl">
-              POSION Pro — usuários ilimitados. Escolha entre Trimestral ou Semestral e pague com cartão pelo Mercado Pago.
+              POSION Pro — usuários ilimitados. Escolha Mensal, Trimestral ou Semestral e pague com cartão pelo Mercado Pago.
             </p>
           </div>
           <Button variant="outline" onClick={refresh} className="gap-2"><RefreshCw className="w-4 h-4" /> Atualizar</Button>
@@ -204,12 +205,13 @@ export default function TenantPlans() {
                   ))}
                 </ul>
 
-                <div className="grid sm:grid-cols-2 gap-3 pt-4 border-t border-white/5">
-                  {(["quarter", "semester"] as const).map((interval) => {
+                <div className="grid sm:grid-cols-3 gap-3 pt-4 border-t border-white/5">
+                  {(["month", "quarter", "semester"] as const).map((interval) => {
                     const plan = planByInterval[interval];
                     if (!plan) return null;
                     const isCurrent = hasActiveSub && sub.plan_code === plan.code && sub.interval === interval;
-                    const discount = interval === "semester" ? "-20%" : "-10%";
+                    const discount =
+                      interval === "semester" ? "-20%" : interval === "quarter" ? "-10%" : null;
                     const perMonth = monthlyEquivalent(plan.amount_cents, interval);
                     return (
                       <div
@@ -222,17 +224,28 @@ export default function TenantPlans() {
                       >
                         <div className="flex items-center justify-between">
                           <div className="font-semibold">{intervalLabel(interval)}</div>
-                          <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                            {discount}
-                          </Badge>
+                          {discount ? (
+                            <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                              {discount}
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-white/5 text-muted-foreground border border-white/10">
+                              Sem fidelidade
+                            </Badge>
+                          )}
                         </div>
                         <div>
                           <div className="font-display text-3xl tabular-nums">
                             {BRL(plan.amount_cents, plan.currency)}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {intervalUnit(interval)} · equivale a{" "}
-                            <span className="text-foreground font-medium">{BRL(perMonth)}/mês</span>
+                            {intervalUnit(interval)}
+                            {interval !== "month" && (
+                              <>
+                                {" "}· equivale a{" "}
+                                <span className="text-foreground font-medium">{BRL(perMonth)}/mês</span>
+                              </>
+                            )}
                           </div>
                         </div>
                         <Button
