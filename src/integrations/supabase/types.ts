@@ -1287,21 +1287,27 @@ export type Database = {
       }
       facebook_lead_forms_cache: {
         Row: {
+          bm_list: Json | null
           data: Json
           id: number
           pages: Json
+          pages_full: Json | null
           updated_at: string
         }
         Insert: {
+          bm_list?: Json | null
           data: Json
           id?: number
           pages?: Json
+          pages_full?: Json | null
           updated_at?: string
         }
         Update: {
+          bm_list?: Json | null
           data?: Json
           id?: number
           pages?: Json
+          pages_full?: Json | null
           updated_at?: string
         }
         Relationships: []
