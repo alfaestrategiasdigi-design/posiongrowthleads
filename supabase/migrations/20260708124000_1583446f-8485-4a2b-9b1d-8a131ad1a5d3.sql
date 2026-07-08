@@ -1,0 +1,1 @@
+ALTER TABLE public.facebook_lead_forms_cache ADD COLUMN IF NOT EXISTS pages_full jsonb; ALTER TABLE public.facebook_lead_forms_cache ADD COLUMN IF NOT EXISTS bm_list jsonb;
