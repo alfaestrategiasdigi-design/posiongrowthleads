@@ -64,9 +64,10 @@ export default function TenantPlans() {
   useEffect(() => { refresh(); }, [tenant?.id]);
 
   const planByInterval = useMemo(() => {
-    const by: { quarter?: Plan; semester?: Plan } = {};
+    const by: { month?: Plan; quarter?: Plan; semester?: Plan } = {};
     for (const p of plans) {
-      if (p.interval === "quarter") by.quarter = p;
+      if (p.interval === "month") by.month = p;
+      else if (p.interval === "quarter") by.quarter = p;
       else if (p.interval === "semester") by.semester = p;
     }
     return by;
