@@ -221,14 +221,16 @@ Deno.serve(async (req) => {
       }
       url = j?.paging?.next ?? "";
     }
-    perForm.push({ form_id: f.id, name: f.name, pages, inserted: fIns, duplicated: fDup, errors: fErr, unrouted: fUnr });
+      perForm.push({ page_id: pageId, form_id: f.id, name: f.name, pages, inserted: fIns, duplicated: fDup, errors: fErr, unrouted: fUnr });
+    }
   }
 
   await admin.from("facebook_webhook_config")
     .update({ last_leads_sync_at: new Date().toISOString() })
     .not("id", "is", null);
 
-  return json({ ok: true, inserted, deduped, errors, unrouted, forms: perForm });
+  return json({ ok: true, inserted, deduped, errors, unrouted, pages: Array.from(pageIdsSet), pageErrors, forms: perForm });
+
 
 });
 
