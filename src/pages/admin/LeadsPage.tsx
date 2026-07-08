@@ -32,6 +32,7 @@ const LeadsPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [originFilter, setOriginFilter] = useState<string>("all");
+  const [formFilter, setFormFilter] = useState<string>("all");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [lastLeadsSync, setLastLeadsSync] = useState<string | null>(null);
   const [masterForms, setMasterForms] = useState<Array<{ id: string; form_id: string; label: string | null; active: boolean }>>([]);
