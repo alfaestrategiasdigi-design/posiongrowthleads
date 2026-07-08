@@ -268,7 +268,8 @@ export default function SubscriptionsPage() {
 
   const activeSubs = subs.filter((s) => ["active", "authorized"].includes(s.status));
   const mrr = activeSubs.reduce((acc, s) => {
-    const monthly = s.interval === "quarter" ? (s.amount_cents || 0) / 3 : (s.amount_cents || 0);
+    const amt = s.amount_cents || 0;
+    const monthly = s.interval === "semester" ? amt / 6 : s.interval === "quarter" ? amt / 3 : amt;
     return acc + monthly;
   }, 0);
 
