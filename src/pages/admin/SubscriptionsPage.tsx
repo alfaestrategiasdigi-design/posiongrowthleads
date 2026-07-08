@@ -386,7 +386,7 @@ export default function SubscriptionsPage() {
                           <div className="font-medium">{p.name}</div>
                           {p.description && <div className="text-xs text-muted-foreground">{p.description}</div>}
                         </TableCell>
-                        <TableCell><Badge variant="outline">{p.interval === "quarter" ? "Trimestral" : "Mensal"}</Badge></TableCell>
+                        <TableCell><Badge variant="outline">{p.interval === "semester" ? "Semestral" : p.interval === "quarter" ? "Trimestral" : "Mensal"}</Badge></TableCell>
                         <TableCell className="tabular-nums font-semibold">{BRL(p.amount_cents, p.currency)}</TableCell>
                         <TableCell className="font-mono text-[11px] text-muted-foreground">{p.lookup_key}</TableCell>
                         <TableCell className="font-mono text-[11px]">
