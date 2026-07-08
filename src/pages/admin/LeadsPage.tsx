@@ -456,48 +456,47 @@ const LeadsPage = () => {
             <thead>
               <tr className="border-b border-border/60 bg-card/40">
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Nome</th>
-                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Contato</th>
-                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Clínica</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Formulário</th>
+                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Data / Hora</th>
+                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Faturamento</th>
+                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Clínica</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Cidade</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Especialidade</th>
-                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Faturamento</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Tráfego</th>
                 <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Status</th>
-                <th className="text-left text-[10px] uppercase tracking-[0.18em] font-medium text-muted-foreground p-4">Data</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(lead => {
                 const st = statusLabels[lead.status] || statusLabels.novo;
+                const faturamento = getFaturamento(lead as any);
                 return (
                   <tr key={lead.id} onClick={() => setSelectedLead(lead)} className="border-b border-border/30 hover:bg-accent/5 cursor-pointer transition-colors group">
                     <td className="p-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full gradient-accent flex items-center justify-center shadow-md ring-1 ring-accent/30">
+                        <div className="w-9 h-9 rounded-full gradient-accent flex items-center justify-center shadow-md ring-1 ring-accent/30 shrink-0">
                           <span className="text-sm font-bold text-[hsl(232_65%_5%)]">{lead.nome_completo.charAt(0).toUpperCase()}</span>
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">{lead.nome_completo}</p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                            <Phone className="w-3 h-3 text-accent/70 shrink-0" />
+                            <span className="tabular-nums truncate">{lead.whatsapp}</span>
+                          </p>
+                          {lead.email && (
+                            <p className="text-[11px] text-muted-foreground/70 flex items-center gap-1.5 mt-0.5 truncate">
+                              <Mail className="w-3 h-3 shrink-0" />
+                              <span className="truncate">{lead.email}</span>
+                            </p>
+                          )}
                           {lead.origem === "facebook_ads" && (
-                            <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5 truncate" title={(lead as any).facebook_form_name || (lead as any).facebook_form_id || "Facebook Ads"}>
+                            <p className="text-[10px] text-muted-foreground/70 flex items-center gap-1 mt-0.5 truncate">
                               <Facebook className="w-2.5 h-2.5 text-sky-400 shrink-0" />
-                              <span className="truncate">
-                                Facebook Ads{((lead as any).facebook_form_name || (lead as any).facebook_form_id) ? ` · ${(lead as any).facebook_form_name || (lead as any).facebook_form_id}` : ""}
-                              </span>
+                              <span className="truncate">Facebook Ads</span>
                             </p>
                           )}
                         </div>
                       </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="space-y-1">
-                        <p className="text-sm text-foreground flex items-center gap-1.5"><Phone className="w-3 h-3 text-accent/70" /> {lead.whatsapp}</p>
-                        {lead.email && <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Mail className="w-3 h-3" /> {lead.email}</p>}
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      {lead.nome_empresa && <p className="text-sm text-foreground flex items-center gap-1.5"><Building2 className="w-3 h-3 text-accent/70" /> {lead.nome_empresa}</p>}
                     </td>
                     <td className="p-4">
                       {(lead as any).facebook_form_name || (lead as any).facebook_form_id ? (
@@ -514,13 +513,19 @@ const LeadsPage = () => {
                       )}
                     </td>
                     <td className="p-4">
-                      {lead.cidade_estado && <p className="text-sm text-muted-foreground flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {lead.cidade_estado}</p>}
+                      <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">{format(new Date(lead.created_at), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
                     </td>
                     <td className="p-4">
-                      {lead.especialidade && <span className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium border border-accent/20">{lead.especialidade}</span>}
+                      <span className={`text-xs tabular-nums ${faturamento === "—" ? "text-muted-foreground" : "text-foreground"}`}>{faturamento}</span>
                     </td>
                     <td className="p-4">
-                      <span className="text-xs text-muted-foreground tabular-nums">{lead.faturamento_mensal || "—"}</span>
+                      {lead.nome_empresa ? <p className="text-sm text-foreground flex items-center gap-1.5"><Building2 className="w-3 h-3 text-accent/70" /> {lead.nome_empresa}</p> : <span className="text-xs text-muted-foreground">—</span>}
+                    </td>
+                    <td className="p-4">
+                      {lead.cidade_estado ? <p className="text-sm text-muted-foreground flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {lead.cidade_estado}</p> : <span className="text-xs text-muted-foreground">—</span>}
+                    </td>
+                    <td className="p-4">
+                      {lead.especialidade ? <span className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium border border-accent/20">{lead.especialidade}</span> : <span className="text-xs text-muted-foreground">—</span>}
                     </td>
                     <td className="p-4">
                       <span className="text-xs text-muted-foreground">{lead.investiu_trafego || "—"}</span>
@@ -531,14 +536,11 @@ const LeadsPage = () => {
                         {st.label}
                       </span>
                     </td>
-                    <td className="p-4">
-                      <span className="text-xs text-muted-foreground tabular-nums">{format(new Date(lead.created_at), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
-                    </td>
                   </tr>
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={10} className="p-12 text-center text-muted-foreground text-sm">Nenhum lead encontrado com os filtros atuais</td></tr>
+                <tr><td colSpan={9} className="p-12 text-center text-muted-foreground text-sm">Nenhum lead encontrado com os filtros atuais</td></tr>
               )}
             </tbody>
           </table>
