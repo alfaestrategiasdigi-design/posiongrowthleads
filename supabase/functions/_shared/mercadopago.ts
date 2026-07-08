@@ -57,7 +57,7 @@ export async function ensureMpPreapprovalPlan(
     } catch (_) { /* fall through */ }
   }
 
-  const frequency = plan.interval === "quarter" ? 3 : 1;
+  const frequency = plan.interval === "semester" ? 6 : plan.interval === "quarter" ? 3 : 1;
   const reason = plan.mp_reason || `POSION ${plan.name}`;
   const body: Record<string, unknown> = {
     reason,

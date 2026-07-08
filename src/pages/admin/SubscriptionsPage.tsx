@@ -268,7 +268,8 @@ export default function SubscriptionsPage() {
 
   const activeSubs = subs.filter((s) => ["active", "authorized"].includes(s.status));
   const mrr = activeSubs.reduce((acc, s) => {
-    const monthly = s.interval === "quarter" ? (s.amount_cents || 0) / 3 : (s.amount_cents || 0);
+    const amt = s.amount_cents || 0;
+    const monthly = s.interval === "semester" ? amt / 6 : s.interval === "quarter" ? amt / 3 : amt;
     return acc + monthly;
   }, 0);
 
@@ -331,7 +332,7 @@ export default function SubscriptionsPage() {
                               {sub ? (
                                 <div className="flex items-center gap-2">
                                   <Badge variant="outline" className="capitalize">{sub.plan_code}</Badge>
-                                  <span className="text-xs text-muted-foreground">{sub.interval === "quarter" ? "trimestral" : "mensal"}</span>
+                                  <span className="text-xs text-muted-foreground">{sub.interval === "semester" ? "semestral" : sub.interval === "quarter" ? "trimestral" : "mensal"}</span>
                                 </div>
                               ) : <span className="text-xs text-muted-foreground italic">sem assinatura</span>}
                             </TableCell>
@@ -385,7 +386,7 @@ export default function SubscriptionsPage() {
                           <div className="font-medium">{p.name}</div>
                           {p.description && <div className="text-xs text-muted-foreground">{p.description}</div>}
                         </TableCell>
-                        <TableCell><Badge variant="outline">{p.interval === "quarter" ? "Trimestral" : "Mensal"}</Badge></TableCell>
+                        <TableCell><Badge variant="outline">{p.interval === "semester" ? "Semestral" : p.interval === "quarter" ? "Trimestral" : "Mensal"}</Badge></TableCell>
                         <TableCell className="tabular-nums font-semibold">{BRL(p.amount_cents, p.currency)}</TableCell>
                         <TableCell className="font-mono text-[11px] text-muted-foreground">{p.lookup_key}</TableCell>
                         <TableCell className="font-mono text-[11px]">

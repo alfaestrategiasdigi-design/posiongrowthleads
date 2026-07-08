@@ -1,28 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTenant } from "@/hooks/useTenant";
 import { supabase } from "@/integrations/supabase/client";
-import { Check, Sparkles, Crown, Rocket, Loader2, ShieldCheck, FileText, CreditCard, RefreshCw, ExternalLink, Clock, Lock } from "lucide-react";
+import { Check, Sparkles, Loader2, ShieldCheck, FileText, CreditCard, RefreshCw, ExternalLink, Clock, Lock, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 
-const PLAN_META: Record<string, { icon: any; tagline: string; features: string[] }> = {
-  starter: {
-    icon: Rocket,
-    tagline: "Para clínicas começando a estruturar gestão",
-    features: ["Dashboard de faturamento e metas", "CRM Kanban (até 500 leads/mês)", "WhatsApp integrado (1 número)", "Agenda e prontuário básico", "Suporte por e-mail"],
-  },
-  pro: {
-    icon: Sparkles,
-    tagline: "Operação completa com automação e recall",
-    features: ["Tudo do Starter, sem limite de leads", "Recall automatizado por WhatsApp", "Funil de avaliações + relatórios", "Até 5 usuários", "Integração com Meta Ads", "Suporte prioritário"],
-  },
-  scale: {
-    icon: Crown,
-    tagline: "Para redes e clínicas de alta performance",
-    features: ["Tudo do Pro, usuários ilimitados", "Multi-unidades em um único painel", "API + tokens por unidade", "Agente de IA 24/7", "Onboarding dedicado + CS", "SLA 99,9%"],
-  },
+const REFERENCE_MONTHLY_CENTS = 45000; // R$ 450/mês (valor de referência para ancoragem)
+
+const PLAN_META = {
+  tagline: "Tudo do POSION em um único plano — usuários ilimitados",
+  features: [
+    "Usuários ilimitados",
+    "CRM Kanban sem limite de leads",
+    "WhatsApp integrado",
+    "Recall automatizado por WhatsApp",
+    "Funil de avaliações + relatórios completos",
+    "Integração com Meta Ads",
+    "Agenda e prontuário",
+    "Suporte prioritário",
+  ],
 };
 
 const BRL = (cents: number, cur = "brl") =>
@@ -65,12 +63,11 @@ export default function TenantPlans() {
   };
   useEffect(() => { refresh(); }, [tenant?.id]);
 
-  const groupedPlans = useMemo(() => {
-    const by: Record<string, { monthly?: Plan; quarter?: Plan }> = {};
+  const planByInterval = useMemo(() => {
+    const by: { quarter?: Plan; semester?: Plan } = {};
     for (const p of plans) {
-      const k = p.code;
-      by[k] = by[k] || {};
-      if (p.interval === "quarter") by[k].quarter = p; else by[k].monthly = p;
+      if (p.interval === "quarter") by.quarter = p;
+      else if (p.interval === "semester") by.semester = p;
     }
     return by;
   }, [plans]);
@@ -100,10 +97,17 @@ export default function TenantPlans() {
     return <div className="p-10 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
 
-  const planCode = (sub?.plan_code || "") as keyof typeof PLAN_META;
-  const meta = PLAN_META[planCode];
   const statusInfo = sub ? (STATUS_LABEL[sub.status] || { label: sub.status, className: "bg-slate-500/15 text-slate-300 border-slate-500/30" }) : null;
   const hasActiveSub = sub && ["active", "authorized", "pending", "paused"].includes(sub.status);
+
+  const intervalLabel = (i?: string) =>
+    i === "semester" ? "Semestral" : i === "quarter" ? "Trimestral" : "Mensal";
+  const intervalUnit = (i?: string) =>
+    i === "semester" ? "a cada 6 meses" : i === "quarter" ? "a cada 3 meses" : "por mês";
+  const monthlyEquivalent = (cents: number, i?: string) => {
+    const div = i === "semester" ? 6 : i === "quarter" ? 3 : 1;
+    return cents / div;
+  };
 
   return (
     <div className="min-h-screen">
@@ -115,22 +119,22 @@ export default function TenantPlans() {
               Plano da <span className="gold-gradient-text">{tenant?.name ?? "sua clínica"}</span>
             </h1>
             <p className="text-muted-foreground text-sm max-w-2xl">
-              Escolha um plano e pague com cartão pelo Mercado Pago. Você pode cancelar ou trocar a qualquer momento.
+              POSION Pro — usuários ilimitados. Escolha entre Trimestral ou Semestral e pague com cartão pelo Mercado Pago.
             </p>
           </div>
           <Button variant="outline" onClick={refresh} className="gap-2"><RefreshCw className="w-4 h-4" /> Atualizar</Button>
         </div>
 
-        {hasActiveSub && meta && (
+        {hasActiveSub && (
           <Card className="bg-[#0E1730] border-primary/30">
             <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
                 <div className="w-11 h-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <meta.icon className="w-5 h-5 text-primary" />
+                  <Sparkles className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="text-xl capitalize">{planCode} {sub.interval === "quarter" ? "Trimestral" : "Mensal"}</CardTitle>
-                  <p className="text-xs text-muted-foreground">{meta.tagline}</p>
+                  <CardTitle className="text-xl">POSION Pro {intervalLabel(sub.interval)}</CardTitle>
+                  <p className="text-xs text-muted-foreground">{PLAN_META.tagline}</p>
                 </div>
               </div>
               {statusInfo && <Badge className={`border ${statusInfo.className}`}>{statusInfo.label}</Badge>}
@@ -139,7 +143,7 @@ export default function TenantPlans() {
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Valor</div>
                 <div className="font-display text-2xl tabular-nums mt-1">{BRL(sub.amount_cents || 0, sub.currency || "brl")}</div>
-                <div className="text-xs text-muted-foreground">{sub.interval === "quarter" ? "a cada 3 meses" : "por mês"}</div>
+                <div className="text-xs text-muted-foreground">{intervalUnit(sub.interval)}</div>
               </div>
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Próxima cobrança</div>
@@ -162,73 +166,99 @@ export default function TenantPlans() {
 
         <TrialGate tenant={tenant as any}>
           <div>
-            <h2 className="font-display text-xl mb-4">{hasActiveSub ? "Trocar de plano" : "Escolha seu plano"}</h2>
-            <div className="grid md:grid-cols-3 gap-4">
-              {(["starter", "pro", "scale"] as const).map((code) => {
-                const m = PLAN_META[code];
-                const Icon = m.icon;
-                const group = groupedPlans[code] || {};
-                const isCurrent = hasActiveSub && sub.plan_code === code;
-                return (
-                  <Card key={code} className={`bg-[#0E1730] ${isCurrent ? "border-primary/60" : "border-white/10"} relative`}>
-                    {code === "pro" && (
-                      <div className="absolute -top-2 left-4 text-[10px] uppercase tracking-widest bg-primary text-primary-foreground px-2 py-0.5 rounded">Mais popular</div>
-                    )}
-                    <CardHeader>
-                      <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-                          <Icon className="w-5 h-5 text-primary" />
+            <h2 className="font-display text-xl mb-4">{hasActiveSub ? "Trocar de plano" : "Escolha seu compromisso"}</h2>
+
+            <Card className="bg-[#0E1730] border-primary/30 relative overflow-hidden">
+              <div className="absolute -top-2 left-6 text-[10px] uppercase tracking-widest bg-primary text-primary-foreground px-2 py-0.5 rounded">
+                Plano único
+              </div>
+              <CardHeader className="pt-8">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                      <Sparkles className="w-6 h-6 text-primary" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-2xl">POSION Pro</CardTitle>
+                      <p className="text-sm text-muted-foreground">{PLAN_META.tagline}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Referência</div>
+                    <div className="font-display text-2xl tabular-nums">
+                      {BRL(REFERENCE_MONTHLY_CENTS)}<span className="text-sm text-muted-foreground">/mês</span>
+                    </div>
+                    <div className="text-[10px] text-primary/80 inline-flex items-center gap-1 mt-0.5">
+                      <Users className="w-3 h-3" /> usuários ilimitados
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+                  {PLAN_META.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="grid sm:grid-cols-2 gap-3 pt-4 border-t border-white/5">
+                  {(["quarter", "semester"] as const).map((interval) => {
+                    const plan = planByInterval[interval];
+                    if (!plan) return null;
+                    const isCurrent = hasActiveSub && sub.plan_code === plan.code && sub.interval === interval;
+                    const discount = interval === "semester" ? "-20%" : "-10%";
+                    const perMonth = monthlyEquivalent(plan.amount_cents, interval);
+                    return (
+                      <div
+                        key={interval}
+                        className={`rounded-xl border p-4 space-y-3 ${
+                          interval === "semester"
+                            ? "border-primary/40 bg-primary/5"
+                            : "border-white/10 bg-black/20"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="font-semibold">{intervalLabel(interval)}</div>
+                          <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                            {discount}
+                          </Badge>
                         </div>
                         <div>
-                          <CardTitle className="capitalize">{code}</CardTitle>
-                          <p className="text-xs text-muted-foreground">{m.tagline}</p>
+                          <div className="font-display text-3xl tabular-nums">
+                            {BRL(plan.amount_cents, plan.currency)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {intervalUnit(interval)} · equivale a{" "}
+                            <span className="text-foreground font-medium">{BRL(perMonth)}/mês</span>
+                          </div>
                         </div>
+                        <Button
+                          variant={interval === "semester" ? "default" : "outline"}
+                          className="w-full justify-center gap-2"
+                          disabled={
+                            busyKey === plan.lookup_key ||
+                            (isCurrent && ["active", "authorized"].includes(sub.status))
+                          }
+                          onClick={() => startCheckout(plan.lookup_key)}
+                        >
+                          {busyKey === plan.lookup_key ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <CreditCard className="w-4 h-4" />
+                          )}
+                          {isCurrent && ["active", "authorized"].includes(sub.status)
+                            ? "Plano atual"
+                            : `Assinar ${intervalLabel(interval).toLowerCase()}`}
+                        </Button>
                       </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <ul className="space-y-1.5 text-sm">
-                        {m.features.map((f) => (
-                          <li key={f} className="flex items-start gap-2">
-                            <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                            <span>{f}</span>
-                          </li>
-                        ))}
-                      </ul>
-                      <div className="space-y-2 pt-3 border-t border-white/5">
-                        {group.monthly && (
-                          <Button
-                            variant={isCurrent && sub.interval === "month" ? "secondary" : "default"}
-                            className="w-full justify-between"
-                            disabled={busyKey === group.monthly.lookup_key || (isCurrent && sub.interval === "month" && ["active", "authorized"].includes(sub.status))}
-                            onClick={() => startCheckout(group.monthly!.lookup_key)}
-                          >
-                            <span className="flex items-center gap-2">
-                              {busyKey === group.monthly.lookup_key ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                              Mensal
-                            </span>
-                            <span className="tabular-nums font-semibold">{BRL(group.monthly.amount_cents, group.monthly.currency)}/mês</span>
-                          </Button>
-                        )}
-                        {group.quarter && (
-                          <Button
-                            variant={isCurrent && sub.interval === "quarter" ? "secondary" : "outline"}
-                            className="w-full justify-between"
-                            disabled={busyKey === group.quarter.lookup_key || (isCurrent && sub.interval === "quarter" && ["active", "authorized"].includes(sub.status))}
-                            onClick={() => startCheckout(group.quarter!.lookup_key)}
-                          >
-                            <span className="flex items-center gap-2">
-                              {busyKey === group.quarter.lookup_key ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                              Trimestral <span className="text-[10px] text-emerald-300">-10%</span>
-                            </span>
-                            <span className="tabular-nums font-semibold">{BRL(group.quarter.amount_cents, group.quarter.currency)}</span>
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {!hasActiveSub && (
