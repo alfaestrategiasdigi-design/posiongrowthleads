@@ -412,9 +412,54 @@ export default function CampanhasPage() {
   };
 
 
+  // Garante que todo form_id que será sincronizado tem regra de roteamento.
+  // Se não tem, cria automaticamente como is_admin_master=true (rota POSION),
+  // caso contrário o backfill trata os leads como "unrouted" e conta como falha.
+  const ensureRoutingRules = async (formEntries: { id: string; name?: string | null; page_id?: string | null; page_name?: string | null }[]) => {
+    if (formEntries.length === 0) return 0;
+    const ids = formEntries.map((f) => f.id);
+    const { data: existing } = await supabase
+      .from("lead_routing_rules")
+      .select("match_value")
+      .eq("match_type", "form_id")
+      .in("match_value", ids);
+    const have = new Set((existing ?? []).map((r: any) => String(r.match_value)));
+    const toInsert = formEntries
+      .filter((f) => !have.has(f.id))
+      .map((f) => ({
+        tenant_id: null,
+        match_type: "form_id",
+        match_value: f.id,
+        match_label: f.name || `Formulário ${f.id}`,
+        priority: 5,
+        active: true,
+        is_admin_master: true,
+        page_id: f.page_id ?? null,
+        page_name: f.page_name ?? null,
+      }));
+    if (toInsert.length === 0) return 0;
+    const { error } = await supabase.from("lead_routing_rules").insert(toInsert as any);
+    if (error) {
+      console.error("[ensureRoutingRules] falha:", error);
+      return 0;
+    }
+    return toInsert.length;
+  };
+
   const syncFormNow = async (formId: string, formName: string, maxPerForm = 200) => {
     setSyncingForm(formId);
     try {
+      const meta = leadForms.find((f) => f.id === formId);
+      const registered = await ensureRoutingRules([{
+        id: formId, name: formName,
+        page_id: (meta as any)?.page_id ?? null,
+        page_name: (meta as any)?.page_name ?? null,
+      }]);
+      if (registered > 0) {
+        toast({ title: "Formulário registrado como POSION", description: `${formName} — leads irão para a conta admin.` });
+        await loadRules();
+      }
+
       const { data, error } = await supabase.functions.invoke("facebook-backfill-leads", {
         body: { form_ids: [formId], max_per_form: maxPerForm },
       });
@@ -440,6 +485,21 @@ export default function CampanhasPage() {
     const key = `page:${pageName}`;
     setSyncingForm(key);
     try {
+      const entries = formIds.map((fid) => {
+        const meta = leadForms.find((f) => f.id === fid);
+        return {
+          id: fid,
+          name: meta?.name ?? null,
+          page_id: (meta as any)?.page_id ?? null,
+          page_name: (meta as any)?.page_name ?? pageName,
+        };
+      });
+      const registered = await ensureRoutingRules(entries);
+      if (registered > 0) {
+        toast({ title: `${registered} formulário(s) registrado(s) como POSION`, description: pageName });
+        await loadRules();
+      }
+
       const { data, error } = await supabase.functions.invoke("facebook-backfill-leads", {
         body: { form_ids: formIds, max_per_form: 5000 },
       });
@@ -468,6 +528,19 @@ export default function CampanhasPage() {
   const syncAllForms = async () => {
     setSyncingForm("__all__");
     try {
+      // Registra como POSION todos os forms carregados que ainda não têm rota.
+      if (leadForms.length > 0) {
+        const entries = leadForms.map((f) => ({
+          id: f.id, name: f.name,
+          page_id: (f as any).page_id ?? null,
+          page_name: (f as any).page_name ?? null,
+        }));
+        const registered = await ensureRoutingRules(entries);
+        if (registered > 0) {
+          toast({ title: `${registered} formulário(s) registrado(s) como POSION` });
+          await loadRules();
+        }
+      }
       const { data, error } = await supabase.functions.invoke("facebook-backfill-leads", { body: {} });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
