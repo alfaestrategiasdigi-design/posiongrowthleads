@@ -321,18 +321,13 @@ export default function TenantPlans() {
   );
 }
 
-function TrialGate({ tenant, children }: { tenant: any; children: React.ReactNode }) {
-  const active = !!tenant?.trial_active;
-  const endsAt = tenant?.trial_ends_at ? new Date(tenant.trial_ends_at) : null;
-  const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    if (!active) return;
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, [active]);
-
-  if (!active) return <>{children}</>;
+function TrialGate({ tenant: _tenant, children }: { tenant: any; children: React.ReactNode }) {
+  // Sempre exibe os planos normalmente — o período de teste não bloqueia mais a seleção.
+  return <>{children}</>;
+  // eslint-disable-next-line no-unreachable
+  const active = false;
+  const endsAt: Date | null = null;
+  const now = new Date();
 
   const diffMs = endsAt ? endsAt.getTime() - now.getTime() : 0;
   const expired = endsAt ? diffMs <= 0 : false;
