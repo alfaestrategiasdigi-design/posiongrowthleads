@@ -63,12 +63,11 @@ export default function TenantPlans() {
   };
   useEffect(() => { refresh(); }, [tenant?.id]);
 
-  const groupedPlans = useMemo(() => {
-    const by: Record<string, { monthly?: Plan; quarter?: Plan }> = {};
+  const planByInterval = useMemo(() => {
+    const by: { quarter?: Plan; semester?: Plan } = {};
     for (const p of plans) {
-      const k = p.code;
-      by[k] = by[k] || {};
-      if (p.interval === "quarter") by[k].quarter = p; else by[k].monthly = p;
+      if (p.interval === "quarter") by.quarter = p;
+      else if (p.interval === "semester") by.semester = p;
     }
     return by;
   }, [plans]);
