@@ -1266,11 +1266,23 @@ function ImportTab({ onImported }: { onImported: () => void }) {
       )}
 
       {result && (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm">
-          <b className="text-emerald-300">Concluído.</b>{" "}
+        <div className={`rounded-xl border p-4 text-sm ${result.errors > 0 ? "border-amber-500/40 bg-amber-500/10" : "border-emerald-500/30 bg-emerald-500/10"}`}>
+          <b className={result.errors > 0 ? "text-amber-300" : "text-emerald-300"}>Concluído.</b>{" "}
           <span className="text-muted-foreground">
             {result.inserted} novos · {result.deduped} já existiam · {result.errors} falharam
+            {result.registered_forms ? ` · ${result.registered_forms} formulário(s) registrado(s) como master` : ""}
           </span>
+          {result.error_samples && result.error_samples.length > 0 && (
+            <div className="text-amber-300 text-[11px] mt-2">
+              Amostra de erros: {result.error_samples.join(" | ")}
+            </div>
+          )}
+          {result.registered_forms ? (
+            <div className="text-xs text-emerald-300/80 mt-2">
+              Novos formulários foram registrados como <b>master</b>. Abra{" "}
+              <Link to="/admin/leads" className="underline">Leads Formulário</Link> para ver os leads.
+            </div>
+          ) : null}
         </div>
       )}
     </div>
