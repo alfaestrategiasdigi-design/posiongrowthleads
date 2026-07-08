@@ -406,10 +406,8 @@ export default function SubscriptionsPage() {
                 </Table>
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* ─── INVOICES ─── */}
-          <TabsContent value="invoices" className="mt-4">
+            {/* ─── INVOICES (dentro da mesma aba) ─── */}
             <Card className="bg-[#0E1730] border-white/10">
               <CardHeader><CardTitle className="text-base">Últimos pagamentos</CardTitle></CardHeader>
               <CardContent className="p-0">
