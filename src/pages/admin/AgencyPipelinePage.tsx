@@ -88,14 +88,46 @@ export default function AgencyPipelinePage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    // Pipeline deve refletir SOMENTE os leads visíveis em /admin/leads
+    // (leads da POSION = tenant_id NULL + facebook_form_id nas regras admin_master ativas).
+    const { data: masterRules } = await (supabase as any)
+      .from("lead_routing_rules")
+      .select("match_value")
+      .eq("match_type", "form_id")
+      .eq("is_admin_master", true)
+      .eq("active", true);
+    const masterFormIds = (masterRules ?? []).map((r: any) => String(r.match_value)).filter(Boolean);
+
+    if (masterFormIds.length === 0) {
+      setLeads([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data: srcLeads } = await supabase
+      .from("leads")
+      .select("id")
+      .eq("origem", "facebook_ads")
+      .is("tenant_id", null)
+      .in("facebook_form_id", masterFormIds);
+    const sourceIds = (srcLeads ?? []).map((l: any) => l.id);
+
+    if (sourceIds.length === 0) {
+      setLeads([]);
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("agency_leads")
       .select("*")
+      .in("source_lead_id", sourceIds)
       .order("created_at", { ascending: false });
     if (error) toast.error(error.message);
     else setLeads((data || []) as AgencyLead[]);
     setLoading(false);
   }, []);
+
 
   useEffect(() => { load(); }, [load]);
 
