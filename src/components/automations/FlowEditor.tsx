@@ -18,6 +18,7 @@ import { nodeTypes } from "@/components/automations/FlowNodes";
 import NodePalette from "@/components/automations/NodePalette";
 import NodeEditorPanel from "@/components/automations/NodeEditorPanel";
 import { TRIGGERS, type AutomationFlow, type FlowNode, type NodeKind, type TriggerKind } from "@/lib/automations/types";
+import { sanitizeButtonLabel } from "@/lib/automations/buttonLabels";
 
 interface Props {
   flowId: string;
@@ -78,13 +79,24 @@ export default function FlowEditor({ flowId, onBack }: Props) {
   const save = async () => {
     if (!flow) return;
     setSaving(true);
+    const normalizedNodes = nodes.map((n) => {
+      if (n.type !== "buttons") return n;
+      const buttons = Array.isArray((n.data as any)?.buttons)
+        ? (n.data as any).buttons.slice(0, 3).map((b: any, i: number) => ({
+          ...b,
+          label: sanitizeButtonLabel(b?.label, `Opção ${i + 1}`),
+        }))
+        : [];
+      return { ...n, data: { ...n.data, buttons } };
+    });
+    setNodes(normalizedNodes);
     const payload = {
       name: flow.name,
       description: flow.description,
       trigger_type: flow.trigger_type,
       trigger_config: flow.trigger_config,
       status: flow.status,
-      nodes: nodes.map((n) => ({ id: n.id, type: n.type, position: n.position, data: n.data })) as any,
+      nodes: normalizedNodes.map((n) => ({ id: n.id, type: n.type, position: n.position, data: n.data })) as any,
       edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, label: typeof e.label === "string" ? e.label : undefined })) as any,
     };
     const { error } = await supabase.from("automation_flows").update(payload as any).eq("id", flow.id);

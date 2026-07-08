@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { X, Plus, Trash2 } from "lucide-react";
 import { AVAILABLE_VARIABLES, type FlowNode } from "@/lib/automations/types";
+import { sanitizeButtonLabel } from "@/lib/automations/buttonLabels";
 import { toast } from "sonner";
 
 interface Props {
@@ -94,7 +95,7 @@ export default function NodeEditorPanel({ node, onChange, onClose, onDelete }: P
               buttons={node.data.buttons || []}
               onChange={(buttons) => patchData({ buttons })}
             />
-            <p className="text-[10px] text-muted-foreground">O fluxo pausa aqui e retoma quando o contato clicar em um botão. Ligue arestas partindo deste nó — a ordem das arestas segue a ordem dos botões. Se o WhatsApp do lead não renderizar os botões nativos, o fluxo envia automaticamente como lista numerada (1, 2, 3) e roteia pela resposta.</p>
+            <p className="text-[10px] text-muted-foreground">O fluxo envia uma lista numerada (1, 2, 3), pausa aqui e retoma quando o contato responder com o número ou texto da opção. Ligue as arestas partindo deste nó na mesma ordem das opções.</p>
           </>
         )}
 
@@ -258,7 +259,7 @@ function ButtonsEditor({
           size="sm"
           variant="outline"
           disabled={buttons.length >= 3}
-          onClick={() => onChange([...buttons, { id: crypto.randomUUID().slice(0, 6), label: "Botão" }])}
+          onClick={() => onChange([...buttons, { id: crypto.randomUUID().slice(0, 6), label: `Opção ${buttons.length + 1}` }])}
         >
           <Plus className="w-3 h-3 mr-1" /> Adicionar
         </Button>
@@ -271,6 +272,9 @@ function ButtonsEditor({
               onChange={(e) => {
                 const c = [...buttons]; c[i] = { ...b, label: e.target.value }; onChange(c);
               }}
+              onBlur={(e) => {
+                const c = [...buttons]; c[i] = { ...b, label: sanitizeButtonLabel(e.target.value, `Opção ${i + 1}`) }; onChange(c);
+              }}
             />
             <Button size="icon" variant="ghost" onClick={() => onChange(buttons.filter((x) => x.id !== b.id))}>
               <X className="w-4 h-4" />
@@ -278,7 +282,7 @@ function ButtonsEditor({
           </div>
         ))}
         {buttons.length === 0 && (
-          <p className="text-xs text-muted-foreground">Adicione até 3 botões de resposta rápida.</p>
+          <p className="text-xs text-muted-foreground">Adicione até 3 opções de resposta rápida.</p>
         )}
       </div>
     </div>

@@ -116,7 +116,7 @@ export const NODE_PALETTE: {
     color: "hsl(210 90% 60%)",
     items: [
       { kind: "message", label: "Enviar texto", icon: "💬" },
-      { kind: "buttons", label: "Mensagem com botões", icon: "🔘" },
+      { kind: "buttons", label: "Menu de opções", icon: "🔘" },
       { kind: "list", label: "Lista de opções", icon: "📋" },
       { kind: "audio", label: "Enviar áudio", icon: "🎙️" },
       { kind: "media", label: "Imagem / documento", icon: "🖼️" },
