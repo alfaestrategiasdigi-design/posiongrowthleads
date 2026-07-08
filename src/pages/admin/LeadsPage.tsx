@@ -14,6 +14,7 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import LeadDetailModal from "@/components/admin/LeadDetailModal";
 import LeadsReportModal from "@/components/leads/LeadsReportModal";
+import { getFaturamento, extractFaturamentoRaw, formatFaturamentoValue } from "@/lib/leads/faturamento";
 import type { Lead } from "@/types/admin";
 
 const statusLabels: Record<string, { label: string; color: string; dot: string }> = {
