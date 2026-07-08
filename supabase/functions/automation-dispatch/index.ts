@@ -480,10 +480,10 @@ async function runFlow(
         }
         stop = dryRun ? false : true;
       } else if (type === "wait") {
-        const minutes = (Number(d.minutes) || 0) + (Number(d.hours) || 0) * 60 + (Number(d.days) || 0) * 60 * 24;
-        detail = `aguardar ${minutes} min`;
+        const totalSeconds = (Number(d.seconds) || 0) + (Number(d.minutes) || 0) * 60 + (Number(d.hours) || 0) * 3600 + (Number(d.days) || 0) * 86400;
+        detail = totalSeconds < 60 ? `aguardar ${totalSeconds}s` : `aguardar ${Math.round(totalSeconds / 60)} min`;
         if (!dryRun && execId) {
-          const waitUntil = new Date(Date.now() + minutes * 60 * 1000).toISOString();
+          const waitUntil = new Date(Date.now() + totalSeconds * 1000).toISOString();
           const nexts = nextNodeIds(edges, node.id);
           await admin.from("automation_executions").update({
             status: "waiting_delay", current_node: node.id, next_node: nexts[0] || null, wait_until: waitUntil,

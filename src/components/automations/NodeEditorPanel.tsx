@@ -330,7 +330,11 @@ function ButtonsEditor({
 function WaitEditor({ data, onChange }: { data: any; onChange: (p: any) => void }) {
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-4 gap-2">
+        <div>
+          <Label className="text-xs">Segundos</Label>
+          <Input type="number" value={data.seconds ?? ""} onChange={(e) => onChange({ seconds: Number(e.target.value) || undefined })} />
+        </div>
         <div>
           <Label className="text-xs">Minutos</Label>
           <Input type="number" value={data.minutes ?? ""} onChange={(e) => onChange({ minutes: Number(e.target.value) || undefined })} />
