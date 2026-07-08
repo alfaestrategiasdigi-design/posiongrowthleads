@@ -1114,7 +1114,7 @@ function ImportTab({ onImported }: { onImported: () => void }) {
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState("");
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<{ inserted: number; deduped: number; errors: number } | null>(null);
+  const [result, setResult] = useState<{ inserted: number; deduped: number; errors: number; error_samples?: string[]; registered_forms?: number } | null>(null);
 
 
 
@@ -1132,19 +1132,74 @@ function ImportTab({ onImported }: { onImported: () => void }) {
     if (!rows.length) return;
     setImporting(true);
     let inserted = 0, deduped = 0, errors = 0;
+    const errorSamples: string[] = [];
+    // Coleta os form_ids únicos do CSV (para registrar como master ao final)
+    const formsInCsv = new Map<string, string | null>();
+
     for (const row of rows) {
       const lead = rowToLead(row);
+      if (lead.facebook_form_id) {
+        formsInCsv.set(String(lead.facebook_form_id), lead.facebook_form_name ?? null);
+      }
       if (lead.facebook_lead_id) {
         const { data: exist } = await supabase.from("leads")
           .select("id").eq("facebook_lead_id", lead.facebook_lead_id).maybeSingle();
         if (exist) { deduped++; continue; }
       }
       const { error } = await supabase.from("leads").insert(lead as any);
-      if (error) { errors++; console.error(error); } else inserted++;
+      if (error) {
+        errors++;
+        console.error("[import] insert falhou:", error, "row:", lead);
+        if (errorSamples.length < 3) errorSamples.push(error.message);
+      } else {
+        inserted++;
+      }
     }
+
+    // Auto-registra como "form master" todo form_id do CSV que ainda não tem
+    // regra de roteamento (nem para tenant nem admin). Assim os leads recém
+    // importados aparecem imediatamente em /admin/leads (Leads Formulário).
+    let registeredForms = 0;
+    if (formsInCsv.size > 0) {
+      const ids = Array.from(formsInCsv.keys());
+      const { data: existingRules } = await (supabase as any)
+        .from("lead_routing_rules")
+        .select("match_value")
+        .eq("match_type", "form_id")
+        .in("match_value", ids);
+      const alreadyRouted = new Set((existingRules ?? []).map((r: any) => String(r.match_value)));
+      const toInsert = ids
+        .filter((id) => !alreadyRouted.has(id))
+        .map((id) => ({
+          tenant_id: null,
+          match_type: "form_id",
+          match_value: id,
+          match_label: formsInCsv.get(id) || `Formulário ${id}`,
+          priority: 5,
+          active: true,
+          is_admin_master: true,
+        }));
+      if (toInsert.length > 0) {
+        const { error: ruleErr } = await (supabase as any)
+          .from("lead_routing_rules").insert(toInsert);
+        if (ruleErr) {
+          console.error("[import] falha ao registrar forms master:", ruleErr);
+        } else {
+          registeredForms = toInsert.length;
+        }
+      }
+    }
+
     setImporting(false);
-    setResult({ inserted, deduped, errors });
-    toast.success(`${inserted} novos · ${deduped} já existiam · ${errors} falhas`);
+    setResult({ inserted, deduped, errors, error_samples: errorSamples, registered_forms: registeredForms });
+    if (errors > 0) {
+      toast.error(`${errors} falhas · ${inserted} novos · ${deduped} duplicados`);
+    } else {
+      toast.success(
+        `${inserted} novos · ${deduped} já existiam` +
+        (registeredForms > 0 ? ` · ${registeredForms} formulário(s) registrado(s) como master` : "")
+      );
+    }
     onImported();
   };
 
@@ -1211,11 +1266,23 @@ function ImportTab({ onImported }: { onImported: () => void }) {
       )}
 
       {result && (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm">
-          <b className="text-emerald-300">Concluído.</b>{" "}
+        <div className={`rounded-xl border p-4 text-sm ${result.errors > 0 ? "border-amber-500/40 bg-amber-500/10" : "border-emerald-500/30 bg-emerald-500/10"}`}>
+          <b className={result.errors > 0 ? "text-amber-300" : "text-emerald-300"}>Concluído.</b>{" "}
           <span className="text-muted-foreground">
             {result.inserted} novos · {result.deduped} já existiam · {result.errors} falharam
+            {result.registered_forms ? ` · ${result.registered_forms} formulário(s) registrado(s) como master` : ""}
           </span>
+          {result.error_samples && result.error_samples.length > 0 && (
+            <div className="text-amber-300 text-[11px] mt-2">
+              Amostra de erros: {result.error_samples.join(" | ")}
+            </div>
+          )}
+          {result.registered_forms ? (
+            <div className="text-xs text-emerald-300/80 mt-2">
+              Novos formulários foram registrados como <b>master</b>. Abra{" "}
+              <Link to="/admin/leads" className="underline">Leads Formulário</Link> para ver os leads.
+            </div>
+          ) : null}
         </div>
       )}
     </div>
