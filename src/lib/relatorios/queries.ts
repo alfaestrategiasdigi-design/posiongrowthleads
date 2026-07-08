@@ -130,7 +130,7 @@ export async function fetchRelatorio(
   if (isAdminMasterView) {
     const { data: agencyLeadLinks, error: agencyLeadLinksErr } = await (supabase as any)
       .from("agency_leads")
-      .select("id")
+      .select("id, source_lead_id, stage, valor_proposta")
       .in("source_lead_id", masterSourceIds)
       .limit(10000);
     if (agencyLeadLinksErr) throw agencyLeadLinksErr;
@@ -145,6 +145,17 @@ export async function fetchRelatorio(
       .limit(10000);
     if (acErr) throw acErr;
     agencyContracts = (ac ?? []) as AgencyContractRow[];
+    const contractedAgencyLeadIds = new Set(agencyContracts.map((c) => c.agency_lead_id).filter(Boolean) as string[]);
+    const agencyBySource = new Map<string, any>();
+    for (const a of agencyLeadLinks ?? []) {
+      if ((a as any).source_lead_id) agencyBySource.set(String((a as any).source_lead_id), a);
+    }
+    for (const lead of leadRows) {
+      const agencyLead = agencyBySource.get(lead.id);
+      if (!agencyLead) continue;
+      lead.status = contractedAgencyLeadIds.has(String(agencyLead.id)) ? "ganho" : String(agencyLead.stage || lead.status);
+      lead.valor_proposta = Number(agencyLead.valor_proposta ?? lead.valor_proposta ?? 0);
+    }
   }
 
   // -------- GOALS (para "Meta") --------

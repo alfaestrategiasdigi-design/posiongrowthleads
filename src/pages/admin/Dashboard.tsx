@@ -136,7 +136,9 @@ export default function Dashboard() {
   const agency = useMemo(() => {
     const leadsPeriodo = leads.filter((l) => inRange(l.created_at));
     const leadsPrev = leads.filter((l) => inPrev(l.created_at));
-    const emNegociacao = leads.filter((l) => ["proposta", "negociacao"].includes(l.stage));
+    const contractedLeadIds = new Set(agencyContracts.map((c) => c.agency_lead_id).filter(Boolean) as string[]);
+    const kanbanLeads = leads.map((l) => contractedLeadIds.has(l.id) ? { ...l, stage: "ganho" } : l);
+    const emNegociacao = kanbanLeads.filter((l) => ["proposta", "negociacao"].includes(l.stage));
     const contratosPeriodo = agencyContracts.filter((c) => inRange(c.data_assinatura));
     const contratosPrev = agencyContracts.filter((c) => inPrev(c.data_assinatura));
 
@@ -144,7 +146,7 @@ export default function Dashboard() {
     const mrr = saasContracts.filter((s) => s.status === "active").reduce((s, c) => s + Number(c.mrr || 0), 0);
 
     const stageCount: Record<string, number> = {};
-    leads.forEach((l) => { stageCount[l.stage] = (stageCount[l.stage] || 0) + 1; });
+    kanbanLeads.forEach((l) => { stageCount[l.stage] = (stageCount[l.stage] || 0) + 1; });
     const stageData = Object.entries(stageCount).map(([stage, count]) => ({
       stage: STAGE_LABELS[stage] || stage, count, fill: stageColor(stage),
     }));
@@ -183,10 +185,11 @@ export default function Dashboard() {
 
     // Perdas + atividade
     const perdas = leads
+      .map((l) => contractedLeadIds.has(l.id) ? { ...l, stage: "ganho" } : l)
       .filter((l) => l.stage === "perdido" && (l.updated_at ? inRange(l.updated_at) : inRange(l.created_at)))
       .sort((a, b) => (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at))
       .slice(0, 8);
-    const atividade = [...leads]
+    const atividade = [...kanbanLeads]
       .filter((l) => l.updated_at && inRange(l.updated_at))
       .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
       .slice(0, 8);
