@@ -127,6 +127,25 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
           </>
         )}
 
+        {lead.source === "lead" && lead.raw.reuniao_agendada_em && (
+          <Field
+            label="Reunião agendada"
+            value={format(new Date(lead.raw.reuniao_agendada_em), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+          />
+        )}
+        {lead.source === "lead" && lead.raw.reuniao_realizada_em && (
+          <Field
+            label="Reunião realizada"
+            value={format(new Date(lead.raw.reuniao_realizada_em), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+          />
+        )}
+        {lead.source === "agency_lead" && lead.raw.proximo_followup && (
+          <Field
+            label="Próxima reunião"
+            value={format(new Date(lead.raw.proximo_followup), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+          />
+        )}
+
         <Field
           label="Criado em"
           value={lead.createdAt ? format(new Date(lead.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : null}

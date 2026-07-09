@@ -12,10 +12,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import LeadDetailModal from "@/components/admin/LeadDetailModal";
+import UnifiedLeadPanel from "@/components/leads/UnifiedLeadPanel";
 import LeadsReportModal from "@/components/leads/LeadsReportModal";
 import { getFaturamento, extractFaturamentoRaw, formatFaturamentoValue } from "@/lib/leads/faturamento";
 import type { Lead } from "@/types/admin";
+
+type LeadRow = Lead & { __source?: "lead" | "agency_lead"; reuniao_agendada_em?: string | null };
 
 const statusLabels: Record<string, { label: string; color: string; dot: string }> = {
   lead:             { label: "Lead",            color: "bg-slate-500/10 text-slate-300 border-slate-500/30",       dot: "bg-slate-400" },
@@ -32,7 +34,7 @@ const QUALIFIED = ["qualificado","reuniao_agendada","compareceu","negociacao"];
 const WON = ["ganho"];
 
 const LeadsPage = () => {
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leads, setLeads] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -40,7 +42,7 @@ const LeadsPage = () => {
   const [formFilter, setFormFilter] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [selectedLead, setSelectedLead] = useState<LeadRow | null>(null);
   const [lastLeadsSync, setLastLeadsSync] = useState<string | null>(null);
   const [masterForms, setMasterForms] = useState<Array<{ id: string; form_id: string; label: string | null; active: boolean }>>([]);
   const [availableForms, setAvailableForms] = useState<Array<{ form_id: string; form_name: string | null }>>([]);
@@ -86,16 +88,64 @@ const LeadsPage = () => {
   // Recarrega leads sempre que os forms do master mudam (para aplicar o filtro)
   useEffect(() => {
     const masterFormIds = masterForms.filter(f => f.active).map(f => f.form_id);
-    if (masterFormIds.length === 0) { setLeads([]); return; }
     (async () => {
-      const { data } = await supabase
-        .from("leads")
+      // Manual agency_leads (criados pelo botão "Novo Lead" do pipeline)
+      const { data: manualAgency } = await supabase
+        .from("agency_leads")
         .select("*")
-        .eq("origem", "facebook_ads")
-        .is("tenant_id", null)
-        .in("facebook_form_id", masterFormIds)
+        .is("source_lead_id", null)
         .order("created_at", { ascending: false });
-      setLeads(data || []);
+
+      const stageToStatus: Record<string, string> = {
+        lead: "lead",
+        qualificado: "qualificado",
+        reuniao: "reuniao_agendada",
+        proposta: "negociacao",
+        negociacao: "negociacao",
+        ganho: "ganho",
+        perdido: "perdido",
+      };
+      const manualRows: LeadRow[] = ((manualAgency as any[]) || []).map((a) => ({
+        id: a.id,
+        nome_completo: a.responsavel || a.nome_clinica || "Lead",
+        whatsapp: a.whatsapp || "",
+        email: a.email || null,
+        nome_empresa: a.nome_clinica || null,
+        cnpj: null,
+        cidade_estado: [a.cidade, a.estado].filter(Boolean).join(" / ") || null,
+        tipo_purchase: a.plano_interesse || null,
+        especialidade: null,
+        num_profissionais: null,
+        investiu_trafego: null,
+        faturamento_mensal: null,
+        revendedor_iniciante: false,
+        created_at: a.created_at,
+        status: stageToStatus[a.stage] || "lead",
+        origem: a.origem || "manual",
+        valor_proposta: a.valor_proposta ?? null,
+        observacoes: a.notas || null,
+        tenant_id: a.tenant_id_criado || null,
+        reuniao_agendada_em: a.proximo_followup || null,
+        utm_campaign: a.utm_campaign || null,
+        __source: "agency_lead",
+      })) as LeadRow[];
+
+      let formRows: LeadRow[] = [];
+      if (masterFormIds.length > 0) {
+        const { data } = await supabase
+          .from("leads")
+          .select("*")
+          .eq("origem", "facebook_ads")
+          .is("tenant_id", null)
+          .in("facebook_form_id", masterFormIds)
+          .order("created_at", { ascending: false });
+        formRows = ((data || []) as any[]).map((l) => ({ ...l, __source: "lead" as const }));
+      }
+
+      const all = [...formRows, ...manualRows].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      setLeads(all);
     })();
   }, [masterForms]);
 
@@ -547,9 +597,14 @@ const LeadsPage = () => {
         </div>
       </div>
 
-      <LeadDetailModal lead={selectedLead} open={!!selectedLead} onClose={() => setSelectedLead(null)} />
+      <UnifiedLeadPanel
+        source={selectedLead ? (selectedLead.__source || "lead") : null}
+        leadId={selectedLead?.id ?? null}
+        open={!!selectedLead}
+        onClose={() => setSelectedLead(null)}
+      />
       <LeadsReportModal
-        leads={filtered}
+        leads={filtered as any}
         open={showReport}
         onClose={() => setShowReport(false)}
         filtersLabel={`${filtered.length} leads · status: ${statusFilter === "all" ? "todos" : statusFilter} · origem: ${originFilter === "all" ? "todas" : originFilter} · formulário: ${formFilter === "all" ? "todos" : formFilter}${searchQuery ? ` · busca: "${searchQuery}"` : ""}`}
