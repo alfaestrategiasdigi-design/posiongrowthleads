@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
     connectionId = inserted.data?.id;
   }
 
-  const webhookUrl = await buildWebhookUrl(admin, tenant_id);
+  const webhookUrl = await buildWebhookUrl(admin, tenant_id, webhook_secret);
 
   // Ensure instance exists, then fetch QR.
   // If it does not exist yet, create it and configure the webhook automatically.
