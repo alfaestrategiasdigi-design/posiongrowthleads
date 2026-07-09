@@ -411,6 +411,8 @@ Deno.serve(async (req) => {
   return new Response(JSON.stringify({
     ok: true,
     tenant_id: scopeTenantId,
+    truncated,
+    elapsed_ms: Date.now() - START,
     totals,
     by_form,
     summary: by_form, // compat com UI antiga
