@@ -222,9 +222,30 @@ export default function AgencyPipelinePage() {
             Funil de clínicas interessadas em contratar a POSION.
           </p>
         </div>
-        <Button onClick={() => { setEditing(null); setNewOpen(true); }} className="gap-2">
-          <Plus className="w-4 h-4" /> Novo Lead
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar clínica, responsável, e-mail..."
+              className="pl-8 pr-8 w-[280px] h-9"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label="Limpar busca"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <Button onClick={() => { setEditing(null); setNewOpen(true); }} className="gap-2">
+            <Plus className="w-4 h-4" /> Novo Lead
+          </Button>
+        </div>
       </div>
 
       {/* KPIs */}
