@@ -65,6 +65,7 @@ export default function AgencyPipelinePage() {
   const [promotePlano, setPromotePlano] = useState("starter");
   const [promoting, setPromoting] = useState(false);
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     supabase
