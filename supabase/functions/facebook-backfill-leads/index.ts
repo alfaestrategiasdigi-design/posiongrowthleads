@@ -66,9 +66,15 @@ Deno.serve(async (req) => {
   let payload: any = {};
   try { payload = await req.json(); } catch { /* no body */ }
   const requestedForms: string[] = Array.isArray(payload.form_ids) ? payload.form_ids : [];
-  const maxPerForm: number = Number(payload.max_per_form ?? 200);
+  const maxPerForm: number = Number(payload.max_per_form ?? 100);
   const scopeTenantId: string | null = typeof payload.tenant_id === "string" && payload.tenant_id
     ? payload.tenant_id : null;
+
+  // Time budget: platform kills at 150s idle. Stop early and return partial.
+  const START = Date.now();
+  const BUDGET_MS = 120_000;
+  const timeLeft = () => (Date.now() - START) < BUDGET_MS;
+  let truncated = false;
 
   // Authorization: admin OR tenant member (when scoping to a specific tenant).
   if (!isService && callerUserId) {
@@ -228,6 +234,7 @@ Deno.serve(async (req) => {
   const by_form: any[] = [];
 
   for (const formId of formIds) {
+    if (!timeLeft()) { truncated = true; break; }
     const meta = formsMeta[formId] ?? {};
     const pageId = meta.page_id;
     const formName = meta.name ?? null;
@@ -255,6 +262,7 @@ Deno.serve(async (req) => {
     let errMsg: string | null = null;
 
     while (url && fetched < maxPerForm) {
+      if (!timeLeft()) { truncated = true; break; }
       const r = await fetch(url);
       const j: any = await r.json();
       if (!r.ok) {
@@ -263,6 +271,7 @@ Deno.serve(async (req) => {
         break;
       }
       for (const lead of j.data ?? []) {
+        if (!timeLeft()) { truncated = true; break; }
         fetched++;
         const flat = flattenFieldData(lead.field_data);
         const nome      = pick(flat, ["full_name","nome","nome_completo","name","first_name"]);
@@ -402,6 +411,8 @@ Deno.serve(async (req) => {
   return new Response(JSON.stringify({
     ok: true,
     tenant_id: scopeTenantId,
+    truncated,
+    elapsed_ms: Date.now() - START,
     totals,
     by_form,
     summary: by_form, // compat com UI antiga
