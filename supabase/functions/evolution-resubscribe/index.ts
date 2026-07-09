@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
   const tenantIdFilter: string | null = body?.tenant_id ?? null;
 
   let q = admin.from("zapi_connections")
-    .select("id, tenant_id, instance_url, api_key, instance_name")
+    .select("id, tenant_id, instance_url, api_key, instance_name, webhook_secret")
     .eq("provider", "evolution");
   if (connectionId) q = q.eq("id", connectionId);
   else if (tenantIdFilter) q = q.eq("tenant_id", tenantIdFilter);
