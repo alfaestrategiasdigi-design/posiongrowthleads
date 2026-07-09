@@ -136,11 +136,15 @@ async function createInstance(base: string, apiKey: string, instanceName: string
   return { ok: response.ok, response, body: await safeJson(response) };
 }
 
-async function buildWebhookUrl(admin: any, tenantId: string | null): Promise<string> {
+async function buildWebhookUrl(admin: any, tenantId: string | null, secret: string): Promise<string> {
   const base = `${SUPABASE_URL}/functions/v1/whatsapp-webhook`;
-  if (!tenantId) return base;
+  const secretParam = `secret=${encodeURIComponent(secret)}`;
+  if (!tenantId) return `${base}?${secretParam}`;
   const { data: tenant } = await admin.from("tenants").select("slug").eq("id", tenantId).maybeSingle();
-  return tenant?.slug ? `${base}?tenant=${encodeURIComponent(tenant.slug)}` : `${base}?tenant_id=${encodeURIComponent(tenantId)}`;
+  const tenantParam = tenant?.slug
+    ? `tenant=${encodeURIComponent(tenant.slug)}`
+    : `tenant_id=${encodeURIComponent(tenantId)}`;
+  return `${base}?${tenantParam}&${secretParam}`;
 }
 
 async function configureWebhook(base: string, apiKey: string, instanceName: string, webhookUrl: string): Promise<void> {
