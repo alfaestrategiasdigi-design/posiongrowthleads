@@ -164,6 +164,25 @@ export default function AppointmentDialog({
       : await supabase.from("appointments").insert(payload);
     setSaving(false);
     if (error) return toast.error(error.message);
+
+    // Compõe campos do lead com a data da reunião agendada
+    if (f.lead_id && payload.status !== "cancelado") {
+      const { data: ld } = await supabase
+        .from("leads")
+        .select("status, reuniao_agendada_em")
+        .eq("id", f.lead_id)
+        .maybeSingle();
+      const patch: Record<string, any> = { reuniao_agendada_em: dt };
+      const st = ld?.status;
+      if (payload.status === "compareceu") {
+        patch.reuniao_realizada_em = dt;
+        if (st === "lead" || st === "qualificado" || st === "reuniao_agendada") patch.status = "compareceu";
+      } else if (st === "lead" || st === "qualificado") {
+        patch.status = "reuniao_agendada";
+      }
+      await supabase.from("leads").update(patch).eq("id", f.lead_id);
+    }
+
     toast.success(isEdit ? "Agendamento atualizado" : "Agendamento criado");
     onSaved?.();
     onOpenChange(false);
