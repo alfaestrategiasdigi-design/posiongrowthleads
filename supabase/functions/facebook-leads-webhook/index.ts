@@ -189,6 +189,26 @@ export async function insertLead(payload: Record<string, string>, meta: {
   if (trafego)   notesParts.push(`Tráfego pago: ${trafego}`);
   const observacoes = notesParts.length ? notesParts.join(" | ") : null;
 
+  // Persiste TODAS as respostas do formulário em extras.form_fields
+  // para a aba "Formulário" do UnifiedLeadPanel exibir corretamente.
+  const formFields = Object.entries(payload).map(([name, value]) => ({
+    name,
+    label: name,
+    value: String(value ?? ""),
+  }));
+  const extras = {
+    form_fields: formFields,
+    facebook: {
+      form_id: meta.facebook_form_id ?? null,
+      form_name: meta.facebook_form_name ?? null,
+      campaign_id: meta.facebook_campaign ?? null,
+      campaign_name: meta.facebook_campaign ?? null,
+      ad_name: meta.facebook_ad_name ?? null,
+      adset_name: meta.facebook_adset_name ?? null,
+      lead_id: meta.facebook_lead_id ?? null,
+    },
+  };
+
   const insertPayload: any = {
     nome_completo: nome ?? "Lead Facebook Ads",
     whatsapp: whatsapp ?? "",
@@ -207,6 +227,7 @@ export async function insertLead(payload: Record<string, string>, meta: {
     facebook_ad_name: meta.facebook_ad_name,
     facebook_adset_name: meta.facebook_adset_name,
     observacoes,
+    extras,
     utm_source: "facebook",
     utm_medium: "paid",
     utm_campaign: meta.facebook_campaign ?? null,
