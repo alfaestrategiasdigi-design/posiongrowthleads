@@ -67,6 +67,7 @@ export default function CampanhasPage() {
   const [crmWinsByCampaign, setCrmWinsByCampaign] = useState<Record<string, number>>({});
   const [crmRevenueByCampaign, setCrmRevenueByCampaign] = useState<Record<string, number>>({});
   const [wonLeadsByCampaign, setWonLeadsByCampaign] = useState<Record<string, { name: string; valor: number }[]>>({});
+  const [crmApptsByCampaign, setCrmApptsByCampaign] = useState<Record<string, number>>({});
 
   const [budgetDialog, setBudgetDialog] = useState<{ open: boolean; id?: string; name?: string; current?: string }>({ open: false });
   const [budgetValue, setBudgetValue] = useState("");
@@ -166,7 +167,7 @@ export default function CampanhasPage() {
 
   const attributeCrm = async (camps: { id: string; name: string }[]) => {
     if (!camps.length) {
-      setCrmWinsByCampaign({}); setCrmRevenueByCampaign({}); setWonLeadsByCampaign({});
+      setCrmWinsByCampaign({}); setCrmRevenueByCampaign({}); setWonLeadsByCampaign({}); setCrmApptsByCampaign({});
       return;
     }
     const normalize = (s: string) =>
@@ -178,12 +179,13 @@ export default function CampanhasPage() {
     const wins: Record<string, number> = {};
     const rev: Record<string, number> = {};
     const leadsMap: Record<string, { name: string; valor: number }[]> = {};
+    const appts: Record<string, number> = {};
     const seen = new Set<string>();
+    const seenAppt = new Set<string>();
 
     const selectedTenantId = adAccountFilter === "all" ? null : accountTenantMap.get(adAccountFilter) ?? null;
 
-    const attribute = (leadId: string, leadName: string, valor: number, ...cands: (string | null | undefined)[]) => {
-      if (seen.has(leadId)) return;
+    const matchCampaign = (...cands: (string | null | undefined)[]) => {
       let best: { key: string; name: string; score: number } | null = null;
       for (const cand of cands) {
         if (!cand) continue;
@@ -200,11 +202,25 @@ export default function CampanhasPage() {
         }
         if (best && best.score === 1) break;
       }
+      return best;
+    };
+
+    const attribute = (leadId: string, leadName: string, valor: number, ...cands: (string | null | undefined)[]) => {
+      if (seen.has(leadId)) return;
+      const best = matchCampaign(...cands);
       if (!best) return;
       seen.add(leadId);
       wins[best.key] = (wins[best.key] || 0) + 1;
       rev[best.key] = (rev[best.key] || 0) + (Number(valor) || 0);
       (leadsMap[best.key] = leadsMap[best.key] || []).push({ name: leadName || "Lead", valor: Number(valor) || 0 });
+    };
+
+    const attributeAppt = (leadId: string, ...cands: (string | null | undefined)[]) => {
+      if (seenAppt.has(leadId)) return;
+      const best = matchCampaign(...cands);
+      if (!best) return;
+      seenAppt.add(leadId);
+      appts[best.key] = (appts[best.key] || 0) + 1;
     };
 
     let q1 = supabase.from("leads")
@@ -226,9 +242,28 @@ export default function CampanhasPage() {
         attribute(a.id, a.nome_clinica || a.responsavel, a.valor_proposta, a.campaign_id_manual, a.utm_campaign),
       );
 
+    // Agendamentos: leads que chegaram (ou passaram) da etapa "reunião agendada" no kanban
+    let qa = supabase.from("leads")
+      .select("id,utm_campaign,facebook_campaign,facebook_form_name,campaign_id_manual,tenant_id")
+      .in("status", ["reuniao_agendada", "compareceu", "negociacao", "ganho"]);
+    if (selectedTenantId) qa = qa.eq("tenant_id", selectedTenantId);
+    const { data: apptLeads } = await qa;
+    (apptLeads ?? []).forEach((l: any) =>
+      attributeAppt(l.id, l.campaign_id_manual, l.utm_campaign, l.facebook_campaign, l.facebook_form_name),
+    );
+
+    const { data: apptLeads2 } = await supabase
+      .from("agency_leads")
+      .select("id,utm_campaign,campaign_id_manual,tenant_id_criado,stage")
+      .in("stage", ["reuniao_agendada", "compareceu", "negociacao", "ganho"]);
+    (apptLeads2 ?? [])
+      .filter((a: any) => !selectedTenantId || a.tenant_id_criado === selectedTenantId)
+      .forEach((a: any) => attributeAppt(a.id, a.campaign_id_manual, a.utm_campaign));
+
     setCrmWinsByCampaign(wins);
     setCrmRevenueByCampaign(rev);
     setWonLeadsByCampaign(leadsMap);
+    setCrmApptsByCampaign(appts);
   };
 
   const loadMetaCampaigns = async (didReconnect = false) => {
@@ -931,6 +966,7 @@ export default function CampanhasPage() {
               const key = c.name.trim().toLowerCase();
               const crmWins = crmWinsByCampaign[key] || 0;
               const crmRev = crmRevenueByCampaign[key] || 0;
+              const crmAppts = crmApptsByCampaign[key] || 0;
               const wonList = wonLeadsByCampaign[key] || [];
               const isActive = c.effective_status === "ACTIVE";
               const dailyBudgetR = c.daily_budget ? Number(c.daily_budget) / 100 : null;
@@ -979,8 +1015,9 @@ export default function CampanhasPage() {
                   </div>
 
                   {/* Micro metrics */}
-                  <div className="grid grid-cols-4 divide-x divide-white/5 border-b border-white/5 text-center">
+                  <div className="grid grid-cols-5 divide-x divide-white/5 border-b border-white/5 text-center">
                     <MicroMetric label="Leads" value={NUM(i?.leads || 0)} />
+                    <MicroMetric label="Agendados" value={NUM(crmAppts)} highlight={crmAppts > 0} />
                     <MicroMetric label="CPL" value={cpl ? BRL(cpl) : "—"} />
                     <MicroMetric label="CTR" value={i ? `${(i.ctr || 0).toFixed(1)}%` : "—"} />
                     <MicroMetric label="ROAS" value={roas ? `${roas.toFixed(1)}x` : "—"}
