@@ -89,8 +89,8 @@ export default function AgencyPipelinePage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    // Pipeline deve refletir SOMENTE os leads visíveis em /admin/leads
-    // (leads da POSION = tenant_id NULL + facebook_form_id nas regras admin_master ativas).
+    // Pipeline mostra: (a) agency_leads vinculados aos leads do Meta em regras admin_master
+    //                  (b) agency_leads manuais (source_lead_id NULL) criados pelo botão "Novo Lead"
     const { data: masterRules } = await (supabase as any)
       .from("lead_routing_rules")
       .select("match_value")
@@ -99,35 +99,37 @@ export default function AgencyPipelinePage() {
       .eq("active", true);
     const masterFormIds = (masterRules ?? []).map((r: any) => String(r.match_value)).filter(Boolean);
 
-    if (masterFormIds.length === 0) {
-      setLeads([]);
-      setLoading(false);
-      return;
+    let sourceIds: string[] = [];
+    if (masterFormIds.length > 0) {
+      const { data: srcLeads } = await supabase
+        .from("leads")
+        .select("id")
+        .eq("origem", "facebook_ads")
+        .is("tenant_id", null)
+        .in("facebook_form_id", masterFormIds);
+      sourceIds = (srcLeads ?? []).map((l: any) => l.id);
     }
 
-    const { data: srcLeads } = await supabase
-      .from("leads")
-      .select("id")
-      .eq("origem", "facebook_ads")
-      .is("tenant_id", null)
-      .in("facebook_form_id", masterFormIds);
-    const sourceIds = (srcLeads ?? []).map((l: any) => l.id);
+    const [metaRes, manualRes] = await Promise.all([
+      sourceIds.length
+        ? supabase.from("agency_leads").select("*").in("source_lead_id", sourceIds)
+        : Promise.resolve({ data: [] as any[], error: null } as any),
+      supabase.from("agency_leads").select("*").is("source_lead_id", null),
+    ]);
 
-    if (sourceIds.length === 0) {
-      setLeads([]);
-      setLoading(false);
-      return;
-    }
+    if (metaRes.error) toast.error(metaRes.error.message);
+    if (manualRes.error) toast.error(manualRes.error.message);
 
-    const { data, error } = await supabase
-      .from("agency_leads")
-      .select("*")
-      .in("source_lead_id", sourceIds)
-      .order("created_at", { ascending: false });
-    if (error) toast.error(error.message);
-    else setLeads((data || []) as AgencyLead[]);
+    const merged = new Map<string, AgencyLead>();
+    for (const l of (metaRes.data || []) as AgencyLead[]) merged.set(l.id, l);
+    for (const l of (manualRes.data || []) as AgencyLead[]) merged.set(l.id, l);
+    const all = Array.from(merged.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    setLeads(all);
     setLoading(false);
   }, []);
+
 
 
   useEffect(() => { load(); }, [load]);
