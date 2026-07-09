@@ -31,16 +31,32 @@ interface Props {
 export default function LeadSummaryTab({ lead, onSave }: Props) {
   const location = useLocation();
   const isTenantContext = location.pathname.startsWith("/app/");
+  const toLocalInput = (iso: string | null | undefined) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const tz = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - tz).toISOString().slice(0, 16);
+  };
+
   const [stage, setStage] = useState(lead.stage);
-  const [valor, setValor] = useState(lead.proposalValue ? String(lead.proposalValue) : "");
+  const [valor, setValor] = useState(lead.proposalValue != null ? String(lead.proposalValue) : "");
   const [notes, setNotes] = useState(lead.notes || "");
+  const [reuniaoAt, setReuniaoAt] = useState(
+    toLocalInput(lead.source === "lead" ? lead.raw.reuniao_agendada_em : lead.raw.proximo_followup)
+  );
+  const [propostaAt, setPropostaAt] = useState(
+    toLocalInput(lead.source === "lead" ? lead.raw.proposta_enviada_em : null)
+  );
   const [saving, setSaving] = useState(false);
 
 
   useEffect(() => {
     setStage(lead.stage);
-    setValor(lead.proposalValue ? String(lead.proposalValue) : "");
+    setValor(lead.proposalValue != null ? String(lead.proposalValue) : "");
     setNotes(lead.notes || "");
+    setReuniaoAt(toLocalInput(lead.source === "lead" ? lead.raw.reuniao_agendada_em : lead.raw.proximo_followup));
+    setPropostaAt(toLocalInput(lead.source === "lead" ? lead.raw.proposta_enviada_em : null));
   }, [lead.id]);
 
   const stagesForSource = lead.source === "lead"
@@ -51,20 +67,35 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
   const valorField = "valor_proposta";
   const notesField = lead.source === "lead" ? "observacoes" : "notas";
 
+  const showReuniaoField = lead.source === "lead"
+    ? ["reuniao_agendada", "compareceu", "negociacao", "ganho", "perdido"].includes(stage)
+    : ["reuniao", "proposta", "negociacao", "ganho", "perdido"].includes(stage);
+  const showPropostaField = lead.source === "lead"
+    ? ["negociacao", "ganho", "perdido"].includes(stage)
+    : ["proposta", "negociacao", "ganho", "perdido"].includes(stage);
+
   const handleSave = async () => {
     setSaving(true);
     const patch: Record<string, any> = {
       [stageField]: stage,
-      [valorField]: valor ? Number(valor) : null,
+      [valorField]: valor !== "" ? Number(valor) : null,
       [notesField]: notes || null,
     };
+    const reuniaoIso = reuniaoAt ? new Date(reuniaoAt).toISOString() : null;
+    const propostaIso = propostaAt ? new Date(propostaAt).toISOString() : null;
     if (lead.source === "lead") {
       const now = new Date().toISOString();
       if (stage === "qualificado") { patch.mql = true; patch.sql_qualified = true; }
-      if (stage === "reuniao_agendada" && !lead.raw.reuniao_agendada_em) patch.reuniao_agendada_em = now;
+      if (showReuniaoField) {
+        patch.reuniao_agendada_em = reuniaoIso ?? (lead.raw.reuniao_agendada_em || now);
+      }
       if (stage === "compareceu" && !lead.raw.reuniao_realizada_em) patch.reuniao_realizada_em = now;
-      if (stage === "negociacao" && !lead.raw.proposta_enviada_em) patch.proposta_enviada_em = now;
+      if (showPropostaField) {
+        patch.proposta_enviada_em = propostaIso ?? (lead.raw.proposta_enviada_em || now);
+      }
       if ((stage === "ganho" || stage === "perdido") && !lead.raw.fechado_em) patch.fechado_em = now;
+    } else {
+      if (showReuniaoField && reuniaoIso) patch.proximo_followup = reuniaoIso;
     }
     await onSave(patch);
     setSaving(false);
@@ -89,6 +120,33 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
           <Input type="number" min="0" step="100" value={valor} onChange={(e) => setValor(e.target.value)} className="mt-1" />
         </div>
       </div>
+
+      {(showReuniaoField || showPropostaField) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {showReuniaoField && (
+            <div>
+              <Label className="text-xs">Data da reunião</Label>
+              <Input
+                type="datetime-local"
+                value={reuniaoAt}
+                onChange={(e) => setReuniaoAt(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+          )}
+          {showPropostaField && (
+            <div>
+              <Label className="text-xs">Data da proposta</Label>
+              <Input
+                type="datetime-local"
+                value={propostaAt}
+                onChange={(e) => setPropostaAt(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       <div>
         <Label className="text-xs">Observações comerciais</Label>
