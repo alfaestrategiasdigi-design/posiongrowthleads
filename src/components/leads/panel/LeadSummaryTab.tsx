@@ -150,7 +150,7 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
 
       <div>
         <Label className="text-xs">Observações comerciais</Label>
-        <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1" placeholder="Notas internas..." />
+        <Textarea rows={10} value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1 min-h-[220px]" placeholder="Notas internas..." />
       </div>
 
       <Button onClick={handleSave} disabled={saving} className="w-full gap-2">
