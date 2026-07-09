@@ -121,6 +121,33 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
         </div>
       </div>
 
+      {(showReuniaoField || showPropostaField) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {showReuniaoField && (
+            <div>
+              <Label className="text-xs">Data da reunião</Label>
+              <Input
+                type="datetime-local"
+                value={reuniaoAt}
+                onChange={(e) => setReuniaoAt(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+          )}
+          {showPropostaField && (
+            <div>
+              <Label className="text-xs">Data da proposta</Label>
+              <Input
+                type="datetime-local"
+                value={propostaAt}
+                onChange={(e) => setPropostaAt(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       <div>
         <Label className="text-xs">Observações comerciais</Label>
         <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1" placeholder="Notas internas..." />
