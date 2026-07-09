@@ -234,6 +234,7 @@ Deno.serve(async (req) => {
   const by_form: any[] = [];
 
   for (const formId of formIds) {
+    if (!timeLeft()) { truncated = true; break; }
     const meta = formsMeta[formId] ?? {};
     const pageId = meta.page_id;
     const formName = meta.name ?? null;
