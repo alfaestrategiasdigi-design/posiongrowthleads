@@ -262,6 +262,7 @@ Deno.serve(async (req) => {
     let errMsg: string | null = null;
 
     while (url && fetched < maxPerForm) {
+      if (!timeLeft()) { truncated = true; break; }
       const r = await fetch(url);
       const j: any = await r.json();
       if (!r.ok) {
