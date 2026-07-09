@@ -38,6 +38,19 @@ Deno.serve(async (req) => {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+  // Only Admin Master can run the diagnostic (same check used by the other Facebook admin functions)
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+  const { data: isAdmin } = await admin.rpc("has_role", {
+    _user_id: (claims.claims as any).sub, _role: "admin",
+  });
+  if (!isAdmin) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   if (!TOKEN) {
     return new Response(JSON.stringify({

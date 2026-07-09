@@ -629,11 +629,12 @@ Deno.serve(async (req) => {
       resolvedTenantId = tenant?.id ?? null;
     }
 
+    const requestSecret = url.searchParams.get("secret") || req.headers.get("x-webhook-secret") || "";
     let conn: any = null;
     let connResolvedBy: "instance_name" | "tenant" | null = null;
     if (instanceName) {
       const { data } = await admin.from("zapi_connections")
-        .select("tenant_id, instance_url, api_key, instance_name")
+        .select("tenant_id, instance_url, api_key, instance_name, webhook_secret")
         .eq("provider", "evolution")
         .eq("instance_name", instanceName)
         .order("updated_at", { ascending: false })
@@ -646,7 +647,7 @@ Deno.serve(async (req) => {
       // and auto-heal the stored instance_name (Evolution may have been
       // recreated with a slightly different name).
       const { data } = await admin.from("zapi_connections")
-        .select("tenant_id, instance_url, api_key, instance_name")
+        .select("tenant_id, instance_url, api_key, instance_name, webhook_secret")
         .eq("provider", "evolution")
         .eq("tenant_id", resolvedTenantId)
         .order("updated_at", { ascending: false })
@@ -662,6 +663,13 @@ Deno.serve(async (req) => {
       });
       return new Response(JSON.stringify({ ok: true, dropped: "unknown_instance" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    // Verify the per-connection webhook secret (protects against spoofed events)
+    if (conn.webhook_secret && requestSecret !== conn.webhook_secret) {
+      console.warn("[whatsapp-webhook] invalid_secret", { instanceName, tenant: conn.tenant_id });
+      return new Response(JSON.stringify({ ok: false, error: "invalid_secret" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     if (connResolvedBy === "tenant" && instanceName && conn.instance_name !== instanceName) {
@@ -1198,7 +1206,10 @@ Deno.serve(async (req) => {
           try {
             fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-dispatch`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${SERVICE_KEY}`,
+              },
               body: JSON.stringify({
                 trigger: "message_received",
                 tenant_id: tenantId,

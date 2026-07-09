@@ -1229,6 +1229,24 @@ export type Database = {
           },
         ]
       }
+      edge_internal_config: {
+        Row: {
+          dispatch_token: string
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          dispatch_token?: string
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          dispatch_token?: string
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       evaluations: {
         Row: {
           amount: number | null
@@ -3694,6 +3712,7 @@ export type Database = {
       }
     }
     Functions: {
+      _internal_dispatch_headers: { Args: never; Returns: Json }
       current_tenant_ids: { Args: never; Returns: string[] }
       get_facebook_config_meta: {
         Args: never
