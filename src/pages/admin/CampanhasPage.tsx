@@ -167,7 +167,7 @@ export default function CampanhasPage() {
 
   const attributeCrm = async (camps: { id: string; name: string }[]) => {
     if (!camps.length) {
-      setCrmWinsByCampaign({}); setCrmRevenueByCampaign({}); setWonLeadsByCampaign({});
+      setCrmWinsByCampaign({}); setCrmRevenueByCampaign({}); setWonLeadsByCampaign({}); setCrmApptsByCampaign({});
       return;
     }
     const normalize = (s: string) =>
@@ -179,12 +179,13 @@ export default function CampanhasPage() {
     const wins: Record<string, number> = {};
     const rev: Record<string, number> = {};
     const leadsMap: Record<string, { name: string; valor: number }[]> = {};
+    const appts: Record<string, number> = {};
     const seen = new Set<string>();
+    const seenAppt = new Set<string>();
 
     const selectedTenantId = adAccountFilter === "all" ? null : accountTenantMap.get(adAccountFilter) ?? null;
 
-    const attribute = (leadId: string, leadName: string, valor: number, ...cands: (string | null | undefined)[]) => {
-      if (seen.has(leadId)) return;
+    const matchCampaign = (...cands: (string | null | undefined)[]) => {
       let best: { key: string; name: string; score: number } | null = null;
       for (const cand of cands) {
         if (!cand) continue;
@@ -201,11 +202,25 @@ export default function CampanhasPage() {
         }
         if (best && best.score === 1) break;
       }
+      return best;
+    };
+
+    const attribute = (leadId: string, leadName: string, valor: number, ...cands: (string | null | undefined)[]) => {
+      if (seen.has(leadId)) return;
+      const best = matchCampaign(...cands);
       if (!best) return;
       seen.add(leadId);
       wins[best.key] = (wins[best.key] || 0) + 1;
       rev[best.key] = (rev[best.key] || 0) + (Number(valor) || 0);
       (leadsMap[best.key] = leadsMap[best.key] || []).push({ name: leadName || "Lead", valor: Number(valor) || 0 });
+    };
+
+    const attributeAppt = (leadId: string, ...cands: (string | null | undefined)[]) => {
+      if (seenAppt.has(leadId)) return;
+      const best = matchCampaign(...cands);
+      if (!best) return;
+      seenAppt.add(leadId);
+      appts[best.key] = (appts[best.key] || 0) + 1;
     };
 
     let q1 = supabase.from("leads")
@@ -227,9 +242,28 @@ export default function CampanhasPage() {
         attribute(a.id, a.nome_clinica || a.responsavel, a.valor_proposta, a.campaign_id_manual, a.utm_campaign),
       );
 
+    // Agendamentos: leads que chegaram (ou passaram) da etapa "reunião agendada" no kanban
+    let qa = supabase.from("leads")
+      .select("id,utm_campaign,facebook_campaign,facebook_form_name,campaign_id_manual,tenant_id")
+      .in("status", ["reuniao_agendada", "compareceu", "negociacao", "ganho"]);
+    if (selectedTenantId) qa = qa.eq("tenant_id", selectedTenantId);
+    const { data: apptLeads } = await qa;
+    (apptLeads ?? []).forEach((l: any) =>
+      attributeAppt(l.id, l.campaign_id_manual, l.utm_campaign, l.facebook_campaign, l.facebook_form_name),
+    );
+
+    const { data: apptLeads2 } = await supabase
+      .from("agency_leads")
+      .select("id,utm_campaign,campaign_id_manual,tenant_id_criado,stage")
+      .in("stage", ["reuniao_agendada", "compareceu", "negociacao", "ganho"]);
+    (apptLeads2 ?? [])
+      .filter((a: any) => !selectedTenantId || a.tenant_id_criado === selectedTenantId)
+      .forEach((a: any) => attributeAppt(a.id, a.campaign_id_manual, a.utm_campaign));
+
     setCrmWinsByCampaign(wins);
     setCrmRevenueByCampaign(rev);
     setWonLeadsByCampaign(leadsMap);
+    setCrmApptsByCampaign(appts);
   };
 
   const loadMetaCampaigns = async (didReconnect = false) => {
