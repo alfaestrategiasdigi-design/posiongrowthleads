@@ -180,7 +180,7 @@ export default function AppointmentDialog({
       } else if (st === "lead" || st === "qualificado") {
         patch.status = "reuniao_agendada";
       }
-      await supabase.from("leads").update(patch).eq("id", f.lead_id);
+      await supabase.from("leads").update(patch as any).eq("id", f.lead_id);
     }
 
     toast.success(isEdit ? "Agendamento atualizado" : "Agendamento criado");
