@@ -1,31 +1,35 @@
+
 ## Objetivo
-No `/admin/pipeline`:
-1. Adicionar campo de busca para filtrar leads no funil.
-2. Corrigir "Novo Lead" para que leads criados manualmente apareçam de fato no pipeline.
+Criar, para **todos os tenants**, uma automação padrão que dispara assim que um lead preenche um formulário (Facebook Ads / qualquer form) enviando uma mensagem no WhatsApp avisando que a equipe entrará em contato.
 
-## Diagnóstico
-Em `src/pages/admin/AgencyPipelinePage.tsx`, o `load()` só traz `agency_leads` cujo `source_lead_id` está em uma lista de leads do Meta vinculados às regras `admin_master`. Leads criados manualmente pelo botão "Novo Lead" nascem com `source_lead_id = null` → nunca aparecem no board (parecem "não criados"). O `insert` já funciona; o problema é o filtro de leitura.
+## O que será feito
 
-## Mudanças (apenas UI/leitura, sem alterar schema)
+### 1. Migration — seed de automação por tenant
+Criar migration que insere em `automation_flows` um fluxo para cada tenant existente que ainda não tenha um fluxo com a chave `auto_form_greeting` (para evitar duplicatas em re-runs):
 
-**`src/pages/admin/AgencyPipelinePage.tsx`**
+- `name`: "Boas-vindas após formulário"
+- `trigger_type`: `form_submitted`
+- `trigger_config`: `{ "form_name": "", "key": "auto_form_greeting" }` (vazio = qualquer formulário)
+- `status`: `active`
+- `nodes`:
+  1. `trigger` (form_submitted)
+  2. `message` com texto padrão (ver abaixo)
+- `edges`: trigger → message
 
-1. **Fix "Novo Lead" visível**: alterar `load()` para trazer também os agency_leads manuais.
-   - Fazer duas queries em paralelo:
-     - `agency_leads` com `source_lead_id in (sourceIds)` (leads Meta atuais).
-     - `agency_leads` com `source_lead_id is null` (criados manualmente).
-   - Fazer merge (dedupe por `id`) e ordenar por `created_at desc`.
-   - Se `sourceIds` for vazio, ainda assim carregar os manuais (hoje retorna `[]` cedo).
+**Texto padrão da mensagem:**
+> Olá {{lead.nome}}! 👋 Recebemos seu contato e nossa equipe já foi notificada. Em instantes um especialista vai falar com você por aqui. Obrigado pelo interesse!
 
-2. **Busca**: novo `useState<string>("")` `search` + `<Input>` no header (ao lado do botão "Novo Lead"), com ícone `Search` e placeholder "Buscar por clínica, responsável, e-mail, WhatsApp, cidade...".
-   - Filtro client-side aplicado antes do `grouped` (via `useMemo`):
-     - normalizar sem acento, lower-case, comparar `includes` contra: `nome_clinica`, `responsavel`, `email`, `whatsapp`, `cidade`, `estado`, `plano_interesse`, `utm_campaign`.
-   - KPIs continuam calculados sobre o conjunto filtrado para refletir o que está visível.
-   - Colunas do kanban mostram counts do filtrado; se `search` estiver ativo e a coluna ficar vazia, mostrar "Nenhum resultado".
+### 2. Trigger para novos tenants
+Adicionar function + trigger `AFTER INSERT ON public.tenants` que cria automaticamente o mesmo fluxo padrão para qualquer tenant novo — assim a cobertura continua "todos os tenants" no futuro sem intervenção manual.
 
-3. **Toast de erro no insert**: no `LeadDialog.save()`, além de `toast.error(error.message)`, logar `console.error` para diagnóstico caso a RLS bloqueie inserts manuais no futuro.
+### 3. Garantir disparo no webhook de formulários
+Verificar que `facebook-leads-webhook` (e criação manual de lead com origem formulário) chama `automation-dispatch` com `trigger: "form_submitted"`. Se já chama, nenhuma mudança de código; se não, adicionar o invoke.
 
 ## Fora do escopo
-- Não mudar schema de `agency_leads` nem RLS.
-- Não mexer no Kanban de `/admin/kanban` (leads dos tenants).
-- Não mudar o fluxo de promoção para tenant.
+- Não altera o editor de automações nem a UI.
+- Não sobrescreve fluxos já existentes do tenant.
+- Não muda o texto de fluxos que o tenant já customizou.
+
+## Confirmações necessárias
+1. Texto da mensagem acima está OK ou você quer outro?
+2. Disparar em **qualquer** formulário, ou apenas nos vindos do Facebook Ads?
