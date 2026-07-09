@@ -1206,7 +1206,10 @@ Deno.serve(async (req) => {
           try {
             fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-dispatch`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${SERVICE_KEY}`,
+              },
               body: JSON.stringify({
                 trigger: "message_received",
                 tenant_id: tenantId,
