@@ -597,9 +597,14 @@ const LeadsPage = () => {
         </div>
       </div>
 
-      <LeadDetailModal lead={selectedLead} open={!!selectedLead} onClose={() => setSelectedLead(null)} />
+      <UnifiedLeadPanel
+        source={selectedLead ? (selectedLead.__source || "lead") : null}
+        leadId={selectedLead?.id ?? null}
+        open={!!selectedLead}
+        onClose={() => setSelectedLead(null)}
+      />
       <LeadsReportModal
-        leads={filtered}
+        leads={filtered as any}
         open={showReport}
         onClose={() => setShowReport(false)}
         filtersLabel={`${filtered.length} leads · status: ${statusFilter === "all" ? "todos" : statusFilter} · origem: ${originFilter === "all" ? "todas" : originFilter} · formulário: ${formFilter === "all" ? "todos" : formFilter}${searchQuery ? ` · busca: "${searchQuery}"` : ""}`}
