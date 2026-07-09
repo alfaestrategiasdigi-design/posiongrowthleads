@@ -479,7 +479,7 @@ function LeadDialog({
       ? await supabase.from("agency_leads").update(payload).eq("id", lead.id)
       : await supabase.from("agency_leads").insert(payload);
     setSaving(false);
-    if (error) toast.error(error.message);
+    if (error) { console.error("[agency_leads] save error:", error); toast.error(error.message); }
     else { toast.success(lead ? "Atualizado" : "Criado"); onSaved(); }
   };
 
