@@ -287,7 +287,7 @@ export default function AgencyPipelinePage() {
                 </div>
                 <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[70vh]">
                   {items.length === 0 && (
-                    <div className="text-center text-[11px] text-muted-foreground/60 py-8">Vazio</div>
+                    <div className="text-center text-[11px] text-muted-foreground/60 py-8">{search ? "Nenhum resultado" : "Vazio"}</div>
                   )}
                   {items.map((l) => (
                     <div
