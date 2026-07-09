@@ -162,12 +162,31 @@ Deno.serve(async (req) => {
         // matched: pode ser tenant OU admin_master (tenantId=null)
 
 
+        const formFields = Object.entries(fields).map(([name, value]) => ({
+          name,
+          label: name,
+          value: String(value ?? ""),
+        }));
+        const extras = {
+          form_fields: formFields,
+          facebook: {
+            form_id: lead.form_id ?? f.id,
+            form_name: f.name ?? null,
+            campaign_id: lead.campaign_id ?? null,
+            ad_id: lead.ad_id ?? null,
+            adset_id: lead.adset_id ?? null,
+            lead_id: fbId,
+            created_time: lead.created_time ?? null,
+          },
+        };
+
         const insLead = await admin.from("leads").insert({
           nome_completo: nome,
           whatsapp: whatsapp || "(sem telefone)",
           email,
           tenant_id: tenantId,
           origem: "facebook_ads",
+          extras,
           facebook_lead_id: fbId,
           facebook_form_id: lead.form_id ?? f.id,
           facebook_form_name: f.name,
