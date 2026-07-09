@@ -271,6 +271,7 @@ Deno.serve(async (req) => {
         break;
       }
       for (const lead of j.data ?? []) {
+        if (!timeLeft()) { truncated = true; break; }
         fetched++;
         const flat = flattenFieldData(lead.field_data);
         const nome      = pick(flat, ["full_name","nome","nome_completo","name","first_name"]);
