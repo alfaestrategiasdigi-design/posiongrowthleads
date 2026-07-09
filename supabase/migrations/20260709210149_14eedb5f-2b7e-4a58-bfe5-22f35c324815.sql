@@ -1,0 +1,1 @@
+ALTER TABLE public.agency_leads ADD COLUMN IF NOT EXISTS proposta_enviada_em timestamptz;

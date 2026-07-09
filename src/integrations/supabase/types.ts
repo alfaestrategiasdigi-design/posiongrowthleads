@@ -92,6 +92,7 @@ export type Database = {
           owner_id: string | null
           perdido_motivo: string | null
           plano_interesse: string | null
+          proposta_enviada_em: string | null
           proximo_followup: string | null
           responsavel: string | null
           sdr_qualification: Json | null
@@ -123,6 +124,7 @@ export type Database = {
           owner_id?: string | null
           perdido_motivo?: string | null
           plano_interesse?: string | null
+          proposta_enviada_em?: string | null
           proximo_followup?: string | null
           responsavel?: string | null
           sdr_qualification?: Json | null
@@ -154,6 +156,7 @@ export type Database = {
           owner_id?: string | null
           perdido_motivo?: string | null
           plano_interesse?: string | null
+          proposta_enviada_em?: string | null
           proximo_followup?: string | null
           responsavel?: string | null
           sdr_qualification?: Json | null

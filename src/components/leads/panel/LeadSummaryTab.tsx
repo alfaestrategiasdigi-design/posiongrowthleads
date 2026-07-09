@@ -46,7 +46,7 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
     toLocalInput(lead.source === "lead" ? lead.raw.reuniao_agendada_em : lead.raw.proximo_followup)
   );
   const [propostaAt, setPropostaAt] = useState(
-    toLocalInput(lead.source === "lead" ? lead.raw.proposta_enviada_em : null)
+    toLocalInput(lead.source === "lead" ? lead.raw.proposta_enviada_em : lead.raw.proposta_enviada_em)
   );
   const [saving, setSaving] = useState(false);
 
@@ -56,7 +56,7 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
     setValor(lead.proposalValue != null ? String(lead.proposalValue) : "");
     setNotes(lead.notes || "");
     setReuniaoAt(toLocalInput(lead.source === "lead" ? lead.raw.reuniao_agendada_em : lead.raw.proximo_followup));
-    setPropostaAt(toLocalInput(lead.source === "lead" ? lead.raw.proposta_enviada_em : null));
+    setPropostaAt(toLocalInput(lead.raw.proposta_enviada_em));
   }, [lead.id]);
 
   const stagesForSource = lead.source === "lead"
@@ -96,6 +96,7 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
       if ((stage === "ganho" || stage === "perdido") && !lead.raw.fechado_em) patch.fechado_em = now;
     } else {
       if (showReuniaoField && reuniaoIso) patch.proximo_followup = reuniaoIso;
+      if (showPropostaField) patch.proposta_enviada_em = propostaIso ?? new Date().toISOString();
     }
     await onSave(patch);
     setSaving(false);
@@ -150,7 +151,7 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
 
       <div>
         <Label className="text-xs">Observações comerciais</Label>
-        <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1" placeholder="Notas internas..." />
+        <Textarea rows={10} value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1 min-h-[220px]" placeholder="Notas internas..." />
       </div>
 
       <Button onClick={handleSave} disabled={saving} className="w-full gap-2">
