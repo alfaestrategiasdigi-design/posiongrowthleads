@@ -46,7 +46,7 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
     toLocalInput(lead.source === "lead" ? lead.raw.reuniao_agendada_em : lead.raw.proximo_followup)
   );
   const [propostaAt, setPropostaAt] = useState(
-    toLocalInput(lead.source === "lead" ? lead.raw.proposta_enviada_em : null)
+    toLocalInput(lead.source === "lead" ? lead.raw.proposta_enviada_em : lead.raw.proposta_enviada_em)
   );
   const [saving, setSaving] = useState(false);
 
