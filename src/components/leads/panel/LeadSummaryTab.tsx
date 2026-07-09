@@ -56,7 +56,7 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
     setValor(lead.proposalValue != null ? String(lead.proposalValue) : "");
     setNotes(lead.notes || "");
     setReuniaoAt(toLocalInput(lead.source === "lead" ? lead.raw.reuniao_agendada_em : lead.raw.proximo_followup));
-    setPropostaAt(toLocalInput(lead.source === "lead" ? lead.raw.proposta_enviada_em : null));
+    setPropostaAt(toLocalInput(lead.raw.proposta_enviada_em));
   }, [lead.id]);
 
   const stagesForSource = lead.source === "lead"
