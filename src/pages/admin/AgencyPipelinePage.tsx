@@ -134,21 +134,38 @@ export default function AgencyPipelinePage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const norm = (s: string) =>
+    s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  const filteredLeads = useMemo(() => {
+    const q = norm(search.trim());
+    if (!q) return leads;
+    return leads.filter((l) => {
+      const hay = norm(
+        [
+          l.nome_clinica, l.responsavel, l.email, l.whatsapp,
+          l.cidade, l.estado, l.plano_interesse, l.utm_campaign,
+        ].filter(Boolean).join(" ")
+      );
+      return hay.includes(q);
+    });
+  }, [leads, search]);
+
   const grouped = useMemo(() => {
     const g: Record<Stage, AgencyLead[]> = {
       lead: [], qualificado: [], reuniao: [], proposta: [], negociacao: [], ganho: [], perdido: [],
     };
-    for (const l of leads) g[l.stage]?.push(l);
+    for (const l of filteredLeads) g[l.stage]?.push(l);
     return g;
-  }, [leads]);
+  }, [filteredLeads]);
 
   const kpis = useMemo(() => {
-    const active = leads.filter((l) => l.stage !== "ganho" && l.stage !== "perdido");
-    const wonMonth = leads.filter((l) => l.stage === "ganho");
-    const emNeg = leads.filter((l) => ["proposta", "negociacao"].includes(l.stage));
+    const active = filteredLeads.filter((l) => l.stage !== "ganho" && l.stage !== "perdido");
+    const wonMonth = filteredLeads.filter((l) => l.stage === "ganho");
+    const emNeg = filteredLeads.filter((l) => ["proposta", "negociacao"].includes(l.stage));
     const totalPipeline = emNeg.reduce((s, l) => s + (l.valor_proposta || 0), 0);
     const wonValue = wonMonth.reduce((s, l) => s + (l.valor_proposta || 0), 0);
-    const convRate = leads.length ? (wonMonth.length / leads.length) * 100 : 0;
+    const convRate = filteredLeads.length ? (wonMonth.length / filteredLeads.length) * 100 : 0;
     return {
       active: active.length,
       won: wonMonth.length,
@@ -156,7 +173,7 @@ export default function AgencyPipelinePage() {
       wonValue,
       convRate,
     };
-  }, [leads]);
+  }, [filteredLeads]);
 
   const moveStage = async (leadId: string, newStage: Stage) => {
     setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, stage: newStage } : l)));
