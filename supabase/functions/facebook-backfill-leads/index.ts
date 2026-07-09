@@ -66,9 +66,15 @@ Deno.serve(async (req) => {
   let payload: any = {};
   try { payload = await req.json(); } catch { /* no body */ }
   const requestedForms: string[] = Array.isArray(payload.form_ids) ? payload.form_ids : [];
-  const maxPerForm: number = Number(payload.max_per_form ?? 200);
+  const maxPerForm: number = Number(payload.max_per_form ?? 100);
   const scopeTenantId: string | null = typeof payload.tenant_id === "string" && payload.tenant_id
     ? payload.tenant_id : null;
+
+  // Time budget: platform kills at 150s idle. Stop early and return partial.
+  const START = Date.now();
+  const BUDGET_MS = 120_000;
+  const timeLeft = () => (Date.now() - START) < BUDGET_MS;
+  let truncated = false;
 
   // Authorization: admin OR tenant member (when scoping to a specific tenant).
   if (!isService && callerUserId) {
