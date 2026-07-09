@@ -67,6 +67,7 @@ export default function CampanhasPage() {
   const [crmWinsByCampaign, setCrmWinsByCampaign] = useState<Record<string, number>>({});
   const [crmRevenueByCampaign, setCrmRevenueByCampaign] = useState<Record<string, number>>({});
   const [wonLeadsByCampaign, setWonLeadsByCampaign] = useState<Record<string, { name: string; valor: number }[]>>({});
+  const [crmApptsByCampaign, setCrmApptsByCampaign] = useState<Record<string, number>>({});
 
   const [budgetDialog, setBudgetDialog] = useState<{ open: boolean; id?: string; name?: string; current?: string }>({ open: false });
   const [budgetValue, setBudgetValue] = useState("");
