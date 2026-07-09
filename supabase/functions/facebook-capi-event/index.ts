@@ -37,9 +37,41 @@ function splitCityState(cs?: string | null): { city?: string; state?: string } {
   return { city: city || undefined, state: st || undefined };
 }
 
+let cachedDispatchToken: { value: string; expiresAt: number } | null = null;
+async function getDispatchToken(): Promise<string | null> {
+  if (cachedDispatchToken && cachedDispatchToken.expiresAt > Date.now()) return cachedDispatchToken.value;
+  const { data } = await admin.from("edge_internal_config").select("dispatch_token").eq("id", 1).maybeSingle();
+  const value = (data as any)?.dispatch_token ?? null;
+  if (value) cachedDispatchToken = { value, expiresAt: Date.now() + 60_000 };
+  return value;
+}
+
+async function authorize(req: Request): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  if (!token) return { ok: false, status: 401, error: "unauthorized" };
+  if (token === SERVICE_KEY) return { ok: true };
+  const internal = await getDispatchToken();
+  if (internal && token === internal) return { ok: true };
+  try {
+    const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const userClient = createClient(SUPABASE_URL, anon, { global: { headers: { Authorization: authHeader } } });
+    const { data: claimsData } = await userClient.auth.getClaims(token);
+    const sub = (claimsData?.claims as any)?.sub as string | undefined;
+    if (!sub) return { ok: false, status: 401, error: "invalid_session" };
+    const { data: isAdmin } = await admin.rpc("has_role", { _user_id: sub, _role: "admin" });
+    return isAdmin ? { ok: true } : { ok: false, status: 403, error: "forbidden" };
+  } catch {
+    return { ok: false, status: 401, error: "invalid_token" };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
+
+  const authz = await authorize(req);
+  if (!authz.ok) return json({ ok: false, error: authz.error }, authz.status);
 
   let body: any;
   try { body = await req.json(); } catch { return json({ ok: false, error: "invalid_json" }, 400); }
