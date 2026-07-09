@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
-  Plus, Loader2, MapPin, DollarSign, Calendar, Trophy, Building2, Trash2, Phone, Mail, Sparkles, Pencil,
+  Plus, Loader2, MapPin, DollarSign, Calendar, Trophy, Building2, Trash2, Phone, Mail, Sparkles, Pencil, Search, X,
 } from "lucide-react";
 import UnifiedLeadPanel from "@/components/leads/UnifiedLeadPanel";
 
