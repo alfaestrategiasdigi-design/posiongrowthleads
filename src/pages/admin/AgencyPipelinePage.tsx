@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
-  Plus, Loader2, MapPin, DollarSign, Calendar, Trophy, Building2, Trash2, Phone, Mail, Sparkles, Pencil,
+  Plus, Loader2, MapPin, DollarSign, Calendar, Trophy, Building2, Trash2, Phone, Mail, Sparkles, Pencil, Search, X,
 } from "lucide-react";
 import UnifiedLeadPanel from "@/components/leads/UnifiedLeadPanel";
 
@@ -65,6 +65,7 @@ export default function AgencyPipelinePage() {
   const [promotePlano, setPromotePlano] = useState("starter");
   const [promoting, setPromoting] = useState(false);
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     supabase
@@ -88,8 +89,8 @@ export default function AgencyPipelinePage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    // Pipeline deve refletir SOMENTE os leads visíveis em /admin/leads
-    // (leads da POSION = tenant_id NULL + facebook_form_id nas regras admin_master ativas).
+    // Pipeline mostra: (a) agency_leads vinculados aos leads do Meta em regras admin_master
+    //                  (b) agency_leads manuais (source_lead_id NULL) criados pelo botão "Novo Lead"
     const { data: masterRules } = await (supabase as any)
       .from("lead_routing_rules")
       .select("match_value")
@@ -98,54 +99,73 @@ export default function AgencyPipelinePage() {
       .eq("active", true);
     const masterFormIds = (masterRules ?? []).map((r: any) => String(r.match_value)).filter(Boolean);
 
-    if (masterFormIds.length === 0) {
-      setLeads([]);
-      setLoading(false);
-      return;
+    let sourceIds: string[] = [];
+    if (masterFormIds.length > 0) {
+      const { data: srcLeads } = await supabase
+        .from("leads")
+        .select("id")
+        .eq("origem", "facebook_ads")
+        .is("tenant_id", null)
+        .in("facebook_form_id", masterFormIds);
+      sourceIds = (srcLeads ?? []).map((l: any) => l.id);
     }
 
-    const { data: srcLeads } = await supabase
-      .from("leads")
-      .select("id")
-      .eq("origem", "facebook_ads")
-      .is("tenant_id", null)
-      .in("facebook_form_id", masterFormIds);
-    const sourceIds = (srcLeads ?? []).map((l: any) => l.id);
+    const [metaRes, manualRes] = await Promise.all([
+      sourceIds.length
+        ? supabase.from("agency_leads").select("*").in("source_lead_id", sourceIds)
+        : Promise.resolve({ data: [] as any[], error: null } as any),
+      supabase.from("agency_leads").select("*").is("source_lead_id", null),
+    ]);
 
-    if (sourceIds.length === 0) {
-      setLeads([]);
-      setLoading(false);
-      return;
-    }
+    if (metaRes.error) toast.error(metaRes.error.message);
+    if (manualRes.error) toast.error(manualRes.error.message);
 
-    const { data, error } = await supabase
-      .from("agency_leads")
-      .select("*")
-      .in("source_lead_id", sourceIds)
-      .order("created_at", { ascending: false });
-    if (error) toast.error(error.message);
-    else setLeads((data || []) as AgencyLead[]);
+    const merged = new Map<string, AgencyLead>();
+    for (const l of (metaRes.data || []) as AgencyLead[]) merged.set(l.id, l);
+    for (const l of (manualRes.data || []) as AgencyLead[]) merged.set(l.id, l);
+    const all = Array.from(merged.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    setLeads(all);
     setLoading(false);
   }, []);
 
 
+
   useEffect(() => { load(); }, [load]);
+
+  const norm = (s: string) =>
+    s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  const filteredLeads = useMemo(() => {
+    const q = norm(search.trim());
+    if (!q) return leads;
+    return leads.filter((l) => {
+      const hay = norm(
+        [
+          l.nome_clinica, l.responsavel, l.email, l.whatsapp,
+          l.cidade, l.estado, l.plano_interesse, l.utm_campaign,
+        ].filter(Boolean).join(" ")
+      );
+      return hay.includes(q);
+    });
+  }, [leads, search]);
 
   const grouped = useMemo(() => {
     const g: Record<Stage, AgencyLead[]> = {
       lead: [], qualificado: [], reuniao: [], proposta: [], negociacao: [], ganho: [], perdido: [],
     };
-    for (const l of leads) g[l.stage]?.push(l);
+    for (const l of filteredLeads) g[l.stage]?.push(l);
     return g;
-  }, [leads]);
+  }, [filteredLeads]);
 
   const kpis = useMemo(() => {
-    const active = leads.filter((l) => l.stage !== "ganho" && l.stage !== "perdido");
-    const wonMonth = leads.filter((l) => l.stage === "ganho");
-    const emNeg = leads.filter((l) => ["proposta", "negociacao"].includes(l.stage));
+    const active = filteredLeads.filter((l) => l.stage !== "ganho" && l.stage !== "perdido");
+    const wonMonth = filteredLeads.filter((l) => l.stage === "ganho");
+    const emNeg = filteredLeads.filter((l) => ["proposta", "negociacao"].includes(l.stage));
     const totalPipeline = emNeg.reduce((s, l) => s + (l.valor_proposta || 0), 0);
     const wonValue = wonMonth.reduce((s, l) => s + (l.valor_proposta || 0), 0);
-    const convRate = leads.length ? (wonMonth.length / leads.length) * 100 : 0;
+    const convRate = filteredLeads.length ? (wonMonth.length / filteredLeads.length) * 100 : 0;
     return {
       active: active.length,
       won: wonMonth.length,
@@ -153,7 +173,7 @@ export default function AgencyPipelinePage() {
       wonValue,
       convRate,
     };
-  }, [leads]);
+  }, [filteredLeads]);
 
   const moveStage = async (leadId: string, newStage: Stage) => {
     setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, stage: newStage } : l)));
@@ -202,9 +222,30 @@ export default function AgencyPipelinePage() {
             Funil de clínicas interessadas em contratar a POSION.
           </p>
         </div>
-        <Button onClick={() => { setEditing(null); setNewOpen(true); }} className="gap-2">
-          <Plus className="w-4 h-4" /> Novo Lead
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar clínica, responsável, e-mail..."
+              className="pl-8 pr-8 w-[280px] h-9"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label="Limpar busca"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <Button onClick={() => { setEditing(null); setNewOpen(true); }} className="gap-2">
+            <Plus className="w-4 h-4" /> Novo Lead
+          </Button>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -246,7 +287,7 @@ export default function AgencyPipelinePage() {
                 </div>
                 <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[70vh]">
                   {items.length === 0 && (
-                    <div className="text-center text-[11px] text-muted-foreground/60 py-8">Vazio</div>
+                    <div className="text-center text-[11px] text-muted-foreground/60 py-8">{search ? "Nenhum resultado" : "Vazio"}</div>
                   )}
                   {items.map((l) => (
                     <div
@@ -438,7 +479,7 @@ function LeadDialog({
       ? await supabase.from("agency_leads").update(payload).eq("id", lead.id)
       : await supabase.from("agency_leads").insert(payload);
     setSaving(false);
-    if (error) toast.error(error.message);
+    if (error) { console.error("[agency_leads] save error:", error); toast.error(error.message); }
     else { toast.success(lead ? "Atualizado" : "Criado"); onSaved(); }
   };
 
