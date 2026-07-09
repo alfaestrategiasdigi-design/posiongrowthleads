@@ -88,16 +88,64 @@ const LeadsPage = () => {
   // Recarrega leads sempre que os forms do master mudam (para aplicar o filtro)
   useEffect(() => {
     const masterFormIds = masterForms.filter(f => f.active).map(f => f.form_id);
-    if (masterFormIds.length === 0) { setLeads([]); return; }
     (async () => {
-      const { data } = await supabase
-        .from("leads")
+      // Manual agency_leads (criados pelo botão "Novo Lead" do pipeline)
+      const { data: manualAgency } = await supabase
+        .from("agency_leads")
         .select("*")
-        .eq("origem", "facebook_ads")
-        .is("tenant_id", null)
-        .in("facebook_form_id", masterFormIds)
+        .is("source_lead_id", null)
         .order("created_at", { ascending: false });
-      setLeads(data || []);
+
+      const stageToStatus: Record<string, string> = {
+        lead: "lead",
+        qualificado: "qualificado",
+        reuniao: "reuniao_agendada",
+        proposta: "negociacao",
+        negociacao: "negociacao",
+        ganho: "ganho",
+        perdido: "perdido",
+      };
+      const manualRows: LeadRow[] = ((manualAgency as any[]) || []).map((a) => ({
+        id: a.id,
+        nome_completo: a.responsavel || a.nome_clinica || "Lead",
+        whatsapp: a.whatsapp || "",
+        email: a.email || null,
+        nome_empresa: a.nome_clinica || null,
+        cnpj: null,
+        cidade_estado: [a.cidade, a.estado].filter(Boolean).join(" / ") || null,
+        tipo_purchase: a.plano_interesse || null,
+        especialidade: null,
+        num_profissionais: null,
+        investiu_trafego: null,
+        faturamento_mensal: null,
+        revendedor_iniciante: false,
+        created_at: a.created_at,
+        status: stageToStatus[a.stage] || "lead",
+        origem: a.origem || "manual",
+        valor_proposta: a.valor_proposta ?? null,
+        observacoes: a.notas || null,
+        tenant_id: a.tenant_id_criado || null,
+        reuniao_agendada_em: a.proximo_followup || null,
+        utm_campaign: a.utm_campaign || null,
+        __source: "agency_lead",
+      })) as LeadRow[];
+
+      let formRows: LeadRow[] = [];
+      if (masterFormIds.length > 0) {
+        const { data } = await supabase
+          .from("leads")
+          .select("*")
+          .eq("origem", "facebook_ads")
+          .is("tenant_id", null)
+          .in("facebook_form_id", masterFormIds)
+          .order("created_at", { ascending: false });
+        formRows = ((data || []) as any[]).map((l) => ({ ...l, __source: "lead" as const }));
+      }
+
+      const all = [...formRows, ...manualRows].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      setLeads(all);
     })();
   }, [masterForms]);
 
