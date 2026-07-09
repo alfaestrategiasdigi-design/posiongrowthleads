@@ -666,6 +666,45 @@ async function runFlow(
   return { status, steps, execId };
 }
 
+let cachedDispatchToken: { value: string; expiresAt: number } | null = null;
+async function getDispatchToken(): Promise<string | null> {
+  if (cachedDispatchToken && cachedDispatchToken.expiresAt > Date.now()) return cachedDispatchToken.value;
+  const { data } = await admin.from("edge_internal_config").select("dispatch_token").eq("id", 1).maybeSingle();
+  const value = (data as any)?.dispatch_token ?? null;
+  if (value) cachedDispatchToken = { value, expiresAt: Date.now() + 60_000 };
+  return value;
+}
+
+async function authorizeDispatch(req: Request, tenantId: string | null): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  if (!token) return { ok: false, status: 401, error: "unauthorized" };
+
+  // 1. Internal callers: service role key or the internal dispatch token stored in edge_internal_config
+  if (token === SERVICE_KEY) return { ok: true };
+  const internal = await getDispatchToken();
+  if (internal && token === internal) return { ok: true };
+
+  // 2. Authenticated user with access to the tenant
+  try {
+    const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: claimsData } = await userClient.auth.getClaims(token);
+    const sub = (claimsData?.claims as any)?.sub as string | undefined;
+    if (!sub) return { ok: false, status: 401, error: "invalid_session" };
+    if (!tenantId) {
+      // No tenant scope → only admins may run untargeted dispatches
+      const { data: isAdmin } = await admin.rpc("has_role", { _user_id: sub, _role: "admin" });
+      return isAdmin ? { ok: true } : { ok: false, status: 403, error: "tenant_id_required" };
+    }
+    const { data: hasAccess } = await admin.rpc("has_tenant_access", { _user_id: sub, _tenant_id: tenantId });
+    return hasAccess ? { ok: true } : { ok: false, status: 403, error: "forbidden" };
+  } catch {
+    return { ok: false, status: 401, error: "invalid_token" };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -678,6 +717,9 @@ Deno.serve(async (req) => {
   const ctx: RunContext = payload.context || {};
   const dryRun: boolean = Boolean(payload.dry_run);
   const explicitFlowId: string | null = payload.flow_id ?? null;
+
+  const authz = await authorizeDispatch(req, tenantId);
+  if (!authz.ok) return json({ error: authz.error }, authz.status);
 
   if (!trigger && !explicitFlowId) return json({ error: "trigger_or_flow_id_required" }, 400);
 
