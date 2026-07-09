@@ -34,7 +34,7 @@ const QUALIFIED = ["qualificado","reuniao_agendada","compareceu","negociacao"];
 const WON = ["ganho"];
 
 const LeadsPage = () => {
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leads, setLeads] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -42,7 +42,7 @@ const LeadsPage = () => {
   const [formFilter, setFormFilter] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [selectedLead, setSelectedLead] = useState<LeadRow | null>(null);
   const [lastLeadsSync, setLastLeadsSync] = useState<string | null>(null);
   const [masterForms, setMasterForms] = useState<Array<{ id: string; form_id: string; label: string | null; active: boolean }>>([]);
   const [availableForms, setAvailableForms] = useState<Array<{ form_id: string; form_name: string | null }>>([]);
