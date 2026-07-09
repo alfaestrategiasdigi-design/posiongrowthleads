@@ -751,12 +751,35 @@ Deno.serve(async (req) => {
     if (eventMatches(event, "messages.update", "send.message.update")) {
       const arr: any[] = Array.isArray(body?.data) ? body.data : [body?.data].filter(Boolean);
       for (const u of arr) {
-        const wamid = u?.key?.id ?? u?.id;
-        const st = (u?.status ?? u?.update?.status ?? "").toString().toLowerCase();
+        // Evolution v2 may send `keyId` OR `key.id` OR nested `update.key.id`
+        const wamid = u?.key?.id ?? u?.keyId ?? u?.update?.key?.id ?? u?.message?.key?.id ?? u?.id;
+        const rawStatus = u?.status ?? u?.update?.status ?? u?.messageStatus ?? "";
+        const st = String(rawStatus).toLowerCase().replace(/[_-]/g, "_");
         if (!wamid || !st) continue;
-        const map: Record<string,string> = { read: "read", delivery_ack: "delivered", server_ack: "sent", played: "read" };
+        // Evolution/Baileys status vocabulary → our internal
+        const map: Record<string,string> = {
+          read: "read",
+          read_self: "read",
+          played: "read",
+          delivery_ack: "delivered",
+          delivered: "delivered",
+          server_ack: "sent",
+          sent: "sent",
+          pending: "sent",
+          error: "failed",
+          failed: "failed",
+        };
         const status = map[st] ?? st;
-        await admin.from("messages").update({ status }).eq("wamid", wamid);
+        const { data: updated, error: updErr } = await admin
+          .from("messages")
+          .update({ status })
+          .eq("wamid", wamid)
+          .select("id");
+        if (updErr) {
+          console.warn("[whatsapp-webhook] messages.update failed", { wamid, status, err: updErr.message });
+        } else if (!updated || updated.length === 0) {
+          console.warn("[whatsapp-webhook] messages.update no-match", { wamid, status, rawStatus });
+        }
       }
     }
 
