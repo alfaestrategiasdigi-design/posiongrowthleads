@@ -12,10 +12,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import LeadDetailModal from "@/components/admin/LeadDetailModal";
+import UnifiedLeadPanel from "@/components/leads/UnifiedLeadPanel";
 import LeadsReportModal from "@/components/leads/LeadsReportModal";
 import { getFaturamento, extractFaturamentoRaw, formatFaturamentoValue } from "@/lib/leads/faturamento";
 import type { Lead } from "@/types/admin";
+
+type LeadRow = Lead & { __source?: "lead" | "agency_lead"; reuniao_agendada_em?: string | null };
 
 const statusLabels: Record<string, { label: string; color: string; dot: string }> = {
   lead:             { label: "Lead",            color: "bg-slate-500/10 text-slate-300 border-slate-500/30",       dot: "bg-slate-400" },
