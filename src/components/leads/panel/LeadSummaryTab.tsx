@@ -96,6 +96,7 @@ export default function LeadSummaryTab({ lead, onSave }: Props) {
       if ((stage === "ganho" || stage === "perdido") && !lead.raw.fechado_em) patch.fechado_em = now;
     } else {
       if (showReuniaoField && reuniaoIso) patch.proximo_followup = reuniaoIso;
+      if (showPropostaField) patch.proposta_enviada_em = propostaIso ?? new Date().toISOString();
     }
     await onSave(patch);
     setSaving(false);
