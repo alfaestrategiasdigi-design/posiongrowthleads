@@ -82,9 +82,17 @@ Deno.serve(async (req) => {
     const slugPart = conn.tenant_id
       ? (await admin.from("tenants").select("slug").eq("id", conn.tenant_id).maybeSingle()).data?.slug
       : null;
-    const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook${
-      slugPart ? `?tenant=${encodeURIComponent(slugPart)}` : conn.tenant_id ? `?tenant_id=${encodeURIComponent(conn.tenant_id)}` : ""
-    }`;
+    // Ensure the connection has a webhook secret so the whatsapp-webhook function
+    // can reject spoofed events (finding open_evo_webhook_inject).
+    let secret: string = conn.webhook_secret ?? "";
+    if (!secret) {
+      secret = crypto.randomUUID().replace(/-/g, "");
+      await admin.from("zapi_connections").update({ webhook_secret: secret, updated_at: new Date().toISOString() }).eq("id", conn.id);
+    }
+    const tenantPart = slugPart
+      ? `tenant=${encodeURIComponent(slugPart)}`
+      : conn.tenant_id ? `tenant_id=${encodeURIComponent(conn.tenant_id)}` : "";
+    const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook?${tenantPart ? tenantPart + "&" : ""}secret=${encodeURIComponent(secret)}`;
 
     // Try multiple payload variants (Evolution v1 flat, v2 wrapped, v2 minimal)
     const attempts = [
