@@ -966,6 +966,7 @@ export default function CampanhasPage() {
               const key = c.name.trim().toLowerCase();
               const crmWins = crmWinsByCampaign[key] || 0;
               const crmRev = crmRevenueByCampaign[key] || 0;
+              const crmAppts = crmApptsByCampaign[key] || 0;
               const wonList = wonLeadsByCampaign[key] || [];
               const isActive = c.effective_status === "ACTIVE";
               const dailyBudgetR = c.daily_budget ? Number(c.daily_budget) / 100 : null;
