@@ -39,11 +39,15 @@ Deno.serve(async (req) => {
 
   // Resolve tenant_id from slug when needed
   let resolvedTenant = tenant_id ?? null;
-  if (!resolvedTenant && tenant_slug) {
+  if (!resolvedTenant && tenant_slug && tenant_slug !== "public") {
     const { data } = await admin.from("tenants").select("id").eq("slug", tenant_slug).maybeSingle();
     resolvedTenant = data?.id ?? null;
   }
-  if (!resolvedTenant) return json({ ok: false, error: "tenant not found" }, 404);
+  if (!resolvedTenant) {
+    // No tenant scope (e.g. public landing) — accept and no-op so the browser
+    // Pixel still fires without erroring in the console.
+    return json({ ok: true, skipped: "no_tenant" }, 200);
+  }
 
   const client_ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip");
   const client_ua = req.headers.get("user-agent") || "";
