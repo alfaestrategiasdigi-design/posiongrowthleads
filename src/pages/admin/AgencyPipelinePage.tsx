@@ -255,7 +255,7 @@ export default function AgencyPipelinePage() {
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
           {STAGES.map((stage) => {
             const items = grouped[stage.id];
             const total = items.reduce((s, l) => s + (l.valor_proposta || 0), 0);
