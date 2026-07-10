@@ -462,7 +462,7 @@ export default function TenantDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-[10px] uppercase tracking-[0.22em] text-emerald-400/80 mb-2">Comparecimentos</div>
-                <div className="text-4xl font-bold">{funnelRates.totals.compareceram}</div>
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold">{funnelRates.totals.compareceram}</div>
                 <div className="text-xs text-muted-foreground mt-1">
                   {funnelRates.totals.agendados} agendados · {PCT(funnelRates.comparecimento)} de presença
                 </div>
@@ -480,7 +480,7 @@ export default function TenantDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-[10px] uppercase tracking-[0.22em] text-primary/80 mb-2">Faturamento</div>
-                <div className="text-4xl font-bold">{BRL(total)}</div>
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold">{BRL(total)}</div>
                 <div className="text-xs text-muted-foreground mt-1">
                   {count} vendas {typeof varTotal === "number" && Number.isFinite(varTotal) && (
                     <span className={varTotal >= 0 ? "text-emerald-400" : "text-rose-400"}>
@@ -512,7 +512,7 @@ export default function TenantDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-[10px] uppercase tracking-[0.22em] text-violet-400/80 mb-2">Ticket Médio</div>
-                <div className="text-4xl font-bold">{BRL(avg)}</div>
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold">{BRL(avg)}</div>
                 <div className="text-xs text-muted-foreground mt-1">
                   Maior venda {BRL(maxSale?.amount ?? 0)}
                   {maxSale?.patient_name ? ` · ${maxSale.patient_name}` : ""}
@@ -872,7 +872,7 @@ export default function TenantDashboard() {
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] uppercase tracking-[0.22em] text-primary/70 mb-2">Receita no período</div>
-              <div className="text-4xl font-bold">{BRL(total)}</div>
+              <div className="text-2xl sm:text-3xl md:text-4xl font-bold">{BRL(total)}</div>
               <div className="text-sm text-muted-foreground mt-1">
                 {count} vendas · Ticket médio {BRL(avg)} · {range.label}
               </div>
