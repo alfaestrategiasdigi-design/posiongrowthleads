@@ -181,8 +181,10 @@ export default function CampanhasPage() {
     const rev: Record<string, number> = {};
     const leadsMap: Record<string, { name: string; valor: number }[]> = {};
     const appts: Record<string, number> = {};
+    const comp: Record<string, number> = {};
     const seen = new Set<string>();
     const seenAppt = new Set<string>();
+    const seenComp = new Set<string>();
 
     const selectedTenantId = adAccountFilter === "all" ? null : accountTenantMap.get(adAccountFilter) ?? null;
 
