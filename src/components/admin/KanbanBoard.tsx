@@ -113,6 +113,7 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoar
                   <LeadCard
                     key={lead.id}
                     lead={lead}
+                    nextAppointmentAt={nextAppointmentByLead?.[lead.id]}
                     onClick={() => setSelectedLead(lead)}
                     onDragStart={handleDragStart}
                   />
