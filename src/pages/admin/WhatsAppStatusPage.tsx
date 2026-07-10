@@ -138,6 +138,7 @@ export default function WhatsAppStatusPage() {
     }
   };
 
+  const load = async () => {
     setLoading(true);
     const [{ data: tenants }, { data: conns }] = await Promise.all([
       supabase.from("tenants").select("id,name,slug,status").order("name"),
