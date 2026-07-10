@@ -483,7 +483,7 @@ export default function TenantDashboard() {
 
           {/* Taxas de Conversão do Funil — versão compacta preenche espaço ao lado do gráfico */}
           <TooltipProvider delayDuration={120}>
-            <div className="flex-1 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.06] via-transparent to-transparent p-3">
+            <div className="flex-1 flex flex-col rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.06] via-transparent to-transparent p-3 min-h-0">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <Filter className="w-3.5 h-3.5 text-primary shrink-0" />
@@ -504,7 +504,7 @@ export default function TenantDashboard() {
               <div className="text-[9px] font-mono text-muted-foreground mb-2">
                 {fmtDate(funnelRange.from, "dd/MM/yy")} — {fmtDate(funnelRange.to, "dd/MM/yy")} · vs. {fmtDate(funnelPrevRange.from, "dd/MM/yy")} — {fmtDate(funnelPrevRange.to, "dd/MM/yy")}
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2 flex-1 auto-rows-fr">
                 {[
                   { key: "qualificacao", label: "Qualificação", value: funnelRates.qualificacao, prev: funnelPrevRates.qualificacao, hint: "Qualif. ÷ Leads" },
                   { key: "agendamento", label: "Agendamento", value: funnelRates.agendamento, prev: funnelPrevRates.agendamento, hint: "Agend. ÷ Qualif." },
@@ -530,7 +530,7 @@ export default function TenantDashboard() {
                       tabIndex={0}
                       onClick={() => setDrill({ key: k.key, label: k.label })}
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDrill({ key: k.key, label: k.label }); } }}
-                      className="rounded-lg border border-border/50 bg-card/40 px-2 py-1.5 cursor-pointer transition hover:border-primary/60 hover:bg-card/70 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="rounded-lg border border-border/50 bg-card/40 px-2 py-2 cursor-pointer transition hover:border-primary/60 hover:bg-card/70 focus:outline-none focus:ring-2 focus:ring-primary/40 h-full flex flex-col justify-between gap-1"
                       title="Clique para ver os leads desta etapa no período"
                     >
                       <Tooltip>
