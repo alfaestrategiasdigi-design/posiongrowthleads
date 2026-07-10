@@ -313,7 +313,7 @@ export default function TenantDashboard() {
 
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-[1600px] mx-auto">
+    <div className="p-3 sm:p-4 md:p-8 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
       {/* Header — mirrors Admin Master style */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -340,12 +340,13 @@ export default function TenantDashboard() {
       </div>
 
       {/* HERO — Faturamento total + gráfico + KPIs à direita (padrão Admin Master) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-6">
-          <div className="flex items-start justify-between">
-            <div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:items-start">
+        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-4 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-2 font-mono">Faturamento do período</div>
-              <div className="text-4xl font-bold text-white tracking-tight">{BRL(total)}</div>
+              <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white tracking-tight break-words">{BRL(total)}</div>
+
               <div className="text-sm mt-1 text-muted-foreground">
                 {count} vendas · Ticket médio {BRL(avg)}
                 {Number.isFinite(varTotal) && (
@@ -355,9 +356,10 @@ export default function TenantDashboard() {
                 )}
               </div>
             </div>
-            <div className="w-14 h-14 rounded-2xl premium-section-icon flex items-center justify-center">
-              <DollarSign className="w-7 h-7 text-amber-300" />
+            <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl premium-section-icon flex items-center justify-center shrink-0">
+              <DollarSign className="w-6 h-6 sm:w-7 sm:h-7 text-amber-300" />
             </div>
+
           </div>
 
           {/* Progresso da meta mensal (se houver) */}
@@ -384,7 +386,7 @@ export default function TenantDashboard() {
             </div>
           ) : null}
 
-          <div className="h-[280px] mt-4">
+          <div className="h-[200px] sm:h-[240px] lg:h-[280px] mt-4">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={heroTimeline} margin={{ top: 6, right: 8, bottom: 0, left: -8 }}>
                 <defs>
@@ -460,7 +462,7 @@ export default function TenantDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-[10px] uppercase tracking-[0.22em] text-emerald-400/80 mb-2">Comparecimentos</div>
-                <div className="text-4xl font-bold">{funnelRates.totals.compareceram}</div>
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold">{funnelRates.totals.compareceram}</div>
                 <div className="text-xs text-muted-foreground mt-1">
                   {funnelRates.totals.agendados} agendados · {PCT(funnelRates.comparecimento)} de presença
                 </div>
@@ -478,7 +480,7 @@ export default function TenantDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-[10px] uppercase tracking-[0.22em] text-primary/80 mb-2">Faturamento</div>
-                <div className="text-4xl font-bold">{BRL(total)}</div>
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold">{BRL(total)}</div>
                 <div className="text-xs text-muted-foreground mt-1">
                   {count} vendas {typeof varTotal === "number" && Number.isFinite(varTotal) && (
                     <span className={varTotal >= 0 ? "text-emerald-400" : "text-rose-400"}>
@@ -510,7 +512,7 @@ export default function TenantDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-[10px] uppercase tracking-[0.22em] text-violet-400/80 mb-2">Ticket Médio</div>
-                <div className="text-4xl font-bold">{BRL(avg)}</div>
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold">{BRL(avg)}</div>
                 <div className="text-xs text-muted-foreground mt-1">
                   Maior venda {BRL(maxSale?.amount ?? 0)}
                   {maxSale?.patient_name ? ` · ${maxSale.patient_name}` : ""}
@@ -870,7 +872,7 @@ export default function TenantDashboard() {
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] uppercase tracking-[0.22em] text-primary/70 mb-2">Receita no período</div>
-              <div className="text-4xl font-bold">{BRL(total)}</div>
+              <div className="text-2xl sm:text-3xl md:text-4xl font-bold">{BRL(total)}</div>
               <div className="text-sm text-muted-foreground mt-1">
                 {count} vendas · Ticket médio {BRL(avg)} · {range.label}
               </div>
