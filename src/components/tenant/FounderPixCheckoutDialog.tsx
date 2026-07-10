@@ -156,6 +156,10 @@ export function FounderPixCheckoutDialog({ open, onClose, onPaid, tenantId, paye
                 </Button>
               </div>
             </div>
+            <div className="text-[11px] text-muted-foreground text-center leading-relaxed border-t border-white/5 pt-3">
+              Este Pix libera seu <b className="text-foreground">1º mês como Fundador (R$ 250)</b>.<br />
+              A partir do 2º mês, mensalidade normal de <b className="text-foreground">R$ 389</b>. Cancele quando quiser.
+            </div>
             <div className="text-xs text-muted-foreground text-center">
               Aguardando confirmação do pagamento… você não precisa recarregar a página.
             </div>
