@@ -1491,6 +1491,7 @@ export type Database = {
           expires_at: string | null
           id: string
           next_charge_at: string | null
+          offer_id: string | null
           paid_at: string | null
           payer_email: string | null
           payment_id: string | null
@@ -1507,6 +1508,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           next_charge_at?: string | null
+          offer_id?: string | null
           paid_at?: string | null
           payer_email?: string | null
           payment_id?: string | null
@@ -1523,6 +1525,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           next_charge_at?: string | null
+          offer_id?: string | null
           paid_at?: string | null
           payer_email?: string | null
           payment_id?: string | null
@@ -1534,6 +1537,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "founder_slots_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_custom_offers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "founder_slots_tenant_id_fkey"
             columns: ["tenant_id"]
