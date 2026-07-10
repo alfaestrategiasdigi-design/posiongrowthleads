@@ -68,6 +68,7 @@ export default function CampanhasPage() {
   const [crmRevenueByCampaign, setCrmRevenueByCampaign] = useState<Record<string, number>>({});
   const [wonLeadsByCampaign, setWonLeadsByCampaign] = useState<Record<string, { name: string; valor: number }[]>>({});
   const [crmApptsByCampaign, setCrmApptsByCampaign] = useState<Record<string, number>>({});
+  const [crmCompByCampaign, setCrmCompByCampaign] = useState<Record<string, number>>({});
 
   const [budgetDialog, setBudgetDialog] = useState<{ open: boolean; id?: string; name?: string; current?: string }>({ open: false });
   const [budgetValue, setBudgetValue] = useState("");
@@ -167,7 +168,7 @@ export default function CampanhasPage() {
 
   const attributeCrm = async (camps: { id: string; name: string }[]) => {
     if (!camps.length) {
-      setCrmWinsByCampaign({}); setCrmRevenueByCampaign({}); setWonLeadsByCampaign({}); setCrmApptsByCampaign({});
+      setCrmWinsByCampaign({}); setCrmRevenueByCampaign({}); setWonLeadsByCampaign({}); setCrmApptsByCampaign({}); setCrmCompByCampaign({});
       return;
     }
     const normalize = (s: string) =>
@@ -180,8 +181,10 @@ export default function CampanhasPage() {
     const rev: Record<string, number> = {};
     const leadsMap: Record<string, { name: string; valor: number }[]> = {};
     const appts: Record<string, number> = {};
+    const comp: Record<string, number> = {};
     const seen = new Set<string>();
     const seenAppt = new Set<string>();
+    const seenComp = new Set<string>();
 
     const selectedTenantId = adAccountFilter === "all" ? null : accountTenantMap.get(adAccountFilter) ?? null;
 
@@ -223,6 +226,14 @@ export default function CampanhasPage() {
       appts[best.key] = (appts[best.key] || 0) + 1;
     };
 
+    const attributeComp = (leadId: string, ...cands: (string | null | undefined)[]) => {
+      if (seenComp.has(leadId)) return;
+      const best = matchCampaign(...cands);
+      if (!best) return;
+      seenComp.add(leadId);
+      comp[best.key] = (comp[best.key] || 0) + 1;
+    };
+
     let q1 = supabase.from("leads")
       .select("id,nome_completo,utm_campaign,facebook_campaign,facebook_form_name,valor_proposta,campaign_id_manual,tenant_id")
       .eq("status", "ganho");
@@ -261,11 +272,29 @@ export default function CampanhasPage() {
       .filter((a: any) => !selectedTenantId || a.tenant_id_criado === selectedTenantId)
       .forEach((a: any) => attributeAppt(a.id, a.campaign_id_manual, a.utm_campaign));
 
+    // Compareceu: usado para o Custo por Reunião (CPR)
+    let qc = supabase.from("leads")
+      .select("id,utm_campaign,facebook_campaign,facebook_form_name,campaign_id_manual,tenant_id")
+      .eq("status", "compareceu");
+    if (selectedTenantId) qc = qc.eq("tenant_id", selectedTenantId);
+    const { data: compLeads } = await qc;
+    (compLeads ?? []).forEach((l: any) =>
+      attributeComp(l.id, l.campaign_id_manual, l.utm_campaign, l.facebook_campaign, l.facebook_form_name),
+    );
+
+    const { data: compLeads2 } = await supabase
+      .from("agency_leads")
+      .select("id,utm_campaign,campaign_id_manual,tenant_id_criado,stage")
+      .eq("stage", "compareceu");
+    (compLeads2 ?? [])
+      .filter((a: any) => !selectedTenantId || a.tenant_id_criado === selectedTenantId)
+      .forEach((a: any) => attributeComp(a.id, a.campaign_id_manual, a.utm_campaign));
 
     setCrmWinsByCampaign(wins);
     setCrmRevenueByCampaign(rev);
     setWonLeadsByCampaign(leadsMap);
     setCrmApptsByCampaign(appts);
+    setCrmCompByCampaign(comp);
   };
 
   const loadMetaCampaigns = async (didReconnect = false) => {
@@ -969,11 +998,13 @@ export default function CampanhasPage() {
               const crmWins = crmWinsByCampaign[key] || 0;
               const crmRev = crmRevenueByCampaign[key] || 0;
               const crmAppts = crmApptsByCampaign[key] || 0;
+              const crmComp = crmCompByCampaign[key] || 0;
               const wonList = wonLeadsByCampaign[key] || [];
               const isActive = c.effective_status === "ACTIVE";
               const dailyBudgetR = c.daily_budget ? Number(c.daily_budget) / 100 : null;
               const roas = i && i.spend ? ((i.purchase_value + crmRev) / i.spend) : 0;
               const cpl = i && i.leads ? i.spend / i.leads : 0;
+              const cpr = i && crmComp ? i.spend / crmComp : 0;
 
               return (
                 <div key={c.id}
@@ -1017,10 +1048,11 @@ export default function CampanhasPage() {
                   </div>
 
                   {/* Micro metrics */}
-                  <div className="grid grid-cols-5 divide-x divide-white/5 border-b border-white/5 text-center">
+                  <div className="grid grid-cols-6 divide-x divide-white/5 border-b border-white/5 text-center">
                     <MicroMetric label="Leads" value={NUM(i?.leads || 0)} />
                     <MicroMetric label="Agendados" value={NUM(crmAppts)} highlight={crmAppts > 0} />
                     <MicroMetric label="CPL" value={cpl ? BRL(cpl) : "—"} />
+                    <MicroMetric label="CPR" value={cpr ? BRL(cpr) : "—"} highlight={cpr > 0} />
                     <MicroMetric label="CTR" value={i ? `${(i.ctr || 0).toFixed(1)}%` : "—"} />
                     <MicroMetric label="ROAS" value={roas ? `${roas.toFixed(1)}x` : "—"}
                       highlight={roas >= 2} />
