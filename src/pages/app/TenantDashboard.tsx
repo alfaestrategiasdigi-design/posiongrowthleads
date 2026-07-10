@@ -461,102 +461,102 @@ export default function TenantDashboard() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 h-full">
-          <div className="grid grid-cols-1 gap-3">
-            <KpiPremium icon={ShoppingBag} label="Nº de Vendas" value={loading ? null : String(count)} delta={varCount} loading={loading} prevLabel={prevMonthLabel} spark={sparkCount} />
-            <KpiPremium icon={Receipt} label="Ticket Médio" value={loading ? null : BRL(avg)} delta={varTicket} loading={loading} prevLabel={prevMonthLabel} spark={sparkTicket} />
-            <KpiPremium icon={Trophy} label="Maior Venda" value={loading ? null : BRL(maxSale?.amount ?? 0)} sub={maxSale?.patient_name || "—"} loading={loading} />
-          </div>
-
-          {/* Taxas de Conversão do Funil — versão compacta preenche espaço ao lado do gráfico */}
-          <TooltipProvider delayDuration={120}>
-            <div className="flex-1 flex flex-col rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.06] via-transparent to-transparent p-3 min-h-0">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Filter className="w-3.5 h-3.5 text-primary shrink-0" />
-                  <h3 className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary/90 truncate">Taxas de Conversão do Funil</h3>
-                </div>
-                <Select value={funnelPeriod} onValueChange={(v) => setFunnelPeriod(v as any)}>
-                  <SelectTrigger className="h-6 w-[110px] text-[10px] font-mono bg-card/60 border-border/50">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="global">Período global</SelectItem>
-                    <SelectItem value="7">Últimos 7 dias</SelectItem>
-                    <SelectItem value="30">Últimos 30 dias</SelectItem>
-                    <SelectItem value="90">Últimos 90 dias</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="text-[9px] font-mono text-muted-foreground mb-2">
-                {fmtDate(funnelRange.from, "dd/MM/yy")} — {fmtDate(funnelRange.to, "dd/MM/yy")} · vs. {fmtDate(funnelPrevRange.from, "dd/MM/yy")} — {fmtDate(funnelPrevRange.to, "dd/MM/yy")}
-              </div>
-              <div className="grid grid-cols-3 gap-2 flex-1 auto-rows-fr">
-                {[
-                  { key: "qualificacao", label: "Qualificação", value: funnelRates.qualificacao, prev: funnelPrevRates.qualificacao, hint: "Qualif. ÷ Leads" },
-                  { key: "agendamento", label: "Agendamento", value: funnelRates.agendamento, prev: funnelPrevRates.agendamento, hint: "Agend. ÷ Qualif." },
-                  { key: "comparecimento", label: "Comparecim.", value: funnelRates.comparecimento, prev: funnelPrevRates.comparecimento, hint: "Comp. ÷ (Comp.+No-show)" },
-                  { key: "fechamento", label: "Fechamento", value: funnelRates.fechamento, prev: funnelPrevRates.fechamento, hint: "Ganho ÷ Comp." },
-                  { key: "noShow", label: "No-show", value: funnelRates.noShow, prev: funnelPrevRates.noShow, hint: "No-show ÷ (Comp.+No-show)", invert: true },
-                  { key: "geral", label: "Conv. Geral", value: funnelRates.geral, prev: funnelPrevRates.geral, hint: "Ganho ÷ Leads" },
-                ].map((k) => {
-                  const def = FUNNEL_DEFINITIONS[k.key];
-                  const color = k.invert
-                    ? (k.value < 0.15 ? "#22C55E" : k.value < 0.3 ? "#F59E0B" : "#EF4444")
-                    : (k.value >= 0.3 ? "#22C55E" : k.value >= 0.15 ? "#F59E0B" : "#EF4444");
-                  const delta = k.value - k.prev;
-                  const hasDelta = k.prev > 0 || k.value > 0;
-                  // Para "positivo" em métricas normais: subir é bom. Para no-show (invert): descer é bom.
-                  const isGood = k.invert ? delta < 0 : delta > 0;
-                  const deltaColor = Math.abs(delta) < 0.001 ? "#71717A" : (isGood ? "#22C55E" : "#EF4444");
-                  const DeltaIcon = Math.abs(delta) < 0.001 ? null : (delta > 0 ? TrendingUp : TrendingDown);
-                  return (
-                    <div
-                      key={k.label}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setDrill({ key: k.key, label: k.label })}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDrill({ key: k.key, label: k.label }); } }}
-                      className="rounded-lg border border-border/50 bg-card/40 px-2 py-2 cursor-pointer transition hover:border-primary/60 hover:bg-card/70 focus:outline-none focus:ring-2 focus:ring-primary/40 h-full flex flex-col justify-between gap-1"
-                      title="Clique para ver os leads desta etapa no período"
-                    >
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground truncate cursor-help">
-                            <span title={k.label}>{k.label}</span>
-                            <Info className="w-3 h-3 opacity-60 hover:opacity-100" />
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-[240px] bg-[#0a0a0a] border border-primary/30 text-popover-foreground">
-                          <div className="space-y-1">
-                            <p className="font-semibold text-xs">{k.label}</p>
-                            <p className="text-[11px] leading-snug text-muted-foreground">{def.definition}</p>
-                            <div className="text-[10px] font-mono text-amber-400 pt-1">Fórmula: {def.formula}</div>
-                            <div className="text-[10px] font-mono text-muted-foreground pt-0.5">
-                              Período anterior: {PCT(k.prev)}
-                            </div>
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                      <div className="flex items-baseline gap-1.5 mt-0.5">
-                        <div className="font-display text-lg num leading-tight" style={{ color }}>{PCT(k.value)}</div>
-                        {hasDelta && DeltaIcon && (
-                          <span className="flex items-center gap-0.5 text-[9px] font-mono tabular-nums" style={{ color: deltaColor }}>
-                            <DeltaIcon className="w-2.5 h-2.5" />
-                            {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(1)}pp
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[9px] text-muted-foreground truncate" title={k.hint}>{k.hint}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </TooltipProvider>
+        <div className="flex flex-col gap-3">
+          <KpiPremium icon={ShoppingBag} label="Nº de Vendas" value={loading ? null : String(count)} delta={varCount} loading={loading} prevLabel={prevMonthLabel} spark={sparkCount} />
+          <KpiPremium icon={Receipt} label="Ticket Médio" value={loading ? null : BRL(avg)} delta={varTicket} loading={loading} prevLabel={prevMonthLabel} spark={sparkTicket} />
+          <KpiPremium icon={Trophy} label="Maior Venda" value={loading ? null : BRL(maxSale?.amount ?? 0)} sub={maxSale?.patient_name || "—"} loading={loading} />
         </div>
 
       </div>
+
+      {/* Taxas de Conversão do Funil — faixa full-width abaixo do hero (evita sobras verticais) */}
+      <TooltipProvider delayDuration={120}>
+        <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.06] via-transparent to-transparent p-3 sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Filter className="w-3.5 h-3.5 text-primary shrink-0" />
+              <h3 className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.18em] text-primary/90 truncate">Taxas de Conversão do Funil</h3>
+              <span className="hidden sm:inline text-[9px] font-mono text-muted-foreground ml-2">
+                {fmtDate(funnelRange.from, "dd/MM/yy")} — {fmtDate(funnelRange.to, "dd/MM/yy")} · vs. {fmtDate(funnelPrevRange.from, "dd/MM/yy")} — {fmtDate(funnelPrevRange.to, "dd/MM/yy")}
+              </span>
+            </div>
+            <Select value={funnelPeriod} onValueChange={(v) => setFunnelPeriod(v as any)}>
+              <SelectTrigger className="h-7 w-[130px] text-[10px] font-mono bg-card/60 border-border/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="global">Período global</SelectItem>
+                <SelectItem value="7">Últimos 7 dias</SelectItem>
+                <SelectItem value="30">Últimos 30 dias</SelectItem>
+                <SelectItem value="90">Últimos 90 dias</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            {[
+              { key: "qualificacao", label: "Qualificação", value: funnelRates.qualificacao, prev: funnelPrevRates.qualificacao, hint: "Qualif. ÷ Leads" },
+              { key: "agendamento", label: "Agendamento", value: funnelRates.agendamento, prev: funnelPrevRates.agendamento, hint: "Agend. ÷ Qualif." },
+              { key: "comparecimento", label: "Comparecim.", value: funnelRates.comparecimento, prev: funnelPrevRates.comparecimento, hint: "Comp. ÷ (Comp.+No-show)" },
+              { key: "fechamento", label: "Fechamento", value: funnelRates.fechamento, prev: funnelPrevRates.fechamento, hint: "Ganho ÷ Comp." },
+              { key: "noShow", label: "No-show", value: funnelRates.noShow, prev: funnelPrevRates.noShow, hint: "No-show ÷ (Comp.+No-show)", invert: true },
+              { key: "geral", label: "Conv. Geral", value: funnelRates.geral, prev: funnelPrevRates.geral, hint: "Ganho ÷ Leads" },
+            ].map((k) => {
+              const def = FUNNEL_DEFINITIONS[k.key];
+              const color = k.invert
+                ? (k.value < 0.15 ? "#22C55E" : k.value < 0.3 ? "#F59E0B" : "#EF4444")
+                : (k.value >= 0.3 ? "#22C55E" : k.value >= 0.15 ? "#F59E0B" : "#EF4444");
+              const delta = k.value - k.prev;
+              const hasDelta = k.prev > 0 || k.value > 0;
+              const isGood = k.invert ? delta < 0 : delta > 0;
+              const deltaColor = Math.abs(delta) < 0.001 ? "#71717A" : (isGood ? "#22C55E" : "#EF4444");
+              const DeltaIcon = Math.abs(delta) < 0.001 ? null : (delta > 0 ? TrendingUp : TrendingDown);
+              return (
+                <div
+                  key={k.label}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setDrill({ key: k.key, label: k.label })}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDrill({ key: k.key, label: k.label }); } }}
+                  className="rounded-lg border border-border/50 bg-card/40 px-2.5 py-2.5 cursor-pointer transition hover:border-primary/60 hover:bg-card/70 focus:outline-none focus:ring-2 focus:ring-primary/40 flex flex-col justify-between gap-1"
+                  title="Clique para ver os leads desta etapa no período"
+                >
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground truncate cursor-help">
+                        <span title={k.label}>{k.label}</span>
+                        <Info className="w-3 h-3 opacity-60 hover:opacity-100" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[240px] bg-[#0a0a0a] border border-primary/30 text-popover-foreground">
+                      <div className="space-y-1">
+                        <p className="font-semibold text-xs">{k.label}</p>
+                        <p className="text-[11px] leading-snug text-muted-foreground">{def.definition}</p>
+                        <div className="text-[10px] font-mono text-amber-400 pt-1">Fórmula: {def.formula}</div>
+                        <div className="text-[10px] font-mono text-muted-foreground pt-0.5">
+                          Período anterior: {PCT(k.prev)}
+                        </div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                  <div className="flex items-baseline gap-1.5 mt-0.5">
+                    <div className="font-display text-xl num leading-tight" style={{ color }}>{PCT(k.value)}</div>
+                    {hasDelta && DeltaIcon && (
+                      <span className="flex items-center gap-0.5 text-[9px] font-mono tabular-nums" style={{ color: deltaColor }}>
+                        <DeltaIcon className="w-2.5 h-2.5" />
+                        {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(1)}pp
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[9px] text-muted-foreground truncate" title={k.hint}>{k.hint}</div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="sm:hidden text-[9px] font-mono text-muted-foreground mt-2">
+            {fmtDate(funnelRange.from, "dd/MM/yy")} — {fmtDate(funnelRange.to, "dd/MM/yy")}
+          </div>
+        </div>
+      </TooltipProvider>
 
       {/* Alertas Inteligentes */}
       {alerts.length > 0 && (
