@@ -341,7 +341,7 @@ export default function TenantDashboard() {
 
       {/* HERO — Faturamento total + gráfico + KPIs à direita (padrão Admin Master) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-6 flex flex-col">
+        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-6">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-2 font-mono">Faturamento do período</div>
