@@ -132,8 +132,8 @@ export default function LeadAppointmentsSection({ tenantId, leadId, leadName, le
             const dt = new Date(r.date_time);
             return (
               <div key={r.id} className="flex items-center gap-2 rounded-md border border-border/50 bg-background/40 px-2.5 py-2 text-xs">
-                <div className="font-mono text-muted-foreground min-w-[92px]">
-                  {dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} {dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                <div className="font-mono text-muted-foreground min-w-[120px]">
+                  {dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })} {dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                 </div>
                 <div className="flex-1 truncate">
                   <span className="font-medium">{r.appointment_type || "Consulta"}</span>
