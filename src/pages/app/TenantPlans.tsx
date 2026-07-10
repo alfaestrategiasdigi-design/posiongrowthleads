@@ -154,15 +154,16 @@ export default function TenantPlans() {
                     </div>
                     <div className="min-w-0">
                       <CardTitle className="text-2xl">POSION Fundadores <span className="text-primary">— 1º mês R$ 250</span></CardTitle>
-                      <p className="text-sm text-muted-foreground">Só para os 10 primeiros clientes · depois R$ 389/mês · cancele quando quiser</p>
+                      <p className="text-sm text-muted-foreground">Só para os 10 primeiros clientes · <b>a partir do 2º mês R$ 389/mês</b> · cancele quando quiser</p>
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">1ª mensalidade</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Entrada</div>
                     <div className="font-display text-3xl tabular-nums leading-tight">
-                      R$ 250<span className="text-sm text-muted-foreground"> no 1º mês</span>
+                      R$ 250
                     </div>
-                    <div className="text-[10px] text-primary/90 mt-1">depois R$ 389/mês · selo Fundador para sempre</div>
+                    <div className="text-[10px] text-primary/90 mt-1">1º mês · depois R$ 389/mês</div>
+                    <div className="text-[10px] text-amber-300/90 mt-1">selo Fundador POSION vitalício</div>
                   </div>
                 </div>
               </CardHeader>
@@ -182,6 +183,9 @@ export default function TenantPlans() {
                     </li>
                   ))}
                 </ul>
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-100 leading-relaxed">
+                  <b>Importante:</b> o valor de <b>R$ 250</b> é exclusivo do 1º mês para os primeiros 10 clientes. A partir do 2º mês, a mensalidade passa a ser <b>R$ 389/mês</b>, e continua recorrente até você solicitar o cancelamento.
+                </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-white/10">
                   <div className="flex items-center gap-2 text-xs">
                     <Zap className="w-4 h-4 text-primary" />
@@ -207,6 +211,9 @@ export default function TenantPlans() {
                       <Zap className="w-4 h-4" /> Gerar Pix — R$ 250 (1º mês)
                     </Button>
                   )}
+                </div>
+                <div className="text-[11px] text-muted-foreground text-center">
+                  Ao gerar o Pix, você concorda com a cobrança recorrente de <b className="text-foreground">R$ 389/mês</b> a partir do 2º mês.
                 </div>
               </CardContent>
             </Card>
