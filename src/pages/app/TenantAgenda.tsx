@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalIcon, ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
 import AppointmentDialog from "@/components/tenant/AppointmentDialog";
+import LeadDetailModal from "@/components/admin/LeadDetailModal";
+import type { Lead } from "@/types/admin";
+import { toast } from "sonner";
 
 interface Appointment {
   id: string;
@@ -45,6 +48,8 @@ export default function TenantAgenda() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [loadingLead, setLoadingLead] = useState(false);
 
   async function load() {
     if (!tenant) return;
@@ -74,7 +79,23 @@ export default function TenantAgenda() {
   }
 
   const openCreate = () => { setEditingId(null); setDialogOpen(true); };
-  const openEdit = (id: string) => { setEditingId(id); setDialogOpen(true); };
+  const openAppointment = async (a: Appointment) => {
+    if (!a.lead_id) {
+      setEditingId(a.id);
+      setDialogOpen(true);
+      return;
+    }
+    setLoadingLead(true);
+    const { data, error } = await supabase.from("leads").select("*").eq("id", a.lead_id).maybeSingle();
+    setLoadingLead(false);
+    if (error || !data) {
+      toast.error("Lead vinculado não encontrado — abrindo edição do agendamento");
+      setEditingId(a.id);
+      setDialogOpen(true);
+      return;
+    }
+    setSelectedLead(data as Lead);
+  };
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-[1600px] mx-auto">
@@ -109,11 +130,14 @@ export default function TenantAgenda() {
           {loading ? (
             <div className="p-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : view === "mes" ? (
-            <MonthView cursor={cursor} byDay={byDay} onEdit={openEdit} />
+            <MonthView cursor={cursor} byDay={byDay} onOpen={openAppointment} />
           ) : view === "semana" ? (
-            <WeekView cursor={cursor} byDay={byDay} onEdit={openEdit} />
+            <WeekView cursor={cursor} byDay={byDay} onOpen={openAppointment} />
           ) : (
-            <DayView day={cursor} items={byDay.get(cursor.toDateString()) || []} onEdit={openEdit} />
+            <DayView day={cursor} items={byDay.get(cursor.toDateString()) || []} onOpen={openAppointment} />
+          )}
+          {loadingLead && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Abrindo lead…</div>
           )}
         </CardContent>
       </Card>
@@ -128,27 +152,34 @@ export default function TenantAgenda() {
           onDeleted={load}
         />
       )}
+
+      <LeadDetailModal
+        lead={selectedLead}
+        open={!!selectedLead}
+        onClose={() => setSelectedLead(null)}
+        onUpdated={() => { setSelectedLead(null); load(); }}
+      />
     </div>
   );
 }
 
-function ApptChip({ a, onEdit }: { a: Appointment; onEdit: (id: string) => void }) {
+function ApptChip({ a, onOpen }: { a: Appointment; onOpen: (a: Appointment) => void }) {
   const s = STATUS_COLORS[a.status] || STATUS_COLORS.agendado;
   const time = new Date(a.date_time).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   return (
     <button
       type="button"
-      onClick={(e) => { e.stopPropagation(); onEdit(a.id); }}
+      onClick={(e) => { e.stopPropagation(); onOpen(a); }}
       className="w-full text-left text-[10px] rounded px-1.5 py-0.5 truncate hover:brightness-125 transition"
       style={{ background: s.bg, color: s.fg, borderLeft: `2px solid ${s.fg}` }}
-      title={`${time} · ${a.client_name} · ${s.label} — clique para editar`}
+      title={`${time} · ${a.client_name} · ${s.label} — clique para abrir o lead`}
     >
       <span className="font-semibold">{time}</span> {a.client_name}
     </button>
   );
 }
 
-function MonthView({ cursor, byDay, onEdit }: { cursor: Date; byDay: Map<string, Appointment[]>; onEdit: (id: string) => void }) {
+function MonthView({ cursor, byDay, onOpen }: { cursor: Date; byDay: Map<string, Appointment[]>; onOpen: (a: Appointment) => void }) {
   const first = startOfMonth(cursor);
   const start = startOfWeek(first);
   const days = Array.from({ length: 42 }, (_, i) => addDays(start, i));
@@ -166,7 +197,7 @@ function MonthView({ cursor, byDay, onEdit }: { cursor: Date; byDay: Map<string,
             <div key={i} className={"min-h-[92px] rounded-md p-1.5 border " + (inMonth ? "bg-card border-border" : "bg-muted/20 border-transparent opacity-50")}>
               <div className={"text-[11px] font-semibold mb-1 " + (sameDay(d, today) ? "text-primary" : "text-foreground")}>{d.getDate()}</div>
               <div className="space-y-0.5">
-                {items.slice(0, 3).map((a) => <ApptChip key={a.id} a={a} onEdit={onEdit} />)}
+                {items.slice(0, 3).map((a) => <ApptChip key={a.id} a={a} onOpen={onOpen} />)}
                 {items.length > 3 && <div className="text-[10px] text-muted-foreground">+{items.length - 3} mais</div>}
               </div>
             </div>
@@ -177,7 +208,7 @@ function MonthView({ cursor, byDay, onEdit }: { cursor: Date; byDay: Map<string,
   );
 }
 
-function WeekView({ cursor, byDay, onEdit }: { cursor: Date; byDay: Map<string, Appointment[]>; onEdit: (id: string) => void }) {
+function WeekView({ cursor, byDay, onOpen }: { cursor: Date; byDay: Map<string, Appointment[]>; onOpen: (a: Appointment) => void }) {
   const start = startOfWeek(cursor);
   return (
     <div className="grid grid-cols-7 gap-2">
@@ -186,7 +217,7 @@ function WeekView({ cursor, byDay, onEdit }: { cursor: Date; byDay: Map<string, 
         return (
           <div key={d.toISOString()} className="border border-border rounded-md p-2 min-h-[300px]">
             <div className="text-xs font-semibold mb-2">{WEEKDAYS[d.getDay()]} {d.getDate()}</div>
-            <div className="space-y-1">{items.map((a) => <ApptChip key={a.id} a={a} onEdit={onEdit} />)}</div>
+            <div className="space-y-1">{items.map((a) => <ApptChip key={a.id} a={a} onOpen={onOpen} />)}</div>
           </div>
         );
       })}
@@ -194,7 +225,7 @@ function WeekView({ cursor, byDay, onEdit }: { cursor: Date; byDay: Map<string, 
   );
 }
 
-function DayView({ day, items, onEdit }: { day: Date; items: Appointment[]; onEdit: (id: string) => void }) {
+function DayView({ day, items, onOpen }: { day: Date; items: Appointment[]; onOpen: (a: Appointment) => void }) {
   return (
     <div>
       <div className="text-sm font-semibold mb-3">{day.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}</div>
@@ -207,7 +238,7 @@ function DayView({ day, items, onEdit }: { day: Date; items: Appointment[]; onEd
             <button
               key={a.id}
               type="button"
-              onClick={() => onEdit(a.id)}
+              onClick={() => onOpen(a)}
               className="w-full text-left flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-muted/40 transition"
             >
               <div className="text-sm font-mono w-14">{t.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</div>
