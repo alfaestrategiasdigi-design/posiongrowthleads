@@ -43,6 +43,7 @@ import TenantLeads from "./pages/app/TenantLeads";
 import TenantCampaigns from "./pages/app/TenantCampaigns";
 import TenantRelatorios from "./pages/app/TenantRelatorios";
 import RelatoriosPage from "./pages/admin/RelatoriosPage";
+import ProfilePage from "./pages/shared/ProfilePage";
 
 const queryClient = new QueryClient();
 
@@ -81,6 +82,7 @@ const App = () => (
           <Route path="/app/:tenantSlug/recall" element={<Navigate to="../automacoes" replace />} />
           <Route path="/app/:tenantSlug/planos" element={<AppLayout><TenantPlans /></AppLayout>} />
           <Route path="/app/:tenantSlug/relatorios" element={<AppLayout><TenantRelatorios /></AppLayout>} />
+          <Route path="/app/:tenantSlug/perfil" element={<AppLayout><ProfilePage /></AppLayout>} />
 
           {/* Posion master admin */}
           <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
@@ -105,6 +107,7 @@ const App = () => (
 
           <Route path="/admin/meta-ads" element={<Navigate to="/admin/campanhas" replace />} />
           <Route path="/admin/planos" element={<AdminLayout><SubscriptionsPage /></AdminLayout>} />
+          <Route path="/admin/perfil" element={<AdminLayout><ProfilePage /></AdminLayout>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
