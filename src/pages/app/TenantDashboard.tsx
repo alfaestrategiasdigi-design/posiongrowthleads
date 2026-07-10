@@ -35,6 +35,15 @@ const FUNNEL_LABELS: Record<string,string> = {
 };
 const FUNNEL_COLORS = ["rgba(245,245,245,0.55)", "rgba(245,245,245,0.65)", "rgba(245,245,245,0.75)", "rgba(245,245,245,0.85)", "#E8C468", "#4ADE80"];
 
+const FUNNEL_DEFINITIONS: Record<string, { definition: string; formula: string }> = {
+  qualificacao:   { definition: "Leads que preencheram os critérios mínimos (ex.: dados válidos) e foram aceitos como oportunidade.", formula: "Qualificados ÷ Leads" },
+  agendamento:    { definition: "Leads qualificados que marcaram uma reunião ou consulta com sucesso.", formula: "Agendados ÷ Qualificados" },
+  comparecimento: { definition: "Reuniões agendadas em que o lead realmente compareceu.", formula: "Compareceu ÷ (Compareceu + No-show)" },
+  fechamento:     { definition: "Leads que compareceram e efetivamente fecharam a venda.", formula: "Ganho ÷ Compareceu" },
+  noShow:         { definition: "Agendamentos em que o lead faltou sem aviso prévio. Comparecimento + No-show sempre somam 100% dos agendamentos decididos.", formula: "No-show ÷ (Compareceu + No-show)" },
+  geral:          { definition: "Percentual de leads que viraram venda no período — visão geral do funil.", formula: "Ganho ÷ Leads" },
+};
+
 export default function TenantDashboard() {
   const { tenant } = useTenant();
   const [sales, setSales] = useState<SaleRow[]>([]);
