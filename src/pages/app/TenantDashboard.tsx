@@ -383,7 +383,7 @@ export default function TenantDashboard() {
       </div>
 
       {/* HERO — Faturamento total + gráfico + KPIs à direita (padrão Admin Master) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 items-stretch">
         <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-4 sm:p-6 h-auto flex flex-col">
 
           <div className="flex items-start justify-between gap-3">
