@@ -24,6 +24,7 @@ const iconMap: Record<string, any> = {
 interface KanbanBoardProps {
   leads: Lead[];
   onLeadsChange: () => void;
+  nextAppointmentByLead?: Record<string, string>;
 }
 
 const KanbanBoard = ({ leads, onLeadsChange }: KanbanBoardProps) => {
