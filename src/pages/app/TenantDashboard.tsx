@@ -313,7 +313,7 @@ export default function TenantDashboard() {
 
 
   return (
-    <div className="p-4 md:p-8 space-y-6 max-w-[1600px] mx-auto">
+    <div className="p-3 sm:p-4 md:p-8 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
       {/* Header — mirrors Admin Master style */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
