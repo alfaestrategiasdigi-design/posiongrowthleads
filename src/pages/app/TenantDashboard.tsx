@@ -341,22 +341,19 @@ export default function TenantDashboard() {
   const [drill, setDrill] = useState<{ key: string; label: string } | null>(null);
   const [openLead, setOpenLead] = useState<AdminLead | null>(null);
 
-  // Numerator stages for each conversion metric — leads counted in the numerator
-  const STAGE_SETS: Record<string, string[]> = {
-    qualificacao:   ["qualificado","reuniao_agendada","compareceu","negociacao","ganho","no_show"],
-    agendamento:    ["reuniao_agendada","compareceu","negociacao","ganho","no_show"],
-    comparecimento: ["compareceu","negociacao","ganho"],
-    fechamento:     ["ganho"],
-    noShow:         ["no_show"],
-    geral:          ["ganho"],
-  };
+  // IDs de lead que compõem o numerador de cada taxa (fonte: mesma lib que calcula rates)
+  const drillIndex = useMemo(() => {
+    const funnelLeads = leads.map((l) => ({ id: l.id, status: l.stage, created_at: l.created_at, mql: l.mql, sql_qualified: l.sql_qualified }));
+    return computeFunnelMetrics({ leads: funnelLeads, appointments, from: funnelRange.from, to: funnelRange.to }).leadsByMetric;
+  }, [leads, appointments, funnelRange]);
+
   const drillLeads = useMemo(() => {
     if (!drill) return [];
-    const allowed = new Set(STAGE_SETS[drill.key] || []);
+    const allowed: Set<string> = (drillIndex as any)[drill.key] || new Set<string>();
     return leads
-      .filter((l) => inRange(l.created_at) && l.stage && allowed.has(l.stage))
+      .filter((l) => allowed.has(l.id))
       .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
-  }, [drill, leads, range]);
+  }, [drill, leads, drillIndex]);
 
   return (
     <div className="p-3 sm:p-4 md:p-8 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
