@@ -47,15 +47,34 @@ export default function LeadAppointmentsSection({ tenantId, leadId, leadName, le
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
+    const cols = "id, date_time, duration_minutes, appointment_type, procedure, status, client_name, client_phone, lead_id";
+    // 1) direct link by lead_id
+    const byLead = supabase
       .from("appointments")
-      .select("id, date_time, duration_minutes, appointment_type, procedure, status, client_name")
+      .select(cols)
       .eq("tenant_id", tenantId)
-      .eq("lead_id", leadId)
-      .order("date_time", { ascending: false });
-    setRows((data || []) as Row[]);
+      .eq("lead_id", leadId);
+    // 2) fallback: match by normalized phone (last 11 digits) for legacy rows
+    const digits = (leadPhone || "").replace(/\D/g, "");
+    const normalized = digits.slice(-11);
+    const byPhone = normalized.length >= 8
+      ? supabase
+          .from("appointments")
+          .select(cols)
+          .eq("tenant_id", tenantId)
+          .is("lead_id", null)
+          .ilike("client_phone", `%${normalized}%`)
+      : Promise.resolve({ data: [] as any[] });
+
+    const [{ data: a }, { data: b }] = await Promise.all([byLead, byPhone as any]);
+    const map = new Map<string, Row>();
+    [...(a || []), ...(b || [])].forEach((r: any) => map.set(r.id, r as Row));
+    const merged = Array.from(map.values()).sort(
+      (x, y) => new Date(y.date_time).getTime() - new Date(x.date_time).getTime()
+    );
+    setRows(merged);
     setLoading(false);
-  }, [tenantId, leadId]);
+  }, [tenantId, leadId, leadPhone]);
 
   useEffect(() => { load(); }, [load]);
 
