@@ -38,6 +38,7 @@ import TenantAgenda from "./pages/app/TenantAgenda";
 import TenantConfig from "./pages/app/TenantConfig";
 import TenantRecall from "./pages/app/TenantRecall";
 import TenantPlans from "./pages/app/TenantPlans";
+import TenantCheckout from "./pages/app/TenantCheckout";
 import TenantProductsConfig from "./pages/app/TenantProductsConfig";
 import TenantLeads from "./pages/app/TenantLeads";
 import TenantCampaigns from "./pages/app/TenantCampaigns";
