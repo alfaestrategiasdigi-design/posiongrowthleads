@@ -20,9 +20,13 @@ import { ptBR } from "date-fns/locale";
 import { Search, GitBranch, Building2, Sparkles, ArrowUpRight } from "lucide-react";
 import { DateRangePicker, makeRange, type DateRangeValue } from "@/components/shared/DateRangePicker";
 import { differenceInDays, startOfDay, endOfDay, subDays, format as fmtDate } from "date-fns";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import LeadDetailModal from "@/components/admin/LeadDetailModal";
+import type { Lead as AdminLead } from "@/types/admin";
 
 interface Goal { year: number; month: number; goal_1: number; goal_2: number; goal_3: number; }
-interface LeadRow { id: string; stage: string | null; created_at: string; }
+interface LeadRow { id: string; stage: string | null; created_at: string; name: string | null; phone: string | null; }
 
 const MONTHS = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
@@ -81,12 +85,12 @@ export default function TenantDashboard() {
     Promise.all([
       supabase.from("sales").select("*").eq("tenant_id", tenant.id).order("sale_date", { ascending: true }),
       supabase.from("monthly_goals").select("*").eq("tenant_id", tenant.id),
-      supabase.from("leads").select("id,status,created_at").eq("tenant_id", tenant.id),
+      supabase.from("leads").select("id,status,created_at,name,phone").eq("tenant_id", tenant.id),
       supabase.from("whatsapp_connections").select("status,instance_name").eq("tenant_id", tenant.id).maybeSingle(),
     ]).then(([s, g, l, wa]) => {
       setSales((s.data || []) as SaleRow[]);
       setGoals((g.data || []) as Goal[]);
-      setLeads(((l.data || []) as any[]).map(r => ({ id: r.id, stage: r.status, created_at: r.created_at })) as LeadRow[]);
+      setLeads(((l.data || []) as any[]).map(r => ({ id: r.id, stage: r.status, created_at: r.created_at, name: r.name, phone: r.phone })) as LeadRow[]);
       const w: any = wa.data;
       if (w) {
         const connected = ["open", "connected", "CONNECTED"].includes(String(w.status || "").toLowerCase()) || w.status === "open";
@@ -347,6 +351,26 @@ export default function TenantDashboard() {
 
 
 
+  const [drill, setDrill] = useState<{ key: string; label: string } | null>(null);
+  const [openLead, setOpenLead] = useState<AdminLead | null>(null);
+
+  // Numerator stages for each conversion metric — leads counted in the numerator
+  const STAGE_SETS: Record<string, string[]> = {
+    qualificacao:   ["qualificado","reuniao_agendada","compareceu","negociacao","ganho","no_show"],
+    agendamento:    ["reuniao_agendada","compareceu","negociacao","ganho","no_show"],
+    comparecimento: ["compareceu","negociacao","ganho"],
+    fechamento:     ["ganho"],
+    noShow:         ["no_show"],
+    geral:          ["ganho"],
+  };
+  const drillLeads = useMemo(() => {
+    if (!drill) return [];
+    const allowed = new Set(STAGE_SETS[drill.key] || []);
+    return leads
+      .filter((l) => inRange(l.created_at) && l.stage && allowed.has(l.stage))
+      .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+  }, [drill, leads, range]);
+
   return (
     <div className="p-3 sm:p-4 md:p-8 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
       {/* Header — mirrors Admin Master style */}
@@ -481,7 +505,15 @@ export default function TenantDashboard() {
                     ? (k.value < 0.15 ? "#22C55E" : k.value < 0.3 ? "#F59E0B" : "#EF4444")
                     : (k.value >= 0.3 ? "#22C55E" : k.value >= 0.15 ? "#F59E0B" : "#EF4444");
                   return (
-                    <div key={k.label} className="rounded-lg border border-border/50 bg-card/40 px-2 py-1.5">
+                    <div
+                      key={k.label}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setDrill({ key: k.key, label: k.label })}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDrill({ key: k.key, label: k.label }); } }}
+                      className="rounded-lg border border-border/50 bg-card/40 px-2 py-1.5 cursor-pointer transition hover:border-primary/60 hover:bg-card/70 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      title="Clique para ver os leads desta etapa no período"
+                    >
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground truncate cursor-help">
@@ -1156,6 +1188,63 @@ export default function TenantDashboard() {
           </div>
         </div>
       </section>
+
+      {/* Drill-down: leads da etapa selecionada */}
+      <Dialog open={!!drill} onOpenChange={(o) => !o && setDrill(null)}>
+        <DialogContent className="max-w-2xl bg-[#0a0a0a] border-primary/30">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-primary" />
+              Leads — {drill?.label}
+            </DialogTitle>
+            <DialogDescription>
+              {drillLeads.length} lead{drillLeads.length === 1 ? "" : "s"} no período de {fmtDate(range.from, "dd/MM/yyyy")} a {fmtDate(range.to, "dd/MM/yyyy")}.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh] pr-2">
+            {drillLeads.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-8 text-center">
+                Nenhum lead nesta etapa dentro do período selecionado.
+              </div>
+            ) : (
+              <ul className="divide-y divide-border/40">
+                {drillLeads.map((l) => (
+                  <li key={l.id}>
+                    <button
+                      onClick={() => setOpenLead({ id: l.id, name: l.name || "Sem nome", phone: l.phone || "" } as unknown as AdminLead)}
+                      className="w-full text-left px-2 py-2.5 hover:bg-primary/5 rounded transition flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{l.name || "Sem nome"}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {l.phone || "—"} · Criado em {fmtDate(new Date(l.created_at), "dd/MM/yyyy")}
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] uppercase tracking-wider shrink-0">
+                        {FUNNEL_LABELS[l.stage || ""] || l.stage}
+                      </Badge>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      <LeadDetailModal
+        lead={openLead}
+        open={!!openLead}
+        onClose={() => setOpenLead(null)}
+        onUpdated={() => {
+          // Recarrega leads para refletir mudanças de estágio
+          if (tenant) {
+            supabase.from("leads").select("id,status,created_at,name,phone").eq("tenant_id", tenant.id).then(({ data }) => {
+              setLeads(((data || []) as any[]).map((r) => ({ id: r.id, stage: r.status, created_at: r.created_at, name: r.name, phone: r.phone })));
+            });
+          }
+        }}
+      />
     </div>
   );
 }
