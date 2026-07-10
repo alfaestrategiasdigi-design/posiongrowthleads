@@ -127,7 +127,10 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
           </SidebarGroup>
         )}
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border">
+      <SidebarFooter className="border-t border-sidebar-border gap-2">
+        <div className="px-2 pt-2">
+          <UserAvatarBlock to={`/app/${tenant.slug}/perfil`} collapsed={collapsed} subtitle="Meu perfil" />
+        </div>
         <div className={collapsed ? "py-3 flex justify-center" : "px-3 py-3 flex items-center gap-2"}>
           <img src={posionLogo.url} alt="Posion" className={collapsed ? "h-6 opacity-80" : "h-5 opacity-80"} />
           {!collapsed && (
