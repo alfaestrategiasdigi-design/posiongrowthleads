@@ -340,8 +340,9 @@ export default function TenantDashboard() {
       </div>
 
       {/* HERO — Faturamento total + gráfico + KPIs à direita (padrão Admin Master) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:items-start">
-        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-4 sm:p-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 items-stretch">
+        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-4 sm:p-6 flex flex-col">
+
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-2 font-mono">Faturamento do período</div>
@@ -386,7 +387,7 @@ export default function TenantDashboard() {
             </div>
           ) : null}
 
-          <div className="h-[200px] sm:h-[240px] lg:h-[280px] mt-4">
+          <div className="flex-1 min-h-[220px] mt-4">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={heroTimeline} margin={{ top: 6, right: 8, bottom: 0, left: -8 }}>
                 <defs>
@@ -417,11 +418,12 @@ export default function TenantDashboard() {
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 lg:grid-rows-3 gap-3 h-full">
           <KpiPremium icon={ShoppingBag} label="Nº de Vendas" value={loading ? null : String(count)} delta={varCount} loading={loading} prevLabel={prevMonthLabel} spark={sparkCount} />
           <KpiPremium icon={Receipt} label="Ticket Médio" value={loading ? null : BRL(avg)} delta={varTicket} loading={loading} prevLabel={prevMonthLabel} spark={sparkTicket} />
           <KpiPremium icon={Trophy} label="Maior Venda" value={loading ? null : BRL(maxSale?.amount ?? 0)} sub={maxSale?.patient_name || "—"} loading={loading} />
         </div>
+
       </div>
 
       {/* Alertas Inteligentes */}
@@ -1106,7 +1108,7 @@ function KpiPremium({ icon: Icon, label, value, delta, loading, sub, prevLabel, 
   return (
     <div
       data-no-float
-      className="premium-card relative p-5 group transition-all overflow-hidden min-w-0 rounded-2xl"
+      className="premium-card relative p-5 group transition-all overflow-hidden min-w-0 rounded-2xl h-full flex flex-col"
     >
       {/* Top accent line */}
       <div className="absolute inset-x-0 top-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(212,175,55,0.5), transparent)" }} />
