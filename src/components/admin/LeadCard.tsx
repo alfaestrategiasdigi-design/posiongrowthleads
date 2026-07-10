@@ -8,9 +8,10 @@ interface LeadCardProps {
   lead: Lead;
   onClick: () => void;
   onDragStart: (e: React.DragEvent, leadId: string) => void;
+  nextAppointmentAt?: string;
 }
 
-const LeadCard = ({ lead, onClick, onDragStart }: LeadCardProps) => {
+const LeadCard = ({ lead, onClick, onDragStart, nextAppointmentAt }: LeadCardProps) => {
   const whatsappNumber = lead.whatsapp.replace(/\D/g, "");
   const whatsappLink = `https://wa.me/55${whatsappNumber}?text=Olá ${lead.nome_completo.split(" ")[0]}, aqui é da Posion Growth!`;
 
