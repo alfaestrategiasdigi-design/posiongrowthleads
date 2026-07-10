@@ -1048,8 +1048,6 @@ export default function CampanhasPage() {
                   </div>
 
                   {/* Micro metrics */}
-                  <div className="grid grid-cols-5 divide-x divide-white/5 border-b border-white/5 text-center">
-                    <MicroMetric label="Leads" value={NUM(i?.leads || 0)} />
                   <div className="grid grid-cols-6 divide-x divide-white/5 border-b border-white/5 text-center">
                     <MicroMetric label="Leads" value={NUM(i?.leads || 0)} />
                     <MicroMetric label="Agendados" value={NUM(crmAppts)} highlight={crmAppts > 0} />
