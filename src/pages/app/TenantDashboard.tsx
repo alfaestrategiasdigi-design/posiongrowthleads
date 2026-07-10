@@ -22,7 +22,7 @@ import { DateRangePicker, makeRange, type DateRangeValue } from "@/components/sh
 import { differenceInDays, startOfDay, endOfDay, subDays, format as fmtDate } from "date-fns";
 
 interface Goal { year: number; month: number; goal_1: number; goal_2: number; goal_3: number; }
-interface LeadRow { id: string; stage: string | null; created_at: string; }
+interface LeadRow { id: string; stage: string | null; created_at: string; name: string | null; phone: string | null; }
 
 const MONTHS = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
