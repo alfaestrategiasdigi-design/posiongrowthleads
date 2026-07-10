@@ -1,50 +1,72 @@
-## Ajuste: "Oferta Fundadores" vira 1ª mensalidade promocional (R$ 250), depois R$ 389/mês
+## Objetivo
 
-Entendi — não é vitalício. É um **desconto de entrada só no primeiro mês** (R$ 250) para os 10 primeiros clientes; a partir do 2º mês entra a mensalidade cheia de **R$ 389**. Vou refazer o Founder pra funcionar como assinatura mensal recorrente com 1ª parcela promocional, mantendo o Pix transparente na tela.
+Permitir que o admin master configure **ofertas personalizadas por tenant** (ex.: Gabriel Lourenço = 3 meses por R$ 100), sobrescrevendo os preços padrão do catálogo. Também permitir controlar manualmente quem entra na "Oferta Fundadores" e com qual condição.
 
----
+## Como o usuário vai usar
 
-### 1. Banco de dados (nova migration)
-- **`plan_catalog`**: atualizar/adicionar `posion_founder_v1` com `amount_cents = 38900`, `interval = 'month'`, `first_cycle_amount_cents = 25000`, `promo_slots_total = 10`, `description = "1º mês R$ 250 (fundador) · depois R$ 389/mês"`.
-- **`founder_slots`** (já existe): manter, mas passa a representar apenas a 1ª cobrança promocional. Adicionar coluna `next_charge_at timestamptz` (data em que a mensalidade cheia começa) e `subscription_id uuid` (fk para `subscriptions`).
-- Função `count_founder_slots_taken()` continua igual (limite de 10 vagas usadas para o desconto).
+Nova aba **"Planos & Cobranças"** dentro do painel Admin (sidebar admin), listando todos os tenants. Para cada tenant, um botão **"Configurar oferta"** abre um modal onde o admin define:
+
+- **Tipo de oferta**: Padrão (usa `plan_catalog`) · Fundadores POSION · **Oferta personalizada**
+- Se **Personalizada**: valor da entrada (R$), quantidade de ciclos nesse valor (ex.: 3), intervalo (mensal), valor recorrente após os ciclos promocionais (R$/mês) e data de expiração da oferta
+- Se **Fundadores**: reserva um slot manualmente (marca como pago ou pendente) sem consumir Pix
+- Botão **"Gerar Pix desta oferta"** que cria o Pix já com o valor customizado e envia o link/QR para o tenant
+
+Na página `/app/<slug>/planos` do tenant, se existir uma **oferta personalizada ativa**, ela aparece como card destaque no topo (substituindo/acima do card Fundadores), com os textos vindos da configuração — ex.: "Oferta especial: 3 meses por R$ 100 · depois R$ 389/mês".
+
+## Mudanças técnicas
+
+### 1. Banco — nova tabela `tenant_custom_offers`
+
+```
+tenant_id (uk), label, kind ('founder' | 'custom' | 'standard'),
+entry_amount_cents, entry_cycles, interval ('month'|'quarter'|'semester'),
+recurring_amount_cents, description, active, expires_at,
+created_by, created_at, updated_at
+```
+
+RLS: `SELECT` para membros do tenant + admin; `INSERT/UPDATE/DELETE` só para `has_role('admin')`. GRANTs para `authenticated` e `service_role`.
 
 ### 2. Edge functions
-- **`mp-pix-create`**: continua criando o Pix de **R$ 250** (1ª parcela) — sem mudança de valor aqui. Só ajusta a `description` para "POSION Fundador — 1º mês (depois R$ 389/mês)".
-- **`mp-pix-status`** (mudança principal): quando o Pix for `approved`, ao invés de criar `subscription` `lifetime`, cria:
-  - `subscriptions` com `interval='month'`, `amount_cents=38900`, `status='active'`, `current_period_end = paid_at + 30 dias`, `plan_code='posion_founder'`, `is_founder=true`.
-  - `subscription_invoices` da 1ª parcela (R$ 250, `is_promo=true`).
-  - agenda a próxima cobrança em D+30 (grava `next_charge_at`).
-- **`mp-webhook`**: mesma lógica idempotente.
-- **Nova função `mp-founder-renew`** (cron diário): varre `subscriptions` com `is_founder=true` e `current_period_end <= now()`, gera cobrança recorrente de **R$ 389** via Mercado Pago (Pix ou preferência de assinatura) e atualiza `current_period_end += 30d`. Se falhar, marca `past_due`.
 
-### 3. Frontend — `src/pages/app/TenantPlans.tsx` + `FounderPixCheckoutDialog.tsx`
-- **Card "Oferta Fundadores"** (mantém visual dourado da imagem), textos ajustados:
-  - Título: `POSION FUNDADORES — 1º MÊS R$ 250`
-  - Subtítulo: `Só para os 10 primeiros · depois R$ 389/mês`
-  - Preço em destaque: `R$ 250` com selo pequeno `1º mês` e linha embaixo `depois R$ 389/mês · cancele quando quiser`.
-  - Benefícios: mantém os atuais, remove "Acesso vitalício — nunca mais paga mensalidade" e troca por **"Economia de R$ 139 na entrada"** e **"Selo de Fundador POSION vitalício"** (o selo continua para sempre, só a mensalidade não).
-  - Botão: `Gerar Pix — R$ 250 (1º mês)`.
-- **Modal Pix**: mesmo fluxo, mas com aviso curto abaixo do QR:  
-  *"Este Pix libera seu 1º mês como Fundador (R$ 250). A partir do 2º mês a mensalidade é R$ 389, cobrada automaticamente. Cancele quando quiser."*
-- Mensagem de sucesso: `Bem-vindo, Fundador POSION! Seu 1º mês está ativo até <data>.` (sem "vitalício").
-- Card do plano ativo: quando `is_founder=true`, mostra badge `Fundador POSION` + `Próxima cobrança: R$ 389 em <data>`.
+- **`mp-pix-create`**: aceitar parâmetro opcional `offer_id`. Se vier, buscar `tenant_custom_offers`, usar `entry_amount_cents` e a descrição custom em vez dos R$ 250 fixos. Validar que o offer pertence ao tenant e está ativo.
+- **`mp-pix-status`**: ao aprovar, se o pagamento veio de uma custom offer, criar `subscriptions` com `amount_cents = recurring_amount_cents`, `interval = offer.interval`, `current_period_end = paid_at + entry_cycles * (30d|90d|180d)`, `plan_code = 'custom:' || offer.id`, `is_founder = (kind='founder')`.
 
-### 4. Nova mensagem pro WhatsApp (Matheus / Gabriel)
-Depois de aplicar, devolvo o texto pronto, algo como:
+### 3. Frontend admin — nova página `src/pages/admin/PlanosCobrancasPage.tsx`
 
-> "Fala, Matheus / Gabriel! Tô fechando as conexões da plataforma pra deixar tudo rodando 100% até segunda. Como combinamos, vocês entram como **Fundadores POSION**: o **1º mês sai por R$ 250** (condição só pros 10 primeiros) e a partir do 2º mês a mensalidade normal é **R$ 389**, com o **selo de Fundador pra sempre**. É só entrar no painel em **Planos → Oferta Fundadores → Gerar Pix agora**, pagar pelo QR Code que aparece na tela e me sinalizar aqui. Assim que cair, libero as automações."
+- Tabela de tenants com colunas: Tenant, Plano atual, Oferta ativa (badge), Próxima cobrança, Ações
+- Botão **"Configurar oferta"** → `TenantOfferDialog` (novo componente) com o formulário acima
+- Botão **"Gerar Pix"** → chama `mp-pix-create` com o `offer_id`, exibe QR/copia-cola no modal
+- Botão **"Marcar como Fundador (sem cobrança)"** para casos manuais
+- Entrada no sidebar admin (`AppSidebar.tsx`): "Planos & Cobranças"
+- Rota nova em `App.tsx`: `/admin/planos-cobrancas`
 
-### Detalhes técnicos
-- Valor do Pix inicial permanece **R$ 250**; só muda o significado (1ª parcela, não vitalício).
-- `subscriptions.interval` volta a ser `'month'` (não uso mais `'lifetime'` para o Founder).
-- Renovação: via cron `mp-founder-renew` chamando MP a cada 30 dias. Se preferir, posso usar Assinaturas nativas do Mercado Pago (preapproval) com valor `389` e uma cobrança avulsa inicial de `250` — mas o Pix transparente na tela continua sendo a 1ª parcela.
-- Nenhuma mudança nos planos mensais/tri/sem existentes.
+### 4. Frontend tenant — `src/pages/app/TenantPlans.tsx`
 
-### Arquivos alterados/criados
-- migration nova (atualiza `plan_catalog`, adiciona colunas em `founder_slots`)
-- `supabase/functions/mp-pix-status/index.ts` (troca `lifetime` por mensal)
-- `supabase/functions/mp-pix-create/index.ts` (só ajuste de description)
-- `supabase/functions/mp-founder-renew/index.ts` (nova, cron)
-- `src/components/tenant/FounderPixCheckoutDialog.tsx` (textos + aviso)
-- `src/pages/app/TenantPlans.tsx` (card + badge do plano ativo)
+- Carregar `tenant_custom_offers` do tenant atual (se ativa e não expirada)
+- Se existir oferta custom: renderizar card destaque **no lugar** do card Fundadores, com o `label`, valores e descrição da oferta, e botão "Gerar Pix — R$ X (oferta especial)"
+- `FounderPixCheckoutDialog` recebe prop opcional `offer` e passa `offer_id` ao invocar `mp-pix-create`; textos e valores no modal vêm da oferta quando presente
+
+### 5. Exemplo para Gabriel Lourenço
+
+Admin abre Planos & Cobranças → escolhe tenant do Gabriel → cria oferta:
+- Tipo: Personalizada
+- Entrada: R$ 100 · 3 ciclos mensais
+- Recorrente após: R$ 389/mês
+- Expira em: (data escolhida)
+
+Gabriel entra em `/planos`, vê "Oferta especial: 3 meses por R$ 100", gera Pix de R$ 100, paga; assinatura ativa por 90 dias, depois renova em R$ 389/mês.
+
+## Arquivos afetados
+
+- **Novo**: migration `tenant_custom_offers` + GRANTs + RLS
+- **Novo**: `src/pages/admin/PlanosCobrancasPage.tsx`
+- **Novo**: `src/components/admin/TenantOfferDialog.tsx`
+- **Editar**: `src/App.tsx` (rota), `src/components/admin/AppSidebar.tsx` (menu)
+- **Editar**: `src/pages/app/TenantPlans.tsx` (renderizar oferta custom)
+- **Editar**: `src/components/tenant/FounderPixCheckoutDialog.tsx` (aceitar `offer`)
+- **Editar**: `supabase/functions/mp-pix-create/index.ts` e `mp-pix-status/index.ts`
+
+## Fora do escopo
+
+- Editar o `plan_catalog` global pela UI (continua via migration/seed)
+- Cobrança recorrente automática do valor custom após o período (fica com o cron de renovação já planejado; ele lê `subscriptions.amount_cents` e `current_period_end`, então funciona nativamente)
