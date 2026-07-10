@@ -311,6 +311,17 @@ export default function WhatsAppStatusPage() {
             </Link>
           </Button>
         )}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => openImportFor(r)}
+          disabled={!r.conn?.instance_name}
+          className="gap-1"
+          title="Importar contatos e conversas desta instância"
+        >
+          <DownloadCloud className="w-3.5 h-3.5" />
+          Importar
+        </Button>
         <Button size="sm" onClick={() => test(realIdx)} disabled={r.testing || !r.conn?.instance_name} className="gap-1">
           {r.testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
           Testar
