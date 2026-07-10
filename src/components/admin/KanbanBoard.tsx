@@ -7,18 +7,18 @@ import LeadDetailModal from "./LeadDetailModal";
 import { PIPELINE_STAGES } from "@/types/admin";
 import type { Lead } from "@/types/admin";
 import {
-  Inbox, Filter, Calendar, UserCheck, Handshake, Trophy, XCircle, CalendarX,
+  Inbox, PlayCircle, PhoneCall, Calendar, FileText, Handshake, Trophy, XCircle,
 } from "lucide-react";
 
 const iconMap: Record<string, any> = {
   lead: Inbox,
-  qualificado: Filter,
+  qualificado: PlayCircle,       // Início de Atendimento
+  agendar_reuniao: PhoneCall,
   reuniao_agendada: Calendar,
-  compareceu: UserCheck,
+  proposta: FileText,
   negociacao: Handshake,
   ganho: Trophy,
   perdido: XCircle,
-  no_show: CalendarX,
 };
 
 interface KanbanBoardProps {
