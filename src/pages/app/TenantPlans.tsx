@@ -54,22 +54,37 @@ export default function TenantPlans() {
   const [founderSlot, setFounderSlot] = useState<any>(null);
   const [founderTaken, setFounderTaken] = useState(0);
   const [founderOpen, setFounderOpen] = useState(false);
+  const [customOffer, setCustomOffer] = useState<OfferInfo | null>(null);
 
   const refresh = async () => {
     if (!tenant?.id) return;
     setLoading(true);
-    const [subRes, invRes, planRes, slotRes, takenRes] = await Promise.all([
+    const [subRes, invRes, planRes, slotRes, takenRes, offerRes] = await Promise.all([
       supabase.from("subscriptions").select("*").eq("tenant_id", tenant.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("subscription_invoices").select("*").eq("tenant_id", tenant.id).order("paid_at", { ascending: false, nullsFirst: false }).limit(10),
       supabase.from("plan_catalog").select("*").eq("active", true).order("sort_order"),
       supabase.from("founder_slots").select("*").eq("tenant_id", tenant.id).maybeSingle(),
       supabase.rpc("count_founder_slots_taken"),
+      (supabase as any).from("tenant_custom_offers").select("*").eq("tenant_id", tenant.id).eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
     setSub(subRes.data);
     setInvoices(invRes.data || []);
     setPlans((planRes.data || []) as Plan[]);
     setFounderSlot(slotRes.data);
     setFounderTaken(Number(takenRes.data ?? 0));
+    const off = offerRes.data as any;
+    if (off && (!off.expires_at || new Date(off.expires_at).getTime() > Date.now())) {
+      setCustomOffer({
+        id: off.id, label: off.label,
+        entry_amount_cents: off.entry_amount_cents,
+        recurring_amount_cents: off.recurring_amount_cents,
+        entry_cycles: off.entry_cycles,
+        interval: off.interval,
+        description: off.description,
+      });
+    } else {
+      setCustomOffer(null);
+    }
     setLoading(false);
   };
   useEffect(() => { refresh(); }, [tenant?.id]);
