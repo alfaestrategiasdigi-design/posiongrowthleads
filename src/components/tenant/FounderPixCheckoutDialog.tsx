@@ -159,50 +159,78 @@ export function FounderPixCheckoutDialog({ open, onClose, onPaid, tenantId, paye
               A próxima cobrança será de <b className="text-foreground">{BRL(recurringAmount)}</b>, e continuará recorrente até você cancelar.
             </p>
           </div>
-        ) : status === "expired" || status === "cancelled" ? (
-          <div className="py-8 text-center space-y-3">
-            <Clock className="w-12 h-12 text-amber-400 mx-auto" />
-            <div className="font-display text-lg">Pix expirado</div>
-            <p className="text-sm text-muted-foreground">Gere um novo QR Code para concluir.</p>
-            <Button onClick={createPix} disabled={loading}>Gerar novo Pix</Button>
-          </div>
-        ) : loading || !pix ? (
-          <div className="py-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
         ) : (
-          <div className="space-y-4">
-            {pix.qr_code_base64 && (
-              <div className="bg-white rounded-xl p-3 flex justify-center">
-                <img
-                  src={`data:image/png;base64,${pix.qr_code_base64}`}
-                  alt="QR Code Pix"
-                  className="w-56 h-56"
-                />
+          <Tabs defaultValue="pix" className="w-full">
+            <TabsList className="grid grid-cols-2 w-full">
+              <TabsTrigger value="pix" className="gap-1"><QrCode className="w-4 h-4" /> Pix</TabsTrigger>
+              <TabsTrigger value="card" className="gap-1"><CreditCard className="w-4 h-4" /> Cartão</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="pix" className="mt-4">
+              {status === "expired" || status === "cancelled" ? (
+                <div className="py-8 text-center space-y-3">
+                  <Clock className="w-12 h-12 text-amber-400 mx-auto" />
+                  <div className="font-display text-lg">Pix expirado</div>
+                  <p className="text-sm text-muted-foreground">Gere um novo QR Code para concluir.</p>
+                  <Button onClick={createPix} disabled={loading}>Gerar novo Pix</Button>
+                </div>
+              ) : loading || !pix ? (
+                <div className="py-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+              ) : (
+                <div className="space-y-4">
+                  {pix.qr_code_base64 && (
+                    <div className="bg-white rounded-xl p-3 flex justify-center">
+                      <img
+                        src={`data:image/png;base64,${pix.qr_code_base64}`}
+                        alt="QR Code Pix"
+                        className="w-56 h-56"
+                      />
+                    </div>
+                  )}
+                  <div className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1">
+                    <Clock className="w-3 h-3" /> Expira em <span className="tabular-nums font-medium text-foreground">{mm}:{ss}</span>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Pix copia-e-cola</div>
+                    <div className="flex gap-2">
+                      <input
+                        readOnly
+                        value={pix.qr_code_text || ""}
+                        className="flex-1 bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs font-mono truncate"
+                      />
+                      <Button size="sm" variant="outline" onClick={copyCode} className="gap-1">
+                        {copied ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                        Copiar
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-100 text-center leading-relaxed">
+                    <b>Atenção:</b> este Pix cobre <b>{cyclesLabel} por {BRL(entryAmount)}</b>. Depois, o valor passa a ser <b>{BRL(recurringAmount)}/{intervalLabel(interval)}</b>. Você pode cancelar a qualquer momento.
+                  </div>
+                  <div className="text-xs text-muted-foreground text-center">
+                    Aguardando confirmação do pagamento… você não precisa recarregar a página.
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="card" className="mt-4 space-y-3">
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-primary-foreground/90 text-center leading-relaxed">
+                Entrada de <b>{BRL(entryAmount)}</b> ({cyclesLabel}) cobrada agora. Depois, <b>{BRL(recurringAmount)}/{intervalLabel(interval)}</b> automático no mesmo cartão. Cancele quando quiser.
               </div>
-            )}
-            <div className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1">
-              <Clock className="w-3 h-3" /> Expira em <span className="tabular-nums font-medium text-foreground">{mm}:{ss}</span>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Pix copia-e-cola</div>
-              <div className="flex gap-2">
-                <input
-                  readOnly
-                  value={pix.qr_code_text || ""}
-                  className="flex-1 bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs font-mono truncate"
-                />
-                <Button size="sm" variant="outline" onClick={copyCode} className="gap-1">
-                  {copied ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                  Copiar
-                </Button>
-              </div>
-            </div>
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-100 text-center leading-relaxed">
-              <b>Atenção:</b> este Pix cobre <b>{cyclesLabel} por {BRL(entryAmount)}</b>. Depois, o valor passa a ser <b>{BRL(recurringAmount)}/{intervalLabel(interval)}</b>. Você pode cancelar a qualquer momento.
-            </div>
-            <div className="text-xs text-muted-foreground text-center">
-              Aguardando confirmação do pagamento… você não precisa recarregar a página.
-            </div>
-          </div>
+              <MpCardBrickForm
+                tenantId={tenantId}
+                offerId={offer?.id}
+                entryAmountCents={entryAmount}
+                recurringAmountCents={recurringAmount}
+                payerEmail={payerEmail}
+                onPaid={() => {
+                  setStatus("paid");
+                  setTimeout(() => onPaid(), 1500);
+                }}
+              />
+            </TabsContent>
+          </Tabs>
         )}
       </DialogContent>
     </Dialog>
