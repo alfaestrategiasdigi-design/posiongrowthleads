@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { FounderPixCheckoutDialog } from "@/components/tenant/FounderPixCheckoutDialog";
+import { FounderPixCheckoutDialog, type OfferInfo } from "@/components/tenant/FounderPixCheckoutDialog";
 
 const REFERENCE_MONTHLY_CENTS = 45000; // R$ 450/mês (valor de referência para ancoragem)
 const FOUNDER_LIMIT = 10;
