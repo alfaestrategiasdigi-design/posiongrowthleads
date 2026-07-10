@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Copy, CheckCircle2, Clock, Sparkles } from "lucide-react";
+import { Loader2, Copy, CheckCircle2, Clock, Sparkles, QrCode, CreditCard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { MpCardBrickForm } from "./MpCardBrickForm";
 
 export interface OfferInfo {
   id: string;
