@@ -504,7 +504,7 @@ export default function TenantDashboard() {
               <div className="text-[9px] font-mono text-muted-foreground mb-2">
                 {fmtDate(funnelRange.from, "dd/MM/yy")} — {fmtDate(funnelRange.to, "dd/MM/yy")} · vs. {fmtDate(funnelPrevRange.from, "dd/MM/yy")} — {fmtDate(funnelPrevRange.to, "dd/MM/yy")}
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2 flex-1 auto-rows-fr">
                 {[
                   { key: "qualificacao", label: "Qualificação", value: funnelRates.qualificacao, prev: funnelPrevRates.qualificacao, hint: "Qualif. ÷ Leads" },
                   { key: "agendamento", label: "Agendamento", value: funnelRates.agendamento, prev: funnelPrevRates.agendamento, hint: "Agend. ÷ Qualif." },
