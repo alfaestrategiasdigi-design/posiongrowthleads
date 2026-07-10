@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import KanbanColumn from "./KanbanColumn";
 import LeadCard from "./LeadCard";
 import LeadDetailModal from "./LeadDetailModal";
-import { PIPELINE_STAGES } from "@/types/admin";
+import { CLIENT_PIPELINE_STAGES } from "@/types/admin";
 import type { Lead } from "@/types/admin";
 import {
   Inbox, PlayCircle, PhoneCall, Calendar, FileText, Handshake, Trophy, XCircle,
