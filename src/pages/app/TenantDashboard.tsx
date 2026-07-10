@@ -53,6 +53,7 @@ export default function TenantDashboard() {
   const { tenant } = useTenant();
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [leads, setLeads] = useState<LeadRow[]>([]);
+  const [appointments, setAppointments] = useState<FunnelAppointment[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [waStatus, setWaStatus] = useState<{ connected: boolean; label: string } | null>(null);
