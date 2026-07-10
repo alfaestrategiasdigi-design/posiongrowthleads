@@ -1,72 +1,64 @@
 ## Objetivo
 
-Permitir que o admin master configure **ofertas personalizadas por tenant** (ex.: Gabriel Lourenço = 3 meses por R$ 100), sobrescrevendo os preços padrão do catálogo. Também permitir controlar manualmente quem entra na "Oferta Fundadores" e com qual condição.
+Trazer, da conexão da evolution o sistema nao usa mais zapi
 
-## Como o usuário vai usar
+"Dr Matheus Azevedo - Agendamento" (tenant Dr Matheus), os **490 contatos** como leads na base e todos os **chats/conversas em aberto** (579 mensagens indicadas) para a caixa de conversas do sistema. Depois desse passo, você envia o export do Kommo para a próxima carga.
 
-Nova aba **"Planos & Cobranças"** dentro do painel Admin (sidebar admin), listando todos os tenants. Para cada tenant, um botão **"Configurar oferta"** abre um modal onde o admin define:
+## O que já existe
 
-- **Tipo de oferta**: Padrão (usa `plan_catalog`) · Fundadores POSION · **Oferta personalizada**
-- Se **Personalizada**: valor da entrada (R$), quantidade de ciclos nesse valor (ex.: 3), intervalo (mensal), valor recorrente após os ciclos promocionais (R$/mês) e data de expiração da oferta
-- Se **Fundadores**: reserva um slot manualmente (marca como pago ou pendente) sem consumir Pix
-- Botão **"Gerar Pix desta oferta"** que cria o Pix já com o valor customizado e envia o link/QR para o tenant
+- `evolution-sync-chats` — cria/atualiza registros em `conversations` (nome, telefone, foto, última interação). ✅ pode ser reutilizada.
+- `evolution-sync-messages` — puxa histórico de mensagens de cada chat. ✅ pode ser reutilizada.
+- `evolution-sync-contacts` — só grava alias @lid ↔ telefone; **não cria lead**. Precisa ser estendida.
 
-Na página `/app/<slug>/planos` do tenant, se existir uma **oferta personalizada ativa**, ela aparece como card destaque no topo (substituindo/acima do card Fundadores), com os textos vindos da configuração — ex.: "Oferta especial: 3 meses por R$ 100 · depois R$ 389/mês".
+## O que muda
 
-## Mudanças técnicas
+### 1. Nova função `zapi-import-contacts-as-leads`
 
-### 1. Banco — nova tabela `tenant_custom_offers`
+- Entrada: `{ tenant_id, connection_id, create_leads: true, default_status: "lead" }`.
+- Chama `/chat/findContacts/{instance}` na Z-API e itera todos os contatos (esperado ~490).
+- Para cada contato com telefone válido:
+  - Normaliza o número (mesma lógica de `normalizeJid`/`onlyDigits` das funções existentes).
+  - Faz **dedupe** pelo índice `idx_leads_phone_norm` (`normalize_phone(whatsapp)`) dentro do `tenant_id`. Se já existe lead com esse telefone → só atualiza nome/foto se estiverem vazios.
+  - Se não existe → insere em `leads` com:
+    - `nome_completo` = nome do contato (fallback: telefone formatado)
+    - `whatsapp` = telefone E.164
+    - `tenant_id` = do request
+    - `status` = `"lead"`
+    - `origem` = `"whatsapp_import"`
+    - `extras` = `{ source: "zapi_contacts", jid, imported_at }`
+- Retorna: `{ total, created, updated, skipped }`.
 
-```
-tenant_id (uk), label, kind ('founder' | 'custom' | 'standard'),
-entry_amount_cents, entry_cycles, interval ('month'|'quarter'|'semester'),
-recurring_amount_cents, description, active, expires_at,
-created_by, created_at, updated_at
-```
+### 2. Ajuste em `evolution-sync-chats`
 
-RLS: `SELECT` para membros do tenant + admin; `INSERT/UPDATE/DELETE` só para `has_role('admin')`. GRANTs para `authenticated` e `service_role`.
+- Aceitar novo flag `link_leads: true`. Após upsert de cada `conversation`, procurar lead pelo telefone (mesmo dedupe) e preencher `conversations.lead_id` se estiver vazio (garante que a caixa mostra a conversa vinculada ao lead recém-importado).
 
-### 2. Edge functions
+### 3. Botão no card de conexão (Admin → WhatsApp)
 
-- **`mp-pix-create`**: aceitar parâmetro opcional `offer_id`. Se vier, buscar `tenant_custom_offers`, usar `entry_amount_cents` e a descrição custom em vez dos R$ 250 fixos. Validar que o offer pertence ao tenant e está ativo.
-- **`mp-pix-status`**: ao aprovar, se o pagamento veio de uma custom offer, criar `subscriptions` com `amount_cents = recurring_amount_cents`, `interval = offer.interval`, `current_period_end = paid_at + entry_cycles * (30d|90d|180d)`, `plan_code = 'custom:' || offer.id`, `is_founder = (kind='founder')`.
+Onde já aparece o card com "Dr Matheus Azevedo - Agendamento / 490 / 579 / Connected" (`src/pages/admin/WhatsAppStatusPage.tsx` — card da conexão Z-API): o card nao é da zapi é da evolution msm
 
-### 3. Frontend admin — nova página `src/pages/admin/PlanosCobrancasPage.tsx`
+- Adicionar botão **"Importar 490 contatos + conversas"**.
+- Ao clicar, dispara em sequência, com toast de progresso:
+  1. `zapi-import-contacts-as-leads` → cria leads
+  2. `evolution-sync-chats` com `link_leads: true, with_pictures: true` → cria/atualiza todas as conversas
+  3. `evolution-sync-messages` para cada conversa retornada (limite de últimas N por conversa, ver Configuração abaixo)
+- Ao final, mostra resumo: "X leads criados, Y conversas importadas, Z mensagens sincronizadas".
 
-- Tabela de tenants com colunas: Tenant, Plano atual, Oferta ativa (badge), Próxima cobrança, Ações
-- Botão **"Configurar oferta"** → `TenantOfferDialog` (novo componente) com o formulário acima
-- Botão **"Gerar Pix"** → chama `mp-pix-create` com o `offer_id`, exibe QR/copia-cola no modal
-- Botão **"Marcar como Fundador (sem cobrança)"** para casos manuais
-- Entrada no sidebar admin (`AppSidebar.tsx`): "Planos & Cobranças"
-- Rota nova em `App.tsx`: `/admin/planos-cobrancas`
+### 4. Configuração da importação (modal do botão)
 
-### 4. Frontend tenant — `src/pages/app/TenantPlans.tsx`
+Antes de disparar, abre um pequeno diálogo com:
 
-- Carregar `tenant_custom_offers` do tenant atual (se ativa e não expirada)
-- Se existir oferta custom: renderizar card destaque **no lugar** do card Fundadores, com o `label`, valores e descrição da oferta, e botão "Gerar Pix — R$ X (oferta especial)"
-- `FounderPixCheckoutDialog` recebe prop opcional `offer` e passa `offer_id` ao invocar `mp-pix-create`; textos e valores no modal vêm da oferta quando presente
+- Quantidade de mensagens por chat a puxar (default 50)
+- Marcar/desmarcar "criar leads dos contatos"
+- Marcar/desmarcar "baixar fotos de perfil"
 
-### 5. Exemplo para Gabriel Lourenço
+## Fora de escopo (para o próximo passo)
 
-Admin abre Planos & Cobranças → escolhe tenant do Gabriel → cria oferta:
-- Tipo: Personalizada
-- Entrada: R$ 100 · 3 ciclos mensais
-- Recorrente após: R$ 389/mês
-- Expira em: (data escolhida)
-
-Gabriel entra em `/planos`, vê "Oferta especial: 3 meses por R$ 100", gera Pix de R$ 100, paga; assinatura ativa por 90 dias, depois renova em R$ 389/mês.
+- Import do CSV/planilha exportada do Kommo — será feito quando você enviar o arquivo. Nesta rodada só preparamos o pipeline Z-API → leads/conversas.
 
 ## Arquivos afetados
 
-- **Novo**: migration `tenant_custom_offers` + GRANTs + RLS
-- **Novo**: `src/pages/admin/PlanosCobrancasPage.tsx`
-- **Novo**: `src/components/admin/TenantOfferDialog.tsx`
-- **Editar**: `src/App.tsx` (rota), `src/components/admin/AppSidebar.tsx` (menu)
-- **Editar**: `src/pages/app/TenantPlans.tsx` (renderizar oferta custom)
-- **Editar**: `src/components/tenant/FounderPixCheckoutDialog.tsx` (aceitar `offer`)
-- **Editar**: `supabase/functions/mp-pix-create/index.ts` e `mp-pix-status/index.ts`
+- **Novo**: `supabase/functions/zapi-import-contacts-as-leads/index.ts`
+- **Editado**: `supabase/functions/evolution-sync-chats/index.ts` (flag `link_leads`)
+- **Editado**: `src/pages/admin/WhatsAppStatusPage.tsx` (botão + modal de importação)
 
-## Fora do escopo
-
-- Editar o `plan_catalog` global pela UI (continua via migration/seed)
-- Cobrança recorrente automática do valor custom após o período (fica com o cron de renovação já planejado; ele lê `subscriptions.amount_cents` e `current_period_end`, então funciona nativamente)
+Nenhuma migração de banco necessária — usamos as tabelas `leads` e `conversations` existentes.

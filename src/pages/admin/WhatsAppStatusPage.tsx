@@ -4,10 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   Activity, CheckCircle2, XCircle, Loader2, RefreshCw, AlertTriangle,
-  Smartphone, Search, ExternalLink, Crown, Users,
+  Smartphone, Search, ExternalLink, Crown, Users, DownloadCloud,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -54,6 +57,86 @@ export default function WhatsAppStatusPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [filter, setFilter] = useState("");
   const [bulkTesting, setBulkTesting] = useState(false);
+
+  // Import dialog state
+  const [importOpen, setImportOpen] = useState(false);
+  const [importRow, setImportRow] = useState<Row | null>(null);
+  const [importRunning, setImportRunning] = useState(false);
+  const [optCreateLeads, setOptCreateLeads] = useState(true);
+  const [optSyncChats, setOptSyncChats] = useState(true);
+  const [optWithPictures, setOptWithPictures] = useState(true);
+  const [optSyncMessages, setOptSyncMessages] = useState(true);
+  const [optMsgLimit, setOptMsgLimit] = useState(50);
+  const [optMaxChats, setOptMaxChats] = useState(500);
+  const [importResult, setImportResult] = useState<string | null>(null);
+
+  const openImportFor = (r: Row) => {
+    setImportRow(r);
+    setImportResult(null);
+    setImportOpen(true);
+  };
+
+  const runImport = async () => {
+    if (!importRow) return;
+    const tenantId = importRow.tenant.id;
+    setImportRunning(true);
+    setImportResult(null);
+    let summary: string[] = [];
+    try {
+      if (optCreateLeads) {
+        toast.info("Importando contatos como leads…");
+        const { data, error } = await supabase.functions.invoke("evolution-import-leads", {
+          body: { tenant_id: tenantId },
+        });
+        if (error) throw new Error(error.message);
+        if (data?.error) throw new Error(data.error);
+        summary.push(`${data.created} leads criados, ${data.updated} atualizados, ${data.skipped} já existiam (${data.total_contacts} contatos vistos)`);
+      }
+
+      let syncedConversationIds: string[] = [];
+      if (optSyncChats) {
+        toast.info("Sincronizando conversas abertas…");
+        const { data, error } = await supabase.functions.invoke("evolution-sync-chats", {
+          body: { tenant_id: tenantId, with_pictures: optWithPictures },
+        });
+        if (error) throw new Error(error.message);
+        if (data?.error) throw new Error(data.error);
+        summary.push(`${data.upserted ?? 0} conversas sincronizadas`);
+
+        // Fetch the conversation IDs so we can pull messages for them
+        if (optSyncMessages) {
+          let convQ = supabase.from("conversations").select("id").order("ultima_interacao", { ascending: false }).limit(optMaxChats);
+          convQ = tenantId ? convQ.eq("tenant_id", tenantId) : convQ.is("tenant_id", null);
+          const { data: convs } = await convQ;
+          syncedConversationIds = (convs ?? []).map((c: any) => c.id);
+        }
+      }
+
+      if (optSyncMessages && syncedConversationIds.length > 0) {
+        toast.info(`Baixando últimas ${optMsgLimit} mensagens de ${syncedConversationIds.length} conversas…`);
+        let ok = 0, fail = 0, totalReplayed = 0;
+        for (const cid of syncedConversationIds) {
+          try {
+            const { data, error } = await supabase.functions.invoke("evolution-sync-messages", {
+              body: { conversation_id: cid, limit: optMsgLimit },
+            });
+            if (error || data?.error) fail++;
+            else { ok++; totalReplayed += Number(data?.replayed ?? 0); }
+          } catch { fail++; }
+        }
+        summary.push(`${totalReplayed} mensagens replayadas em ${ok} conversas (${fail} falhas)`);
+      }
+
+      const msg = summary.join(" · ");
+      setImportResult(msg);
+      toast.success("Importação concluída", { description: msg });
+    } catch (e: any) {
+      setImportResult(`Erro: ${e.message}`);
+      toast.error("Falha na importação", { description: e.message });
+    } finally {
+      setImportRunning(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -228,6 +311,17 @@ export default function WhatsAppStatusPage() {
             </Link>
           </Button>
         )}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => openImportFor(r)}
+          disabled={!r.conn?.instance_name}
+          className="gap-1"
+          title="Importar contatos e conversas desta instância"
+        >
+          <DownloadCloud className="w-3.5 h-3.5" />
+          Importar
+        </Button>
         <Button size="sm" onClick={() => test(realIdx)} disabled={r.testing || !r.conn?.instance_name} className="gap-1">
           {r.testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
           Testar
@@ -362,6 +456,82 @@ export default function WhatsAppStatusPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={importOpen} onOpenChange={(v) => !importRunning && setImportOpen(v)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DownloadCloud className="w-5 h-5 text-primary" />
+              Importar contatos e conversas
+            </DialogTitle>
+            <DialogDescription>
+              {importRow?.tenant.name} · instância <span className="font-mono">{importRow?.conn?.instance_name}</span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="flex items-start justify-between gap-3 p-3 rounded-md border border-border/50 bg-muted/20">
+              <div>
+                <p className="text-sm font-medium">Criar leads a partir dos contatos</p>
+                <p className="text-xs text-muted-foreground">Cada contato do WhatsApp vira um lead do tenant (deduplica por telefone).</p>
+              </div>
+              <Switch checked={optCreateLeads} onCheckedChange={setOptCreateLeads} disabled={importRunning} />
+            </div>
+
+            <div className="flex items-start justify-between gap-3 p-3 rounded-md border border-border/50 bg-muted/20">
+              <div>
+                <p className="text-sm font-medium">Sincronizar conversas abertas</p>
+                <p className="text-xs text-muted-foreground">Traz todos os chats para o inbox e vincula ao lead correspondente.</p>
+              </div>
+              <Switch checked={optSyncChats} onCheckedChange={setOptSyncChats} disabled={importRunning} />
+            </div>
+
+            {optSyncChats && (
+              <div className="flex items-center justify-between gap-3 pl-3 text-sm">
+                <Label htmlFor="pics" className="text-xs text-muted-foreground">Baixar fotos de perfil</Label>
+                <Switch id="pics" checked={optWithPictures} onCheckedChange={setOptWithPictures} disabled={importRunning} />
+              </div>
+            )}
+
+            <div className="flex items-start justify-between gap-3 p-3 rounded-md border border-border/50 bg-muted/20">
+              <div>
+                <p className="text-sm font-medium">Sincronizar mensagens de cada conversa</p>
+                <p className="text-xs text-muted-foreground">Puxa o histórico recente de cada chat.</p>
+              </div>
+              <Switch checked={optSyncMessages} onCheckedChange={setOptSyncMessages} disabled={importRunning} />
+            </div>
+
+            {optSyncMessages && (
+              <div className="grid grid-cols-2 gap-3 pl-3">
+                <div>
+                  <Label htmlFor="msgLimit" className="text-xs text-muted-foreground">Mensagens por chat</Label>
+                  <Input id="msgLimit" type="number" min={10} max={500} value={optMsgLimit}
+                    onChange={(e) => setOptMsgLimit(Math.min(500, Math.max(10, Number(e.target.value) || 50)))}
+                    disabled={importRunning} />
+                </div>
+                <div>
+                  <Label htmlFor="maxChats" className="text-xs text-muted-foreground">Máx. conversas</Label>
+                  <Input id="maxChats" type="number" min={10} max={2000} value={optMaxChats}
+                    onChange={(e) => setOptMaxChats(Math.min(2000, Math.max(10, Number(e.target.value) || 500)))}
+                    disabled={importRunning} />
+                </div>
+              </div>
+            )}
+
+            {importResult && (
+              <div className="p-3 rounded-md border border-primary/30 bg-primary/5 text-xs">{importResult}</div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setImportOpen(false)} disabled={importRunning}>Fechar</Button>
+            <Button onClick={runImport} disabled={importRunning} className="gap-2">
+              {importRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <DownloadCloud className="w-4 h-4" />}
+              Iniciar importação
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
