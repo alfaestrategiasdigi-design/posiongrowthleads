@@ -60,7 +60,7 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoar
     try {
       const { error } = await supabase.from("leads").update(patch as any).eq("id", draggedLeadId);
       if (error) throw error;
-      toast.success(`Lead movido para "${PIPELINE_STAGES.find(c => c.id === newStatus)?.title}"`);
+      toast.success(`Lead movido para "${CLIENT_PIPELINE_STAGES.find(c => c.id === newStatus)?.title}"`);
 
       // Fire Facebook CAPI when a lead is marked as won (fire-and-forget)
       if (newStatus === "ganho" && lead.tenant_id) {
@@ -89,7 +89,7 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoar
   return (
     <>
       <div className="flex gap-3 overflow-x-auto pb-4 -mx-4 px-4">
-        {PIPELINE_STAGES.map((column) => {
+        {CLIENT_PIPELINE_STAGES.map((column) => {
           const columnLeads = getLeadsByStatus(column.id);
           const Icon = iconMap[column.id] || Inbox;
           const totalValor = columnLeads.reduce((s, l) => s + (Number(l.valor_proposta) || 0), 0);
