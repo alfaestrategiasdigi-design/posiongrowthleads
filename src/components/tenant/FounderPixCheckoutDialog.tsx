@@ -109,7 +109,7 @@ export function FounderPixCheckoutDialog({ open, onClose, onPaid, tenantId, paye
             Oferta Fundadores POSION
           </DialogTitle>
           <DialogDescription>
-            Pagamento único de <span className="font-semibold text-foreground">R$ 250</span> · Acesso vitalício
+            <span className="font-semibold text-foreground">R$ 250</span> no 1º mês · depois R$ 389/mês · cancele quando quiser
           </DialogDescription>
         </DialogHeader>
 
@@ -117,7 +117,7 @@ export function FounderPixCheckoutDialog({ open, onClose, onPaid, tenantId, paye
           <div className="py-8 text-center space-y-3">
             <CheckCircle2 className="w-14 h-14 text-emerald-400 mx-auto" />
             <div className="font-display text-2xl">Pagamento confirmado!</div>
-            <p className="text-sm text-muted-foreground">Sua clínica agora é <b>Fundadora POSION</b>. Acesso vitalício liberado.</p>
+            <p className="text-sm text-muted-foreground">Sua clínica agora é <b>Fundadora POSION</b>. 1º mês liberado — a próxima cobrança será de R$ 389 em 30 dias.</p>
           </div>
         ) : status === "expired" || status === "cancelled" ? (
           <div className="py-8 text-center space-y-3">
