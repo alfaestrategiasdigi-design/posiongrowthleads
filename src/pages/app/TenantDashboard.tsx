@@ -505,7 +505,15 @@ export default function TenantDashboard() {
                     ? (k.value < 0.15 ? "#22C55E" : k.value < 0.3 ? "#F59E0B" : "#EF4444")
                     : (k.value >= 0.3 ? "#22C55E" : k.value >= 0.15 ? "#F59E0B" : "#EF4444");
                   return (
-                    <div key={k.label} className="rounded-lg border border-border/50 bg-card/40 px-2 py-1.5">
+                    <div
+                      key={k.label}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setDrill({ key: k.key, label: k.label })}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDrill({ key: k.key, label: k.label }); } }}
+                      className="rounded-lg border border-border/50 bg-card/40 px-2 py-1.5 cursor-pointer transition hover:border-primary/60 hover:bg-card/70 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      title="Clique para ver os leads desta etapa no período"
+                    >
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground truncate cursor-help">
