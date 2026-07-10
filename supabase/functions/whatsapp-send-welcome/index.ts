@@ -34,10 +34,24 @@ Deno.serve(async (req) => {
   let body: any = {};
   try { body = await req.json(); } catch {}
   const lead_id = String(body.lead_id ?? "");
-  if (!lead_id) return json({ error: "lead_id obrigatório" }, 400);
+  if (!lead_id) {
+    console.warn("[welcome][skip] missing_lead_id", { body });
+    return json({ error: "lead_id obrigatório" }, 400);
+  }
 
   const { data: lead } = await admin.from("leads").select("*").eq("id", lead_id).maybeSingle();
-  if (!lead) return json({ error: "Lead não encontrado" }, 404);
+  if (!lead) {
+    console.warn("[welcome][skip] lead_not_found", { lead_id });
+    return json({ error: "Lead não encontrado" }, 404);
+  }
+
+  const auditBase = {
+    lead_id: lead.id,
+    tenant_id: lead.tenant_id,
+    origem: lead.origem,
+    form_id: lead.form_id ?? null,
+    created_at: lead.created_at,
+  };
 
   // Allowlist: só disparar boas-vindas para leads vindos de formulário do Facebook
   // (Lead Ads / formulários orgânicos conectados). Qualquer outra origem — incluindo
@@ -46,11 +60,27 @@ Deno.serve(async (req) => {
   const FACEBOOK_FORM_ORIGINS = new Set(["facebook_ads", "facebook_organic"]);
   const origem = String(lead.origem || "").trim().toLowerCase();
   if (!FACEBOOK_FORM_ORIGINS.has(origem)) {
-    return json({ skipped: "origem não elegível (apenas formulário do Facebook)", origem: lead.origem });
+    const reason = origem === "" ? "origem_vazia" : "origem_nao_elegivel";
+    console.info("[welcome][skip] origem_bloqueada", {
+      ...auditBase,
+      reason,
+      allowed: [...FACEBOOK_FORM_ORIGINS],
+    });
+    return json({
+      skipped: "origem não elegível (apenas formulário do Facebook)",
+      reason,
+      origem: lead.origem,
+      allowed: [...FACEBOOK_FORM_ORIGINS],
+    });
   }
 
+  console.info("[welcome][accept] origem_elegivel", auditBase);
+
   let phone = onlyDigits(lead.whatsapp);
-  if (!phone) return json({ skipped: "sem whatsapp" });
+  if (!phone) {
+    console.info("[welcome][skip] sem_whatsapp", auditBase);
+    return json({ skipped: "sem whatsapp" });
+  }
   if (phone.length === 10 || phone.length === 11) phone = "55" + phone; // BR default
 
   // Config
