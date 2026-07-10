@@ -12,6 +12,7 @@ import {
   SidebarSeparator, useSidebar,
 } from "@/components/ui/sidebar";
 import logoAsset from "@/assets/posion/logo-posion.png.asset.json";
+import UserAvatarBlock from "@/components/shared/UserAvatarBlock";
 
 import { useUserRole } from "@/hooks/useUserRole";
 
