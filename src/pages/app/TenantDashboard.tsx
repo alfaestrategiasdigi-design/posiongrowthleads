@@ -24,9 +24,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ScrollArea } from "@/components/ui/scroll-area";
 import LeadDetailModal from "@/components/admin/LeadDetailModal";
 import type { Lead as AdminLead } from "@/types/admin";
+import { computeFunnelMetrics, type FunnelAppointment } from "@/lib/funnel-metrics";
 
 interface Goal { year: number; month: number; goal_1: number; goal_2: number; goal_3: number; }
-interface LeadRow { id: string; stage: string | null; created_at: string; name: string | null; phone: string | null; }
+interface LeadRow { id: string; stage: string | null; created_at: string; name: string | null; phone: string | null; mql: boolean | null; sql_qualified: boolean | null; }
 
 const MONTHS = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
