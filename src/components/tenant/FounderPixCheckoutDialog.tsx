@@ -104,12 +104,20 @@ export function FounderPixCheckoutDialog({ open, onClose, onPaid, tenantId, paye
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md bg-[#0B1220] border-primary/30">
         <DialogHeader>
+          <div className="flex items-center gap-2 mb-2">
+            <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30">
+              1º mês R$ 250
+            </Badge>
+            <Badge variant="outline" className="text-muted-foreground border-white/10">
+              depois R$ 389/mês
+            </Badge>
+          </div>
           <DialogTitle className="flex items-center gap-2 font-display text-xl">
             <Sparkles className="w-5 h-5 text-primary" />
             Oferta Fundadores POSION
           </DialogTitle>
           <DialogDescription>
-            <span className="font-semibold text-foreground">R$ 250</span> no 1º mês · depois R$ 389/mês · cancele quando quiser
+            <span className="font-semibold text-foreground">R$ 250</span> no 1º mês · a partir do 2º mês fica <span className="font-semibold text-foreground">R$ 389/mês</span> · cancele quando quiser
           </DialogDescription>
         </DialogHeader>
 
@@ -117,7 +125,11 @@ export function FounderPixCheckoutDialog({ open, onClose, onPaid, tenantId, paye
           <div className="py-8 text-center space-y-3">
             <CheckCircle2 className="w-14 h-14 text-emerald-400 mx-auto" />
             <div className="font-display text-2xl">Pagamento confirmado!</div>
-            <p className="text-sm text-muted-foreground">Sua clínica agora é <b>Fundadora POSION</b>. 1º mês liberado — a próxima cobrança será de R$ 389 em 30 dias.</p>
+            <p className="text-sm text-muted-foreground">
+              Sua clínica agora é <b className="text-foreground">Fundadora POSION</b>.<br />
+              1º mês liberado por <b className="text-foreground">R$ 250</b>.<br />
+              A próxima cobrança será de <b className="text-foreground">R$ 389</b> em 30 dias, e continuará mensalmente até você cancelar.
+            </p>
           </div>
         ) : status === "expired" || status === "cancelled" ? (
           <div className="py-8 text-center space-y-3">
@@ -155,6 +167,9 @@ export function FounderPixCheckoutDialog({ open, onClose, onPaid, tenantId, paye
                   Copiar
                 </Button>
               </div>
+            </div>
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-100 text-center leading-relaxed">
+              <b>Atenção:</b> este Pix é referente ao <b>1º mês da oferta Fundador (R$ 250)</b>. A partir do 2º mês, o valor passa a ser <b>R$ 389/mês</b>. Você pode cancelar a qualquer momento.
             </div>
             <div className="text-[11px] text-muted-foreground text-center leading-relaxed border-t border-white/5 pt-3">
               Este Pix libera seu <b className="text-foreground">1º mês como Fundador (R$ 250)</b>.<br />
