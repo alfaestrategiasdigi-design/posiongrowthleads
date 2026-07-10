@@ -604,6 +604,10 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   // ============ Render helpers ============
   const q = searchQuery.trim().toLowerCase();
   const filteredConversations = useMemo(() => conversations.filter(c => {
+    // Oculta conversas com identificador provisório (@lid) que aguardam revisão manual.
+    // Elas ficam acessíveis apenas via LidReviewDialog para evitar aparecerem
+    // duplicadas ao lado da conversa canônica do mesmo contato.
+    if ((c as any).needs_lid_review === true) return false;
     if (q) {
       const hay = `${c.nome_contato || ""} ${c.telefone} ${c.ultima_mensagem || ""}`.toLowerCase();
       if (!hay.includes(q)) return false;
