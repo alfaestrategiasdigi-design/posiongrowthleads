@@ -173,41 +173,22 @@ export default function TenantDashboard() {
   }, [funnelRange]);
 
   const computeFunnel = (from: Date, to: Date) => {
-    const periodLeads = leads.filter((l) => {
-      if (!l.created_at) return false;
-      const d = new Date(l.created_at.length === 10 ? l.created_at + "T12:00:00" : l.created_at);
-      return d >= from && d <= to;
-    });
-    const counts: Record<string, number> = {};
-    FUNNEL_ORDER.forEach((s) => (counts[s] = 0));
-    let noShowCount = 0, perdidoCount = 0;
-    const bump = (uptoIdx: number) => { for (let i = 0; i <= uptoIdx; i++) counts[FUNNEL_ORDER[i]]++; };
-    for (const l of periodLeads) {
-      if (l.stage === "no_show") { noShowCount++; bump(FUNNEL_ORDER.indexOf("reuniao_agendada")); continue; }
-      if (l.stage === "perdido") { perdidoCount++; bump(0); continue; }
-      const idx = stageIndex(l.stage);
-      if (idx >= 0) bump(idx); else bump(0);
-    }
+    const { rates } = computeFunnelMetrics({ leads, appointments, from, to });
+    const t = rates.totals;
+    // Chart cumulativo (topo do funil = todos os leads do período)
+    const counts: Record<string, number> = {
+      lead: t.totalLeads,
+      qualificado: t.qualificados,
+      reuniao_agendada: t.agendados,
+      compareceu: t.compareceram,
+      negociacao: t.ganhos, // aproximação: sem estágio dedicado; ganho ⊆ negociação
+      ganho: t.ganhos,
+    };
     const top = counts[FUNNEL_ORDER[0]] || 1;
     const chart = FUNNEL_ORDER.map((stage, i) => ({
-      stage: FUNNEL_LABELS[stage], stageKey: stage, value: counts[stage],
-      pct: counts[stage] / top, color: FUNNEL_COLORS[i],
+      stage: FUNNEL_LABELS[stage], stageKey: stage, value: counts[stage] || 0,
+      pct: (counts[stage] || 0) / top, color: FUNNEL_COLORS[i],
     }));
-    const totalLeads = counts.lead || 0;
-    const qualificados = counts.qualificado || 0;
-    const agendados = counts.reuniao_agendada || 0;
-    const compareceram = counts.compareceu || 0;
-    const ganhos = counts.ganho || 0;
-    const decididos = compareceram + noShowCount;
-    const rates = {
-      qualificacao:  totalLeads   ? qualificados / totalLeads    : 0,
-      agendamento:   qualificados ? agendados    / qualificados  : 0,
-      comparecimento: decididos   ? compareceram / decididos     : 0,
-      fechamento:    compareceram ? ganhos       / compareceram  : 0,
-      noShow:        decididos    ? noShowCount  / decididos     : 0,
-      geral:         totalLeads   ? ganhos       / totalLeads    : 0,
-      totals: { totalLeads, qualificados, agendados, compareceram, ganhos, noShowCount, perdidoCount, decididos },
-    };
     return { chart, rates };
   };
 
