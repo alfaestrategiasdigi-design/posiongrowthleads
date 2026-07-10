@@ -226,6 +226,14 @@ export default function CampanhasPage() {
       appts[best.key] = (appts[best.key] || 0) + 1;
     };
 
+    const attributeComp = (leadId: string, ...cands: (string | null | undefined)[]) => {
+      if (seenComp.has(leadId)) return;
+      const best = matchCampaign(...cands);
+      if (!best) return;
+      seenComp.add(leadId);
+      comp[best.key] = (comp[best.key] || 0) + 1;
+    };
+
     let q1 = supabase.from("leads")
       .select("id,nome_completo,utm_campaign,facebook_campaign,facebook_form_name,valor_proposta,campaign_id_manual,tenant_id")
       .eq("status", "ganho");
