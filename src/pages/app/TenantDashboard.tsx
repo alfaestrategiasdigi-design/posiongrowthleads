@@ -1211,7 +1211,7 @@ export default function TenantDashboard() {
                 {drillLeads.map((l) => (
                   <li key={l.id}>
                     <button
-                      onClick={() => setOpenLead({ id: l.id, name: l.name || "Sem nome", phone: l.phone || "" } as AdminLead)}
+                      onClick={() => setOpenLead({ id: l.id, name: l.name || "Sem nome", phone: l.phone || "" } as unknown as AdminLead)}
                       className="w-full text-left px-2 py-2.5 hover:bg-primary/5 rounded transition flex items-center justify-between gap-3"
                     >
                       <div className="min-w-0">
