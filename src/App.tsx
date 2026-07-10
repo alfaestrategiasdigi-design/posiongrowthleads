@@ -82,6 +82,7 @@ const App = () => (
           <Route path="/app/:tenantSlug/recall" element={<Navigate to="../automacoes" replace />} />
           <Route path="/app/:tenantSlug/planos" element={<AppLayout><TenantPlans /></AppLayout>} />
           <Route path="/app/:tenantSlug/relatorios" element={<AppLayout><TenantRelatorios /></AppLayout>} />
+          <Route path="/app/:tenantSlug/perfil" element={<AppLayout><ProfilePage /></AppLayout>} />
 
           {/* Posion master admin */}
           <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
