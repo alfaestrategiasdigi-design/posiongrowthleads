@@ -39,10 +39,14 @@ Deno.serve(async (req) => {
   const { data: lead } = await admin.from("leads").select("*").eq("id", lead_id).maybeSingle();
   if (!lead) return json({ error: "Lead não encontrado" }, 404);
 
-  // Não disparar boas-vindas para leads importados (Kommo, Evolution/WhatsApp import, etc.)
-  const origem = String(lead.origem || "").toLowerCase();
-  if (origem.includes("import") || origem === "kommo" || origem === "evolution") {
-    return json({ skipped: "lead importado", origem: lead.origem });
+  // Allowlist: só disparar boas-vindas para leads vindos de formulário do Facebook
+  // (Lead Ads / formulários orgânicos conectados). Qualquer outra origem — incluindo
+  // importações (kommo_import, whatsapp_import), webhooks de conversa (whatsapp,
+  // whatsapp_cloud), automações e cadastros manuais — nunca dispara.
+  const FACEBOOK_FORM_ORIGINS = new Set(["facebook_ads", "facebook_organic"]);
+  const origem = String(lead.origem || "").trim().toLowerCase();
+  if (!FACEBOOK_FORM_ORIGINS.has(origem)) {
+    return json({ skipped: "origem não elegível (apenas formulário do Facebook)", origem: lead.origem });
   }
 
   let phone = onlyDigits(lead.whatsapp);
