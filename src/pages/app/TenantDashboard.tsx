@@ -1108,7 +1108,7 @@ function KpiPremium({ icon: Icon, label, value, delta, loading, sub, prevLabel, 
   return (
     <div
       data-no-float
-      className="premium-card relative p-5 group transition-all overflow-hidden min-w-0 rounded-2xl"
+      className="premium-card relative p-5 group transition-all overflow-hidden min-w-0 rounded-2xl h-full flex flex-col"
     >
       {/* Top accent line */}
       <div className="absolute inset-x-0 top-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(212,175,55,0.5), transparent)" }} />
