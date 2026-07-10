@@ -48,6 +48,8 @@ export default function TenantAgenda() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [loadingLead, setLoadingLead] = useState(false);
 
   async function load() {
     if (!tenant) return;
@@ -77,7 +79,23 @@ export default function TenantAgenda() {
   }
 
   const openCreate = () => { setEditingId(null); setDialogOpen(true); };
-  const openEdit = (id: string) => { setEditingId(id); setDialogOpen(true); };
+  const openAppointment = async (a: Appointment) => {
+    if (!a.lead_id) {
+      setEditingId(a.id);
+      setDialogOpen(true);
+      return;
+    }
+    setLoadingLead(true);
+    const { data, error } = await supabase.from("leads").select("*").eq("id", a.lead_id).maybeSingle();
+    setLoadingLead(false);
+    if (error || !data) {
+      toast.error("Lead vinculado não encontrado — abrindo edição do agendamento");
+      setEditingId(a.id);
+      setDialogOpen(true);
+      return;
+    }
+    setSelectedLead(data as Lead);
+  };
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-[1600px] mx-auto">
