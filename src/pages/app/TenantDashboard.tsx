@@ -566,7 +566,6 @@ export default function TenantDashboard() {
                 })}
               </div>
             </div>
-            </div>
           </TooltipProvider>
         </div>
 
