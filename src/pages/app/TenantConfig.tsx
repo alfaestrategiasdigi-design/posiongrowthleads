@@ -11,6 +11,8 @@ import { Copy, Save, Loader2, MessageCircle, CheckCircle2, Key, RefreshCw, Eye, 
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import AgendaConfigCard from "@/components/tenant/AgendaConfigCard";
+import KommoIntegrationCard from "@/components/tenant/KommoIntegrationCard";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 
@@ -24,6 +26,7 @@ interface ApiToken {
 
 export default function TenantConfig() {
   const { tenant } = useTenant();
+  const { isMaster } = useUserRole();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -380,6 +383,11 @@ export default function TenantConfig() {
 
       {/* Agenda config */}
       {tenant && <AgendaConfigCard tenantId={tenant.id} />}
+
+      {/* Kommo CRM: só para Dr Instituto Roar (ou admin master) */}
+      {tenant && (isMaster || tenant.slug === "dr-instituto-roar") && (
+        <KommoIntegrationCard tenantId={tenant.id} />
+      )}
 
       {/* Facebook CAPI: gerenciado pelo Admin Master em /admin/capi */}
     </div>
