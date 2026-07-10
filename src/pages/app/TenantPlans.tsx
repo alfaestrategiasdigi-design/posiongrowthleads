@@ -406,6 +406,15 @@ export default function TenantPlans() {
           </CardContent>
         </Card>
       </div>
+      {tenant?.id && (
+        <FounderPixCheckoutDialog
+          open={founderOpen}
+          onClose={() => { setFounderOpen(false); refresh(); }}
+          onPaid={() => { setFounderOpen(false); refresh(); }}
+          tenantId={tenant.id}
+          payerEmail={user?.email ?? undefined}
+        />
+      )}
     </div>
   );
 }
