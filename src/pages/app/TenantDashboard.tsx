@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Loader2, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Receipt, Target, Trophy, Users, Globe, AlertTriangle, CheckCircle2, Filter, LineChart as LineIcon, Activity, Medal, Bell, Info, XCircle, PartyPopper, MessageCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { SaleRow, BRL, PCT, summarize, groupSum, evaluationFunnel, weeklyBreakdown, categorize, isInternational, isEvaluation } from "@/lib/clinic-kpis";
@@ -33,6 +34,15 @@ const FUNNEL_LABELS: Record<string,string> = {
   perdido: "Perdido", no_show: "No-show",
 };
 const FUNNEL_COLORS = ["rgba(245,245,245,0.55)", "rgba(245,245,245,0.65)", "rgba(245,245,245,0.75)", "rgba(245,245,245,0.85)", "#E8C468", "#4ADE80"];
+
+const FUNNEL_DEFINITIONS: Record<string, { definition: string; formula: string }> = {
+  qualificacao:   { definition: "Leads que preencheram os critérios mínimos (ex.: dados válidos) e foram aceitos como oportunidade.", formula: "Qualificados ÷ Leads" },
+  agendamento:    { definition: "Leads qualificados que marcaram uma reunião ou consulta com sucesso.", formula: "Agendados ÷ Qualificados" },
+  comparecimento: { definition: "Reuniões agendadas em que o lead realmente compareceu.", formula: "Compareceu ÷ (Compareceu + No-show)" },
+  fechamento:     { definition: "Leads que compareceram e efetivamente fecharam a venda.", formula: "Ganho ÷ Compareceu" },
+  noShow:         { definition: "Agendamentos em que o lead faltou sem aviso prévio. Comparecimento + No-show sempre somam 100% dos agendamentos decididos.", formula: "No-show ÷ (Compareceu + No-show)" },
+  geral:          { definition: "Percentual de leads que viraram venda no período — visão geral do funil.", formula: "Ganho ÷ Leads" },
+};
 
 export default function TenantDashboard() {
   const { tenant } = useTenant();
@@ -451,33 +461,50 @@ export default function TenantDashboard() {
           </div>
 
           {/* Taxas de Conversão do Funil — versão compacta preenche espaço ao lado do gráfico */}
-          <div className="flex-1 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.06] via-transparent to-transparent p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Filter className="w-3.5 h-3.5 text-primary" />
-              <h3 className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary/90">Taxas de Conversão do Funil</h3>
+          <TooltipProvider delayDuration={120}>
+            <div className="flex-1 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.06] via-transparent to-transparent p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Filter className="w-3.5 h-3.5 text-primary" />
+                <h3 className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary/90">Taxas de Conversão do Funil</h3>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { key: "qualificacao", label: "Qualificação", value: funnelRates.qualificacao, hint: "Qualif. ÷ Leads" },
+                  { key: "agendamento", label: "Agendamento", value: funnelRates.agendamento, hint: "Agend. ÷ Qualif." },
+                  { key: "comparecimento", label: "Comparecim.", value: funnelRates.comparecimento, hint: "Comp. ÷ (Comp.+No-show)" },
+                  { key: "fechamento", label: "Fechamento", value: funnelRates.fechamento, hint: "Ganho ÷ Comp." },
+                  { key: "noShow", label: "No-show", value: funnelRates.noShow, hint: "No-show ÷ (Comp.+No-show)", invert: true },
+                  { key: "geral", label: "Conv. Geral", value: funnelRates.geral, hint: "Ganho ÷ Leads" },
+                ].map((k) => {
+                  const def = FUNNEL_DEFINITIONS[k.key];
+                  const color = k.invert
+                    ? (k.value < 0.15 ? "#22C55E" : k.value < 0.3 ? "#F59E0B" : "#EF4444")
+                    : (k.value >= 0.3 ? "#22C55E" : k.value >= 0.15 ? "#F59E0B" : "#EF4444");
+                  return (
+                    <div key={k.label} className="rounded-lg border border-border/50 bg-card/40 px-2 py-1.5">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-muted-foreground truncate cursor-help">
+                            <span title={k.label}>{k.label}</span>
+                            <Info className="w-3 h-3 opacity-60 hover:opacity-100" />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[240px] bg-[#0a0a0a] border border-primary/30 text-popover-foreground">
+                          <div className="space-y-1">
+                            <p className="font-semibold text-xs">{k.label}</p>
+                            <p className="text-[11px] leading-snug text-muted-foreground">{def.definition}</p>
+                            <div className="text-[10px] font-mono text-amber-400 pt-1">Fórmula: {def.formula}</div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                      <div className="font-display text-lg num leading-tight mt-0.5" style={{ color }}>{PCT(k.value)}</div>
+                      <div className="text-[9px] text-muted-foreground truncate" title={k.hint}>{k.hint}</div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: "Qualificação",   value: funnelRates.qualificacao,   hint: "Qualif. ÷ Leads" },
-                { label: "Agendamento",    value: funnelRates.agendamento,    hint: "Agend. ÷ Qualif." },
-                { label: "Comparecim.",    value: funnelRates.comparecimento, hint: "Comp. ÷ (Comp.+No-show)" },
-                { label: "Fechamento",     value: funnelRates.fechamento,     hint: "Ganho ÷ Comp." },
-                { label: "No-show",        value: funnelRates.noShow,         hint: "No-show ÷ (Comp.+No-show)", invert: true },
-                { label: "Conv. Geral",    value: funnelRates.geral,          hint: "Ganho ÷ Leads" },
-              ].map((k) => {
-                const color = k.invert
-                  ? (k.value < 0.15 ? "#22C55E" : k.value < 0.3 ? "#F59E0B" : "#EF4444")
-                  : (k.value >= 0.3 ? "#22C55E" : k.value >= 0.15 ? "#F59E0B" : "#EF4444");
-                return (
-                  <div key={k.label} className="rounded-lg border border-border/50 bg-card/40 px-2 py-1.5">
-                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground truncate" title={k.label}>{k.label}</div>
-                    <div className="font-display text-lg num leading-tight mt-0.5" style={{ color }}>{PCT(k.value)}</div>
-                    <div className="text-[9px] text-muted-foreground truncate" title={k.hint}>{k.hint}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          </TooltipProvider>
         </div>
 
       </div>
