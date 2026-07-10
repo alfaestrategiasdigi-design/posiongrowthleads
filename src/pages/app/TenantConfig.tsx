@@ -384,6 +384,11 @@ export default function TenantConfig() {
       {/* Agenda config */}
       {tenant && <AgendaConfigCard tenantId={tenant.id} />}
 
+      {/* Kommo CRM: só para Dr Instituto Roar (ou admin master) */}
+      {tenant && (isMaster || tenant.slug === "dr-instituto-roar") && (
+        <KommoIntegrationCard tenantId={tenant.id} />
+      )}
+
       {/* Facebook CAPI: gerenciado pelo Admin Master em /admin/capi */}
     </div>
   );
