@@ -160,7 +160,7 @@ const AppSidebar = () => {
         ))}
       </SidebarContent>
 
-      <SidebarFooter className="p-2 border-t border-sidebar-border">
+      <SidebarFooter className="p-2 border-t border-sidebar-border gap-1">
         {!collapsed && (
           <div className="px-3 py-2 mb-1 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em] text-muted-foreground/60">
             <Activity className="w-3 h-3 text-amber-400" />
@@ -169,6 +169,9 @@ const AppSidebar = () => {
             <span className="text-emerald-400">online</span>
           </div>
         )}
+        <div className="px-1">
+          <UserAvatarBlock to="/admin/perfil" collapsed={collapsed} subtitle="Meu perfil" />
+        </div>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
