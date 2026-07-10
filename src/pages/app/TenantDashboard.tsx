@@ -87,12 +87,18 @@ export default function TenantDashboard() {
     Promise.all([
       supabase.from("sales").select("*").eq("tenant_id", tenant.id).order("sale_date", { ascending: true }),
       supabase.from("monthly_goals").select("*").eq("tenant_id", tenant.id),
-      supabase.from("leads").select("id,status,created_at,name,phone").eq("tenant_id", tenant.id),
+      supabase.from("leads").select("id,status,created_at,nome_completo,whatsapp,mql,sql_qualified").eq("tenant_id", tenant.id),
       supabase.from("whatsapp_connections").select("status,instance_name").eq("tenant_id", tenant.id).maybeSingle(),
-    ]).then(([s, g, l, wa]) => {
+      supabase.from("appointments").select("id,lead_id,date_time,status").eq("tenant_id", tenant.id),
+    ]).then(([s, g, l, wa, ap]) => {
       setSales((s.data || []) as SaleRow[]);
       setGoals((g.data || []) as Goal[]);
-      setLeads(((l.data || []) as any[]).map(r => ({ id: r.id, stage: r.status, created_at: r.created_at, name: r.name, phone: r.phone })) as LeadRow[]);
+      setLeads(((l.data || []) as any[]).map(r => ({
+        id: r.id, stage: r.status, created_at: r.created_at,
+        name: r.nome_completo, phone: r.whatsapp,
+        mql: r.mql, sql_qualified: r.sql_qualified,
+      })) as LeadRow[]);
+      setAppointments(((ap.data || []) as any[]) as FunnelAppointment[]);
       const w: any = wa.data;
       if (w) {
         const connected = ["open", "connected", "CONNECTED"].includes(String(w.status || "").toLowerCase()) || w.status === "open";
