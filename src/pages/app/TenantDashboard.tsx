@@ -341,7 +341,7 @@ export default function TenantDashboard() {
 
       {/* HERO — Faturamento total + gráfico + KPIs à direita (padrão Admin Master) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-6">
+        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-6 flex flex-col">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-2 font-mono">Faturamento do período</div>
@@ -384,7 +384,7 @@ export default function TenantDashboard() {
             </div>
           ) : null}
 
-          <div className="h-32 mt-4">
+          <div className="flex-1 min-h-[220px] mt-4">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={heroTimeline} margin={{ top: 6, right: 8, bottom: 0, left: -8 }}>
                 <defs>
@@ -1103,13 +1103,8 @@ function KpiPremium({ icon: Icon, label, value, delta, loading, sub, prevLabel, 
 
   return (
     <div
-      className="relative p-5 group transition-all overflow-hidden min-w-0"
-      style={{
-        background: "linear-gradient(155deg, rgba(20,30,60,0.85) 0%, rgba(10,17,36,0.95) 100%)",
-        border: "1px solid rgba(212,175,55,0.14)",
-        borderRadius: 18,
-        boxShadow: "0 1px 0 rgba(255,255,255,0.05) inset, 0 12px 32px -16px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.02)",
-      }}
+      data-no-float
+      className="premium-card relative p-5 group transition-all overflow-hidden min-w-0 rounded-2xl"
     >
       {/* Top accent line */}
       <div className="absolute inset-x-0 top-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(212,175,55,0.5), transparent)" }} />
