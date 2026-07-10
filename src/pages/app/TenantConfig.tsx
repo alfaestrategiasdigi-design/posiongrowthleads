@@ -26,6 +26,7 @@ interface ApiToken {
 
 export default function TenantConfig() {
   const { tenant } = useTenant();
+  const { isMaster } = useUserRole();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
