@@ -530,7 +530,7 @@ export default function TenantDashboard() {
                       tabIndex={0}
                       onClick={() => setDrill({ key: k.key, label: k.label })}
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDrill({ key: k.key, label: k.label }); } }}
-                      className="rounded-lg border border-border/50 bg-card/40 px-2 py-1.5 cursor-pointer transition hover:border-primary/60 hover:bg-card/70 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="rounded-lg border border-border/50 bg-card/40 px-2 py-2 cursor-pointer transition hover:border-primary/60 hover:bg-card/70 focus:outline-none focus:ring-2 focus:ring-primary/40 h-full flex flex-col justify-between gap-1"
                       title="Clique para ver os leads desta etapa no período"
                     >
                       <Tooltip>
