@@ -11,6 +11,8 @@ import { Copy, Save, Loader2, MessageCircle, CheckCircle2, Key, RefreshCw, Eye, 
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import AgendaConfigCard from "@/components/tenant/AgendaConfigCard";
+import KommoIntegrationCard from "@/components/tenant/KommoIntegrationCard";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 
