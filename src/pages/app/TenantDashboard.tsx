@@ -340,12 +340,13 @@ export default function TenantDashboard() {
       </div>
 
       {/* HERO — Faturamento total + gráfico + KPIs à direita (padrão Admin Master) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-6">
-          <div className="flex items-start justify-between">
-            <div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:items-start">
+        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-4 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-2 font-mono">Faturamento do período</div>
-              <div className="text-4xl font-bold text-white tracking-tight">{BRL(total)}</div>
+              <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white tracking-tight break-words">{BRL(total)}</div>
+
               <div className="text-sm mt-1 text-muted-foreground">
                 {count} vendas · Ticket médio {BRL(avg)}
                 {Number.isFinite(varTotal) && (
