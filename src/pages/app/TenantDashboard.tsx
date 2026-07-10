@@ -1259,8 +1259,8 @@ export default function TenantDashboard() {
         onUpdated={() => {
           // Recarrega leads para refletir mudanças de estágio
           if (tenant) {
-            supabase.from("leads").select("id,status,created_at,name,phone").eq("tenant_id", tenant.id).then(({ data }) => {
-              setLeads(((data || []) as any[]).map((r) => ({ id: r.id, stage: r.status, created_at: r.created_at, name: r.name, phone: r.phone })));
+            supabase.from("leads").select("id,status,created_at,nome_completo,whatsapp,mql,sql_qualified").eq("tenant_id", tenant.id).then(({ data }) => {
+              setLeads(((data || []) as any[]).map((r) => ({ id: r.id, stage: r.status, created_at: r.created_at, name: r.nome_completo, phone: r.whatsapp, mql: r.mql, sql_qualified: r.sql_qualified })));
             });
           }
         }}
