@@ -1,9 +1,13 @@
-// Polls Mercado Pago for a Pix payment status and activates the
-// "POSION Fundadores" lifetime subscription when approved.
+// Polls Mercado Pago for a Pix payment and, when approved, activates the
+// tenant subscription. Uses the linked custom offer (if any) to decide the
+// recurring amount / interval, otherwise falls back to the default Fundador
+// R$ 250 → R$ 389/mês plan.
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { mpFetch } from "../_shared/mercadopago.ts";
 import { getMpAccessToken } from "../_shared/mp-token.ts";
+
+const INTERVAL_DAYS: Record<string, number> = { month: 30, quarter: 90, semester: 180 };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -36,7 +40,6 @@ Deno.serve(async (req) => {
 
     if (!slot) return json({ status: "none" });
     if (slot.status === "paid") return json({ status: "paid", paid_at: slot.paid_at });
-
     if (!slot.payment_id) return json({ status: slot.status });
 
     const accessToken = await getMpAccessToken();
@@ -45,12 +48,23 @@ Deno.serve(async (req) => {
     const payment = await mpFetch(`/v1/payments/${slot.payment_id}`, {
       method: "GET", accessToken,
     });
-
     const mpStatus = String(payment?.status || "");
 
     if (mpStatus === "approved") {
       const paidAt = payment?.date_approved || new Date().toISOString();
-      const nextChargeAt = new Date(new Date(paidAt).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      // Load linked custom offer, if any.
+      let offer: any = null;
+      if (slot.offer_id) {
+        const { data } = await admin.from("tenant_custom_offers")
+          .select("*").eq("id", slot.offer_id).maybeSingle();
+        offer = data;
+      }
+
+      const intervalKey = (offer?.interval as string) || "month";
+      const cycles = Number(offer?.entry_cycles ?? 1);
+      const days = (INTERVAL_DAYS[intervalKey] ?? 30) * cycles;
+      const nextChargeAt = new Date(new Date(paidAt).getTime() + days * 86400_000).toISOString();
 
       await admin.from("founder_slots").update({
         status: "paid",
@@ -59,22 +73,34 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       }).eq("tenant_id", tenant_id);
 
-      // Founder = monthly recurring subscription; first month is the R$ 250 promo,
-      // from the 2nd month on the regular mensality of R$ 389 kicks in.
-      const { data: plan } = await admin.from("plan_catalog")
-        .select("*").eq("lookup_key", "posion_founder_v1").maybeSingle();
+      // Choose subscription amount / plan_code
+      let recurringAmount = 38900; // default Fundador R$ 389/mês
+      let planCode = "posion_founder";
+      let lookupKey: string | null = "posion_founder_v1";
+      let isFounder = true;
+
+      if (offer) {
+        recurringAmount = Number(offer.recurring_amount_cents);
+        planCode = offer.kind === "founder" ? "posion_founder" : `custom:${offer.id}`;
+        lookupKey = offer.kind === "founder" ? "posion_founder_v1" : null;
+        isFounder = offer.kind === "founder";
+      } else {
+        const { data: plan } = await admin.from("plan_catalog")
+          .select("*").eq("lookup_key", "posion_founder_v1").maybeSingle();
+        recurringAmount = (plan as any)?.amount_cents ?? 38900;
+      }
 
       await admin.from("subscriptions").upsert({
         tenant_id,
-        plan_code: "posion_founder",
-        interval: "month",
-        lookup_key: "posion_founder_v1",
+        plan_code: planCode,
+        interval: intervalKey,
+        lookup_key: lookupKey,
         provider: "mercadopago",
         mp_payer_email: slot.payer_email,
         status: "active",
-        is_founder: true,
-        amount_cents: (plan as any)?.amount_cents ?? 38900,
-        currency: (plan as any)?.currency ?? "brl",
+        is_founder: isFounder,
+        amount_cents: recurringAmount,
+        currency: "brl",
         current_period_end: nextChargeAt,
         environment: "live",
         updated_at: new Date().toISOString(),
@@ -83,7 +109,7 @@ Deno.serve(async (req) => {
       await admin.from("subscription_invoices").insert({
         tenant_id,
         mp_payment_id: String(slot.payment_id),
-        amount_paid_cents: Math.round(Number(payment?.transaction_amount ?? 250) * 100),
+        amount_paid_cents: Math.round(Number(payment?.transaction_amount ?? (slot.amount_cents / 100)) * 100),
         currency: (payment?.currency_id || "brl").toString().toLowerCase(),
         status: "approved",
         paid_at: paidAt,
@@ -101,7 +127,6 @@ Deno.serve(async (req) => {
       return json({ status: "cancelled" });
     }
 
-    // Expired?
     if (slot.expires_at && new Date(slot.expires_at as string).getTime() < Date.now()) {
       await admin.from("founder_slots").update({
         status: "expired",

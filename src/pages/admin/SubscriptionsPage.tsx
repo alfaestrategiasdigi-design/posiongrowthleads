@@ -9,9 +9,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Pencil, CreditCard, Ban, RefreshCw, CheckCircle2, FileText, Sparkles, Layers, ExternalLink, Copy, Settings2, ShieldCheck, AlertCircle } from "lucide-react";
+import { Loader2, Pencil, CreditCard, Ban, RefreshCw, CheckCircle2, FileText, Sparkles, Layers, ExternalLink, Copy, Settings2, ShieldCheck, AlertCircle, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { GenerateLinkCard } from "@/components/admin/GenerateLinkCard";
+import { TenantOfferDialog } from "@/components/admin/TenantOfferDialog";
 
 interface Plan {
   id: string; code: string; interval: string; name: string; description: string | null;
@@ -67,25 +68,33 @@ export default function SubscriptionsPage() {
   const [selectedPayerEmail, setSelectedPayerEmail] = useState<string>("");
   const [busy, setBusy] = useState(false);
 
+  const [offerTenant, setOfferTenant] = useState<Tenant | null>(null);
+  const [offerTick, setOfferTick] = useState(0);
+  const [offerMap, setOfferMap] = useState<Map<string, { label: string; entry_amount_cents: number; recurring_amount_cents: number; active: boolean }>>(new Map());
+
   const [validating, setValidating] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
-    const [planRes, tenantRes, subRes, invRes, cfgRes] = await Promise.all([
+    const [planRes, tenantRes, subRes, invRes, cfgRes, offersRes] = await Promise.all([
       supabase.from("plan_catalog").select("*").order("sort_order"),
       supabase.from("tenants").select("id,slug,name,plan,status").order("name"),
       supabase.from("subscriptions").select("*").order("created_at", { ascending: false }),
       supabase.from("subscription_invoices").select("*").order("paid_at", { ascending: false, nullsFirst: false }).limit(100),
       supabase.from("payment_provider_config").select("account_email,account_id,account_site,webhook_url,last_validated_at,last_validation_result,public_key").eq("provider", "mercadopago").maybeSingle(),
+      (supabase as any).from("tenant_custom_offers").select("tenant_id,label,entry_amount_cents,recurring_amount_cents,active"),
     ]);
     setPlans((planRes.data || []) as Plan[]);
     setTenants((tenantRes.data || []) as Tenant[]);
     setSubs((subRes.data || []) as Sub[]);
     setInvoices((invRes.data || []) as Invoice[]);
     setMpConfig((cfgRes.data as any) || null);
+    const m = new Map<string, any>();
+    for (const o of (offersRes.data || []) as any[]) m.set(o.tenant_id, o);
+    setOfferMap(m);
     setLoading(false);
   };
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => { refresh(); }, [offerTick]);
 
   const subByTenant = useMemo(() => {
     const map = new Map<string, Sub>();
@@ -314,6 +323,7 @@ export default function SubscriptionsPage() {
                         <TableHead>Clínica</TableHead>
                         <TableHead>Plano</TableHead>
                         <TableHead>Valor</TableHead>
+                        <TableHead>Oferta</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Próxima cobrança</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
@@ -322,6 +332,7 @@ export default function SubscriptionsPage() {
                     <TableBody>
                       {tenants.map((t) => {
                         const sub = subByTenant.get(t.id);
+                        const offer = offerMap.get(t.id);
                         return (
                           <TableRow key={t.id}>
                             <TableCell>
@@ -340,12 +351,22 @@ export default function SubscriptionsPage() {
                               {sub?.amount_cents ? BRL(sub.amount_cents, sub.currency || "brl") : "—"}
                             </TableCell>
                             <TableCell>
+                              {offer ? (
+                                <Badge className={offer.active ? "bg-amber-500/15 text-amber-300 border border-amber-500/30" : "bg-white/5 text-muted-foreground border border-white/10"}>
+                                  {offer.label} · {BRL(offer.entry_amount_cents)} → {BRL(offer.recurring_amount_cents)}
+                                </Badge>
+                              ) : <span className="text-xs text-muted-foreground italic">—</span>}
+                            </TableCell>
+                            <TableCell>
                               {sub ? <Badge className={STATUS_BADGE[sub.status] || ""}>{sub.status}</Badge> : <Badge variant="outline">—</Badge>}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
                               {sub?.current_period_end ? new Date(sub.current_period_end).toLocaleDateString("pt-BR") : "—"}
                             </TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right space-x-1.5">
+                              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setOfferTenant(t)}>
+                                <Tag className="w-3.5 h-3.5" /> Oferta
+                              </Button>
                               <Button size="sm" variant="outline" className="gap-1.5" onClick={() => openTenantActions(t)}>
                                 <CreditCard className="w-3.5 h-3.5" /> Gerenciar
                               </Button>
@@ -622,6 +643,12 @@ export default function SubscriptionsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <TenantOfferDialog
+        tenant={offerTenant}
+        open={!!offerTenant}
+        onClose={() => { setOfferTenant(null); setOfferTick((n) => n + 1); }}
+      />
     </div>
   );
 }

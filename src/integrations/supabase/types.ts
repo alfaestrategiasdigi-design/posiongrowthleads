@@ -1491,6 +1491,7 @@ export type Database = {
           expires_at: string | null
           id: string
           next_charge_at: string | null
+          offer_id: string | null
           paid_at: string | null
           payer_email: string | null
           payment_id: string | null
@@ -1507,6 +1508,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           next_charge_at?: string | null
+          offer_id?: string | null
           paid_at?: string | null
           payer_email?: string | null
           payment_id?: string | null
@@ -1523,6 +1525,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           next_charge_at?: string | null
+          offer_id?: string | null
           paid_at?: string | null
           payer_email?: string | null
           payment_id?: string | null
@@ -1534,6 +1537,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "founder_slots_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_custom_offers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "founder_slots_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -3278,6 +3288,65 @@ export type Database = {
             foreignKeyName: "tenant_capi_config_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_custom_offers: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          description: string | null
+          entry_amount_cents: number
+          entry_cycles: number
+          expires_at: string | null
+          id: string
+          interval: string
+          kind: string
+          label: string
+          recurring_amount_cents: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          entry_amount_cents: number
+          entry_cycles?: number
+          expires_at?: string | null
+          id?: string
+          interval?: string
+          kind?: string
+          label?: string
+          recurring_amount_cents: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          entry_amount_cents?: number
+          entry_cycles?: number
+          expires_at?: string | null
+          id?: string
+          interval?: string
+          kind?: string
+          label?: string
+          recurring_amount_cents?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_custom_offers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
