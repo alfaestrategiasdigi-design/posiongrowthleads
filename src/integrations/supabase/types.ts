@@ -1484,6 +1484,62 @@ export type Database = {
         }
         Relationships: []
       }
+      founder_slots: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          expires_at: string | null
+          id: string
+          paid_at: string | null
+          payer_email: string | null
+          payment_id: string | null
+          qr_code_base64: string | null
+          qr_code_text: string | null
+          status: string
+          tenant_id: string
+          ticket_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_cents?: number
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          paid_at?: string | null
+          payer_email?: string | null
+          payment_id?: string | null
+          qr_code_base64?: string | null
+          qr_code_text?: string | null
+          status?: string
+          tenant_id: string
+          ticket_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          paid_at?: string | null
+          payer_email?: string | null
+          payment_id?: string | null
+          qr_code_base64?: string | null
+          qr_code_text?: string | null
+          status?: string
+          tenant_id?: string
+          ticket_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "founder_slots_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invites: {
         Row: {
           created_at: string
@@ -3740,6 +3796,7 @@ export type Database = {
     }
     Functions: {
       _internal_dispatch_headers: { Args: never; Returns: Json }
+      count_founder_slots_taken: { Args: never; Returns: number }
       current_tenant_ids: { Args: never; Returns: string[] }
       get_facebook_config_meta: {
         Args: never

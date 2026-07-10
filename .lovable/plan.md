@@ -1,75 +1,82 @@
-## Diagnóstico
 
-**1. KPIs de conversão errados (Agendamento, Comparecimento, No-show)**
-
-O painel de Taxas do dashboard hoje só olha `leads.status`. Mas os eventos reais de agendamento e comparecimento vivem na tabela `appointments` (status: `agendado`, `realizado`, `no_show`, `cancelado`). O `leads.status` só é promovido para `reuniao_agendada` / `compareceu` quando o lead ainda está em `lead` ou `qualificado` (ver `AppointmentDialog.tsx` linhas 177‑182). Se o lead já estava em `negociacao` ou pulou etapas, o status nunca é atualizado — por isso Agendamento/Comparecimento aparecem 0.0% mesmo com reuniões cadastradas. O módulo Relatórios (`src/lib/relatorios/aggregators.ts`) já faz certo lendo `appointments`.
-
-**Qualificação** também está incompleta: hoje só conta `status = qualificado`, ignorando os leads com flags `mql`/`sql_qualified` (que os Relatórios usam).
-
-**2. Fonte única, replicada em vários locais**
-
-As definições precisam ficar iguais no TenantDashboard, no Kanban (contador de cards por etapa) e no `KpiSummary` dos Relatórios, senão o usuário vê números diferentes para a mesma métrica.
-
-**3. Espaço vazio no layout**
-
-No hero em desktop (≥1024px) a coluna direita empilha 3 KpiPremium + painel de Taxas, ficando bem mais alta que o gráfico à esquerda. O `items-start` na grid e o `flex-1` do painel não conseguem esticar o gráfico. Em 320/768px o painel de Taxas fica esmagado em 3 colunas.
+## Objetivo
+Criar uma oferta única "POSION Fundadores" de **R$ 250 vitalício**, limitada aos **10 primeiros clientes**, com checkout **Pix transparente** (QR Code + copia-e-cola gerado dentro da própria página, sem sair para o Mercado Pago). E entregar a mensagem pronta pra você mandar no WhatsApp do Matheus (Instituto Roar) e do Gabriel Lourenço.
 
 ---
 
-## Plano
+## 1. Banco de dados (migration)
 
-### A. Corrigir e unificar o cálculo das taxas
-
-Criar `src/lib/funnel-metrics.ts` com uma função pura:
+Nova tabela `founder_slots` para controlar o limite de 10 vagas:
 
 ```
-computeFunnelMetrics({ leads, appointments, from, to })
-  → { totalLeads, qualificados, agendados, compareceram, noShow, ganhos, decididos, rates }
+founder_slots
+- id uuid pk
+- tenant_id uuid (fk tenants) unique
+- payment_id text                (id do pagamento Pix no MP)
+- status text ('pending'|'paid'|'expired'|'cancelled')
+- amount_cents int default 25000
+- qr_code_base64 text
+- qr_code_text text              (copia-e-cola)
+- ticket_url text
+- expires_at timestamptz
+- paid_at timestamptz
+- created_at / updated_at
 ```
 
-Regras (mesmas do Relatórios, agora oficializadas):
++ GRANTs (`authenticated` só lê o próprio tenant; `service_role` full).
++ RLS: tenant vê o próprio; admin vê tudo.
++ Função `count_founder_slots_taken()` → `SELECT count(*) WHERE status IN ('paid','pending' com expires_at > now())`.
++ Extensão em `subscriptions`: aceitar `interval = 'lifetime'` e `plan_code = 'posion_founder'`.
++ Registro em `plan_catalog`: `posion_founder / R$250 / interval=lifetime / lookup_key=posion_founder_v1`.
 
-| Métrica | Numerador | Denominador |
-|---|---|---|
-| Qualificação | leads com `mql`, `sql_qualified` ou status ∈ {qualificado, reuniao_agendada, compareceu, negociacao, ganho} (criados no período) | leads criados no período |
-| Agendamento | leads distintos com pelo menos 1 appointment (status ≠ cancelado) cuja `date_time` cai no período | qualificados |
-| Comparecimento | appointments com status `realizado` ou `compareceu` no período | compareceram + no_show do período |
-| No-show | appointments com status `no_show`/`faltou` no período | compareceram + no_show do período |
-| Fechamento | leads com `status = ganho` criados no período | compareceram |
-| Conv. Geral | leads com `status = ganho` criados no período | leads criados no período |
+## 2. Edge functions
 
-Isso resolve o caso reportado: os appointments existentes passam a contar mesmo sem promover `leads.status`.
+**`mp-pix-create`** (nova) — recebe `tenant_id`, valida:
+- tenant tem acesso, ainda não pagou o Founder;
+- restam vagas (`count < 10`);
+- chama `POST /v1/payments` do MP com `payment_method_id: 'pix'`, `transaction_amount: 250`, `payer.email`, `description: 'POSION Fundadores — Acesso Vitalício'`, `notification_url` (webhook), `date_of_expiration` (+30 min);
+- persiste em `founder_slots` (status=`pending`, qr_code, qr_code_text, ticket_url, expires_at);
+- retorna `{ qr_code_base64, qr_code_text, ticket_url, expires_at, payment_id }`.
 
-### B. Aplicar a nova fonte em todos os locais
+**`mp-pix-status`** (nova) — polling: recebe `payment_id`, chama `GET /v1/payments/{id}`, se `status=approved` marca `founder_slots.status='paid'` + cria `subscriptions` com `status='active'`, `interval='lifetime'`, `current_period_end=NULL` (vitalício) + grava `subscription_invoices`. Retorna status atualizado.
 
-1. **`src/pages/app/TenantDashboard.tsx`**
-   - Buscar `appointments` do tenant (`id, lead_id, date_time, status`) além dos leads/vendas.
-   - Substituir `computeFunnel` interno pela função nova, tanto para o período atual quanto para o período anterior (o comparativo "vs" continua funcionando).
-   - Atualizar `STAGE_SETS` do drill-down: Agendamento e Comparecimento passam a listar leads via `appointment.lead_id`; No-show idem.
+**`mp-webhook`** (existente) — estender para reconhecer pagamentos Pix cujo `external_reference` seja `founder:<tenant_id>`; mesma lógica de ativação (idempotente com `mp-pix-status`).
 
-2. **`src/components/admin/KanbanBoard.tsx`** — verificar o contador exibido em cada coluna do funil e alinhar rótulos e agrupamento com o mesmo mapa de estágios.
+## 3. Frontend — `src/pages/app/TenantPlans.tsx`
 
-3. **`src/components/relatorios/KpiSummary.tsx`** e `src/lib/relatorios/aggregators.ts` — apontar para a mesma função nova para garantir paridade (o cálculo já é equivalente; ficará DRY).
+- Buscar `founder_slots` (vagas restantes) + status próprio do tenant.
+- Novo componente destaque no topo: **card "Oferta Fundadores"** dourado, mostrando:
+  - "Últimas X de 10 vagas"
+  - "R$ 250 — pagamento único, acesso vitalício"
+  - Lista curta de benefícios (mesma do Pro + selo Fundador)
+  - Botão **"Gerar Pix agora"**
+- Ao clicar → abre modal `<FounderPixCheckoutDialog>`:
+  - chama `mp-pix-create`;
+  - exibe QR Code (`<img src={data:image/png;base64,...}>`), campo copia-e-cola com botão "Copiar", contagem regressiva até expirar;
+  - faz polling `mp-pix-status` a cada 4s;
+  - quando `paid` → confete + "Pagamento confirmado! Bem-vindo, Fundador." e fecha modal, refresh da página.
+- Se tenant já é fundador → card mostra selo "Você é Fundador POSION" (sem CTA).
+- Se vagas esgotadas → card mostra "Vagas esgotadas" e some o CTA, mantendo o catálogo mensal/tri/semestral abaixo.
 
-4. **`src/pages/admin/Dashboard.tsx`** — auditoria: se listar as mesmas taxas para o admin master, usar a mesma função somando por tenant.
+## 4. Mensagem para WhatsApp (retorno no chat)
 
-### C. Reorganizar o hero para eliminar espaço vazio (todos breakpoints)
+Depois de aplicar, respondo aqui no chat com o texto pronto pra copiar/colar, algo como:
 
-- **≥1024px**: mover o painel "Taxas de Conversão do Funil" para uma linha **full‑width abaixo do hero**. O hero fica em 2 colunas balanceadas (gráfico ~ 3 KPIs), sem sobra vertical. A linha das taxas usa `grid-cols-6` para as 6 métricas em uma faixa horizontal.
-- **768px (tablet)**: `grid-cols-3` para as 6 taxas em 2 linhas, KpiPremium em `grid-cols-3` acima do gráfico.
-- **<640px (mobile, 320px)**: tudo em `grid-cols-2` para as taxas (3 linhas × 2), KpiPremium 1 coluna. Remover `flex-1`/`h-full` que geram caixa vazia em stack.
-- Adicionar `items-stretch` na grid do hero e usar `h-full` nos cards para as colunas empatarem quando ainda houver 2 colunas.
+> "Fala, Matheus / Gabriel! Tô finalizando as conexões da plataforma pra deixar tudo rodando 100% até segunda-feira. Como combinado, o investimento pra travar o acesso é **R$ 250 (pagamento único, vitalício — condição de Fundador POSION, só pros 10 primeiros)**. Entra no seu painel em **Planos → Oferta Fundadores → Gerar Pix agora**, paga pelo QR Code que aparece na tela e me sinaliza aqui assim que efetuar. Assim que cair, libero as automações e a gente sobe tudo pra segunda. 🚀"
 
-Depois de aplicar, validar via Playwright headless nos 4 breakpoints (320, 768, 1024, 1440) tirando screenshot e confirmando visualmente ausência de espaço vazio.
+## Detalhes técnicos
 
-### D. Rótulos e tooltips coerentes
+- Todos os edge functions usam `getMpAccessToken()` de `_shared/mp-token.ts` (já existe).
+- CORS + `verify_jwt = true` (usa Authorization do usuário) nas funções `mp-pix-create` e `mp-pix-status`.
+- Polling client-side com `setInterval` + AbortController; para em `paid|expired|cancelled` ou ao fechar modal.
+- Idempotência: `mp-pix-create` só cria novo Pix se o `founder_slot` do tenant estiver `expired`/inexistente. Se `pending` válido → retorna o QR existente.
+- `subscriptions.interval = 'lifetime'` já é aceito (coluna `text`); ajustar `TenantPlans` para exibir "Vitalício" quando esse valor aparecer.
+- Sem quebra dos planos mensais/tri/sem: continuam abaixo, o Founder é o card destaque.
 
-Atualizar os tooltips já existentes de cada taxa para refletir a nova fórmula (ex.: Agendamento agora é "Leads com reunião marcada ÷ Qualificados", Comparecimento "Appointments realizados ÷ (Realizados + No-show)").
-
----
-
-## Fora do escopo
-
-- Não vou mudar como `AppointmentDialog` promove `leads.status` (mantém compatibilidade com Kanban).
-- Não vou tocar em regras de qualificação (`mql`/`sql_qualified`) — só passar a considerá‑las.
-- Não vou mexer em vendas/faturamento/meta.
+## Arquivos que serão criados/alterados
+- migration nova (`founder_slots` + grants + rls + plan_catalog insert)
+- `supabase/functions/mp-pix-create/index.ts` (novo)
+- `supabase/functions/mp-pix-status/index.ts` (novo)
+- `supabase/functions/mp-webhook/index.ts` (estender)
+- `src/components/tenant/FounderPixCheckoutDialog.tsx` (novo)
+- `src/pages/app/TenantPlans.tsx` (card destaque + integração)

@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTenant } from "@/hooks/useTenant";
 import { supabase } from "@/integrations/supabase/client";
-import { Check, Sparkles, Loader2, ShieldCheck, FileText, CreditCard, RefreshCw, ExternalLink, Users } from "lucide-react";
+import { Check, Sparkles, Loader2, ShieldCheck, FileText, CreditCard, RefreshCw, ExternalLink, Users, Crown, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { FounderPixCheckoutDialog } from "@/components/tenant/FounderPixCheckoutDialog";
 
 const REFERENCE_MONTHLY_CENTS = 45000; // R$ 450/mês (valor de referência para ancoragem)
+const FOUNDER_LIMIT = 10;
 
 const PLAN_META = {
   tagline: "Tudo do POSION em um único plano — usuários ilimitados",
@@ -49,18 +51,25 @@ export default function TenantPlans() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [founderSlot, setFounderSlot] = useState<any>(null);
+  const [founderTaken, setFounderTaken] = useState(0);
+  const [founderOpen, setFounderOpen] = useState(false);
 
   const refresh = async () => {
     if (!tenant?.id) return;
     setLoading(true);
-    const [subRes, invRes, planRes] = await Promise.all([
+    const [subRes, invRes, planRes, slotRes, takenRes] = await Promise.all([
       supabase.from("subscriptions").select("*").eq("tenant_id", tenant.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("subscription_invoices").select("*").eq("tenant_id", tenant.id).order("paid_at", { ascending: false, nullsFirst: false }).limit(10),
       supabase.from("plan_catalog").select("*").eq("active", true).order("sort_order"),
+      supabase.from("founder_slots").select("*").eq("tenant_id", tenant.id).maybeSingle(),
+      supabase.rpc("count_founder_slots_taken"),
     ]);
     setSub(subRes.data);
     setInvoices(invRes.data || []);
     setPlans((planRes.data || []) as Plan[]);
+    setFounderSlot(slotRes.data);
+    setFounderTaken(Number(takenRes.data ?? 0));
     setLoading(false);
   };
   useEffect(() => { refresh(); }, [tenant?.id]);
@@ -127,6 +136,84 @@ export default function TenantPlans() {
           </div>
           <Button variant="outline" onClick={refresh} className="gap-2"><RefreshCw className="w-4 h-4" /> Atualizar</Button>
         </div>
+
+        {(() => {
+          const isFounder = founderSlot?.status === "paid" || sub?.plan_code === "posion_founder";
+          const remaining = Math.max(0, FOUNDER_LIMIT - founderTaken);
+          const soldOut = remaining <= 0 && !isFounder;
+          return (
+            <Card className="relative overflow-visible border-primary/50 bg-gradient-to-br from-[#1a1305] via-[#0E1730] to-[#0B1220]">
+              <div className="absolute -top-3 left-6 text-[10px] uppercase tracking-widest bg-primary text-primary-foreground px-2.5 py-1 rounded shadow-lg z-10 flex items-center gap-1">
+                <Crown className="w-3 h-3" /> Oferta Fundadores
+              </div>
+              <CardHeader className="pt-10 pb-4">
+                <div className="flex items-start justify-between gap-6 flex-wrap">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
+                      <Crown className="w-6 h-6 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <CardTitle className="text-2xl">POSION Fundadores <span className="text-primary">— Vitalício</span></CardTitle>
+                      <p className="text-sm text-muted-foreground">Pagamento único · acesso para sempre · apenas 10 primeiros clientes</p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Investimento</div>
+                    <div className="font-display text-3xl tabular-nums leading-tight">
+                      R$ 250<span className="text-sm text-muted-foreground"> único</span>
+                    </div>
+                    <div className="text-[10px] text-primary/90 mt-1">acesso vitalício · sem mensalidade</div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+                  {[
+                    "Todos os recursos POSION Pro",
+                    "Usuários ilimitados",
+                    "Acesso vitalício — nunca mais paga mensalidade",
+                    "Selo de Fundador POSION",
+                    "Suporte prioritário direto",
+                    "Novidades lançadas em primeira mão",
+                  ].map((f) => (
+                    <li key={f} className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-white/10">
+                  <div className="flex items-center gap-2 text-xs">
+                    <Zap className="w-4 h-4 text-primary" />
+                    {isFounder ? (
+                      <span className="text-emerald-300 font-medium">Você já é Fundador POSION ✓</span>
+                    ) : soldOut ? (
+                      <span className="text-rose-300">Todas as 10 vagas foram preenchidas</span>
+                    ) : (
+                      <span className="text-primary/90">Restam {remaining} de {FOUNDER_LIMIT} vagas</span>
+                    )}
+                  </div>
+                  {isFounder ? (
+                    <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      Acesso vitalício ativo
+                    </Badge>
+                  ) : (
+                    <Button
+                      size="lg"
+                      className="gap-2"
+                      disabled={soldOut}
+                      onClick={() => setFounderOpen(true)}
+                    >
+                      <Zap className="w-4 h-4" /> Gerar Pix agora — R$ 250
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
+
 
         {hasActiveSub && (
           <Card className="bg-[#0E1730] border-primary/30">
@@ -319,6 +406,15 @@ export default function TenantPlans() {
           </CardContent>
         </Card>
       </div>
+      {tenant?.id && (
+        <FounderPixCheckoutDialog
+          open={founderOpen}
+          onClose={() => { setFounderOpen(false); refresh(); }}
+          onPaid={() => { setFounderOpen(false); refresh(); }}
+          tenantId={tenant.id}
+          payerEmail={user?.email ?? undefined}
+        />
+      )}
     </div>
   );
 }
