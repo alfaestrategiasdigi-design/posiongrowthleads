@@ -163,23 +163,23 @@ export default function TenantAgenda() {
   );
 }
 
-function ApptChip({ a, onEdit }: { a: Appointment; onEdit: (id: string) => void }) {
+function ApptChip({ a, onOpen }: { a: Appointment; onOpen: (a: Appointment) => void }) {
   const s = STATUS_COLORS[a.status] || STATUS_COLORS.agendado;
   const time = new Date(a.date_time).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   return (
     <button
       type="button"
-      onClick={(e) => { e.stopPropagation(); onEdit(a.id); }}
+      onClick={(e) => { e.stopPropagation(); onOpen(a); }}
       className="w-full text-left text-[10px] rounded px-1.5 py-0.5 truncate hover:brightness-125 transition"
       style={{ background: s.bg, color: s.fg, borderLeft: `2px solid ${s.fg}` }}
-      title={`${time} · ${a.client_name} · ${s.label} — clique para editar`}
+      title={`${time} · ${a.client_name} · ${s.label} — clique para abrir o lead`}
     >
       <span className="font-semibold">{time}</span> {a.client_name}
     </button>
   );
 }
 
-function MonthView({ cursor, byDay, onEdit }: { cursor: Date; byDay: Map<string, Appointment[]>; onEdit: (id: string) => void }) {
+function MonthView({ cursor, byDay, onOpen }: { cursor: Date; byDay: Map<string, Appointment[]>; onOpen: (a: Appointment) => void }) {
   const first = startOfMonth(cursor);
   const start = startOfWeek(first);
   const days = Array.from({ length: 42 }, (_, i) => addDays(start, i));
@@ -197,7 +197,7 @@ function MonthView({ cursor, byDay, onEdit }: { cursor: Date; byDay: Map<string,
             <div key={i} className={"min-h-[92px] rounded-md p-1.5 border " + (inMonth ? "bg-card border-border" : "bg-muted/20 border-transparent opacity-50")}>
               <div className={"text-[11px] font-semibold mb-1 " + (sameDay(d, today) ? "text-primary" : "text-foreground")}>{d.getDate()}</div>
               <div className="space-y-0.5">
-                {items.slice(0, 3).map((a) => <ApptChip key={a.id} a={a} onEdit={onEdit} />)}
+                {items.slice(0, 3).map((a) => <ApptChip key={a.id} a={a} onOpen={onOpen} />)}
                 {items.length > 3 && <div className="text-[10px] text-muted-foreground">+{items.length - 3} mais</div>}
               </div>
             </div>
@@ -208,7 +208,7 @@ function MonthView({ cursor, byDay, onEdit }: { cursor: Date; byDay: Map<string,
   );
 }
 
-function WeekView({ cursor, byDay, onEdit }: { cursor: Date; byDay: Map<string, Appointment[]>; onEdit: (id: string) => void }) {
+function WeekView({ cursor, byDay, onOpen }: { cursor: Date; byDay: Map<string, Appointment[]>; onOpen: (a: Appointment) => void }) {
   const start = startOfWeek(cursor);
   return (
     <div className="grid grid-cols-7 gap-2">
@@ -217,7 +217,7 @@ function WeekView({ cursor, byDay, onEdit }: { cursor: Date; byDay: Map<string, 
         return (
           <div key={d.toISOString()} className="border border-border rounded-md p-2 min-h-[300px]">
             <div className="text-xs font-semibold mb-2">{WEEKDAYS[d.getDay()]} {d.getDate()}</div>
-            <div className="space-y-1">{items.map((a) => <ApptChip key={a.id} a={a} onEdit={onEdit} />)}</div>
+            <div className="space-y-1">{items.map((a) => <ApptChip key={a.id} a={a} onOpen={onOpen} />)}</div>
           </div>
         );
       })}
@@ -225,7 +225,7 @@ function WeekView({ cursor, byDay, onEdit }: { cursor: Date; byDay: Map<string, 
   );
 }
 
-function DayView({ day, items, onEdit }: { day: Date; items: Appointment[]; onEdit: (id: string) => void }) {
+function DayView({ day, items, onOpen }: { day: Date; items: Appointment[]; onOpen: (a: Appointment) => void }) {
   return (
     <div>
       <div className="text-sm font-semibold mb-3">{day.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}</div>
@@ -238,7 +238,7 @@ function DayView({ day, items, onEdit }: { day: Date; items: Appointment[]; onEd
             <button
               key={a.id}
               type="button"
-              onClick={() => onEdit(a.id)}
+              onClick={() => onOpen(a)}
               className="w-full text-left flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-muted/40 transition"
             >
               <div className="text-sm font-mono w-14">{t.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</div>
