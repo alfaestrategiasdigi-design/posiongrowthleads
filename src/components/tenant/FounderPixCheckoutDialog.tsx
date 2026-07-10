@@ -6,12 +6,23 @@ import { Loader2, Copy, CheckCircle2, Clock, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+export interface OfferInfo {
+  id: string;
+  label: string;
+  entry_amount_cents: number;
+  recurring_amount_cents: number;
+  entry_cycles: number;
+  interval: "month" | "quarter" | "semester";
+  description?: string | null;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
   onPaid: () => void;
   tenantId: string;
   payerEmail?: string;
+  offer?: OfferInfo | null;
 }
 
 interface PixData {
@@ -23,13 +34,28 @@ interface PixData {
   status: string;
 }
 
-export function FounderPixCheckoutDialog({ open, onClose, onPaid, tenantId, payerEmail }: Props) {
+const BRL = (cents: number) =>
+  (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const intervalLabel = (i: string) =>
+  i === "semester" ? "semestre" : i === "quarter" ? "trimestre" : "mês";
+
+export function FounderPixCheckoutDialog({ open, onClose, onPaid, tenantId, payerEmail, offer }: Props) {
   const [loading, setLoading] = useState(false);
   const [pix, setPix] = useState<PixData | null>(null);
   const [status, setStatus] = useState<"idle" | "pending" | "paid" | "expired" | "cancelled" | "error">("idle");
   const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(Date.now());
   const pollRef = useRef<number | null>(null);
+
+  const entryAmount = offer?.entry_amount_cents ?? 25000;
+  const recurringAmount = offer?.recurring_amount_cents ?? 38900;
+  const cycles = offer?.entry_cycles ?? 1;
+  const interval = offer?.interval ?? "month";
+  const title = offer ? offer.label : "Oferta Fundadores POSION";
+  const cyclesLabel = cycles > 1
+    ? `${cycles} ${interval === "month" ? "meses" : intervalLabel(interval) + "s"}`
+    : `1º ${intervalLabel(interval)}`;
 
   useEffect(() => {
     if (!open) return;
@@ -52,7 +78,7 @@ export function FounderPixCheckoutDialog({ open, onClose, onPaid, tenantId, paye
   const createPix = async () => {
     setLoading(true);
     const { data, error } = await supabase.functions.invoke("mp-pix-create", {
-      body: { tenant_id: tenantId, payer_email: payerEmail },
+      body: { tenant_id: tenantId, payer_email: payerEmail, offer_id: offer?.id },
     });
     setLoading(false);
     if (error || (data as any)?.error) {
@@ -80,7 +106,7 @@ export function FounderPixCheckoutDialog({ open, onClose, onPaid, tenantId, paye
       if (st === "paid") {
         setStatus("paid");
         stopPolling();
-        toast.success("Pagamento confirmado! Bem-vindo, Fundador POSION 🎉");
+        toast.success("Pagamento confirmado! 🎉");
         setTimeout(() => { onPaid(); }, 1200);
       } else if (st === "expired" || st === "cancelled") {
         setStatus(st);
@@ -105,20 +131,20 @@ export function FounderPixCheckoutDialog({ open, onClose, onPaid, tenantId, paye
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md bg-[#0B1220] border-primary/30">
         <DialogHeader>
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30">
-              1º mês R$ 250
+              {cyclesLabel} · {BRL(entryAmount)}
             </Badge>
             <Badge variant="outline" className="text-muted-foreground border-white/10">
-              depois R$ 389/mês
+              depois {BRL(recurringAmount)}/{intervalLabel(interval)}
             </Badge>
           </div>
           <DialogTitle className="flex items-center gap-2 font-display text-xl">
             <Sparkles className="w-5 h-5 text-primary" />
-            Oferta Fundadores POSION
+            {title}
           </DialogTitle>
           <DialogDescription>
-            <span className="font-semibold text-foreground">R$ 250</span> no 1º mês · a partir do 2º mês fica <span className="font-semibold text-foreground">R$ 389/mês</span> · cancele quando quiser
+            <span className="font-semibold text-foreground">{BRL(entryAmount)}</span> para {cyclesLabel} · depois <span className="font-semibold text-foreground">{BRL(recurringAmount)}/{intervalLabel(interval)}</span> · cancele quando quiser
           </DialogDescription>
         </DialogHeader>
 
@@ -127,9 +153,8 @@ export function FounderPixCheckoutDialog({ open, onClose, onPaid, tenantId, paye
             <CheckCircle2 className="w-14 h-14 text-emerald-400 mx-auto" />
             <div className="font-display text-2xl">Pagamento confirmado!</div>
             <p className="text-sm text-muted-foreground">
-              Sua clínica agora é <b className="text-foreground">Fundadora POSION</b>.<br />
-              1º mês liberado por <b className="text-foreground">R$ 250</b>.<br />
-              A próxima cobrança será de <b className="text-foreground">R$ 389</b> em 30 dias, e continuará mensalmente até você cancelar.
+              Entrada de <b className="text-foreground">{BRL(entryAmount)}</b> liberada por {cyclesLabel}.<br />
+              A próxima cobrança será de <b className="text-foreground">{BRL(recurringAmount)}</b>, e continuará recorrente até você cancelar.
             </p>
           </div>
         ) : status === "expired" || status === "cancelled" ? (
@@ -170,11 +195,7 @@ export function FounderPixCheckoutDialog({ open, onClose, onPaid, tenantId, paye
               </div>
             </div>
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-100 text-center leading-relaxed">
-              <b>Atenção:</b> este Pix é referente ao <b>1º mês da oferta Fundador (R$ 250)</b>. A partir do 2º mês, o valor passa a ser <b>R$ 389/mês</b>. Você pode cancelar a qualquer momento.
-            </div>
-            <div className="text-[11px] text-muted-foreground text-center leading-relaxed border-t border-white/5 pt-3">
-              Este Pix libera seu <b className="text-foreground">1º mês como Fundador (R$ 250)</b>.<br />
-              A partir do 2º mês, mensalidade normal de <b className="text-foreground">R$ 389</b>. Cancele quando quiser.
+              <b>Atenção:</b> este Pix cobre <b>{cyclesLabel} por {BRL(entryAmount)}</b>. Depois, o valor passa a ser <b>{BRL(recurringAmount)}/{intervalLabel(interval)}</b>. Você pode cancelar a qualquer momento.
             </div>
             <div className="text-xs text-muted-foreground text-center">
               Aguardando confirmação do pagamento… você não precisa recarregar a página.
