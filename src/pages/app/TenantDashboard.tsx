@@ -483,7 +483,7 @@ export default function TenantDashboard() {
 
           {/* Taxas de Conversão do Funil — versão compacta preenche espaço ao lado do gráfico */}
           <TooltipProvider delayDuration={120}>
-            <div className="flex-1 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.06] via-transparent to-transparent p-3">
+            <div className="flex-1 flex flex-col rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.06] via-transparent to-transparent p-3 min-h-0">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <Filter className="w-3.5 h-3.5 text-primary shrink-0" />
