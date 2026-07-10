@@ -356,9 +356,10 @@ export default function TenantDashboard() {
                 )}
               </div>
             </div>
-            <div className="w-14 h-14 rounded-2xl premium-section-icon flex items-center justify-center">
-              <DollarSign className="w-7 h-7 text-amber-300" />
+            <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl premium-section-icon flex items-center justify-center shrink-0">
+              <DollarSign className="w-6 h-6 sm:w-7 sm:h-7 text-amber-300" />
             </div>
+
           </div>
 
           {/* Progresso da meta mensal (se houver) */}
