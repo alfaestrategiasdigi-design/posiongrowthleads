@@ -152,7 +152,66 @@ export default function TenantPlans() {
           <Button variant="outline" onClick={refresh} className="gap-2"><RefreshCw className="w-4 h-4" /> Atualizar</Button>
         </div>
 
-        {(() => {
+        {customOffer ? (() => {
+          const intervalLabel = (i: string) => i === "semester" ? "semestre" : i === "quarter" ? "trimestre" : "mês";
+          const cyclesLabel = customOffer.entry_cycles > 1
+            ? `${customOffer.entry_cycles} ${customOffer.interval === "month" ? "meses" : intervalLabel(customOffer.interval) + "s"}`
+            : `1º ${intervalLabel(customOffer.interval)}`;
+          const hasPaid = sub?.status === "active" || sub?.status === "authorized";
+          return (
+            <Card className="relative overflow-visible border-primary/50 bg-gradient-to-br from-[#1a1305] via-[#0E1730] to-[#0B1220]">
+              <div className="absolute -top-3 left-6 text-[10px] uppercase tracking-widest bg-primary text-primary-foreground px-2.5 py-1 rounded shadow-lg z-10 flex items-center gap-1">
+                <Crown className="w-3 h-3" /> {customOffer.label}
+              </div>
+              <CardHeader className="pt-10 pb-4">
+                <div className="flex items-start justify-between gap-6 flex-wrap">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
+                      <Crown className="w-6 h-6 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <CardTitle className="text-2xl">{customOffer.label} <span className="text-primary">— {BRL(customOffer.entry_amount_cents)}</span></CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        {customOffer.description || <>Cobrança única de <b>{BRL(customOffer.entry_amount_cents)}</b> cobrindo {cyclesLabel}, depois <b>{BRL(customOffer.recurring_amount_cents)}/{intervalLabel(customOffer.interval)}</b>.</>}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Entrada</div>
+                    <div className="font-display text-3xl tabular-nums leading-tight">{BRL(customOffer.entry_amount_cents)}</div>
+                    <div className="text-[10px] text-primary/90 mt-1">{cyclesLabel} · depois {BRL(customOffer.recurring_amount_cents)}/{intervalLabel(customOffer.interval)}</div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+                  {["Todos os recursos POSION Pro","Usuários ilimitados","Suporte prioritário direto","Cancele quando quiser"].map((f) => (
+                    <li key={f} className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-white/10">
+                  <div className="flex items-center gap-2 text-xs text-primary/90">
+                    <Zap className="w-4 h-4 text-primary" />
+                    <span>Oferta exclusiva para {tenant?.name}</span>
+                  </div>
+                  {hasPaid ? (
+                    <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Assinatura ativa</Badge>
+                  ) : (
+                    <Button size="lg" className="gap-2" onClick={() => setFounderOpen(true)}>
+                      <Zap className="w-4 h-4" /> Gerar Pix — {BRL(customOffer.entry_amount_cents)}
+                    </Button>
+                  )}
+                </div>
+                <div className="text-[11px] text-muted-foreground text-center">
+                  Ao gerar o Pix você concorda com a cobrança recorrente de <b className="text-foreground">{BRL(customOffer.recurring_amount_cents)}/{intervalLabel(customOffer.interval)}</b> ao término dos {cyclesLabel}.
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })() : (() => {
           const isFounder = founderSlot?.status === "paid" || sub?.plan_code === "posion_founder";
           const remaining = Math.max(0, FOUNDER_LIMIT - founderTaken);
           const soldOut = remaining <= 0 && !isFounder;
@@ -174,9 +233,7 @@ export default function TenantPlans() {
                   </div>
                   <div className="text-right shrink-0">
                     <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Entrada</div>
-                    <div className="font-display text-3xl tabular-nums leading-tight">
-                      R$ 250
-                    </div>
+                    <div className="font-display text-3xl tabular-nums leading-tight">R$ 250</div>
                     <div className="text-[10px] text-primary/90 mt-1">1º mês · depois R$ 389/mês</div>
                     <div className="text-[10px] text-amber-300/90 mt-1">selo Fundador POSION vitalício</div>
                   </div>
