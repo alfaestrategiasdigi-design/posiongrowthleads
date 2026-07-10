@@ -180,11 +180,12 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
     setConvTags(map);
   }, [tenantId, masterMode]);
 
+  const syncedConversationsRef = useRef<Set<string>>(new Set());
   const loadMessages = useCallback(async (conversationId: string) => {
     const { data } = await supabase
       .from("messages").select("*").eq("conversation_id", conversationId)
       .order("created_at", { ascending: true });
-    const msgs = (data as Message[]) || [];
+    let msgs = (data as Message[]) || [];
     // If we just sent locally, claim outbound wamids that appeared at/after that timestamp
     const claimTs = pendingLocalSendRef.current;
     if (claimTs) {
@@ -198,6 +199,25 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       pendingLocalSendRef.current = null;
     }
     setMessages(msgs);
+    // Auto-pull history from Evolution when the conversation has no messages yet
+    // (e.g. messages sent directly from the phone before the webhook was active).
+    if (msgs.length === 0 && !syncedConversationsRef.current.has(conversationId)) {
+      syncedConversationsRef.current.add(conversationId);
+      try {
+        const { data: res } = await supabase.functions.invoke("evolution-sync-messages", {
+          body: { conversation_id: conversationId, limit: 200 },
+        });
+        if ((res as any)?.replayed > 0) {
+          const { data: after } = await supabase
+            .from("messages").select("*").eq("conversation_id", conversationId)
+            .order("created_at", { ascending: true });
+          msgs = (after as Message[]) || [];
+          setMessages(msgs);
+        }
+      } catch (e) {
+        console.warn("[sync-messages] failed", e);
+      }
+    }
     // Load reactions for this conversation
     const { data: reactRows } = await supabase
       .from("message_reactions").select("*").eq("conversation_id", conversationId);
