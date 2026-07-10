@@ -68,6 +68,10 @@ export default function SubscriptionsPage() {
   const [selectedPayerEmail, setSelectedPayerEmail] = useState<string>("");
   const [busy, setBusy] = useState(false);
 
+  const [offerTenant, setOfferTenant] = useState<Tenant | null>(null);
+  const [offerTick, setOfferTick] = useState(0);
+  const [offerMap, setOfferMap] = useState<Map<string, { label: string; entry_amount_cents: number; recurring_amount_cents: number; active: boolean }>>(new Map());
+
   const [validating, setValidating] = useState(false);
 
   const refresh = async () => {
