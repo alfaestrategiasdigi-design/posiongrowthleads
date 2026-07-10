@@ -173,7 +173,8 @@ export default function TenantDashboard() {
   }, [funnelRange]);
 
   const computeFunnel = (from: Date, to: Date) => {
-    const { rates } = computeFunnelMetrics({ leads, appointments, from, to });
+    const funnelLeads = leads.map((l) => ({ id: l.id, status: l.stage, created_at: l.created_at, mql: l.mql, sql_qualified: l.sql_qualified }));
+    const { rates } = computeFunnelMetrics({ leads: funnelLeads, appointments, from, to });
     const t = rates.totals;
     // Chart cumulativo (topo do funil = todos os leads do período)
     const counts: Record<string, number> = {
