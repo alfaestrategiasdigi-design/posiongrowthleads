@@ -484,23 +484,45 @@ export default function TenantDashboard() {
           {/* Taxas de Conversão do Funil — versão compacta preenche espaço ao lado do gráfico */}
           <TooltipProvider delayDuration={120}>
             <div className="flex-1 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.06] via-transparent to-transparent p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Filter className="w-3.5 h-3.5 text-primary" />
-                <h3 className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary/90">Taxas de Conversão do Funil</h3>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Filter className="w-3.5 h-3.5 text-primary shrink-0" />
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary/90 truncate">Taxas de Conversão do Funil</h3>
+                </div>
+                <Select value={funnelPeriod} onValueChange={(v) => setFunnelPeriod(v as any)}>
+                  <SelectTrigger className="h-6 w-[110px] text-[10px] font-mono bg-card/60 border-border/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="global">Período global</SelectItem>
+                    <SelectItem value="7">Últimos 7 dias</SelectItem>
+                    <SelectItem value="30">Últimos 30 dias</SelectItem>
+                    <SelectItem value="90">Últimos 90 dias</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="text-[9px] font-mono text-muted-foreground mb-2">
+                {fmtDate(funnelRange.from, "dd/MM/yy")} — {fmtDate(funnelRange.to, "dd/MM/yy")} · vs. {fmtDate(funnelPrevRange.from, "dd/MM/yy")} — {fmtDate(funnelPrevRange.to, "dd/MM/yy")}
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { key: "qualificacao", label: "Qualificação", value: funnelRates.qualificacao, hint: "Qualif. ÷ Leads" },
-                  { key: "agendamento", label: "Agendamento", value: funnelRates.agendamento, hint: "Agend. ÷ Qualif." },
-                  { key: "comparecimento", label: "Comparecim.", value: funnelRates.comparecimento, hint: "Comp. ÷ (Comp.+No-show)" },
-                  { key: "fechamento", label: "Fechamento", value: funnelRates.fechamento, hint: "Ganho ÷ Comp." },
-                  { key: "noShow", label: "No-show", value: funnelRates.noShow, hint: "No-show ÷ (Comp.+No-show)", invert: true },
-                  { key: "geral", label: "Conv. Geral", value: funnelRates.geral, hint: "Ganho ÷ Leads" },
+                  { key: "qualificacao", label: "Qualificação", value: funnelRates.qualificacao, prev: funnelPrevRates.qualificacao, hint: "Qualif. ÷ Leads" },
+                  { key: "agendamento", label: "Agendamento", value: funnelRates.agendamento, prev: funnelPrevRates.agendamento, hint: "Agend. ÷ Qualif." },
+                  { key: "comparecimento", label: "Comparecim.", value: funnelRates.comparecimento, prev: funnelPrevRates.comparecimento, hint: "Comp. ÷ (Comp.+No-show)" },
+                  { key: "fechamento", label: "Fechamento", value: funnelRates.fechamento, prev: funnelPrevRates.fechamento, hint: "Ganho ÷ Comp." },
+                  { key: "noShow", label: "No-show", value: funnelRates.noShow, prev: funnelPrevRates.noShow, hint: "No-show ÷ (Comp.+No-show)", invert: true },
+                  { key: "geral", label: "Conv. Geral", value: funnelRates.geral, prev: funnelPrevRates.geral, hint: "Ganho ÷ Leads" },
                 ].map((k) => {
                   const def = FUNNEL_DEFINITIONS[k.key];
                   const color = k.invert
                     ? (k.value < 0.15 ? "#22C55E" : k.value < 0.3 ? "#F59E0B" : "#EF4444")
                     : (k.value >= 0.3 ? "#22C55E" : k.value >= 0.15 ? "#F59E0B" : "#EF4444");
+                  const delta = k.value - k.prev;
+                  const hasDelta = k.prev > 0 || k.value > 0;
+                  // Para "positivo" em métricas normais: subir é bom. Para no-show (invert): descer é bom.
+                  const isGood = k.invert ? delta < 0 : delta > 0;
+                  const deltaColor = Math.abs(delta) < 0.001 ? "#71717A" : (isGood ? "#22C55E" : "#EF4444");
+                  const DeltaIcon = Math.abs(delta) < 0.001 ? null : (delta > 0 ? TrendingUp : TrendingDown);
                   return (
                     <div
                       key={k.label}
@@ -523,15 +545,27 @@ export default function TenantDashboard() {
                             <p className="font-semibold text-xs">{k.label}</p>
                             <p className="text-[11px] leading-snug text-muted-foreground">{def.definition}</p>
                             <div className="text-[10px] font-mono text-amber-400 pt-1">Fórmula: {def.formula}</div>
+                            <div className="text-[10px] font-mono text-muted-foreground pt-0.5">
+                              Período anterior: {PCT(k.prev)}
+                            </div>
                           </div>
                         </TooltipContent>
                       </Tooltip>
-                      <div className="font-display text-lg num leading-tight mt-0.5" style={{ color }}>{PCT(k.value)}</div>
+                      <div className="flex items-baseline gap-1.5 mt-0.5">
+                        <div className="font-display text-lg num leading-tight" style={{ color }}>{PCT(k.value)}</div>
+                        {hasDelta && DeltaIcon && (
+                          <span className="flex items-center gap-0.5 text-[9px] font-mono tabular-nums" style={{ color: deltaColor }}>
+                            <DeltaIcon className="w-2.5 h-2.5" />
+                            {delta >= 0 ? "+" : ""}{(delta * 100).toFixed(1)}pp
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[9px] text-muted-foreground truncate" title={k.hint}>{k.hint}</div>
                     </div>
                   );
                 })}
               </div>
+            </div>
             </div>
           </TooltipProvider>
         </div>
