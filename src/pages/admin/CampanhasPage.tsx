@@ -242,10 +242,11 @@ export default function CampanhasPage() {
         attribute(a.id, a.nome_clinica || a.responsavel, a.valor_proposta, a.campaign_id_manual, a.utm_campaign),
       );
 
-    // Agendamentos: leads que chegaram (ou passaram) da etapa "reunião agendada" no kanban
+    // Agendados: espelha exatamente a coluna "CONSULTA AGENDADA" do Kanban
+    // (status = "reuniao_agendada"). Não soma etapas posteriores para bater 1:1 com os cards.
     let qa = supabase.from("leads")
       .select("id,utm_campaign,facebook_campaign,facebook_form_name,campaign_id_manual,tenant_id")
-      .in("status", ["reuniao_agendada", "compareceu", "negociacao", "ganho"]);
+      .eq("status", "reuniao_agendada");
     if (selectedTenantId) qa = qa.eq("tenant_id", selectedTenantId);
     const { data: apptLeads } = await qa;
     (apptLeads ?? []).forEach((l: any) =>
@@ -255,10 +256,11 @@ export default function CampanhasPage() {
     const { data: apptLeads2 } = await supabase
       .from("agency_leads")
       .select("id,utm_campaign,campaign_id_manual,tenant_id_criado,stage")
-      .in("stage", ["reuniao_agendada", "compareceu", "negociacao", "ganho"]);
+      .eq("stage", "reuniao_agendada");
     (apptLeads2 ?? [])
       .filter((a: any) => !selectedTenantId || a.tenant_id_criado === selectedTenantId)
       .forEach((a: any) => attributeAppt(a.id, a.campaign_id_manual, a.utm_campaign));
+
 
     setCrmWinsByCampaign(wins);
     setCrmRevenueByCampaign(rev);
