@@ -314,15 +314,13 @@ export default function TenantDashboard() {
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-[1600px] mx-auto">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 pb-2 border-b border-border/40">
+      {/* Header — mirrors Admin Master style */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.22em] text-primary/80 mb-2 font-medium">Dashboard Clínica</div>
-          <h1 className="font-display text-4xl md:text-5xl tracking-tight">
-            Relatório <span className="gold-gradient-text">{range.label}</span>
-          </h1>
-          <p className="text-muted-foreground text-sm mt-2 flex items-center gap-2 flex-wrap">
-            <span>{tenant?.name}</span>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-1 font-mono">POSION · Central da Clínica</div>
+          <h1 className="text-3xl font-bold">Dashboard {tenant?.name}</h1>
+          <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+            <span>Faturamento, funil e vendas · <span className="text-amber-400">{range.label}</span></span>
             {waStatus && (
               <Link
                 to={`/app/${tenant?.slug}/whatsapp`}
@@ -336,10 +334,92 @@ export default function TenantDashboard() {
                 {waStatus.connected ? "WhatsApp conectado" : "WhatsApp offline"}
               </Link>
             )}
-            <span>· {fmtDate(range.from, "dd/MM/yy")} → {fmtDate(range.to, "dd/MM/yy")} · inteligência em tempo real</span>
           </p>
         </div>
         <DateRangePicker value={range} onChange={setRange} />
+      </div>
+
+      {/* HERO — Faturamento total + gráfico + KPIs à direita (padrão Admin Master) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-2 font-mono">Faturamento do período</div>
+              <div className="text-4xl font-bold text-white tracking-tight">{BRL(total)}</div>
+              <div className="text-sm mt-1 text-muted-foreground">
+                {count} vendas · Ticket médio {BRL(avg)}
+                {Number.isFinite(varTotal) && (
+                  <span className={`ml-2 ${varTotal >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                    {varTotal >= 0 ? "+" : ""}{(varTotal * 100).toFixed(1)}% vs período anterior
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="w-14 h-14 rounded-2xl premium-section-icon flex items-center justify-center">
+              <DollarSign className="w-7 h-7 text-amber-300" />
+            </div>
+          </div>
+
+          {/* Progresso da meta mensal (se houver) */}
+          {goal && (goal.goal_1 || goal.goal_2 || goal.goal_3) ? (
+            <div className="mt-4">
+              <div className="flex items-center justify-between text-[11px] font-mono">
+                <span className="flex items-center gap-2 text-muted-foreground">
+                  <Target className="w-3 h-3 text-amber-400" />
+                  Meta mensal · {BRL(goal.goal_3 || goal.goal_2 || goal.goal_1 || 0)}
+                </span>
+                <span className="text-amber-300 font-semibold tabular-nums">
+                  {Math.min(100, (total / (goal.goal_3 || goal.goal_2 || goal.goal_1 || 1)) * 100).toFixed(1)}% atingido
+                </span>
+              </div>
+              <div className="mt-1.5 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${Math.min(100, (total / (goal.goal_3 || goal.goal_2 || goal.goal_1 || 1)) * 100)}%`,
+                    background: "linear-gradient(90deg, #E8C468, #B8860B)",
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          <div className="h-32 mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={heroTimeline} margin={{ top: 6, right: 8, bottom: 0, left: -8 }}>
+                <defs>
+                  <linearGradient id="tenantHeroArea" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#E8C468" stopOpacity={0.22} />
+                    <stop offset="100%" stopColor="#E8C468" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#71717A" }} stroke="rgba(255,255,255,0.08)" />
+                <YAxis tick={{ fontSize: 10, fill: "#71717A" }} stroke="rgba(255,255,255,0.08)" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <RTooltip
+                  contentStyle={{ background: "#0a0a0a", border: "1px solid rgba(232,196,104,0.28)", borderRadius: 8, fontSize: 12, color: "#F5F5F5" }}
+                  labelStyle={{ color: "#A1A1AA" }}
+                  formatter={(v: any) => BRL(Number(v))}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="receita"
+                  stroke="#F5F5F5"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4, fill: "#E8C468", stroke: "#F5F5F5", strokeWidth: 1 }}
+                  fill="url(#tenantHeroArea)"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <KpiPremium icon={ShoppingBag} label="Nº de Vendas" value={loading ? null : String(count)} delta={varCount} loading={loading} prevLabel={prevMonthLabel} spark={sparkCount} />
+          <KpiPremium icon={Receipt} label="Ticket Médio" value={loading ? null : BRL(avg)} delta={varTicket} loading={loading} prevLabel={prevMonthLabel} spark={sparkTicket} />
+          <KpiPremium icon={Trophy} label="Maior Venda" value={loading ? null : BRL(maxSale?.amount ?? 0)} sub={maxSale?.patient_name || "—"} loading={loading} />
+        </div>
       </div>
 
       {/* Alertas Inteligentes */}
@@ -363,13 +443,6 @@ export default function TenantDashboard() {
         </div>
       )}
 
-      {/* Headline KPIs — Premium Flat */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiPremium icon={DollarSign} label="Faturamento" value={loading ? null : BRL(total)} delta={varTotal} loading={loading} prevLabel={prevMonthLabel} spark={sparkRev} />
-        <KpiPremium icon={ShoppingBag} label="Nº de Vendas" value={loading ? null : String(count)} delta={varCount} loading={loading} prevLabel={prevMonthLabel} spark={sparkCount} />
-        <KpiPremium icon={Receipt} label="Ticket Médio" value={loading ? null : BRL(avg)} delta={varTicket} loading={loading} prevLabel={prevMonthLabel} spark={sparkTicket} />
-        <KpiPremium icon={Trophy} label="Maior Venda" value={loading ? null : BRL(maxSale?.amount ?? 0)} sub={maxSale?.patient_name || "—"} loading={loading} />
-      </div>
 
       {/* Métricas da Clínica — cards de destaque */}
       <section>
