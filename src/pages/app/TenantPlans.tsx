@@ -51,18 +51,25 @@ export default function TenantPlans() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [founderSlot, setFounderSlot] = useState<any>(null);
+  const [founderTaken, setFounderTaken] = useState(0);
+  const [founderOpen, setFounderOpen] = useState(false);
 
   const refresh = async () => {
     if (!tenant?.id) return;
     setLoading(true);
-    const [subRes, invRes, planRes] = await Promise.all([
+    const [subRes, invRes, planRes, slotRes, takenRes] = await Promise.all([
       supabase.from("subscriptions").select("*").eq("tenant_id", tenant.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("subscription_invoices").select("*").eq("tenant_id", tenant.id).order("paid_at", { ascending: false, nullsFirst: false }).limit(10),
       supabase.from("plan_catalog").select("*").eq("active", true).order("sort_order"),
+      supabase.from("founder_slots").select("*").eq("tenant_id", tenant.id).maybeSingle(),
+      supabase.rpc("count_founder_slots_taken"),
     ]);
     setSub(subRes.data);
     setInvoices(invRes.data || []);
     setPlans((planRes.data || []) as Plan[]);
+    setFounderSlot(slotRes.data);
+    setFounderTaken(Number(takenRes.data ?? 0));
     setLoading(false);
   };
   useEffect(() => { refresh(); }, [tenant?.id]);
