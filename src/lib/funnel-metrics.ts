@@ -52,7 +52,7 @@ export interface FunnelRates {
 }
 
 const QUALIFIED_STATUSES = new Set([
-  "qualificado", "reuniao_agendada", "compareceu", "negociacao", "ganho",
+  "qualificado", "agendar_reuniao", "reuniao_agendada", "compareceu", "proposta", "negociacao", "ganho",
 ]);
 
 function toDate(v: string | null | undefined): Date | null {

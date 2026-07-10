@@ -93,16 +93,16 @@ export interface ZapiConnection {
   updated_at: string;
 }
 
-// Funil padronizado POSION — 8 etapas fixas para TODAS as clínicas
+// Funil padronizado POSION — etapas do Kanban clínico (mapa mental definitivo)
 export const PIPELINE_STAGES = [
-  { id: "lead",             title: "Lead",              short: "Lead",         color: "from-slate-500 to-slate-600",     hex: "#64748b" },
-  { id: "qualificado",      title: "Qualificado",       short: "Qualificado",  color: "from-sky-500 to-sky-600",         hex: "#0ea5e9" },
-  { id: "reuniao_agendada", title: "CONSULTA AGENDADA", short: "CONSULTA",      color: "from-indigo-500 to-indigo-600",   hex: "#6366f1" },
-  { id: "compareceu",       title: "Compareceu",        short: "Compareceu",   color: "from-violet-500 to-violet-600",   hex: "#8b5cf6" },
-  { id: "negociacao",       title: "Negociação",        short: "Negociação",   color: "from-amber-500 to-amber-600",     hex: "#f59e0b" },
-  { id: "ganho",            title: "Ganho",             short: "Ganho",        color: "from-emerald-500 to-emerald-600", hex: "#10b981" },
-  { id: "perdido",          title: "Perdido",           short: "Perdido",      color: "from-rose-500 to-rose-600",       hex: "#f43f5e" },
-  { id: "no_show",          title: "No-show",           short: "No-show",      color: "from-zinc-500 to-zinc-600",       hex: "#71717a" },
+  { id: "lead",              title: "Lead Novo",             short: "Lead Novo",       color: "from-blue-500 to-blue-600",       hex: "#3b82f6" },
+  { id: "qualificado",       title: "Início de Atendimento", short: "Início Atend.",   color: "from-violet-500 to-violet-600",   hex: "#8b5cf6" },
+  { id: "agendar_reuniao",   title: "Agendar Reunião",       short: "Agendar",         color: "from-pink-500 to-pink-600",       hex: "#ec4899" },
+  { id: "reuniao_agendada",  title: "Reunião Agendada",      short: "Reunião",         color: "from-red-500 to-red-600",         hex: "#ef4444" },
+  { id: "proposta",          title: "Proposta",              short: "Proposta",        color: "from-orange-500 to-orange-600",   hex: "#f97316" },
+  { id: "negociacao",        title: "Negociação",            short: "Negociação",      color: "from-amber-500 to-amber-600",     hex: "#f59e0b" },
+  { id: "ganho",             title: "Ganho",                 short: "Ganho",           color: "from-emerald-500 to-emerald-600", hex: "#10b981" },
+  { id: "perdido",           title: "Perdido",               short: "Perdido",         color: "from-rose-500 to-rose-600",       hex: "#f43f5e" },
 ] as const;
 
 export type PipelineStage = typeof PIPELINE_STAGES[number]["id"];
