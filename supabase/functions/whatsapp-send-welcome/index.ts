@@ -39,6 +39,12 @@ Deno.serve(async (req) => {
   const { data: lead } = await admin.from("leads").select("*").eq("id", lead_id).maybeSingle();
   if (!lead) return json({ error: "Lead não encontrado" }, 404);
 
+  // Não disparar boas-vindas para leads importados (Kommo, Evolution/WhatsApp import, etc.)
+  const origem = String(lead.origem || "").toLowerCase();
+  if (origem.includes("import") || origem === "kommo" || origem === "evolution") {
+    return json({ skipped: "lead importado", origem: lead.origem });
+  }
+
   let phone = onlyDigits(lead.whatsapp);
   if (!phone) return json({ skipped: "sem whatsapp" });
   if (phone.length === 10 || phone.length === 11) phone = "55" + phone; // BR default
