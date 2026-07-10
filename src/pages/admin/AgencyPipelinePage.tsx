@@ -146,7 +146,8 @@ export default function AgencyPipelinePage() {
 
   const grouped = useMemo(() => {
     const g: Record<Stage, AgencyLead[]> = {
-      lead: [], qualificado: [], reuniao: [], proposta: [], negociacao: [], ganho: [], perdido: [],
+      lead: [], qualificado: [], agendar_reuniao: [], reuniao_agendada: [],
+      proposta: [], negociacao: [], ganho: [], perdido: [],
     };
     for (const l of filteredLeads) g[l.stage]?.push(l);
     return g;
