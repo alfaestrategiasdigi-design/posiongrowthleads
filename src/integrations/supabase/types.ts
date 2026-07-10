@@ -1603,6 +1603,103 @@ export type Database = {
           },
         ]
       }
+      kommo_connections: {
+        Row: {
+          access_token: string | null
+          account_id: number | null
+          account_name: string | null
+          client_id: string
+          client_secret: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          last_import_at: string | null
+          last_import_stats: Json
+          refresh_token: string | null
+          status: string
+          subdomain: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          account_id?: number | null
+          account_name?: string | null
+          client_id: string
+          client_secret: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_import_at?: string | null
+          last_import_stats?: Json
+          refresh_token?: string | null
+          status?: string
+          subdomain: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          account_id?: number | null
+          account_name?: string | null
+          client_id?: string
+          client_secret?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_import_at?: string | null
+          last_import_stats?: Json
+          refresh_token?: string | null
+          status?: string
+          subdomain?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kommo_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kommo_import_map: {
+        Row: {
+          id: string
+          imported_at: string
+          kommo_entity_type: string
+          kommo_id: string
+          local_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          id?: string
+          imported_at?: string
+          kommo_entity_type: string
+          kommo_id: string
+          local_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          id?: string
+          imported_at?: string
+          kommo_entity_type?: string
+          kommo_id?: string
+          local_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kommo_import_map_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_routing_rules: {
         Row: {
           active: boolean
