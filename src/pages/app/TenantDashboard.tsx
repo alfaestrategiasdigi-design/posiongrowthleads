@@ -460,9 +460,9 @@ export default function TenantDashboard() {
               {[
                 { label: "Qualificação",   value: funnelRates.qualificacao,   hint: "Qualif. ÷ Leads" },
                 { label: "Agendamento",    value: funnelRates.agendamento,    hint: "Agend. ÷ Qualif." },
-                { label: "Comparecim.",    value: funnelRates.comparecimento, hint: "Comp. ÷ Agend." },
+                { label: "Comparecim.",    value: funnelRates.comparecimento, hint: "Comp. ÷ (Comp.+No-show)" },
                 { label: "Fechamento",     value: funnelRates.fechamento,     hint: "Ganho ÷ Comp." },
-                { label: "No-show",        value: funnelRates.noShow,         hint: "No-show ÷ Agend.", invert: true },
+                { label: "No-show",        value: funnelRates.noShow,         hint: "No-show ÷ (Comp.+No-show)", invert: true },
                 { label: "Conv. Geral",    value: funnelRates.geral,          hint: "Ganho ÷ Leads" },
               ].map((k) => {
                 const color = k.invert
@@ -694,9 +694,9 @@ export default function TenantDashboard() {
             {[
               { label: "Qualificação",   value: funnelRates.qualificacao,   hint: "Qualif. ÷ Leads" },
               { label: "Agendamento",    value: funnelRates.agendamento,    hint: "Agend. ÷ Qualif." },
-              { label: "Comparecimento", value: funnelRates.comparecimento, hint: "Comp. ÷ Agend." },
+              { label: "Comparecimento", value: funnelRates.comparecimento, hint: "Comp. ÷ (Comp.+No-show)" },
               { label: "Fechamento",     value: funnelRates.fechamento,     hint: "Ganho ÷ Comp." },
-              { label: "No-show",        value: funnelRates.noShow,         hint: "No-show ÷ Agend.", invert: true },
+              { label: "No-show",        value: funnelRates.noShow,         hint: "No-show ÷ (Comp.+No-show)", invert: true },
               { label: "Conversão Geral",value: funnelRates.geral,          hint: "Ganho ÷ Leads" },
             ].map((k) => {
               const good = k.invert ? k.value < 0.15 : k.value >= 0.3;
