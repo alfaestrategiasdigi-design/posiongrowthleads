@@ -1490,6 +1490,7 @@ export type Database = {
           created_at: string
           expires_at: string | null
           id: string
+          next_charge_at: string | null
           paid_at: string | null
           payer_email: string | null
           payment_id: string | null
@@ -1505,6 +1506,7 @@ export type Database = {
           created_at?: string
           expires_at?: string | null
           id?: string
+          next_charge_at?: string | null
           paid_at?: string | null
           payer_email?: string | null
           payment_id?: string | null
@@ -1520,6 +1522,7 @@ export type Database = {
           created_at?: string
           expires_at?: string | null
           id?: string
+          next_charge_at?: string | null
           paid_at?: string | null
           payer_email?: string | null
           payment_id?: string | null
@@ -3088,6 +3091,7 @@ export type Database = {
           environment: string
           id: string
           interval: string
+          is_founder: boolean
           lookup_key: string | null
           metadata: Json | null
           mp_init_point: string | null
@@ -3111,6 +3115,7 @@ export type Database = {
           environment?: string
           id?: string
           interval: string
+          is_founder?: boolean
           lookup_key?: string | null
           metadata?: Json | null
           mp_init_point?: string | null
@@ -3134,6 +3139,7 @@ export type Database = {
           environment?: string
           id?: string
           interval?: string
+          is_founder?: boolean
           lookup_key?: string | null
           metadata?: Json | null
           mp_init_point?: string | null

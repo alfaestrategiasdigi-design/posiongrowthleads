@@ -50,27 +50,32 @@ Deno.serve(async (req) => {
 
     if (mpStatus === "approved") {
       const paidAt = payment?.date_approved || new Date().toISOString();
+      const nextChargeAt = new Date(new Date(paidAt).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
       await admin.from("founder_slots").update({
         status: "paid",
         paid_at: paidAt,
+        next_charge_at: nextChargeAt,
         updated_at: new Date().toISOString(),
       }).eq("tenant_id", tenant_id);
 
-      // Create/activate a lifetime subscription record
+      // Founder = monthly recurring subscription; first month is the R$ 250 promo,
+      // from the 2nd month on the regular mensality of R$ 389 kicks in.
       const { data: plan } = await admin.from("plan_catalog")
         .select("*").eq("lookup_key", "posion_founder_v1").maybeSingle();
 
       await admin.from("subscriptions").upsert({
         tenant_id,
         plan_code: "posion_founder",
-        interval: "lifetime",
+        interval: "month",
         lookup_key: "posion_founder_v1",
         provider: "mercadopago",
         mp_payer_email: slot.payer_email,
         status: "active",
-        amount_cents: (plan as any)?.amount_cents ?? 25000,
+        is_founder: true,
+        amount_cents: (plan as any)?.amount_cents ?? 38900,
         currency: (plan as any)?.currency ?? "brl",
-        current_period_end: null,
+        current_period_end: nextChargeAt,
         environment: "live",
         updated_at: new Date().toISOString(),
       }, { onConflict: "tenant_id" });

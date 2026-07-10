@@ -153,16 +153,16 @@ export default function TenantPlans() {
                       <Crown className="w-6 h-6 text-primary" />
                     </div>
                     <div className="min-w-0">
-                      <CardTitle className="text-2xl">POSION Fundadores <span className="text-primary">— Vitalício</span></CardTitle>
-                      <p className="text-sm text-muted-foreground">Pagamento único · acesso para sempre · apenas 10 primeiros clientes</p>
+                      <CardTitle className="text-2xl">POSION Fundadores <span className="text-primary">— 1º mês R$ 250</span></CardTitle>
+                      <p className="text-sm text-muted-foreground">Só para os 10 primeiros clientes · depois R$ 389/mês · cancele quando quiser</p>
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Investimento</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">1ª mensalidade</div>
                     <div className="font-display text-3xl tabular-nums leading-tight">
-                      R$ 250<span className="text-sm text-muted-foreground"> único</span>
+                      R$ 250<span className="text-sm text-muted-foreground"> no 1º mês</span>
                     </div>
-                    <div className="text-[10px] text-primary/90 mt-1">acesso vitalício · sem mensalidade</div>
+                    <div className="text-[10px] text-primary/90 mt-1">depois R$ 389/mês · selo Fundador para sempre</div>
                   </div>
                 </div>
               </CardHeader>
@@ -171,8 +171,8 @@ export default function TenantPlans() {
                   {[
                     "Todos os recursos POSION Pro",
                     "Usuários ilimitados",
-                    "Acesso vitalício — nunca mais paga mensalidade",
-                    "Selo de Fundador POSION",
+                    "Economia de R$ 139 na entrada",
+                    "Selo de Fundador POSION vitalício",
                     "Suporte prioritário direto",
                     "Novidades lançadas em primeira mão",
                   ].map((f) => (
@@ -186,7 +186,7 @@ export default function TenantPlans() {
                   <div className="flex items-center gap-2 text-xs">
                     <Zap className="w-4 h-4 text-primary" />
                     {isFounder ? (
-                      <span className="text-emerald-300 font-medium">Você já é Fundador POSION ✓</span>
+                      <span className="text-emerald-300 font-medium">Você é Fundador POSION ✓</span>
                     ) : soldOut ? (
                       <span className="text-rose-300">Todas as 10 vagas foram preenchidas</span>
                     ) : (
@@ -195,7 +195,7 @@ export default function TenantPlans() {
                   </div>
                   {isFounder ? (
                     <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                      Acesso vitalício ativo
+                      Fundador POSION
                     </Badge>
                   ) : (
                     <Button
@@ -204,7 +204,7 @@ export default function TenantPlans() {
                       disabled={soldOut}
                       onClick={() => setFounderOpen(true)}
                     >
-                      <Zap className="w-4 h-4" /> Gerar Pix agora — R$ 250
+                      <Zap className="w-4 h-4" /> Gerar Pix — R$ 250 (1º mês)
                     </Button>
                   )}
                 </div>

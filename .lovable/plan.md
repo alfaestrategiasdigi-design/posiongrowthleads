@@ -1,82 +1,50 @@
+## Ajuste: "Oferta Fundadores" vira 1ª mensalidade promocional (R$ 250), depois R$ 389/mês
 
-## Objetivo
-Criar uma oferta única "POSION Fundadores" de **R$ 250 vitalício**, limitada aos **10 primeiros clientes**, com checkout **Pix transparente** (QR Code + copia-e-cola gerado dentro da própria página, sem sair para o Mercado Pago). E entregar a mensagem pronta pra você mandar no WhatsApp do Matheus (Instituto Roar) e do Gabriel Lourenço.
+Entendi — não é vitalício. É um **desconto de entrada só no primeiro mês** (R$ 250) para os 10 primeiros clientes; a partir do 2º mês entra a mensalidade cheia de **R$ 389**. Vou refazer o Founder pra funcionar como assinatura mensal recorrente com 1ª parcela promocional, mantendo o Pix transparente na tela.
 
 ---
 
-## 1. Banco de dados (migration)
+### 1. Banco de dados (nova migration)
+- **`plan_catalog`**: atualizar/adicionar `posion_founder_v1` com `amount_cents = 38900`, `interval = 'month'`, `first_cycle_amount_cents = 25000`, `promo_slots_total = 10`, `description = "1º mês R$ 250 (fundador) · depois R$ 389/mês"`.
+- **`founder_slots`** (já existe): manter, mas passa a representar apenas a 1ª cobrança promocional. Adicionar coluna `next_charge_at timestamptz` (data em que a mensalidade cheia começa) e `subscription_id uuid` (fk para `subscriptions`).
+- Função `count_founder_slots_taken()` continua igual (limite de 10 vagas usadas para o desconto).
 
-Nova tabela `founder_slots` para controlar o limite de 10 vagas:
+### 2. Edge functions
+- **`mp-pix-create`**: continua criando o Pix de **R$ 250** (1ª parcela) — sem mudança de valor aqui. Só ajusta a `description` para "POSION Fundador — 1º mês (depois R$ 389/mês)".
+- **`mp-pix-status`** (mudança principal): quando o Pix for `approved`, ao invés de criar `subscription` `lifetime`, cria:
+  - `subscriptions` com `interval='month'`, `amount_cents=38900`, `status='active'`, `current_period_end = paid_at + 30 dias`, `plan_code='posion_founder'`, `is_founder=true`.
+  - `subscription_invoices` da 1ª parcela (R$ 250, `is_promo=true`).
+  - agenda a próxima cobrança em D+30 (grava `next_charge_at`).
+- **`mp-webhook`**: mesma lógica idempotente.
+- **Nova função `mp-founder-renew`** (cron diário): varre `subscriptions` com `is_founder=true` e `current_period_end <= now()`, gera cobrança recorrente de **R$ 389** via Mercado Pago (Pix ou preferência de assinatura) e atualiza `current_period_end += 30d`. Se falhar, marca `past_due`.
 
-```
-founder_slots
-- id uuid pk
-- tenant_id uuid (fk tenants) unique
-- payment_id text                (id do pagamento Pix no MP)
-- status text ('pending'|'paid'|'expired'|'cancelled')
-- amount_cents int default 25000
-- qr_code_base64 text
-- qr_code_text text              (copia-e-cola)
-- ticket_url text
-- expires_at timestamptz
-- paid_at timestamptz
-- created_at / updated_at
-```
+### 3. Frontend — `src/pages/app/TenantPlans.tsx` + `FounderPixCheckoutDialog.tsx`
+- **Card "Oferta Fundadores"** (mantém visual dourado da imagem), textos ajustados:
+  - Título: `POSION FUNDADORES — 1º MÊS R$ 250`
+  - Subtítulo: `Só para os 10 primeiros · depois R$ 389/mês`
+  - Preço em destaque: `R$ 250` com selo pequeno `1º mês` e linha embaixo `depois R$ 389/mês · cancele quando quiser`.
+  - Benefícios: mantém os atuais, remove "Acesso vitalício — nunca mais paga mensalidade" e troca por **"Economia de R$ 139 na entrada"** e **"Selo de Fundador POSION vitalício"** (o selo continua para sempre, só a mensalidade não).
+  - Botão: `Gerar Pix — R$ 250 (1º mês)`.
+- **Modal Pix**: mesmo fluxo, mas com aviso curto abaixo do QR:  
+  *"Este Pix libera seu 1º mês como Fundador (R$ 250). A partir do 2º mês a mensalidade é R$ 389, cobrada automaticamente. Cancele quando quiser."*
+- Mensagem de sucesso: `Bem-vindo, Fundador POSION! Seu 1º mês está ativo até <data>.` (sem "vitalício").
+- Card do plano ativo: quando `is_founder=true`, mostra badge `Fundador POSION` + `Próxima cobrança: R$ 389 em <data>`.
 
-+ GRANTs (`authenticated` só lê o próprio tenant; `service_role` full).
-+ RLS: tenant vê o próprio; admin vê tudo.
-+ Função `count_founder_slots_taken()` → `SELECT count(*) WHERE status IN ('paid','pending' com expires_at > now())`.
-+ Extensão em `subscriptions`: aceitar `interval = 'lifetime'` e `plan_code = 'posion_founder'`.
-+ Registro em `plan_catalog`: `posion_founder / R$250 / interval=lifetime / lookup_key=posion_founder_v1`.
+### 4. Nova mensagem pro WhatsApp (Matheus / Gabriel)
+Depois de aplicar, devolvo o texto pronto, algo como:
 
-## 2. Edge functions
+> "Fala, Matheus / Gabriel! Tô fechando as conexões da plataforma pra deixar tudo rodando 100% até segunda. Como combinamos, vocês entram como **Fundadores POSION**: o **1º mês sai por R$ 250** (condição só pros 10 primeiros) e a partir do 2º mês a mensalidade normal é **R$ 389**, com o **selo de Fundador pra sempre**. É só entrar no painel em **Planos → Oferta Fundadores → Gerar Pix agora**, pagar pelo QR Code que aparece na tela e me sinalizar aqui. Assim que cair, libero as automações."
 
-**`mp-pix-create`** (nova) — recebe `tenant_id`, valida:
-- tenant tem acesso, ainda não pagou o Founder;
-- restam vagas (`count < 10`);
-- chama `POST /v1/payments` do MP com `payment_method_id: 'pix'`, `transaction_amount: 250`, `payer.email`, `description: 'POSION Fundadores — Acesso Vitalício'`, `notification_url` (webhook), `date_of_expiration` (+30 min);
-- persiste em `founder_slots` (status=`pending`, qr_code, qr_code_text, ticket_url, expires_at);
-- retorna `{ qr_code_base64, qr_code_text, ticket_url, expires_at, payment_id }`.
+### Detalhes técnicos
+- Valor do Pix inicial permanece **R$ 250**; só muda o significado (1ª parcela, não vitalício).
+- `subscriptions.interval` volta a ser `'month'` (não uso mais `'lifetime'` para o Founder).
+- Renovação: via cron `mp-founder-renew` chamando MP a cada 30 dias. Se preferir, posso usar Assinaturas nativas do Mercado Pago (preapproval) com valor `389` e uma cobrança avulsa inicial de `250` — mas o Pix transparente na tela continua sendo a 1ª parcela.
+- Nenhuma mudança nos planos mensais/tri/sem existentes.
 
-**`mp-pix-status`** (nova) — polling: recebe `payment_id`, chama `GET /v1/payments/{id}`, se `status=approved` marca `founder_slots.status='paid'` + cria `subscriptions` com `status='active'`, `interval='lifetime'`, `current_period_end=NULL` (vitalício) + grava `subscription_invoices`. Retorna status atualizado.
-
-**`mp-webhook`** (existente) — estender para reconhecer pagamentos Pix cujo `external_reference` seja `founder:<tenant_id>`; mesma lógica de ativação (idempotente com `mp-pix-status`).
-
-## 3. Frontend — `src/pages/app/TenantPlans.tsx`
-
-- Buscar `founder_slots` (vagas restantes) + status próprio do tenant.
-- Novo componente destaque no topo: **card "Oferta Fundadores"** dourado, mostrando:
-  - "Últimas X de 10 vagas"
-  - "R$ 250 — pagamento único, acesso vitalício"
-  - Lista curta de benefícios (mesma do Pro + selo Fundador)
-  - Botão **"Gerar Pix agora"**
-- Ao clicar → abre modal `<FounderPixCheckoutDialog>`:
-  - chama `mp-pix-create`;
-  - exibe QR Code (`<img src={data:image/png;base64,...}>`), campo copia-e-cola com botão "Copiar", contagem regressiva até expirar;
-  - faz polling `mp-pix-status` a cada 4s;
-  - quando `paid` → confete + "Pagamento confirmado! Bem-vindo, Fundador." e fecha modal, refresh da página.
-- Se tenant já é fundador → card mostra selo "Você é Fundador POSION" (sem CTA).
-- Se vagas esgotadas → card mostra "Vagas esgotadas" e some o CTA, mantendo o catálogo mensal/tri/semestral abaixo.
-
-## 4. Mensagem para WhatsApp (retorno no chat)
-
-Depois de aplicar, respondo aqui no chat com o texto pronto pra copiar/colar, algo como:
-
-> "Fala, Matheus / Gabriel! Tô finalizando as conexões da plataforma pra deixar tudo rodando 100% até segunda-feira. Como combinado, o investimento pra travar o acesso é **R$ 250 (pagamento único, vitalício — condição de Fundador POSION, só pros 10 primeiros)**. Entra no seu painel em **Planos → Oferta Fundadores → Gerar Pix agora**, paga pelo QR Code que aparece na tela e me sinaliza aqui assim que efetuar. Assim que cair, libero as automações e a gente sobe tudo pra segunda. 🚀"
-
-## Detalhes técnicos
-
-- Todos os edge functions usam `getMpAccessToken()` de `_shared/mp-token.ts` (já existe).
-- CORS + `verify_jwt = true` (usa Authorization do usuário) nas funções `mp-pix-create` e `mp-pix-status`.
-- Polling client-side com `setInterval` + AbortController; para em `paid|expired|cancelled` ou ao fechar modal.
-- Idempotência: `mp-pix-create` só cria novo Pix se o `founder_slot` do tenant estiver `expired`/inexistente. Se `pending` válido → retorna o QR existente.
-- `subscriptions.interval = 'lifetime'` já é aceito (coluna `text`); ajustar `TenantPlans` para exibir "Vitalício" quando esse valor aparecer.
-- Sem quebra dos planos mensais/tri/sem: continuam abaixo, o Founder é o card destaque.
-
-## Arquivos que serão criados/alterados
-- migration nova (`founder_slots` + grants + rls + plan_catalog insert)
-- `supabase/functions/mp-pix-create/index.ts` (novo)
-- `supabase/functions/mp-pix-status/index.ts` (novo)
-- `supabase/functions/mp-webhook/index.ts` (estender)
-- `src/components/tenant/FounderPixCheckoutDialog.tsx` (novo)
-- `src/pages/app/TenantPlans.tsx` (card destaque + integração)
+### Arquivos alterados/criados
+- migration nova (atualiza `plan_catalog`, adiciona colunas em `founder_slots`)
+- `supabase/functions/mp-pix-status/index.ts` (troca `lifetime` por mensal)
+- `supabase/functions/mp-pix-create/index.ts` (só ajuste de description)
+- `supabase/functions/mp-founder-renew/index.ts` (nova, cron)
+- `src/components/tenant/FounderPixCheckoutDialog.tsx` (textos + aviso)
+- `src/pages/app/TenantPlans.tsx` (card + badge do plano ativo)

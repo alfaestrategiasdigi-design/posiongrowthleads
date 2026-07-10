@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
 
     const body = {
       transaction_amount: FOUNDER_AMOUNT,
-      description: "POSION Fundadores — Acesso Vitalício",
+      description: "POSION Fundadores — 1º mês (depois R$ 389/mês)",
       payment_method_id: "pix",
       payer: { email },
       external_reference: `founder:${tenant_id}`,
