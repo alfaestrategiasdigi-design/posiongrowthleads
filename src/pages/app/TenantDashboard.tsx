@@ -139,13 +139,30 @@ export default function TenantDashboard() {
     const counts: Record<string, number> = {};
     FUNNEL_ORDER.forEach((s) => (counts[s] = 0));
     let noShowCount = 0, perdidoCount = 0;
+
+    // Cumulativo: um lead que alcançou a etapa X conta em todas as anteriores.
+    // Terminais (no_show/perdido) também são contabilizados nas etapas que passaram:
+    //   • no_show  ⇒ passou por lead → qualificado → reuniao_agendada (não compareceu)
+    //   • perdido  ⇒ não sabemos até onde foi; conta apenas como lead (base do funil)
+    const bump = (uptoIdx: number) => {
+      for (let i = 0; i <= uptoIdx; i++) counts[FUNNEL_ORDER[i]]++;
+    };
     for (const l of monthLeads) {
-      if (l.stage === "no_show") { noShowCount++; continue; }
-      if (l.stage === "perdido") { perdidoCount++; continue; }
+      if (l.stage === "no_show") {
+        noShowCount++;
+        bump(FUNNEL_ORDER.indexOf("reuniao_agendada"));
+        continue;
+      }
+      if (l.stage === "perdido") {
+        perdidoCount++;
+        bump(0); // apenas como lead
+        continue;
+      }
       const idx = stageIndex(l.stage);
-      if (idx >= 0) for (let i = 0; i <= idx; i++) counts[FUNNEL_ORDER[i]]++;
+      if (idx >= 0) bump(idx);
+      else bump(0); // stage desconhecida ⇒ conta como lead
     }
-    counts.lead = monthLeads.length;
+
     const top = counts[FUNNEL_ORDER[0]] || 1;
     const chart = FUNNEL_ORDER.map((stage, i) => ({
       stage: FUNNEL_LABELS[stage],
@@ -154,23 +171,31 @@ export default function TenantDashboard() {
       pct: counts[stage] / top,
       color: FUNNEL_COLORS[i],
     }));
+
     // Taxas de conversão entre etapas do funil
     const totalLeads = counts.lead || 0;
     const qualificados = counts.qualificado || 0;
     const agendados = counts.reuniao_agendada || 0;
     const compareceram = counts.compareceu || 0;
     const ganhos = counts.ganho || 0;
+
+    // Comparecimento e No-show: base = agendados JÁ decididos (compareceram + no_show).
+    // Assim os dois fecham 100% quando fizer sentido; agendamentos futuros ainda
+    // sem resultado não distorcem o denominador.
+    const decididos = compareceram + noShowCount;
+
     const rates = {
-      qualificacao: totalLeads ? qualificados / totalLeads : 0,
-      agendamento:  qualificados ? agendados / qualificados : 0,
-      comparecimento: agendados ? compareceram / agendados : 0,
-      fechamento: compareceram ? ganhos / compareceram : 0,
-      noShow: agendados ? noShowCount / agendados : 0,
-      geral: totalLeads ? ganhos / totalLeads : 0,
-      totals: { totalLeads, qualificados, agendados, compareceram, ganhos, noShowCount, perdidoCount },
+      qualificacao:  totalLeads     ? qualificados / totalLeads     : 0, // Qualif. ÷ Leads
+      agendamento:   qualificados   ? agendados     / qualificados  : 0, // Agend. ÷ Qualif.
+      comparecimento: decididos     ? compareceram  / decididos     : 0, // Compareceu ÷ (Compareceu + No-show)
+      fechamento:    compareceram   ? ganhos        / compareceram  : 0, // Ganho ÷ Compareceu
+      noShow:        decididos      ? noShowCount   / decididos     : 0, // No-show ÷ (Compareceu + No-show)
+      geral:         totalLeads     ? ganhos        / totalLeads    : 0, // Ganho ÷ Leads
+      totals: { totalLeads, qualificados, agendados, compareceram, ganhos, noShowCount, perdidoCount, decididos },
     };
     return { chart, rates };
   }, [leads, range]);
+
   const funnelChart = funnelData.chart;
   const funnelRates = funnelData.rates;
 
@@ -435,9 +460,9 @@ export default function TenantDashboard() {
               {[
                 { label: "Qualificação",   value: funnelRates.qualificacao,   hint: "Qualif. ÷ Leads" },
                 { label: "Agendamento",    value: funnelRates.agendamento,    hint: "Agend. ÷ Qualif." },
-                { label: "Comparecim.",    value: funnelRates.comparecimento, hint: "Comp. ÷ Agend." },
+                { label: "Comparecim.",    value: funnelRates.comparecimento, hint: "Comp. ÷ (Comp.+No-show)" },
                 { label: "Fechamento",     value: funnelRates.fechamento,     hint: "Ganho ÷ Comp." },
-                { label: "No-show",        value: funnelRates.noShow,         hint: "No-show ÷ Agend.", invert: true },
+                { label: "No-show",        value: funnelRates.noShow,         hint: "No-show ÷ (Comp.+No-show)", invert: true },
                 { label: "Conv. Geral",    value: funnelRates.geral,          hint: "Ganho ÷ Leads" },
               ].map((k) => {
                 const color = k.invert
@@ -669,9 +694,9 @@ export default function TenantDashboard() {
             {[
               { label: "Qualificação",   value: funnelRates.qualificacao,   hint: "Qualif. ÷ Leads" },
               { label: "Agendamento",    value: funnelRates.agendamento,    hint: "Agend. ÷ Qualif." },
-              { label: "Comparecimento", value: funnelRates.comparecimento, hint: "Comp. ÷ Agend." },
+              { label: "Comparecimento", value: funnelRates.comparecimento, hint: "Comp. ÷ (Comp.+No-show)" },
               { label: "Fechamento",     value: funnelRates.fechamento,     hint: "Ganho ÷ Comp." },
-              { label: "No-show",        value: funnelRates.noShow,         hint: "No-show ÷ Agend.", invert: true },
+              { label: "No-show",        value: funnelRates.noShow,         hint: "No-show ÷ (Comp.+No-show)", invert: true },
               { label: "Conversão Geral",value: funnelRates.geral,          hint: "Ganho ÷ Leads" },
             ].map((k) => {
               const good = k.invert ? k.value < 0.15 : k.value >= 0.3;
