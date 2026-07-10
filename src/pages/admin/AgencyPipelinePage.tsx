@@ -12,18 +12,11 @@ import {
   Plus, Loader2, MapPin, DollarSign, Calendar, Trophy, Building2, Trash2, Phone, Mail, Sparkles, Pencil, Search, X,
 } from "lucide-react";
 import UnifiedLeadPanel from "@/components/leads/UnifiedLeadPanel";
+import { PIPELINE_STAGES, type PipelineStage } from "@/types/admin";
 
-const STAGES = [
-  { id: "lead", title: "LEAD", color: "from-slate-500 to-slate-600", hex: "#64748b" },
-  { id: "qualificado", title: "QUALIFICADO", color: "from-cyan-500 to-cyan-600", hex: "#06b6d4" },
-  { id: "reuniao", title: "REUNIÃO", color: "from-indigo-500 to-indigo-600", hex: "#6366f1" },
-  { id: "proposta", title: "PROPOSTA", color: "from-violet-500 to-violet-600", hex: "#8b5cf6" },
-  { id: "negociacao", title: "NEGOCIAÇÃO", color: "from-amber-500 to-amber-600", hex: "#f59e0b" },
-  { id: "ganho", title: "GANHO", color: "from-emerald-500 to-emerald-600", hex: "#10b981" },
-  { id: "perdido", title: "PERDIDO", color: "from-rose-500 to-rose-600", hex: "#f43f5e" },
-] as const;
+const STAGES = PIPELINE_STAGES;
 
-type Stage = typeof STAGES[number]["id"];
+type Stage = PipelineStage;
 
 interface AgencyLead {
   id: string;
@@ -153,7 +146,8 @@ export default function AgencyPipelinePage() {
 
   const grouped = useMemo(() => {
     const g: Record<Stage, AgencyLead[]> = {
-      lead: [], qualificado: [], reuniao: [], proposta: [], negociacao: [], ganho: [], perdido: [],
+      lead: [], qualificado: [], agendar_reuniao: [], reuniao_agendada: [],
+      proposta: [], negociacao: [], ganho: [], perdido: [],
     };
     for (const l of filteredLeads) g[l.stage]?.push(l);
     return g;
@@ -261,7 +255,7 @@ export default function AgencyPipelinePage() {
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
           {STAGES.map((stage) => {
             const items = grouped[stage.id];
             const total = items.reduce((s, l) => s + (l.valor_proposta || 0), 0);
