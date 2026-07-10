@@ -58,7 +58,86 @@ export default function WhatsAppStatusPage() {
   const [filter, setFilter] = useState("");
   const [bulkTesting, setBulkTesting] = useState(false);
 
-  const load = async () => {
+  // Import dialog state
+  const [importOpen, setImportOpen] = useState(false);
+  const [importRow, setImportRow] = useState<Row | null>(null);
+  const [importRunning, setImportRunning] = useState(false);
+  const [optCreateLeads, setOptCreateLeads] = useState(true);
+  const [optSyncChats, setOptSyncChats] = useState(true);
+  const [optWithPictures, setOptWithPictures] = useState(true);
+  const [optSyncMessages, setOptSyncMessages] = useState(true);
+  const [optMsgLimit, setOptMsgLimit] = useState(50);
+  const [optMaxChats, setOptMaxChats] = useState(500);
+  const [importResult, setImportResult] = useState<string | null>(null);
+
+  const openImportFor = (r: Row) => {
+    setImportRow(r);
+    setImportResult(null);
+    setImportOpen(true);
+  };
+
+  const runImport = async () => {
+    if (!importRow) return;
+    const tenantId = importRow.tenant.id;
+    setImportRunning(true);
+    setImportResult(null);
+    let summary: string[] = [];
+    try {
+      if (optCreateLeads) {
+        toast.info("Importando contatos como leads…");
+        const { data, error } = await supabase.functions.invoke("evolution-import-leads", {
+          body: { tenant_id: tenantId },
+        });
+        if (error) throw new Error(error.message);
+        if (data?.error) throw new Error(data.error);
+        summary.push(`${data.created} leads criados, ${data.updated} atualizados, ${data.skipped} já existiam (${data.total_contacts} contatos vistos)`);
+      }
+
+      let syncedConversationIds: string[] = [];
+      if (optSyncChats) {
+        toast.info("Sincronizando conversas abertas…");
+        const { data, error } = await supabase.functions.invoke("evolution-sync-chats", {
+          body: { tenant_id: tenantId, with_pictures: optWithPictures },
+        });
+        if (error) throw new Error(error.message);
+        if (data?.error) throw new Error(data.error);
+        summary.push(`${data.upserted ?? 0} conversas sincronizadas`);
+
+        // Fetch the conversation IDs so we can pull messages for them
+        if (optSyncMessages) {
+          let convQ = supabase.from("conversations").select("id").order("ultima_interacao", { ascending: false }).limit(optMaxChats);
+          convQ = tenantId ? convQ.eq("tenant_id", tenantId) : convQ.is("tenant_id", null);
+          const { data: convs } = await convQ;
+          syncedConversationIds = (convs ?? []).map((c: any) => c.id);
+        }
+      }
+
+      if (optSyncMessages && syncedConversationIds.length > 0) {
+        toast.info(`Baixando últimas ${optMsgLimit} mensagens de ${syncedConversationIds.length} conversas…`);
+        let ok = 0, fail = 0, totalReplayed = 0;
+        for (const cid of syncedConversationIds) {
+          try {
+            const { data, error } = await supabase.functions.invoke("evolution-sync-messages", {
+              body: { conversation_id: cid, limit: optMsgLimit },
+            });
+            if (error || data?.error) fail++;
+            else { ok++; totalReplayed += Number(data?.replayed ?? 0); }
+          } catch { fail++; }
+        }
+        summary.push(`${totalReplayed} mensagens replayadas em ${ok} conversas (${fail} falhas)`);
+      }
+
+      const msg = summary.join(" · ");
+      setImportResult(msg);
+      toast.success("Importação concluída", { description: msg });
+    } catch (e: any) {
+      setImportResult(`Erro: ${e.message}`);
+      toast.error("Falha na importação", { description: e.message });
+    } finally {
+      setImportRunning(false);
+    }
+  };
+
     setLoading(true);
     const [{ data: tenants }, { data: conns }] = await Promise.all([
       supabase.from("tenants").select("id,name,slug,status").order("name"),
