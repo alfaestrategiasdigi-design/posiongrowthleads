@@ -76,21 +76,25 @@ export default function SubscriptionsPage() {
 
   const refresh = async () => {
     setLoading(true);
-    const [planRes, tenantRes, subRes, invRes, cfgRes] = await Promise.all([
+    const [planRes, tenantRes, subRes, invRes, cfgRes, offersRes] = await Promise.all([
       supabase.from("plan_catalog").select("*").order("sort_order"),
       supabase.from("tenants").select("id,slug,name,plan,status").order("name"),
       supabase.from("subscriptions").select("*").order("created_at", { ascending: false }),
       supabase.from("subscription_invoices").select("*").order("paid_at", { ascending: false, nullsFirst: false }).limit(100),
       supabase.from("payment_provider_config").select("account_email,account_id,account_site,webhook_url,last_validated_at,last_validation_result,public_key").eq("provider", "mercadopago").maybeSingle(),
+      (supabase as any).from("tenant_custom_offers").select("tenant_id,label,entry_amount_cents,recurring_amount_cents,active"),
     ]);
     setPlans((planRes.data || []) as Plan[]);
     setTenants((tenantRes.data || []) as Tenant[]);
     setSubs((subRes.data || []) as Sub[]);
     setInvoices((invRes.data || []) as Invoice[]);
     setMpConfig((cfgRes.data as any) || null);
+    const m = new Map<string, any>();
+    for (const o of (offersRes.data || []) as any[]) m.set(o.tenant_id, o);
+    setOfferMap(m);
     setLoading(false);
   };
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => { refresh(); }, [offerTick]);
 
   const subByTenant = useMemo(() => {
     const map = new Map<string, Sub>();
