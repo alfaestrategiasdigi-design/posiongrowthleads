@@ -340,8 +340,8 @@ export default function TenantDashboard() {
       </div>
 
       {/* HERO — Faturamento total + gráfico + KPIs à direita (padrão Admin Master) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 items-stretch">
-        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-4 sm:p-6 flex flex-col">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 items-start">
+        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-4 sm:p-6 h-auto flex flex-col">
 
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -387,7 +387,7 @@ export default function TenantDashboard() {
             </div>
           ) : null}
 
-          <div className="flex-1 min-h-[220px] mt-4">
+          <div className="h-[280px] mt-4">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={heroTimeline} margin={{ top: 6, right: 8, bottom: 0, left: -8 }}>
                 <defs>
