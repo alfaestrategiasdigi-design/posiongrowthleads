@@ -351,6 +351,26 @@ export default function TenantDashboard() {
 
 
 
+  const [drill, setDrill] = useState<{ key: string; label: string } | null>(null);
+  const [openLead, setOpenLead] = useState<AdminLead | null>(null);
+
+  // Numerator stages for each conversion metric — leads counted in the numerator
+  const STAGE_SETS: Record<string, string[]> = {
+    qualificacao:   ["qualificado","reuniao_agendada","compareceu","negociacao","ganho","no_show"],
+    agendamento:    ["reuniao_agendada","compareceu","negociacao","ganho","no_show"],
+    comparecimento: ["compareceu","negociacao","ganho"],
+    fechamento:     ["ganho"],
+    noShow:         ["no_show"],
+    geral:          ["ganho"],
+  };
+  const drillLeads = useMemo(() => {
+    if (!drill) return [];
+    const allowed = new Set(STAGE_SETS[drill.key] || []);
+    return leads
+      .filter((l) => inRange(l.created_at) && l.stage && allowed.has(l.stage))
+      .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+  }, [drill, leads, range]);
+
   return (
     <div className="p-3 sm:p-4 md:p-8 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
       {/* Header — mirrors Admin Master style */}
