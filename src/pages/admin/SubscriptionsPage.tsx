@@ -323,6 +323,7 @@ export default function SubscriptionsPage() {
                         <TableHead>Clínica</TableHead>
                         <TableHead>Plano</TableHead>
                         <TableHead>Valor</TableHead>
+                        <TableHead>Oferta</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Próxima cobrança</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
@@ -331,6 +332,7 @@ export default function SubscriptionsPage() {
                     <TableBody>
                       {tenants.map((t) => {
                         const sub = subByTenant.get(t.id);
+                        const offer = offerMap.get(t.id);
                         return (
                           <TableRow key={t.id}>
                             <TableCell>
@@ -349,12 +351,22 @@ export default function SubscriptionsPage() {
                               {sub?.amount_cents ? BRL(sub.amount_cents, sub.currency || "brl") : "—"}
                             </TableCell>
                             <TableCell>
+                              {offer ? (
+                                <Badge className={offer.active ? "bg-amber-500/15 text-amber-300 border border-amber-500/30" : "bg-white/5 text-muted-foreground border border-white/10"}>
+                                  {offer.label} · {BRL(offer.entry_amount_cents)} → {BRL(offer.recurring_amount_cents)}
+                                </Badge>
+                              ) : <span className="text-xs text-muted-foreground italic">—</span>}
+                            </TableCell>
+                            <TableCell>
                               {sub ? <Badge className={STATUS_BADGE[sub.status] || ""}>{sub.status}</Badge> : <Badge variant="outline">—</Badge>}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
                               {sub?.current_period_end ? new Date(sub.current_period_end).toLocaleDateString("pt-BR") : "—"}
                             </TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right space-x-1.5">
+                              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setOfferTenant(t)}>
+                                <Tag className="w-3.5 h-3.5" /> Oferta
+                              </Button>
                               <Button size="sm" variant="outline" className="gap-1.5" onClick={() => openTenantActions(t)}>
                                 <CreditCard className="w-3.5 h-3.5" /> Gerenciar
                               </Button>
