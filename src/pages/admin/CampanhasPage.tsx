@@ -998,11 +998,13 @@ export default function CampanhasPage() {
               const crmWins = crmWinsByCampaign[key] || 0;
               const crmRev = crmRevenueByCampaign[key] || 0;
               const crmAppts = crmApptsByCampaign[key] || 0;
+              const crmComp = crmCompByCampaign[key] || 0;
               const wonList = wonLeadsByCampaign[key] || [];
               const isActive = c.effective_status === "ACTIVE";
               const dailyBudgetR = c.daily_budget ? Number(c.daily_budget) / 100 : null;
               const roas = i && i.spend ? ((i.purchase_value + crmRev) / i.spend) : 0;
               const cpl = i && i.leads ? i.spend / i.leads : 0;
+              const cpr = i && crmComp ? i.spend / crmComp : 0;
 
               return (
                 <div key={c.id}
