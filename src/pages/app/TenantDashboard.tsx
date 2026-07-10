@@ -418,11 +418,12 @@ export default function TenantDashboard() {
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 lg:grid-rows-3 gap-3 h-full">
           <KpiPremium icon={ShoppingBag} label="Nº de Vendas" value={loading ? null : String(count)} delta={varCount} loading={loading} prevLabel={prevMonthLabel} spark={sparkCount} />
           <KpiPremium icon={Receipt} label="Ticket Médio" value={loading ? null : BRL(avg)} delta={varTicket} loading={loading} prevLabel={prevMonthLabel} spark={sparkTicket} />
           <KpiPremium icon={Trophy} label="Maior Venda" value={loading ? null : BRL(maxSale?.amount ?? 0)} sub={maxSale?.patient_name || "—"} loading={loading} />
         </div>
+
       </div>
 
       {/* Alertas Inteligentes */}
