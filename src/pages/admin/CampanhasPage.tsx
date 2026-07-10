@@ -168,7 +168,7 @@ export default function CampanhasPage() {
 
   const attributeCrm = async (camps: { id: string; name: string }[]) => {
     if (!camps.length) {
-      setCrmWinsByCampaign({}); setCrmRevenueByCampaign({}); setWonLeadsByCampaign({}); setCrmApptsByCampaign({});
+      setCrmWinsByCampaign({}); setCrmRevenueByCampaign({}); setWonLeadsByCampaign({}); setCrmApptsByCampaign({}); setCrmCompByCampaign({});
       return;
     }
     const normalize = (s: string) =>
