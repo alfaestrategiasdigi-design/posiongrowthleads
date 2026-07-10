@@ -130,11 +130,14 @@ export default function TenantAgenda() {
           {loading ? (
             <div className="p-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : view === "mes" ? (
-            <MonthView cursor={cursor} byDay={byDay} onEdit={openEdit} />
+            <MonthView cursor={cursor} byDay={byDay} onOpen={openAppointment} />
           ) : view === "semana" ? (
-            <WeekView cursor={cursor} byDay={byDay} onEdit={openEdit} />
+            <WeekView cursor={cursor} byDay={byDay} onOpen={openAppointment} />
           ) : (
-            <DayView day={cursor} items={byDay.get(cursor.toDateString()) || []} onEdit={openEdit} />
+            <DayView day={cursor} items={byDay.get(cursor.toDateString()) || []} onOpen={openAppointment} />
+          )}
+          {loadingLead && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Abrindo lead…</div>
           )}
         </CardContent>
       </Card>
@@ -149,6 +152,13 @@ export default function TenantAgenda() {
           onDeleted={load}
         />
       )}
+
+      <LeadDetailModal
+        lead={selectedLead}
+        open={!!selectedLead}
+        onClose={() => setSelectedLead(null)}
+        onUpdated={() => { setSelectedLead(null); load(); }}
+      />
     </div>
   );
 }
