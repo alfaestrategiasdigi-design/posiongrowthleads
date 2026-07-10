@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalIcon, ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
 import AppointmentDialog from "@/components/tenant/AppointmentDialog";
+import LeadDetailModal from "@/components/admin/LeadDetailModal";
+import type { Lead } from "@/types/admin";
+import { toast } from "sonner";
 
 interface Appointment {
   id: string;
