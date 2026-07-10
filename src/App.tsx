@@ -43,6 +43,7 @@ import TenantLeads from "./pages/app/TenantLeads";
 import TenantCampaigns from "./pages/app/TenantCampaigns";
 import TenantRelatorios from "./pages/app/TenantRelatorios";
 import RelatoriosPage from "./pages/admin/RelatoriosPage";
+import ProfilePage from "./pages/shared/ProfilePage";
 
 const queryClient = new QueryClient();
 
