@@ -387,7 +387,7 @@ export default function TenantDashboard() {
             </div>
           ) : null}
 
-          <div className="flex-1 min-h-[220px] mt-4">
+          <div className="h-[280px] mt-4">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={heroTimeline} margin={{ top: 6, right: 8, bottom: 0, left: -8 }}>
                 <defs>
