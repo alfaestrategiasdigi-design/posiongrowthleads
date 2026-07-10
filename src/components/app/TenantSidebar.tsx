@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import type { Tenant } from "@/hooks/useTenant";
 import posionLogo from "@/assets/posion/logo-posion.png.asset.json";
+import UserAvatarBlock from "@/components/shared/UserAvatarBlock";
 
 interface Props { tenant: Tenant; isSuperAdmin: boolean; tenantRole?: string | null }
 
