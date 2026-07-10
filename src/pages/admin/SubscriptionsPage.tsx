@@ -643,6 +643,12 @@ export default function SubscriptionsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <TenantOfferDialog
+        tenant={offerTenant}
+        open={!!offerTenant}
+        onClose={() => { setOfferTenant(null); setOfferTick((n) => n + 1); }}
+      />
     </div>
   );
 }
