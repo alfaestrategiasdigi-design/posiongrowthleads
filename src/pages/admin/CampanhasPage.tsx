@@ -272,11 +272,29 @@ export default function CampanhasPage() {
       .filter((a: any) => !selectedTenantId || a.tenant_id_criado === selectedTenantId)
       .forEach((a: any) => attributeAppt(a.id, a.campaign_id_manual, a.utm_campaign));
 
+    // Compareceu: usado para o Custo por Reunião (CPR)
+    let qc = supabase.from("leads")
+      .select("id,utm_campaign,facebook_campaign,facebook_form_name,campaign_id_manual,tenant_id")
+      .eq("status", "compareceu");
+    if (selectedTenantId) qc = qc.eq("tenant_id", selectedTenantId);
+    const { data: compLeads } = await qc;
+    (compLeads ?? []).forEach((l: any) =>
+      attributeComp(l.id, l.campaign_id_manual, l.utm_campaign, l.facebook_campaign, l.facebook_form_name),
+    );
+
+    const { data: compLeads2 } = await supabase
+      .from("agency_leads")
+      .select("id,utm_campaign,campaign_id_manual,tenant_id_criado,stage")
+      .eq("stage", "compareceu");
+    (compLeads2 ?? [])
+      .filter((a: any) => !selectedTenantId || a.tenant_id_criado === selectedTenantId)
+      .forEach((a: any) => attributeComp(a.id, a.campaign_id_manual, a.utm_campaign));
 
     setCrmWinsByCampaign(wins);
     setCrmRevenueByCampaign(rev);
     setWonLeadsByCampaign(leadsMap);
     setCrmApptsByCampaign(appts);
+    setCrmCompByCampaign(comp);
   };
 
   const loadMetaCampaigns = async (didReconnect = false) => {
