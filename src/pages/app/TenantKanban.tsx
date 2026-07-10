@@ -22,6 +22,7 @@ export default function TenantKanban() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [rangeDays, setRangeDays] = useState<number | null>(null);
+  const [nextAppt, setNextAppt] = useState<Record<string, string>>({});
 
   const loadLeads = async () => {
     if (!tenant?.id) return;
@@ -36,7 +37,24 @@ export default function TenantKanban() {
     setLoading(false);
   };
 
-  useEffect(() => { loadLeads(); /* eslint-disable-next-line */ }, [tenant?.id]);
+  const loadNextAppointments = async () => {
+    if (!tenant?.id) return;
+    const { data } = await supabase
+      .from("appointments")
+      .select("lead_id, date_time, status")
+      .eq("tenant_id", tenant.id)
+      .not("lead_id", "is", null)
+      .gte("date_time", new Date().toISOString())
+      .not("status", "in", "(cancelado,no_show)")
+      .order("date_time", { ascending: true });
+    const map: Record<string, string> = {};
+    (data || []).forEach((a: any) => {
+      if (a.lead_id && !map[a.lead_id]) map[a.lead_id] = a.date_time;
+    });
+    setNextAppt(map);
+  };
+
+  useEffect(() => { loadLeads(); loadNextAppointments(); /* eslint-disable-next-line */ }, [tenant?.id]);
 
   useEffect(() => {
     if (!tenant?.id) return;
@@ -148,7 +166,7 @@ export default function TenantKanban() {
         </div>
       </div>
 
-      <KanbanBoard leads={filteredLeads} onLeadsChange={loadLeads} />
+      <KanbanBoard leads={filteredLeads} onLeadsChange={() => { loadLeads(); loadNextAppointments(); }} nextAppointmentByLead={nextAppt} />
     </div>
   );
 }

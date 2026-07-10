@@ -47,15 +47,34 @@ export default function LeadAppointmentsSection({ tenantId, leadId, leadName, le
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
+    const cols = "id, date_time, duration_minutes, appointment_type, procedure, status, client_name, client_phone, lead_id";
+    // 1) direct link by lead_id
+    const byLead = supabase
       .from("appointments")
-      .select("id, date_time, duration_minutes, appointment_type, procedure, status, client_name")
+      .select(cols)
       .eq("tenant_id", tenantId)
-      .eq("lead_id", leadId)
-      .order("date_time", { ascending: false });
-    setRows((data || []) as Row[]);
+      .eq("lead_id", leadId);
+    // 2) fallback: match by normalized phone (last 11 digits) for legacy rows
+    const digits = (leadPhone || "").replace(/\D/g, "");
+    const normalized = digits.slice(-11);
+    const byPhone = normalized.length >= 8
+      ? supabase
+          .from("appointments")
+          .select(cols)
+          .eq("tenant_id", tenantId)
+          .is("lead_id", null)
+          .ilike("client_phone", `%${normalized}%`)
+      : Promise.resolve({ data: [] as any[] });
+
+    const [{ data: a }, { data: b }] = await Promise.all([byLead, byPhone as any]);
+    const map = new Map<string, Row>();
+    [...(a || []), ...(b || [])].forEach((r: any) => map.set(r.id, r as Row));
+    const merged = Array.from(map.values()).sort(
+      (x, y) => new Date(y.date_time).getTime() - new Date(x.date_time).getTime()
+    );
+    setRows(merged);
     setLoading(false);
-  }, [tenantId, leadId]);
+  }, [tenantId, leadId, leadPhone]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -113,8 +132,8 @@ export default function LeadAppointmentsSection({ tenantId, leadId, leadName, le
             const dt = new Date(r.date_time);
             return (
               <div key={r.id} className="flex items-center gap-2 rounded-md border border-border/50 bg-background/40 px-2.5 py-2 text-xs">
-                <div className="font-mono text-muted-foreground min-w-[92px]">
-                  {dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} {dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                <div className="font-mono text-muted-foreground min-w-[120px]">
+                  {dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })} {dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                 </div>
                 <div className="flex-1 truncate">
                   <span className="font-medium">{r.appointment_type || "Consulta"}</span>

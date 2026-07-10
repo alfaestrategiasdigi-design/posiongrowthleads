@@ -8,9 +8,10 @@ interface LeadCardProps {
   lead: Lead;
   onClick: () => void;
   onDragStart: (e: React.DragEvent, leadId: string) => void;
+  nextAppointmentAt?: string;
 }
 
-const LeadCard = ({ lead, onClick, onDragStart }: LeadCardProps) => {
+const LeadCard = ({ lead, onClick, onDragStart, nextAppointmentAt }: LeadCardProps) => {
   const whatsappNumber = lead.whatsapp.replace(/\D/g, "");
   const whatsappLink = `https://wa.me/55${whatsappNumber}?text=Olá ${lead.nome_completo.split(" ")[0]}, aqui é da Posion Growth!`;
 
@@ -69,6 +70,15 @@ const LeadCard = ({ lead, onClick, onDragStart }: LeadCardProps) => {
           </p>
         )}
       </div>
+
+      {/* Próxima consulta */}
+      {nextAppointmentAt && (
+        <div className="mb-2 flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20">
+          <Calendar className="w-3 h-3" />
+          <span className="font-semibold">Consulta:</span>
+          <span>{format(new Date(nextAppointmentAt), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="flex items-center justify-between pt-2 border-t border-border/50">

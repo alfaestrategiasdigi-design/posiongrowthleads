@@ -24,9 +24,10 @@ const iconMap: Record<string, any> = {
 interface KanbanBoardProps {
   leads: Lead[];
   onLeadsChange: () => void;
+  nextAppointmentByLead?: Record<string, string>;
 }
 
-const KanbanBoard = ({ leads, onLeadsChange }: KanbanBoardProps) => {
+const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoardProps) => {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
 
@@ -112,6 +113,7 @@ const KanbanBoard = ({ leads, onLeadsChange }: KanbanBoardProps) => {
                   <LeadCard
                     key={lead.id}
                     lead={lead}
+                    nextAppointmentAt={nextAppointmentByLead?.[lead.id]}
                     onClick={() => setSelectedLead(lead)}
                     onDragStart={handleDragStart}
                   />
