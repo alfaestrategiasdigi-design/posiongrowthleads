@@ -492,6 +492,7 @@ export default function TenantPlans() {
           onPaid={() => { setFounderOpen(false); refresh(); }}
           tenantId={tenant.id}
           payerEmail={user?.email ?? undefined}
+          offer={customOffer}
         />
       )}
     </div>
