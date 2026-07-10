@@ -1050,8 +1050,11 @@ export default function CampanhasPage() {
                   {/* Micro metrics */}
                   <div className="grid grid-cols-5 divide-x divide-white/5 border-b border-white/5 text-center">
                     <MicroMetric label="Leads" value={NUM(i?.leads || 0)} />
+                  <div className="grid grid-cols-6 divide-x divide-white/5 border-b border-white/5 text-center">
+                    <MicroMetric label="Leads" value={NUM(i?.leads || 0)} />
                     <MicroMetric label="Agendados" value={NUM(crmAppts)} highlight={crmAppts > 0} />
                     <MicroMetric label="CPL" value={cpl ? BRL(cpl) : "—"} />
+                    <MicroMetric label="CPR" value={cpr ? BRL(cpr) : "—"} highlight={cpr > 0} />
                     <MicroMetric label="CTR" value={i ? `${(i.ctr || 0).toFixed(1)}%` : "—"} />
                     <MicroMetric label="ROAS" value={roas ? `${roas.toFixed(1)}x` : "—"}
                       highlight={roas >= 2} />
