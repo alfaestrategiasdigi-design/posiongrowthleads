@@ -12,18 +12,11 @@ import {
   Plus, Loader2, MapPin, DollarSign, Calendar, Trophy, Building2, Trash2, Phone, Mail, Sparkles, Pencil, Search, X,
 } from "lucide-react";
 import UnifiedLeadPanel from "@/components/leads/UnifiedLeadPanel";
+import { PIPELINE_STAGES, type PipelineStage } from "@/types/admin";
 
-const STAGES = [
-  { id: "lead", title: "LEAD", color: "from-slate-500 to-slate-600", hex: "#64748b" },
-  { id: "qualificado", title: "QUALIFICADO", color: "from-cyan-500 to-cyan-600", hex: "#06b6d4" },
-  { id: "reuniao", title: "REUNIÃO", color: "from-indigo-500 to-indigo-600", hex: "#6366f1" },
-  { id: "proposta", title: "PROPOSTA", color: "from-violet-500 to-violet-600", hex: "#8b5cf6" },
-  { id: "negociacao", title: "NEGOCIAÇÃO", color: "from-amber-500 to-amber-600", hex: "#f59e0b" },
-  { id: "ganho", title: "GANHO", color: "from-emerald-500 to-emerald-600", hex: "#10b981" },
-  { id: "perdido", title: "PERDIDO", color: "from-rose-500 to-rose-600", hex: "#f43f5e" },
-] as const;
+const STAGES = PIPELINE_STAGES;
 
-type Stage = typeof STAGES[number]["id"];
+type Stage = PipelineStage;
 
 interface AgencyLead {
   id: string;
