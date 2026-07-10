@@ -38,6 +38,7 @@ import TenantAgenda from "./pages/app/TenantAgenda";
 import TenantConfig from "./pages/app/TenantConfig";
 import TenantRecall from "./pages/app/TenantRecall";
 import TenantPlans from "./pages/app/TenantPlans";
+import TenantCheckout from "./pages/app/TenantCheckout";
 import TenantProductsConfig from "./pages/app/TenantProductsConfig";
 import TenantLeads from "./pages/app/TenantLeads";
 import TenantCampaigns from "./pages/app/TenantCampaigns";
@@ -81,6 +82,7 @@ const App = () => (
           <Route path="/app/:tenantSlug/automacoes" element={<AppLayout><TenantRecall /></AppLayout>} />
           <Route path="/app/:tenantSlug/recall" element={<Navigate to="../automacoes" replace />} />
           <Route path="/app/:tenantSlug/planos" element={<AppLayout><TenantPlans /></AppLayout>} />
+          <Route path="/app/:tenantSlug/checkout" element={<AppLayout><TenantCheckout /></AppLayout>} />
           <Route path="/app/:tenantSlug/relatorios" element={<AppLayout><TenantRelatorios /></AppLayout>} />
           <Route path="/app/:tenantSlug/perfil" element={<AppLayout><ProfilePage /></AppLayout>} />
 
