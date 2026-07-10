@@ -20,6 +20,10 @@ import { ptBR } from "date-fns/locale";
 import { Search, GitBranch, Building2, Sparkles, ArrowUpRight } from "lucide-react";
 import { DateRangePicker, makeRange, type DateRangeValue } from "@/components/shared/DateRangePicker";
 import { differenceInDays, startOfDay, endOfDay, subDays, format as fmtDate } from "date-fns";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import LeadDetailModal from "@/components/admin/LeadDetailModal";
+import type { Lead as AdminLead } from "@/types/admin";
 
 interface Goal { year: number; month: number; goal_1: number; goal_2: number; goal_3: number; }
 interface LeadRow { id: string; stage: string | null; created_at: string; name: string | null; phone: string | null; }
