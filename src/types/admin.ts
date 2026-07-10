@@ -93,12 +93,24 @@ export interface ZapiConnection {
   updated_at: string;
 }
 
-// Funil padronizado POSION — etapas do Kanban clínico (mapa mental definitivo)
+// Funil padronizado POSION — etapas do Kanban administrativo (admin master, reunião)
 export const PIPELINE_STAGES = [
   { id: "lead",              title: "Lead Novo",             short: "Lead Novo",       color: "from-blue-500 to-blue-600",       hex: "#3b82f6" },
   { id: "qualificado",       title: "Início de Atendimento", short: "Início Atend.",   color: "from-violet-500 to-violet-600",   hex: "#8b5cf6" },
   { id: "agendar_reuniao",   title: "Agendar Reunião",       short: "Agendar",         color: "from-pink-500 to-pink-600",       hex: "#ec4899" },
   { id: "reuniao_agendada",  title: "Reunião Agendada",      short: "Reunião",         color: "from-red-500 to-red-600",         hex: "#ef4444" },
+  { id: "proposta",          title: "Proposta",              short: "Proposta",        color: "from-orange-500 to-orange-600",   hex: "#f97316" },
+  { id: "negociacao",        title: "Negociação",            short: "Negociação",      color: "from-amber-500 to-amber-600",     hex: "#f59e0b" },
+  { id: "ganho",             title: "Ganho",                 short: "Ganho",           color: "from-emerald-500 to-emerald-600", hex: "#10b981" },
+  { id: "perdido",           title: "Perdido",               short: "Perdido",         color: "from-rose-500 to-rose-600",       hex: "#f43f5e" },
+] as const;
+
+// Funil para clientes/tenants — mesmas etapas, mas com linguagem de consulta médica
+export const CLIENT_PIPELINE_STAGES = [
+  { id: "lead",              title: "Lead Novo",             short: "Lead Novo",       color: "from-blue-500 to-blue-600",       hex: "#3b82f6" },
+  { id: "qualificado",       title: "Início de Atendimento", short: "Início Atend.",   color: "from-violet-500 to-violet-600",   hex: "#8b5cf6" },
+  { id: "agendar_reuniao",   title: "Agendar Consulta",      short: "Agendar",         color: "from-pink-500 to-pink-600",       hex: "#ec4899" },
+  { id: "reuniao_agendada",  title: "Consulta Agendada",     short: "Consulta",        color: "from-red-500 to-red-600",         hex: "#ef4444" },
   { id: "proposta",          title: "Proposta",              short: "Proposta",        color: "from-orange-500 to-orange-600",   hex: "#f97316" },
   { id: "negociacao",        title: "Negociação",            short: "Negociação",      color: "from-amber-500 to-amber-600",     hex: "#f59e0b" },
   { id: "ganho",             title: "Ganho",                 short: "Ganho",           color: "from-emerald-500 to-emerald-600", hex: "#10b981" },
