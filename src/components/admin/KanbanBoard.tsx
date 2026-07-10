@@ -27,7 +27,7 @@ interface KanbanBoardProps {
   nextAppointmentByLead?: Record<string, string>;
 }
 
-const KanbanBoard = ({ leads, onLeadsChange }: KanbanBoardProps) => {
+const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoardProps) => {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
 
