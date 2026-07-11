@@ -224,6 +224,7 @@ export default function TenantCampaigns() {
     }, { spend: 0, leads: 0, impressions: 0, clicks: 0, revenue: 0 });
     const crmTotal = Object.values(crmWins).reduce((sum, v) => sum + v.value, 0);
     const crmCount = Object.values(crmWins).reduce((sum, v) => sum + v.count, 0);
+    const meetingsTotal = Object.values(crmStats).reduce((sum, v) => sum + v.meetings, 0);
     const totalRev = s.revenue + crmTotal;
     return {
       spend: s.spend, leads: s.leads, revenue: totalRev,
@@ -232,8 +233,12 @@ export default function TenantCampaigns() {
       active: campaigns.filter((c) => c.effective_status === "ACTIVE" || c.status === "ACTIVE").length,
       total: campaigns.length, crmWins: crmCount,
       ctr: s.impressions ? (s.clicks / s.impressions) * 100 : 0,
+      meetings: meetingsTotal,
+      cpm_meeting: meetingsTotal ? s.spend / meetingsTotal : 0,
+      cac: crmCount ? s.spend / crmCount : 0,
     };
-  }, [campaigns, crmWins]);
+  }, [campaigns, crmWins, crmStats]);
+
 
   // Agrega séries diárias de todas as campanhas para os sparklines dos KPIs
   const dailyTotals = useMemo(() => {
