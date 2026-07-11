@@ -296,8 +296,8 @@ function PatientSummaryForm({ p, onSaved }: { p: PatientRow; onSaved: () => void
 /* ---------- Paciente: Onboarding (editável, upsert lazy) ---------- */
 
 function PatientOnboardingForm({
-  patientId, row, onSaved,
-}: { patientId: string; row: PatientOnboardingRow | null; onSaved: () => void }) {
+  patientId, tenantId, row, onSaved,
+}: { patientId: string; tenantId: string; row: PatientOnboardingRow | null; onSaved: () => void }) {
   const [f, setF] = useState({
     objetivo_principal: row?.objetivo_principal ?? "",
     procedimento_interesse: row?.procedimento_interesse ?? "",
