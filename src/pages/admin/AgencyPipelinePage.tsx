@@ -172,7 +172,7 @@ export default function AgencyPipelinePage() {
   const moveStage = async (leadId: string, newStage: Stage) => {
     setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, stage: newStage } : l)));
     const patch: Partial<AgencyLead> = { stage: newStage };
-    if (newStage === "ganho") (patch as any).ganho_at = new Date().toISOString();
+    if (newStage === "ganho" || newStage === "ativo") (patch as any).ganho_at = new Date().toISOString();
     const { error } = await supabase.from("agency_leads").update(patch).eq("id", leadId);
     if (error) { toast.error(error.message); load(); }
     else toast.success(`Movido para ${STAGES.find((s) => s.id === newStage)?.title}`);
