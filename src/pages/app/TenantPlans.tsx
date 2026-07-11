@@ -47,6 +47,7 @@ interface Plan {
 
 export default function TenantPlans() {
   const { tenant, user } = useTenant();
+  const navigate = useNavigate();
   const [sub, setSub] = useState<any>(null);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -54,7 +55,6 @@ export default function TenantPlans() {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [founderSlot, setFounderSlot] = useState<any>(null);
   const [founderTaken, setFounderTaken] = useState(0);
-  const [founderOpen, setFounderOpen] = useState(false);
   const [customOffer, setCustomOffer] = useState<OfferInfo | null>(null);
 
   const refresh = async () => {
