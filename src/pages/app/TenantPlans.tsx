@@ -207,7 +207,7 @@ export default function TenantPlans() {
                   )}
                 </div>
                 <div className="text-[11px] text-muted-foreground text-center">
-                  Ao gerar o Pix você concorda com a cobrança recorrente de <b className="text-foreground">{BRL(customOffer.recurring_amount_cents)}/{intervalLabel(customOffer.interval)}</b> ao término dos {cyclesLabel}.
+                  Ao finalizar o checkout você concorda com a cobrança recorrente de <b className="text-foreground">{BRL(customOffer.recurring_amount_cents)}/{intervalLabel(customOffer.interval)}</b> ao término dos {cyclesLabel}.
                 </div>
               </CardContent>
             </Card>
@@ -286,7 +286,7 @@ export default function TenantPlans() {
                   )}
                 </div>
                 <div className="text-[11px] text-muted-foreground text-center">
-                  Ao gerar o Pix, você concorda com a cobrança recorrente de <b className="text-foreground">R$ 389/mês</b> a partir do 2º mês.
+                  Ao finalizar o checkout, você concorda com a cobrança recorrente de <b className="text-foreground">R$ 389/mês</b> a partir do 2º mês.
                 </div>
               </CardContent>
             </Card>
