@@ -93,6 +93,8 @@ export default function TenantCampaigns() {
   const [reason, setReason] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [crmWins, setCrmWins] = useState<Record<string, { count: number; value: number }>>({});
+  const [crmStats, setCrmStats] = useState<Record<string, { leads: number; meetings: number; wins: number; revenue: number }>>({});
+
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [linkedForms, setLinkedForms] = useState<LinkedForm[]>([]);
   const [lastBackfill, setLastBackfill] = useState<Date | null>(null);
