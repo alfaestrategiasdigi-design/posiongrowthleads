@@ -102,6 +102,7 @@ export const PIPELINE_STAGES = [
   { id: "proposta",          title: "Proposta",              short: "Proposta",        color: "from-orange-500 to-orange-600",   hex: "#f97316" },
   { id: "negociacao",        title: "Negociação",            short: "Negociação",      color: "from-amber-500 to-amber-600",     hex: "#f59e0b" },
   { id: "ganho",             title: "Ganho",                 short: "Ganho",           color: "from-emerald-500 to-emerald-600", hex: "#10b981" },
+  { id: "ativo",             title: "Cliente Ativo",         short: "Cliente Ativo",   color: "from-teal-500 to-teal-600",       hex: "#14b8a6" },
   { id: "perdido",           title: "Perdido",               short: "Perdido",         color: "from-rose-500 to-rose-600",       hex: "#f43f5e" },
 ] as const;
 
