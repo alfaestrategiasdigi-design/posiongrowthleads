@@ -11,6 +11,7 @@ import LeadSummaryTab from "./panel/LeadSummaryTab";
 import LeadFormAnswersTab from "./panel/LeadFormAnswersTab";
 import LeadSDRTab from "./panel/LeadSDRTab";
 import LeadTasksTab from "./panel/LeadTasksTab";
+import { FIELDS_BY_KIND, resolveEntityKindLegacy, type EntityKind } from "@/lib/entity-fields";
 
 interface Props {
   source: LeadSource | null;
@@ -18,16 +19,21 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onUpdated?: () => void;
+  /** Opcional: força um tipo de entidade. Se omitido, cai no default legado
+   *  (mantém o comportamento atual de todos os call sites existentes). */
+  entityKind?: EntityKind;
 }
 
 const fmt = (v: number | null) =>
   v == null ? "—" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v);
 
-const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated }: Props) => {
+const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated, entityKind }: Props) => {
   const { data: lead, loading, reload, saveSDR, savePatch } = useUnifiedLead(open ? source : null, open ? leadId : null);
   const [tab, setTab] = useState("summary");
   const location = useLocation();
   const isTenantContext = location.pathname.startsWith("/app/");
+  const kind: EntityKind = entityKind ?? resolveEntityKindLegacy(source, isTenantContext);
+  const cfg = FIELDS_BY_KIND[kind];
 
 
   const whatsappLink = lead?.whatsapp
@@ -64,9 +70,9 @@ const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated }: Props) =
               </div>
 
               {/* Quick facts strip */}
-              <div className={`grid ${isTenantContext ? "grid-cols-2 md:grid-cols-3" : "grid-cols-2 md:grid-cols-4"} gap-2 text-xs`}>
+              <div className={`grid ${cfg.summary.company ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2 md:grid-cols-3"} gap-2 text-xs`}>
                 <QuickFact icon={Phone} label="WhatsApp" value={lead.whatsapp || "—"} />
-                {!isTenantContext && <QuickFact icon={Building2} label="Empresa" value={lead.company || "—"} />}
+                {cfg.summary.company && <QuickFact icon={Building2} label="Empresa" value={lead.company || "—"} />}
                 <QuickFact icon={MapPin} label="Local" value={lead.city || "—"} />
                 <QuickFact icon={DollarSign} label="Proposta" value={fmt(lead.proposalValue)} />
               </div>
@@ -103,6 +109,7 @@ const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated }: Props) =
                 <TabsContent value="summary" className="mt-0">
                   <LeadSummaryTab
                     lead={lead}
+                    entityKind={kind}
                     onSave={async (patch) => {
                       const { error } = await savePatch(patch);
                       if (!error) onUpdated?.();
