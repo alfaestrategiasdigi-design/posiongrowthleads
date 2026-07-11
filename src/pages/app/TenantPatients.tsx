@@ -29,6 +29,7 @@ export default function TenantPatients() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  const [panelId, setPanelId] = useState<string | null>(null);
 
   async function load() {
     if (!tenant) return;
