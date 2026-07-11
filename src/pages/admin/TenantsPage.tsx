@@ -103,16 +103,20 @@ export default function TenantsPage() {
               </TableHeader>
               <TableBody>
                 {tenants.map((t) => (
-                  <TableRow key={t.id}>
+                  <TableRow
+                    key={t.id}
+                    className="cursor-pointer hover:bg-muted/40"
+                    onClick={() => setPanelTenantId(t.id)}
+                  >
                     <TableCell className="font-medium">{t.name}</TableCell>
                     <TableCell className="font-mono text-xs">{t.slug}</TableCell>
                     <TableCell><Badge variant="outline">{t.plan}</Badge></TableCell>
                     <TableCell><Badge className={t.status === "active" ? "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/20" : ""}>{t.status}</Badge></TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <TrialControls tenant={t} onChange={refresh} />
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{new Date(t.created_at).toLocaleDateString("pt-BR")}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-2">
                         <Button size="sm" variant="outline" className="gap-2" onClick={() => setUsersFor(t)}>
                           <Users className="w-3 h-3" /> Usuários
