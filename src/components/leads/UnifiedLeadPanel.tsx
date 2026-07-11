@@ -11,6 +11,7 @@ import LeadSummaryTab from "./panel/LeadSummaryTab";
 import LeadFormAnswersTab from "./panel/LeadFormAnswersTab";
 import LeadSDRTab from "./panel/LeadSDRTab";
 import LeadTasksTab from "./panel/LeadTasksTab";
+import { FIELDS_BY_KIND, resolveEntityKindLegacy, type EntityKind } from "@/lib/entity-fields";
 
 interface Props {
   source: LeadSource | null;
@@ -18,6 +19,9 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onUpdated?: () => void;
+  /** Opcional: força um tipo de entidade. Se omitido, cai no default legado
+   *  (mantém o comportamento atual de todos os call sites existentes). */
+  entityKind?: EntityKind;
 }
 
 const fmt = (v: number | null) =>
