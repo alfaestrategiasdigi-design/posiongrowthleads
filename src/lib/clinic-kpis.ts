@@ -11,6 +11,7 @@ export interface SaleRow {
   first_contact_date: string | null;
   attended: string | null;
   patient_name: string;
+  patient_id?: string | null;
   international?: boolean;
 }
 
