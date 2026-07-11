@@ -56,6 +56,7 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoar
     if (newStatus === "proposta" && !lead.proposta_enviada_em) patch.proposta_enviada_em = now;
     if (newStatus === "negociacao" && !lead.proposta_enviada_em) patch.proposta_enviada_em = now;
     if (newStatus === "ganho" && !lead.fechado_em) patch.fechado_em = now;
+    if (newStatus === "ativo" && !lead.fechado_em) patch.fechado_em = now;
     if (newStatus === "perdido" && !lead.fechado_em) patch.fechado_em = now;
 
     try {
