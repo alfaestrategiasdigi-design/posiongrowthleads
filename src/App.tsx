@@ -45,6 +45,7 @@ import TenantCampaigns from "./pages/app/TenantCampaigns";
 import TenantRelatorios from "./pages/app/TenantRelatorios";
 import RelatoriosPage from "./pages/admin/RelatoriosPage";
 import ProfilePage from "./pages/shared/ProfilePage";
+import ClientPanelPreview from "./pages/admin/ClientPanelPreview";
 
 const queryClient = new QueryClient();
 
@@ -110,6 +111,7 @@ const App = () => (
           <Route path="/admin/meta-ads" element={<Navigate to="/admin/campanhas" replace />} />
           <Route path="/admin/planos" element={<AdminLayout><SubscriptionsPage /></AdminLayout>} />
           <Route path="/admin/perfil" element={<AdminLayout><ProfilePage /></AdminLayout>} />
+          <Route path="/admin/_client-panel-preview" element={<AdminLayout><ClientPanelPreview /></AdminLayout>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
