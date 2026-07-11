@@ -325,6 +325,7 @@ function PatientOnboardingForm({
     setSaving(true);
     const payload = {
       patient_id: patientId,
+      tenant_id: tenantId,
       objetivo_principal: f.objetivo_principal || null,
       procedimento_interesse: f.procedimento_interesse || null,
       negociacao_status: f.negociacao_status || null,
