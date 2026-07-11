@@ -14,6 +14,7 @@ import { Loader2, Plus, ExternalLink, Building2, Users, CalendarIcon, TimerReset
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { TenantUsersDialog } from "@/components/admin/TenantUsersDialog";
+import ClientPanel from "@/components/clients/ClientPanel";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
