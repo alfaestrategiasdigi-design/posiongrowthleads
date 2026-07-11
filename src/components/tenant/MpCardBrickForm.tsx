@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMpInstance } from "@/lib/mercadopago";
@@ -21,7 +21,7 @@ export function MpCardBrickForm({
   payerEmail,
   onPaid,
 }: Props) {
-  const containerId = "mp-card-brick-container";
+  const containerId = `mp-card-brick-${useId().replace(/:/g, "")}`;
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "submitting" | "paid" | "error">("loading");
