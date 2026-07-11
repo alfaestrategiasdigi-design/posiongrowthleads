@@ -27,11 +27,13 @@ interface Props {
 const fmt = (v: number | null) =>
   v == null ? "—" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v);
 
-const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated }: Props) => {
+const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated, entityKind }: Props) => {
   const { data: lead, loading, reload, saveSDR, savePatch } = useUnifiedLead(open ? source : null, open ? leadId : null);
   const [tab, setTab] = useState("summary");
   const location = useLocation();
   const isTenantContext = location.pathname.startsWith("/app/");
+  const kind: EntityKind = entityKind ?? resolveEntityKindLegacy(source, isTenantContext);
+  const cfg = FIELDS_BY_KIND[kind];
 
 
   const whatsappLink = lead?.whatsapp
