@@ -140,6 +140,13 @@ export default function TenantsPage() {
         open={!!usersFor}
         onOpenChange={(v) => !v && setUsersFor(null)}
       />
+
+      <ClientPanel
+        kind="tenant_client"
+        id={panelTenantId}
+        open={!!panelTenantId}
+        onClose={() => setPanelTenantId(null)}
+      />
     </div>
   );
 }
