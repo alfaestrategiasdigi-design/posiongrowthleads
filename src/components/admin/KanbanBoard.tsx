@@ -7,7 +7,7 @@ import LeadDetailModal from "./LeadDetailModal";
 import { CLIENT_PIPELINE_STAGES } from "@/types/admin";
 import type { Lead } from "@/types/admin";
 import {
-  Inbox, PlayCircle, PhoneCall, Calendar, FileText, Handshake, Trophy, XCircle,
+  Inbox, PlayCircle, PhoneCall, Calendar, FileText, Handshake, Trophy, XCircle, UserCheck,
 } from "lucide-react";
 
 const iconMap: Record<string, any> = {
@@ -18,6 +18,7 @@ const iconMap: Record<string, any> = {
   proposta: FileText,
   negociacao: Handshake,
   ganho: Trophy,
+  ativo: UserCheck,
   perdido: XCircle,
 };
 
