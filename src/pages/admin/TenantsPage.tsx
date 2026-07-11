@@ -39,7 +39,13 @@ export default function TenantsPage() {
       .select("*")
       .neq("id", "00000000-0000-0000-0000-000000000001")
       .order("created_at", { ascending: false });
-    setTenants((data || []) as Tenant[]);
+    // Ocultar tenants cujo perfil-cliente foi revertido (promotion_reverted_at IS NOT NULL)
+    const { data: reverted } = await supabase
+      .from("tenant_client_profile")
+      .select("tenant_id")
+      .not("promotion_reverted_at", "is", null);
+    const revertedIds = new Set((reverted || []).map((r: any) => r.tenant_id));
+    setTenants(((data || []) as Tenant[]).filter((t) => !revertedIds.has(t.id)));
     setLoading(false);
   };
   useEffect(() => { refresh(); }, []);

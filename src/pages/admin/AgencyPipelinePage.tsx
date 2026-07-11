@@ -147,15 +147,15 @@ export default function AgencyPipelinePage() {
   const grouped = useMemo(() => {
     const g: Record<Stage, AgencyLead[]> = {
       lead: [], qualificado: [], agendar_reuniao: [], reuniao_agendada: [],
-      proposta: [], negociacao: [], ganho: [], perdido: [],
+      proposta: [], negociacao: [], ganho: [], ativo: [], perdido: [],
     };
     for (const l of filteredLeads) g[l.stage]?.push(l);
     return g;
   }, [filteredLeads]);
 
   const kpis = useMemo(() => {
-    const active = filteredLeads.filter((l) => l.stage !== "ganho" && l.stage !== "perdido");
-    const wonMonth = filteredLeads.filter((l) => l.stage === "ganho");
+    const active = filteredLeads.filter((l) => !["ganho","ativo","perdido"].includes(l.stage));
+    const wonMonth = filteredLeads.filter((l) => l.stage === "ganho" || l.stage === "ativo");
     const emNeg = filteredLeads.filter((l) => ["proposta", "negociacao"].includes(l.stage));
     const totalPipeline = emNeg.reduce((s, l) => s + (l.valor_proposta || 0), 0);
     const wonValue = wonMonth.reduce((s, l) => s + (l.valor_proposta || 0), 0);
@@ -172,7 +172,7 @@ export default function AgencyPipelinePage() {
   const moveStage = async (leadId: string, newStage: Stage) => {
     setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, stage: newStage } : l)));
     const patch: Partial<AgencyLead> = { stage: newStage };
-    if (newStage === "ganho") (patch as any).ganho_at = new Date().toISOString();
+    if (newStage === "ganho" || newStage === "ativo") (patch as any).ganho_at = new Date().toISOString();
     const { error } = await supabase.from("agency_leads").update(patch).eq("id", leadId);
     if (error) { toast.error(error.message); load(); }
     else toast.success(`Movido para ${STAGES.find((s) => s.id === newStage)?.title}`);

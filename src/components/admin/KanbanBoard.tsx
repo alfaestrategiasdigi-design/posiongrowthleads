@@ -7,7 +7,7 @@ import LeadDetailModal from "./LeadDetailModal";
 import { CLIENT_PIPELINE_STAGES } from "@/types/admin";
 import type { Lead } from "@/types/admin";
 import {
-  Inbox, PlayCircle, PhoneCall, Calendar, FileText, Handshake, Trophy, XCircle,
+  Inbox, PlayCircle, PhoneCall, Calendar, FileText, Handshake, Trophy, XCircle, UserCheck,
 } from "lucide-react";
 
 const iconMap: Record<string, any> = {
@@ -18,6 +18,7 @@ const iconMap: Record<string, any> = {
   proposta: FileText,
   negociacao: Handshake,
   ganho: Trophy,
+  ativo: UserCheck,
   perdido: XCircle,
 };
 
@@ -55,6 +56,7 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoar
     if (newStatus === "proposta" && !lead.proposta_enviada_em) patch.proposta_enviada_em = now;
     if (newStatus === "negociacao" && !lead.proposta_enviada_em) patch.proposta_enviada_em = now;
     if (newStatus === "ganho" && !lead.fechado_em) patch.fechado_em = now;
+    if (newStatus === "ativo" && !lead.fechado_em) patch.fechado_em = now;
     if (newStatus === "perdido" && !lead.fechado_em) patch.fechado_em = now;
 
     try {
