@@ -9,6 +9,8 @@ import {
   Loader2, RefreshCw, TrendingUp, Users, DollarSign, Target, Download,
   Activity, AlertCircle, Megaphone, Star, ExternalLink, Copy, Eye, MousePointerClick,
   CalendarCheck, UserCheck,
+} from "lucide-react";
+
 
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
