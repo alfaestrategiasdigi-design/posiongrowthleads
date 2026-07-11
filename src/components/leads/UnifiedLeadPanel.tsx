@@ -70,9 +70,9 @@ const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated, entityKind
               </div>
 
               {/* Quick facts strip */}
-              <div className={`grid ${isTenantContext ? "grid-cols-2 md:grid-cols-3" : "grid-cols-2 md:grid-cols-4"} gap-2 text-xs`}>
+              <div className={`grid ${cfg.summary.company ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2 md:grid-cols-3"} gap-2 text-xs`}>
                 <QuickFact icon={Phone} label="WhatsApp" value={lead.whatsapp || "—"} />
-                {!isTenantContext && <QuickFact icon={Building2} label="Empresa" value={lead.company || "—"} />}
+                {cfg.summary.company && <QuickFact icon={Building2} label="Empresa" value={lead.company || "—"} />}
                 <QuickFact icon={MapPin} label="Local" value={lead.city || "—"} />
                 <QuickFact icon={DollarSign} label="Proposta" value={fmt(lead.proposalValue)} />
               </div>
