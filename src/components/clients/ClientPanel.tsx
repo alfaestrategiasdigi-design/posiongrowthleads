@@ -119,7 +119,7 @@ export default function ClientPanel({ kind, id, open, onClose }: Props) {
 
                   <TabsContent value="onboarding" className="mt-0">
                     {isPatient && patient
-                      ? <PatientOnboardingForm patientId={patient.id} row={data.onboarding} onSaved={reload} />
+                      ? <PatientOnboardingForm patientId={patient.id} tenantId={patient.tenant_id} row={data.onboarding} onSaved={reload} />
                       : tc && <TenantClientOnboardingForm c={tc} tenantId={id!} onSaved={reload} />}
                   </TabsContent>
 
