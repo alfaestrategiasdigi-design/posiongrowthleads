@@ -449,14 +449,31 @@ async function runFlow(
           }
         });
         const menuText = buildButtonsTextMessage({ title, text, footer, buttons: items });
-        if (dryRun) detail = `enviaria lista numerada (${items.length}) → ${new Set(Object.values(listMap)).size} rotas`;
+        const menuText = buildButtonsTextMessage({ title, text, footer, buttons: items });
+        if (dryRun) detail = `enviaria list message (${items.length}) → ${new Set(Object.values(listMap)).size} rotas`;
         else {
-          const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text: menuText });
-          ok = r.ok;
-          detail = r.ok
-            ? `lista numerada enviada (${items.length}, ${new Set(Object.values(listMap)).size} rotas)`
-            : `erro: ${r.error}`;
+          const listPayload = {
+            title: title || "Opções",
+            text: text || "Escolha uma opção",
+            buttonText: "Ver opções",
+            footer: footer || "",
+            sectionTitle: title || "Opções",
+            items: items.map((it) => ({ id: it.id, label: it.displayLabel, description: it.displayLabel })),
+          };
+          let r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "list", listPayload);
+          if (!r.ok) {
+            console.warn("[automation-dispatch] sendList falhou, fallback texto numerado:", r.error);
+            const rt = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text: menuText });
+            ok = rt.ok;
+            detail = rt.ok
+              ? `list falhou (${r.error}); lista numerada enviada (${items.length}, ${new Set(Object.values(listMap)).size} rotas)`
+              : `erro list: ${r.error} | erro texto: ${rt.error}`;
+          } else {
+            ok = true;
+            detail = `list message enviada (${items.length}, ${new Set(Object.values(listMap)).size} rotas, wamid ${r.wamid ?? "-"})`;
+          }
         }
+
         if (ok && !dryRun) {
           stop = true;
           const newSteps = [...steps, { at: new Date().toISOString(), node_id: node.id, node_type: type, ok, detail }];
