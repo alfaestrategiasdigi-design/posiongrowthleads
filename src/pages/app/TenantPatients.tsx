@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Loader2, Search, UserCircle2, Plus, Info } from "lucide-react";
+import { Loader2, Search, UserCircle2, Plus, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { BRL, type SaleRow } from "@/lib/clinic-kpis";
 import ClientPanel from "@/components/clients/ClientPanel";
@@ -36,7 +36,7 @@ export default function TenantPatients() {
     if (!tenant) return;
     setLoading(true);
     const [{ data: pts }, { data: sls }] = await Promise.all([
-      supabase.from("patients").select("*").eq("tenant_id", tenant.id).order("name"),
+      supabase.from("patients").select("*").eq("tenant_id", tenant.id).is("promotion_reverted_at", null).order("name"),
       supabase.from("sales").select("*").eq("tenant_id", tenant.id),
     ]);
     setPatients((pts || []) as Patient[]);
@@ -45,33 +45,44 @@ export default function TenantPatients() {
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [tenant?.id]);
 
-  const stats = useMemo(() => {
-    const map = new Map<string, { total: number; count: number; last: string | null }>();
+  // Aggregate sales by patient_id (primary) with case-insensitive name fallback (cosmetic only).
+  const { statsById, statsByName, orphanCount } = useMemo(() => {
+    const byId = new Map<string, { total: number; count: number; last: string | null }>();
+    const byName = new Map<string, { total: number; count: number; last: string | null }>();
+    const patientNames = new Set(patients.map((p) => p.name.toLowerCase()));
+    let orphan = 0;
     for (const s of sales) {
-      const k = s.patient_name.toLowerCase();
-      const a = map.get(k) || { total: 0, count: 0, last: null };
-      a.total += Number(s.amount); a.count += 1;
-      if (!a.last || s.sale_date > a.last) a.last = s.sale_date;
-      map.set(k, a);
+      const amt = Number(s.amount);
+      if (s.patient_id) {
+        const a = byId.get(s.patient_id) || { total: 0, count: 0, last: null };
+        a.total += amt; a.count += 1;
+        if (!a.last || s.sale_date > a.last) a.last = s.sale_date;
+        byId.set(s.patient_id, a);
+      } else {
+        const k = (s.patient_name || "").toLowerCase();
+        if (k && patientNames.has(k)) {
+          const a = byName.get(k) || { total: 0, count: 0, last: null };
+          a.total += amt; a.count += 1;
+          if (!a.last || s.sale_date > a.last) a.last = s.sale_date;
+          byName.set(k, a);
+        } else {
+          orphan += 1;
+        }
+      }
     }
-    return map;
-  }, [sales]);
+    return { statsById: byId, statsByName: byName, orphanCount: orphan };
+  }, [patients, sales]);
 
-  // Merge: patients table + names appearing only in sales
   const rows = useMemo(() => {
-    const byName = new Map<string, Patient>();
-    patients.forEach((p) => byName.set(p.name.toLowerCase(), p));
-    for (const s of sales) {
-      const k = s.patient_name.toLowerCase();
-      if (!byName.has(k)) byName.set(k, {
-        id: "sale:" + k, name: s.patient_name, whatsapp: null, email: null,
-        origem: s.channel || null, primeiro_contato: s.first_contact_date, observacoes: null,
-      });
-    }
-    return Array.from(byName.values())
+    return patients
       .filter((p) => !q || p.name.toLowerCase().includes(q.toLowerCase()))
-      .sort((a, b) => (stats.get(b.name.toLowerCase())?.total || 0) - (stats.get(a.name.toLowerCase())?.total || 0));
-  }, [patients, sales, q, stats]);
+      .map((p) => ({
+        p,
+        st: statsById.get(p.id) || statsByName.get(p.name.toLowerCase()) || { total: 0, count: 0, last: null },
+      }))
+      .sort((a, b) => b.st.total - a.st.total);
+  }, [patients, q, statsById, statsByName]);
+
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-[1600px] mx-auto">
@@ -93,7 +104,24 @@ export default function TenantPatients() {
       </div>
 
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Lista de Pacientes</CardTitle></CardHeader>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Lista de Pacientes</CardTitle>
+          {orphanCount > 0 && (
+            <TooltipProvider delayDuration={100}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground cursor-help">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {orphanCount} venda{orphanCount > 1 ? "s" : ""} sem paciente cadastrado
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="left" className="max-w-xs">
+                  <p>Serão vinculadas no backfill (Fase 7).</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <div className="p-12 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
@@ -112,42 +140,27 @@ export default function TenantPatients() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((p) => {
-                    const st = stats.get(p.name.toLowerCase()) || { total: 0, count: 0, last: null };
-                    const isRealPatient = !p.id.startsWith("sale:");
-                    return (
-                      <TableRow
-                        key={p.id}
-                        className={isRealPatient ? "cursor-pointer hover:bg-muted/40" : "cursor-default hover:bg-transparent"}
-                        onClick={isRealPatient ? () => setPanelId(p.id) : undefined}
-                      >
-                        <TableCell className="font-medium flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center"><UserCircle2 className="w-4 h-4 text-primary" /></div>
-                          <span>{p.name}</span>
-                          {!isRealPatient && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="inline-flex items-center justify-center rounded-full border border-dashed border-muted-foreground/40 p-0.5 text-muted-foreground/70 hover:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring" tabIndex={0}>
-                                  <Info className="w-3.5 h-3.5" />
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-xs">
-                                <p>Sem cadastro de paciente — criado apenas a partir de uma venda</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                          {st.count > 1 && <Badge variant="outline" className="ml-1">recorrente</Badge>}
-                        </TableCell>
-                        <TableCell className="text-sm">{p.whatsapp || "—"}</TableCell>
-                        <TableCell className="text-sm">{p.origem || "—"}</TableCell>
-                        <TableCell className="text-sm">{p.primeiro_contato ? new Date(p.primeiro_contato + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</TableCell>
-                        <TableCell className="text-sm">{st.last ? new Date(st.last + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</TableCell>
-                        <TableCell className="text-right">{st.count}</TableCell>
-                        <TableCell className="text-right font-semibold">{BRL(st.total)}</TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {rows.map(({ p, st }) => (
+                    <TableRow
+                      key={p.id}
+                      className="cursor-pointer hover:bg-muted/40"
+                      onClick={() => setPanelId(p.id)}
+                    >
+                      <TableCell className="font-medium flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center"><UserCircle2 className="w-4 h-4 text-primary" /></div>
+                        <span>{p.name}</span>
+                        {st.count > 1 && <Badge variant="outline" className="ml-1">recorrente</Badge>}
+                      </TableCell>
+                      <TableCell className="text-sm">{p.whatsapp || "—"}</TableCell>
+                      <TableCell className="text-sm">{p.origem || "—"}</TableCell>
+                      <TableCell className="text-sm">{p.primeiro_contato ? new Date(p.primeiro_contato + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</TableCell>
+                      <TableCell className="text-sm">{st.last ? new Date(st.last + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</TableCell>
+                      <TableCell className="text-right">{st.count}</TableCell>
+                      <TableCell className="text-right font-semibold">{BRL(st.total)}</TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
+
               </Table>
             </TooltipProvider>
           )}

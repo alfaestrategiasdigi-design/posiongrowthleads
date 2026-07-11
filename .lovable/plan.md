@@ -1,35 +1,52 @@
 ## Objetivo
-Adicionar aba **Cartão** ao `FounderPixCheckoutDialog`, ao lado do Pix, para o cliente pagar com cartão de crédito **sem sair da página** (checkout transparente Mercado Pago) e ter a **recorrência automática** ativada.
+Corrigir `TenantPatients.tsx` para listar pacientes reais da tabela `patients` (fonte da verdade), enriquecendo com métricas de `sales` por `patient_id`. Vendas sem paciente cadastrado deixam de virar linhas fantasma e passam a ser expostas apenas como contador discreto.
 
-## Como vai funcionar
-1. Diálogo passa a ter 2 abas: **Pix** (fluxo atual, intacto) e **Cartão**.
-2. Aba Cartão renderiza o **Card Payment Brick** do Mercado Pago (SDK v2). Formulário oficial, tokeniza os dados do cartão no navegador — nenhum dado sensível toca nosso backend.
-3. Ao submeter, o brick devolve um `card_token_id`. Enviamos ao backend, que:
-   - **Cobra a entrada** (ex.: R$ 250) via `POST /v1/payments` usando o `card_token_id`.
-   - **Cria a assinatura recorrente** via `POST /preapproval` com `status: authorized`, `card_token_id` associado ao pagador, `transaction_amount` = valor recorrente (R$ 389 padrão) e `start_date` = agora + `entry_cycles`.
-   - Se `entry_amount == recurring_amount` e `entry_cycles == 1`, cria só a preapproval que já cobra imediatamente (fluxo simplificado).
-4. Backend grava o resultado nas mesmas tabelas usadas pelo Pix (`founder_slots` para slot + `subscriptions` para recorrência), então o restante do sistema (webhooks, dashboards) não muda.
+## Mudanças
 
-## Novidades técnicas
+### `src/pages/app/TenantPatients.tsx`
+1. **Fonte da lista = `patients`**
+   - Query: `patients.select("*").eq("tenant_id", tenant.id).is("promotion_reverted_at", null).order("name")`.
+   - Remover o merge com `sales` que criava entradas `id: "sale:..."`.
 
-**Chave pública Mercado Pago**
-- Card Brick precisa da `public_key` da conta MP.
-- Já existe coluna `payment_provider_config.public_key`, mas está vazia.
-- Novo endpoint público `mp-public-key` lê essa coluna. Se estiver vazia, retorno instrui você a preenchê-la em Admin → Configurações → Provedor de Pagamento (vou adicionar o campo lá também).
+2. **Enriquecimento com vendas**
+   - Continuar buscando `sales` do tenant.
+   - Agregar por `patient_id` (não por nome): `{ total, count, last }`.
+   - Fallback: quando `sales.patient_id` for null mas `patient_name` casar exatamente (case-insensitive) com um paciente, agregar por nome — puramente cosmético, não cria linha.
 
-**Novos edge functions**
-- `mp-public-key` — GET, sem auth, devolve `{ public_key }`.
-- `mp-card-subscribe` — POST auth. Body: `{ tenant_id, offer_id?, payer, card_token_id, installments }`. Cobra entrada + cria preapproval. Retorna `{ ok, payment_id, preapproval_id, status }`.
+3. **Vendas órfãs (sem `patient_id` e sem match por nome)**
+   - Contar quantas são e exibir um aviso discreto acima/abaixo da tabela:
+     `N venda(s) sem paciente cadastrado` com tooltip: "Serão vinculadas no backfill (Fase 7)."
+   - Não renderizar linhas fantasma.
 
-**Frontend**
-- `src/lib/mercadopago.ts` — loader idempotente do SDK v2 (`https://sdk.mercadopago.com/js/v2`).
-- `FounderPixCheckoutDialog.tsx` — envolve o conteúdo em `Tabs` (Pix / Cartão). Componente novo `MpCardBrickForm` monta/desmonta o brick, controla loading e chama `mp-card-subscribe`. Sucesso → mesma tela de "Pagamento confirmado".
-- `TenantPaymentProviderCard` (admin) — adicionar input **Chave pública Mercado Pago** e salvar em `payment_provider_config.public_key`.
+4. **Clique sempre abre `ClientPanel`**
+   - Todas as linhas são pacientes reais → `onClick={() => setPanelId(p.id)}`, cursor pointer, hover normal.
+   - Remover a lógica `isRealPatient` / ícone `Info` / tooltip "Sem cadastro de paciente" (não é mais necessária).
+   - Remover imports não utilizados após a limpeza (`Tooltip*`, `Info`, `TooltipProvider`).
 
-## Fora de escopo (desta entrega)
-- `TenantOfferDialog` e `TenantPlans` continuam só com Pix. Uma vez validado o fluxo aqui, replicar é trivial.
-- Parcelamento sem juros: por ora fixo em 1x. Vem em ajuste futuro se quiser.
+5. **Contagem**
+   - `p.muted-foreground` "X pacientes" continua refletindo o total real da lista filtrada.
 
-## Riscos
-- `public_key` precisa ser preenchida antes de o cliente conseguir usar cartão. Sem ela, aba Cartão mostra alerta amigável em vez de quebrar.
-- Assinaturas com `card_token_id` só funcionam com conta MP ativada para cobrança recorrente com cartão (padrão em contas Brasil). Se a conta específica não permitir, MP retorna erro claro que propago para o usuário.
+6. **"Novo Paciente"**
+   - Intocado; segue inserindo em `patients` e recarregando.
+
+## Fora de escopo (confirmado)
+- Não altera banco, triggers, automações, webhooks, envio.
+- Backfill de `sales` órfãs → Fase 7.
+- Não mexe em `ClientPanel`, `TenantsPage`, `useClientData`, entity-fields.
+- Não altera nada relacionado ao Dr. Alessandro além do que já vem via Fase 6 (ele deve aparecer naturalmente na lista assim que houver `patients` para o tenant dele — a mudança desta fase é o que torna isso visível).
+
+## Como testar
+1. Abrir `/app/<tenant>/pacientes` como um tenant que já teve leads promovidos a "ganho" (ex: Dr. Alessandro Transplante Capilar) → devem aparecer os pacientes reais da tabela `patients`.
+2. Cada linha deve ser clicável → abre `ClientPanel` com a ficha rica.
+3. Pacientes com `promotion_reverted_at` preenchido não devem aparecer.
+4. Se houver vendas antigas sem `patient_id` correspondente, deve aparecer o contador discreto "N venda(s) sem paciente cadastrado" (sem linhas fantasma).
+5. Botão "Novo Paciente" continua criando e a lista atualiza.
+6. `tsgo` / build: 0 erros de TypeScript.
+
+## Observação sobre "concluir tudo em aberto"
+Esta fase entrega apenas o item pedido (leitura correta em Pacientes Ativos). Itens ainda em aberto que citei em fases anteriores e que NÃO faço aqui sem sua aprovação explícita:
+- Fase 5 real (edição do ClientPanel) — hoje a ficha é read-only.
+- Fase 7 (backfill de `patients` a partir de `sales` órfãs e vinculação de agency_contracts órfãos).
+- Filtro `promotion_reverted_at IS NULL` na lista de Clínicas Clientes do Master (mesmo princípio, mas em `TenantsPage.tsx`).
+
+Se quiser que eu já inclua o filtro de revertidos em `TenantsPage.tsx` nesta mesma fase (é uma mudança pequena e da mesma família), me avise antes de aprovar e eu adiciono ao plano. As demais (Fase 5, Fase 7) recomendo tratar em fases próprias.
