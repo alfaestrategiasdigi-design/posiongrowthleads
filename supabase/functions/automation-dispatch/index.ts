@@ -16,6 +16,27 @@ const MAX_STEPS = 50;
 interface FlowNode { id: string; type: string; data: Record<string, any>; position?: any }
 interface FlowEdge { id: string; source: string; target: string; sourceHandle?: string; label?: string }
 
+interface MenuOptionItem {
+  id: string;
+  label: string;
+  displayLabel: string;
+  description?: string;
+}
+
+interface EvolutionListRow {
+  rowId: string;
+  title: string;
+  description: string;
+}
+
+interface EvolutionListPayload {
+  title: string;
+  description: string;
+  buttonText: string;
+  footerText: string;
+  sections: Array<{ title: string; rows: EvolutionListRow[] }>;
+}
+
 interface RunContext {
   lead_id?: string | null;
   phone?: string | null;
@@ -292,6 +313,54 @@ async function sendWhatsapp(
   }
 }
 
+async function sendEvolutionListMessage(
+  tenantId: string | null,
+  phone: string,
+  data: EvolutionListPayload,
+): Promise<{ ok: boolean; error?: string; wamid?: string | null }> {
+  const digits = onlyDigits(phone);
+  if (!digits || digits.length < 8) return { ok: false, error: "phone_invalid" };
+
+  let q = admin.from("zapi_connections").select("instance_url, api_key, instance_name")
+    .eq("provider", "evolution");
+  q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
+  const { data: conn } = await q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
+  if (!conn) return { ok: false, error: "no_evolution_connection" };
+
+  let base = conn.instance_url.trim();
+  if (!/^https?:\/\//i.test(base)) base = "http://" + base;
+  try { const u = new URL(base); base = `${u.protocol}//${u.host}`; } catch {}
+  const endpoint = `${base}/message/sendList/${encodeURIComponent(conn.instance_name)}`;
+  const body = {
+    number: digits,
+    title: data.title,
+    description: data.description,
+    buttonText: data.buttonText,
+    footerText: data.footerText,
+    sections: data.sections,
+  };
+
+  console.log("[automation-dispatch] Evolution sendList request", JSON.stringify({ method: "POST", endpoint, body }));
+  try {
+    const r = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: conn.api_key },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20_000),
+    });
+    const raw = await r.text();
+    console.log("[automation-dispatch] Evolution sendList response", JSON.stringify({ status: r.status, body: raw }));
+    let j: any = {};
+    try { j = raw ? JSON.parse(raw) : {}; } catch { j = { raw }; }
+    if (!r.ok) return { ok: false, error: `evolution_${r.status}: ${JSON.stringify(j).slice(0, 300)}` };
+    const wamid = j?.key?.id ?? j?.messageId ?? null;
+    return { ok: true, wamid };
+  } catch (e) {
+    const msg = e instanceof DOMException && e.name === "TimeoutError" ? "timeout_20s" : String(e).slice(0, 200);
+    return { ok: false, error: `network: ${msg}` };
+  }
+}
+
 function buildButtonsTextMessage(data: { title?: string; text?: string; footer?: string; buttons: Array<{ label: string; displayLabel?: string }> }) {
   const lines: string[] = [];
   const title = compactText(data.title, "");
@@ -303,6 +372,10 @@ function buildButtonsTextMessage(data: { title?: string; text?: string; footer?:
   if (options.length > 0) lines.push(options.join("\n"));
   if (footer) lines.push(footer);
   return lines.filter(Boolean).join("\n\n");
+}
+
+function errText(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
 }
 
 function nextNodeIds(edges: FlowEdge[], from: string, handle?: string | null): string[] {
@@ -362,15 +435,22 @@ async function runFlow(
         const text = interpolate(String(d.text || ""), vars);
         const title = interpolate(String(d.title || ""), vars);
         const footer = interpolate(String(d.footer || ""), vars);
-        const btns = (d.buttons || []).map((b: any, i: number) => ({
-          id: buttonId(b.id, `btn_${i}`),
-          label: b.label || `Opção ${i + 1}`,
-          displayLabel: menuOptionText(b.label, `Opção ${i + 1}`),
-        }));
+        const rawButtons = Array.isArray(d.buttons) ? d.buttons : [];
+        const btns: MenuOptionItem[] = rawButtons.map((raw: unknown, i: number) => {
+          const b = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+          const label = String(b.label || `Opção ${i + 1}`);
+          const displayLabel = menuOptionText(label, `Opção ${i + 1}`);
+          return {
+            id: buttonId(b.id, `btn_${i}`),
+            label,
+            displayLabel,
+            description: displayLabel,
+          };
+        });
         // Build button_map: id/label -> target node
         const outEdges = edges.filter((e) => e.source === node.id);
         const buttonMap: Record<string, string> = {};
-        btns.forEach((b, i) => {
+        btns.forEach((b: MenuOptionItem, i: number) => {
           const match = outEdges.find((e) =>
             (e.sourceHandle || "") === b.id ||
             (e.sourceHandle || "").toLowerCase() === b.label.toLowerCase() ||
@@ -378,27 +458,44 @@ async function runFlow(
           ) || outEdges[i];
           if (match) {
             buttonMap[String(i + 1)] = match.target;
+            buttonMap[b.id] = match.target;
             buttonMap[b.id.toLowerCase()] = match.target;
             buttonMap[b.label.toLowerCase()] = match.target;
             buttonMap[b.displayLabel.toLowerCase()] = match.target;
           }
         });
         const buttonsText = buildButtonsTextMessage({ title, text, footer, buttons: btns });
-        if (dryRun) detail = `enviaria list message: [${btns.map((b) => b.displayLabel).join(", ")}] → ${new Set(Object.values(buttonMap)).size} rotas`;
+        if (dryRun) detail = `enviaria list message: [${btns.map((b: MenuOptionItem) => b.displayLabel).join(", ")}] → ${new Set(Object.values(buttonMap)).size} rotas`;
         else {
           // Tenta list message nativa; se a Evolution falhar (build/aparelho), cai para texto numerado.
-          const listPayload = {
+          const listPayload: EvolutionListPayload = {
             title: title || "Opções",
-            text: text || "Escolha uma opção",
+            description: text || "Escolha uma opção",
             buttonText: "Ver opções",
-            footer: footer || "",
-            sectionTitle: "Opções",
-            items: btns.map((b) => ({ id: b.id, label: b.displayLabel, description: b.displayLabel })),
+            footerText: footer || "",
+            sections: [{
+              title: "Opções",
+              rows: btns.map((b: MenuOptionItem): EvolutionListRow => ({
+                rowId: b.id,
+                title: b.displayLabel,
+                description: b.description || b.displayLabel || "Toque para selecionar",
+              })),
+            }],
           };
-          let r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "list", listPayload);
+          let r: Awaited<ReturnType<typeof sendWhatsapp>>;
+          try {
+            r = await sendEvolutionListMessage(tenantId, vars.lead.whatsapp, listPayload);
+          } catch (e) {
+            r = { ok: false, error: `throw: ${errText(e).slice(0, 200)}` };
+          }
           if (!r.ok) {
             console.warn("[automation-dispatch] sendList falhou, fallback texto numerado:", r.error);
-            const rt = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text: buttonsText });
+            let rt: Awaited<ReturnType<typeof sendWhatsapp>>;
+            try {
+              rt = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text: buttonsText });
+            } catch (e) {
+              rt = { ok: false, error: `throw: ${errText(e).slice(0, 200)}` };
+            }
             ok = rt.ok;
             detail = rt.ok
               ? `list falhou (${r.error}); menu numerado enviado (${btns.length}, ${new Set(Object.values(buttonMap)).size} rotas)`
@@ -429,14 +526,21 @@ async function runFlow(
         const title = interpolate(String(d.title || "Opções"), vars);
         const text = interpolate(String(d.text || d.description || "Escolha uma opção"), vars);
         const footer = interpolate(String(d.footer || ""), vars);
-        const items = (d.items || []).map((it: any, i: number) => ({
-          id: buttonId(it.id, `row_${i}`),
-          label: menuOptionText(it.label, `Opção ${i + 1}`),
-          displayLabel: menuOptionText(it.label, `Opção ${i + 1}`),
-        }));
+        const rawItems = Array.isArray(d.items) ? d.items : [];
+        const items: MenuOptionItem[] = rawItems.map((raw: unknown, i: number) => {
+          const it = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+          const label = menuOptionText(it.label, `Opção ${i + 1}`);
+          const description = menuOptionText(it.description || it.label || "Toque para selecionar", "Toque para selecionar");
+          return {
+            id: buttonId(it.id, `row_${i}`),
+            label,
+            displayLabel: label,
+            description,
+          };
+        });
         const outEdges = edges.filter((e) => e.source === node.id);
         const listMap: Record<string, string> = {};
-        items.forEach((it, i) => {
+        items.forEach((it: MenuOptionItem, i: number) => {
           const match = outEdges.find((e) =>
             (e.sourceHandle || "") === it.id ||
             (e.sourceHandle || "").toLowerCase() === it.label.toLowerCase() ||
@@ -444,6 +548,7 @@ async function runFlow(
           ) || outEdges[i] || (outEdges.length === 1 ? outEdges[0] : null);
           if (match) {
             listMap[String(i + 1)] = match.target;
+            listMap[it.id] = match.target;
             listMap[it.id.toLowerCase()] = match.target;
             listMap[it.label.toLowerCase()] = match.target;
           }
@@ -451,18 +556,34 @@ async function runFlow(
         const menuText = buildButtonsTextMessage({ title, text, footer, buttons: items });
         if (dryRun) detail = `enviaria list message (${items.length}) → ${new Set(Object.values(listMap)).size} rotas`;
         else {
-          const listPayload = {
+          const listPayload: EvolutionListPayload = {
             title: title || "Opções",
-            text: text || "Escolha uma opção",
+            description: text || "Escolha uma opção",
             buttonText: "Ver opções",
-            footer: footer || "",
-            sectionTitle: title || "Opções",
-            items: items.map((it) => ({ id: it.id, label: it.displayLabel, description: it.displayLabel })),
+            footerText: footer || "",
+            sections: [{
+              title: title || "Opções",
+              rows: items.map((it: MenuOptionItem): EvolutionListRow => ({
+                rowId: it.id,
+                title: it.displayLabel,
+                description: it.description || it.displayLabel || "Toque para selecionar",
+              })),
+            }],
           };
-          let r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "list", listPayload);
+          let r: Awaited<ReturnType<typeof sendWhatsapp>>;
+          try {
+            r = await sendEvolutionListMessage(tenantId, vars.lead.whatsapp, listPayload);
+          } catch (e) {
+            r = { ok: false, error: `throw: ${errText(e).slice(0, 200)}` };
+          }
           if (!r.ok) {
             console.warn("[automation-dispatch] sendList falhou, fallback texto numerado:", r.error);
-            const rt = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text: menuText });
+            let rt: Awaited<ReturnType<typeof sendWhatsapp>>;
+            try {
+              rt = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text: menuText });
+            } catch (e) {
+              rt = { ok: false, error: `throw: ${errText(e).slice(0, 200)}` };
+            }
             ok = rt.ok;
             detail = rt.ok
               ? `list falhou (${r.error}); lista numerada enviada (${items.length}, ${new Set(Object.values(listMap)).size} rotas)`
