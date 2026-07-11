@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, UserCircle2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { BRL, type SaleRow } from "@/lib/clinic-kpis";
+import ClientPanel from "@/components/clients/ClientPanel";
 
 interface Patient {
   id: string; name: string; whatsapp: string | null; email: string | null;
@@ -28,6 +29,7 @@ export default function TenantPatients() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  const [panelId, setPanelId] = useState<string | null>(null);
 
   async function load() {
     if (!tenant) return;
@@ -110,8 +112,13 @@ export default function TenantPatients() {
               <TableBody>
                 {rows.map((p) => {
                   const st = stats.get(p.name.toLowerCase()) || { total: 0, count: 0, last: null };
+                  const isRealPatient = !p.id.startsWith("sale:");
                   return (
-                    <TableRow key={p.id}>
+                    <TableRow
+                      key={p.id}
+                      className={isRealPatient ? "cursor-pointer hover:bg-muted/40" : ""}
+                      onClick={isRealPatient ? () => setPanelId(p.id) : undefined}
+                    >
                       <TableCell className="font-medium flex items-center gap-2">
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center"><UserCircle2 className="w-4 h-4 text-primary" /></div>
                         <span>{p.name}</span>
@@ -131,6 +138,7 @@ export default function TenantPatients() {
           )}
         </CardContent>
       </Card>
+      <ClientPanel kind="patient" id={panelId} open={!!panelId} onClose={() => setPanelId(null)} />
     </div>
   );
 }
