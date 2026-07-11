@@ -98,44 +98,58 @@ export default function TenantPatients() {
           {loading ? (
             <div className="p-12 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Paciente</TableHead>
-                  <TableHead>Telefone</TableHead>
-                  <TableHead>Origem</TableHead>
-                  <TableHead>1º Contato</TableHead>
-                  <TableHead>Última Venda</TableHead>
-                  <TableHead className="text-right">Vendas</TableHead>
-                  <TableHead className="text-right">Total Gasto</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((p) => {
-                  const st = stats.get(p.name.toLowerCase()) || { total: 0, count: 0, last: null };
-                  const isRealPatient = !p.id.startsWith("sale:");
-                  return (
-                    <TableRow
-                      key={p.id}
-                      className={isRealPatient ? "cursor-pointer hover:bg-muted/40" : ""}
-                      onClick={isRealPatient ? () => setPanelId(p.id) : undefined}
-                    >
-                      <TableCell className="font-medium flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center"><UserCircle2 className="w-4 h-4 text-primary" /></div>
-                        <span>{p.name}</span>
-                        {st.count > 1 && <Badge variant="outline" className="ml-1">recorrente</Badge>}
-                      </TableCell>
-                      <TableCell className="text-sm">{p.whatsapp || "—"}</TableCell>
-                      <TableCell className="text-sm">{p.origem || "—"}</TableCell>
-                      <TableCell className="text-sm">{p.primeiro_contato ? new Date(p.primeiro_contato + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</TableCell>
-                      <TableCell className="text-sm">{st.last ? new Date(st.last + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</TableCell>
-                      <TableCell className="text-right">{st.count}</TableCell>
-                      <TableCell className="text-right font-semibold">{BRL(st.total)}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            <TooltipProvider delayDuration={100}>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Paciente</TableHead>
+                    <TableHead>Telefone</TableHead>
+                    <TableHead>Origem</TableHead>
+                    <TableHead>1º Contato</TableHead>
+                    <TableHead>Última Venda</TableHead>
+                    <TableHead className="text-right">Vendas</TableHead>
+                    <TableHead className="text-right">Total Gasto</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((p) => {
+                    const st = stats.get(p.name.toLowerCase()) || { total: 0, count: 0, last: null };
+                    const isRealPatient = !p.id.startsWith("sale:");
+                    return (
+                      <TableRow
+                        key={p.id}
+                        className={isRealPatient ? "cursor-pointer hover:bg-muted/40" : "cursor-default hover:bg-transparent"}
+                        onClick={isRealPatient ? () => setPanelId(p.id) : undefined}
+                      >
+                        <TableCell className="font-medium flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center"><UserCircle2 className="w-4 h-4 text-primary" /></div>
+                          <span>{p.name}</span>
+                          {!isRealPatient && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex items-center justify-center rounded-full border border-dashed border-muted-foreground/40 p-0.5 text-muted-foreground/70 hover:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring" tabIndex={0}>
+                                  <Info className="w-3.5 h-3.5" />
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs">
+                                <p>Sem cadastro de paciente — criado apenas a partir de uma venda</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                          {st.count > 1 && <Badge variant="outline" className="ml-1">recorrente</Badge>}
+                        </TableCell>
+                        <TableCell className="text-sm">{p.whatsapp || "—"}</TableCell>
+                        <TableCell className="text-sm">{p.origem || "—"}</TableCell>
+                        <TableCell className="text-sm">{p.primeiro_contato ? new Date(p.primeiro_contato + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</TableCell>
+                        <TableCell className="text-sm">{st.last ? new Date(st.last + "T00:00:00").toLocaleDateString("pt-BR") : "—"}</TableCell>
+                        <TableCell className="text-right">{st.count}</TableCell>
+                        <TableCell className="text-right font-semibold">{BRL(st.total)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TooltipProvider>
           )}
         </CardContent>
       </Card>
