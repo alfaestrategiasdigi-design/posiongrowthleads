@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, UserCircle2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { BRL, type SaleRow } from "@/lib/clinic-kpis";
+import ClientPanel from "@/components/clients/ClientPanel";
 
 interface Patient {
   id: string; name: string; whatsapp: string | null; email: string | null;
