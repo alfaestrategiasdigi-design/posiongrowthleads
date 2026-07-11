@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTenant } from "@/hooks/useTenant";
 import { supabase } from "@/integrations/supabase/client";
 import { Check, Sparkles, Loader2, ShieldCheck, FileText, CreditCard, RefreshCw, ExternalLink, Users, Crown, Zap } from "lucide-react";
@@ -6,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { FounderPixCheckoutDialog, type OfferInfo } from "@/components/tenant/FounderPixCheckoutDialog";
+import { type OfferInfo } from "@/components/tenant/FounderPixCheckoutDialog";
 
 const REFERENCE_MONTHLY_CENTS = 45000; // R$ 450/mês (valor de referência para ancoragem)
 const FOUNDER_LIMIT = 10;
