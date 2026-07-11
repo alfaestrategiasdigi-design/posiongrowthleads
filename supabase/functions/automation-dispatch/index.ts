@@ -384,16 +384,31 @@ async function runFlow(
           }
         });
         const buttonsText = buildButtonsTextMessage({ title, text, footer, buttons: btns });
-        if (dryRun) detail = `enviaria menu numerado: [${btns.map((b) => b.displayLabel).join(", ")}] → ${new Set(Object.values(buttonMap)).size} rotas`;
+        if (dryRun) detail = `enviaria list message: [${btns.map((b) => b.displayLabel).join(", ")}] → ${new Set(Object.values(buttonMap)).size} rotas`;
         else {
-          // Native interactive buttons are inconsistent across Evolution builds/devices and can
-          // render as "Aguardando mensagem". Send a deterministic numbered menu instead.
-          const r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text: buttonsText });
-          ok = r.ok;
-          detail = r.ok
-            ? `menu numerado enviado (${btns.length}, ${new Set(Object.values(buttonMap)).size} rotas)`
-            : `erro: ${r.error}`;
+          // Tenta list message nativa; se a Evolution falhar (build/aparelho), cai para texto numerado.
+          const listPayload = {
+            title: title || "Opções",
+            text: text || "Escolha uma opção",
+            buttonText: "Ver opções",
+            footer: footer || "",
+            sectionTitle: "Opções",
+            items: btns.map((b) => ({ id: b.id, label: b.displayLabel, description: b.displayLabel })),
+          };
+          let r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "list", listPayload);
+          if (!r.ok) {
+            console.warn("[automation-dispatch] sendList falhou, fallback texto numerado:", r.error);
+            const rt = await sendWhatsapp(tenantId, vars.lead.whatsapp, "text", { text: buttonsText });
+            ok = rt.ok;
+            detail = rt.ok
+              ? `list falhou (${r.error}); menu numerado enviado (${btns.length}, ${new Set(Object.values(buttonMap)).size} rotas)`
+              : `erro list: ${r.error} | erro texto: ${rt.error}`;
+          } else {
+            ok = true;
+            detail = `list message enviada (${btns.length}, ${new Set(Object.values(buttonMap)).size} rotas, wamid ${r.wamid ?? "-"})`;
+          }
         }
+
         if (ok && !dryRun) {
           stop = true;
           const newSteps = [...steps, { at: new Date().toISOString(), node_id: node.id, node_type: type, ok, detail }];
