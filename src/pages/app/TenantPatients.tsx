@@ -83,21 +83,6 @@ export default function TenantPatients() {
       .sort((a, b) => b.st.total - a.st.total);
   }, [patients, q, statsById, statsByName]);
 
-  // Merge: patients table + names appearing only in sales
-  const rows = useMemo(() => {
-    const byName = new Map<string, Patient>();
-    patients.forEach((p) => byName.set(p.name.toLowerCase(), p));
-    for (const s of sales) {
-      const k = s.patient_name.toLowerCase();
-      if (!byName.has(k)) byName.set(k, {
-        id: "sale:" + k, name: s.patient_name, whatsapp: null, email: null,
-        origem: s.channel || null, primeiro_contato: s.first_contact_date, observacoes: null,
-      });
-    }
-    return Array.from(byName.values())
-      .filter((p) => !q || p.name.toLowerCase().includes(q.toLowerCase()))
-      .sort((a, b) => (stats.get(b.name.toLowerCase())?.total || 0) - (stats.get(a.name.toLowerCase())?.total || 0));
-  }, [patients, sales, q, stats]);
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-[1600px] mx-auto">
