@@ -8,7 +8,10 @@ import { Switch } from "@/components/ui/switch";
 import {
   Loader2, RefreshCw, TrendingUp, Users, DollarSign, Target, Download,
   Activity, AlertCircle, Megaphone, Star, ExternalLink, Copy, Eye, MousePointerClick,
+  CalendarCheck, UserCheck,
 } from "lucide-react";
+
+
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -90,6 +93,8 @@ export default function TenantCampaigns() {
   const [reason, setReason] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [crmWins, setCrmWins] = useState<Record<string, { count: number; value: number }>>({});
+  const [crmStats, setCrmStats] = useState<Record<string, { leads: number; meetings: number; wins: number; revenue: number }>>({});
+
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [linkedForms, setLinkedForms] = useState<LinkedForm[]>([]);
   const [lastBackfill, setLastBackfill] = useState<Date | null>(null);
@@ -111,31 +116,55 @@ export default function TenantCampaigns() {
         setCampaigns(data.data ?? []);
         setReason((data.data ?? []).length === 0 ? "no_campaigns" : null);
       }
-      // CRM wins do próprio tenant (agency_leads promovidos para este tenant).
-      // RLS já bloqueia leitura cross-tenant, mas filtramos explicitamente por segurança.
-      const { data: wins } = await supabase
+      // Agregado por nome de campanha (utm_campaign / facebook_campaign) no período selecionado.
+      const sinceISO = new Date(daysAgoISO(period) + "T00:00:00").toISOString();
+      const { data: allLeads } = await supabase
+        .from("leads")
+        .select("utm_campaign,facebook_campaign,valor_proposta,status,reuniao_agendada_em,created_at")
+        .eq("tenant_id", tenant.id)
+        .gte("created_at", sinceISO);
+      const stats: Record<string, { leads: number; meetings: number; wins: number; revenue: number }> = {};
+      const wins: Record<string, { count: number; value: number }> = {};
+      const bump = (name: string | null | undefined, patch: (s: any) => void) => {
+        if (!name) return;
+        const key = String(name).trim().toLowerCase();
+        if (!key) return;
+        stats[key] = stats[key] || { leads: 0, meetings: 0, wins: 0, revenue: 0 };
+        patch(stats[key]);
+      };
+      (allLeads ?? []).forEach((l: any) => {
+        const name = l.utm_campaign || l.facebook_campaign;
+        bump(name, (s) => { s.leads += 1; });
+        if (l.reuniao_agendada_em) bump(name, (s) => { s.meetings += 1; });
+        if (l.status === "ganho") {
+          const v = Number(l.valor_proposta) || 0;
+          bump(name, (s) => { s.wins += 1; s.revenue += v; });
+          if (name) {
+            const k = String(name).trim().toLowerCase();
+            wins[k] = wins[k] || { count: 0, value: 0 };
+            wins[k].count += 1; wins[k].value += v;
+          }
+        }
+      });
+      // agency_leads ganhos (também contam como vendas atribuídas por utm)
+      const { data: agencyWins } = await supabase
         .from("agency_leads")
-        .select("nome_clinica,utm_campaign,valor_proposta,tenant_id_criado,stage")
+        .select("utm_campaign,valor_proposta,tenant_id_criado,stage")
         .eq("stage", "ganho")
         .eq("tenant_id_criado", tenant.id);
-      const winsL = wins ?? [];
-
-      const { data: winsLeads } = await supabase
-        .from("leads")
-        .select("utm_campaign,facebook_campaign,valor_proposta")
-        .eq("status", "ganho").eq("tenant_id", tenant.id);
-      const map: Record<string, { count: number; value: number }> = {};
-      const attribute = (name: string | null | undefined, valor: number) => {
-        if (!name) return;
-        const key = name.trim().toLowerCase();
-        if (!key) return;
-        map[key] = map[key] || { count: 0, value: 0 };
-        map[key].count += 1; map[key].value += Number(valor) || 0;
-      };
-      winsL.forEach((w: any) => attribute(w.utm_campaign, w.valor_proposta));
-      (winsLeads ?? []).forEach((w: any) => attribute(w.utm_campaign || w.facebook_campaign, w.valor_proposta));
-      setCrmWins(map);
+      (agencyWins ?? []).forEach((w: any) => {
+        const v = Number(w.valor_proposta) || 0;
+        bump(w.utm_campaign, (s) => { s.wins += 1; s.revenue += v; });
+        if (w.utm_campaign) {
+          const k = String(w.utm_campaign).trim().toLowerCase();
+          wins[k] = wins[k] || { count: 0, value: 0 };
+          wins[k].count += 1; wins[k].value += v;
+        }
+      });
+      setCrmStats(stats);
+      setCrmWins(wins);
       setLastSync(new Date());
+
     } catch (e: any) {
       setError(e?.message ?? "Erro ao carregar campanhas");
       setCampaigns([]);
@@ -195,6 +224,7 @@ export default function TenantCampaigns() {
     }, { spend: 0, leads: 0, impressions: 0, clicks: 0, revenue: 0 });
     const crmTotal = Object.values(crmWins).reduce((sum, v) => sum + v.value, 0);
     const crmCount = Object.values(crmWins).reduce((sum, v) => sum + v.count, 0);
+    const meetingsTotal = Object.values(crmStats).reduce((sum, v) => sum + v.meetings, 0);
     const totalRev = s.revenue + crmTotal;
     return {
       spend: s.spend, leads: s.leads, revenue: totalRev,
@@ -203,8 +233,12 @@ export default function TenantCampaigns() {
       active: campaigns.filter((c) => c.effective_status === "ACTIVE" || c.status === "ACTIVE").length,
       total: campaigns.length, crmWins: crmCount,
       ctr: s.impressions ? (s.clicks / s.impressions) * 100 : 0,
+      meetings: meetingsTotal,
+      cpm_meeting: meetingsTotal ? s.spend / meetingsTotal : 0,
+      cac: crmCount ? s.spend / crmCount : 0,
     };
-  }, [campaigns, crmWins]);
+  }, [campaigns, crmWins, crmStats]);
+
 
   // Agrega séries diárias de todas as campanhas para os sparklines dos KPIs
   const dailyTotals = useMemo(() => {
@@ -269,16 +303,20 @@ export default function TenantCampaigns() {
       </div>
 
       {/* KPIs com sparkline */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-9 gap-3">
         <Kpi icon={Activity} label="Ativas" value={`${kpis.active}/${kpis.total}`} tone="primary" />
         <Kpi icon={DollarSign} label="Investido" value={BRL(kpis.spend)} tone="amber"
              series={dailyTotals} dataKey="spend" formatter={(v) => BRL(v)} />
         <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan"
              series={dailyTotals} dataKey="leads" formatter={(v) => NUM(v)} />
         <Kpi icon={Target} label="CPL" value={BRL(kpis.cpl)} tone="violet" />
+        <Kpi icon={CalendarCheck} label="Reuniões" value={NUM(kpis.meetings)} tone="cyan" />
+        <Kpi icon={Target} label="Custo/Reunião" value={BRL(kpis.cpm_meeting)} tone="violet" />
+        <Kpi icon={UserCheck} label="CAC" value={BRL(kpis.cac)} tone="rose" />
         <Kpi icon={TrendingUp} label="Faturamento" value={BRL(kpis.revenue)} tone="emerald" />
         <Kpi icon={Star} label="ROAS" value={`${kpis.roas.toFixed(2)}x`} tone="rose" />
       </div>
+
 
 
       {/* Linked Lead Forms */}
@@ -354,8 +392,14 @@ export default function TenantCampaigns() {
         {campaigns.map((c) => {
           const key = c.name.trim().toLowerCase();
           const win = crmWins[key];
+          const stat = crmStats[key];
+          const meetings = stat?.meetings ?? 0;
+          const wins = stat?.wins ?? win?.count ?? 0;
           const revenue = (c.insights?.purchase_value || 0) + (win?.value || 0);
-          const roas = c.insights?.spend ? revenue / c.insights.spend : 0;
+          const spend = c.insights?.spend || 0;
+          const roas = spend ? revenue / spend : 0;
+          const cpMeeting = meetings ? spend / meetings : 0;
+          const cac = wins ? spend / wins : 0;
           const isActive = c.effective_status === "ACTIVE" || c.status === "ACTIVE";
           const metaUrl = `https://business.facebook.com/adsmanager/manage/campaigns?act=${(c.ad_account_id || "").replace(/^act_/, "")}&selected_campaign_ids=${c.id}`;
           const copyId = async () => {
@@ -385,21 +429,30 @@ export default function TenantCampaigns() {
               </div>
 
               {c.insights ? (
-                <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
-                  <Metric label="Gasto" value={BRL(c.insights.spend)} />
-                  <Metric
-                    label={c.insights.result_label || "Leads"}
-                    value={NUM(c.insights.result_value ?? c.insights.leads)}
-                  />
-                  <Metric
-                    label={cprLabel(c.insights.result_kind)}
-                    value={BRL(c.insights.cost_per_result ?? c.insights.cpl)}
-                  />
-                  <Metric label="CTR" value={`${c.insights.ctr.toFixed(1)}%`} />
-                </div>
+                <>
+                  <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
+                    <Metric label="Gasto" value={BRL(c.insights.spend)} />
+                    <Metric
+                      label={c.insights.result_label || "Leads"}
+                      value={NUM(c.insights.result_value ?? c.insights.leads)}
+                    />
+                    <Metric
+                      label={cprLabel(c.insights.result_kind)}
+                      value={BRL(c.insights.cost_per_result ?? c.insights.cpl)}
+                    />
+                    <Metric label="CTR" value={`${c.insights.ctr.toFixed(1)}%`} />
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
+                    <Metric label="Reuniões" value={NUM(meetings)} />
+                    <Metric label="Custo/Reun." value={meetings ? BRL(cpMeeting) : "—"} />
+                    <Metric label="Vendas" value={NUM(wins)} />
+                    <Metric label="CAC" value={wins ? BRL(cac) : "—"} />
+                  </div>
+                </>
               ) : (
                 <div className="text-[11px] text-muted-foreground italic pl-1">Sem dados no período.</div>
               )}
+
 
 
               {c.daily && c.daily.length > 1 && (
