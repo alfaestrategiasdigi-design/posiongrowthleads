@@ -169,7 +169,7 @@ export default function ClientPanel({ kind, id, open, onClose }: Props) {
       )}
 
       {/* cfg garante que B2B não vaza para paciente */}
-      {isPatient && cfg.b2bBlock && (
+      {isPatient && cfg.summary.b2bBlock && (
         <div className="hidden">bug: b2bBlock true para paciente</div>
       )}
     </>
