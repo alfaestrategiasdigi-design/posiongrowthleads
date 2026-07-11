@@ -104,7 +104,24 @@ export default function TenantPatients() {
       </div>
 
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Lista de Pacientes</CardTitle></CardHeader>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Lista de Pacientes</CardTitle>
+          {orphanCount > 0 && (
+            <TooltipProvider delayDuration={100}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground cursor-help">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {orphanCount} venda{orphanCount > 1 ? "s" : ""} sem paciente cadastrado
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="left" className="max-w-xs">
+                  <p>Serão vinculadas no backfill (Fase 7).</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <div className="p-12 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
