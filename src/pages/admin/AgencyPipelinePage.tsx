@@ -154,8 +154,8 @@ export default function AgencyPipelinePage() {
   }, [filteredLeads]);
 
   const kpis = useMemo(() => {
-    const active = filteredLeads.filter((l) => l.stage !== "ganho" && l.stage !== "perdido");
-    const wonMonth = filteredLeads.filter((l) => l.stage === "ganho");
+    const active = filteredLeads.filter((l) => !["ganho","ativo","perdido"].includes(l.stage));
+    const wonMonth = filteredLeads.filter((l) => l.stage === "ganho" || l.stage === "ativo");
     const emNeg = filteredLeads.filter((l) => ["proposta", "negociacao"].includes(l.stage));
     const totalPipeline = emNeg.reduce((s, l) => s + (l.valor_proposta || 0), 0);
     const wonValue = wonMonth.reduce((s, l) => s + (l.valor_proposta || 0), 0);
