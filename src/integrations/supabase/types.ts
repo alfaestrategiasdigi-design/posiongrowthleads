@@ -2373,6 +2373,81 @@ export type Database = {
         }
         Relationships: []
       }
+      patient_onboarding: {
+        Row: {
+          como_conheceu: string | null
+          created_at: string
+          extras: Json
+          forma_pagamento: string | null
+          id: string
+          melhor_horario_contato: string | null
+          negociacao_status: string | null
+          objetivo_principal: string | null
+          observacoes: string | null
+          onboarding_completed_at: string | null
+          patient_id: string
+          procedimento_interesse: string | null
+          proximo_retorno_at: string | null
+          responsavel_clinico: string | null
+          tenant_id: string
+          updated_at: string
+          valor_negociado: number | null
+        }
+        Insert: {
+          como_conheceu?: string | null
+          created_at?: string
+          extras?: Json
+          forma_pagamento?: string | null
+          id?: string
+          melhor_horario_contato?: string | null
+          negociacao_status?: string | null
+          objetivo_principal?: string | null
+          observacoes?: string | null
+          onboarding_completed_at?: string | null
+          patient_id: string
+          procedimento_interesse?: string | null
+          proximo_retorno_at?: string | null
+          responsavel_clinico?: string | null
+          tenant_id: string
+          updated_at?: string
+          valor_negociado?: number | null
+        }
+        Update: {
+          como_conheceu?: string | null
+          created_at?: string
+          extras?: Json
+          forma_pagamento?: string | null
+          id?: string
+          melhor_horario_contato?: string | null
+          negociacao_status?: string | null
+          objetivo_principal?: string | null
+          observacoes?: string | null
+          onboarding_completed_at?: string | null
+          patient_id?: string
+          procedimento_interesse?: string | null
+          proximo_retorno_at?: string | null
+          responsavel_clinico?: string | null
+          tenant_id?: string
+          updated_at?: string
+          valor_negociado?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_onboarding_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: true
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_onboarding_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patient_tags: {
         Row: {
           color: string | null
@@ -2417,48 +2492,92 @@ export type Database = {
       }
       patients: {
         Row: {
+          birth_date: string | null
+          cpf: string | null
           created_at: string
           email: string | null
+          endereco: Json | null
+          extras: Json
           id: string
           name: string
           observacoes: string | null
           origem: string | null
           primeiro_contato: string | null
+          promoted_at: string | null
+          promoted_by: string | null
           recorrente: boolean
+          sexo: string | null
+          source_form_lead_id: string | null
+          source_lead_id: string | null
           status: string
+          tags: string[]
           tenant_id: string
           updated_at: string
           whatsapp: string | null
         }
         Insert: {
+          birth_date?: string | null
+          cpf?: string | null
           created_at?: string
           email?: string | null
+          endereco?: Json | null
+          extras?: Json
           id?: string
           name: string
           observacoes?: string | null
           origem?: string | null
           primeiro_contato?: string | null
+          promoted_at?: string | null
+          promoted_by?: string | null
           recorrente?: boolean
+          sexo?: string | null
+          source_form_lead_id?: string | null
+          source_lead_id?: string | null
           status?: string
+          tags?: string[]
           tenant_id: string
           updated_at?: string
           whatsapp?: string | null
         }
         Update: {
+          birth_date?: string | null
+          cpf?: string | null
           created_at?: string
           email?: string | null
+          endereco?: Json | null
+          extras?: Json
           id?: string
           name?: string
           observacoes?: string | null
           origem?: string | null
           primeiro_contato?: string | null
+          promoted_at?: string | null
+          promoted_by?: string | null
           recorrente?: boolean
+          sexo?: string | null
+          source_form_lead_id?: string | null
+          source_lead_id?: string | null
           status?: string
+          tags?: string[]
           tenant_id?: string
           updated_at?: string
           whatsapp?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "patients_source_form_lead_id_fkey"
+            columns: ["source_form_lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patients_source_lead_id_fkey"
+            columns: ["source_lead_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_leads"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "patients_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -3383,6 +3502,84 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "tenant_capi_config_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_client_profile: {
+        Row: {
+          cidade: string | null
+          cnpj: string | null
+          created_at: string
+          especialidade: string | null
+          estado: string | null
+          extras: Json
+          id: string
+          num_profissionais: string | null
+          observacoes_conta: string | null
+          onboarding_completed_at: string | null
+          proximo_checkin_at: string | null
+          responsavel_cs: string | null
+          responsavel_email: string | null
+          responsavel_nome: string | null
+          responsavel_whatsapp: string | null
+          source_agency_lead_id: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          cidade?: string | null
+          cnpj?: string | null
+          created_at?: string
+          especialidade?: string | null
+          estado?: string | null
+          extras?: Json
+          id?: string
+          num_profissionais?: string | null
+          observacoes_conta?: string | null
+          onboarding_completed_at?: string | null
+          proximo_checkin_at?: string | null
+          responsavel_cs?: string | null
+          responsavel_email?: string | null
+          responsavel_nome?: string | null
+          responsavel_whatsapp?: string | null
+          source_agency_lead_id?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          cidade?: string | null
+          cnpj?: string | null
+          created_at?: string
+          especialidade?: string | null
+          estado?: string | null
+          extras?: Json
+          id?: string
+          num_profissionais?: string | null
+          observacoes_conta?: string | null
+          onboarding_completed_at?: string | null
+          proximo_checkin_at?: string | null
+          responsavel_cs?: string | null
+          responsavel_email?: string | null
+          responsavel_nome?: string | null
+          responsavel_whatsapp?: string | null
+          source_agency_lead_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_client_profile_source_agency_lead_id_fkey"
+            columns: ["source_agency_lead_id"]
+            isOneToOne: false
+            referencedRelation: "agency_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_client_profile_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
             referencedRelation: "tenants"
