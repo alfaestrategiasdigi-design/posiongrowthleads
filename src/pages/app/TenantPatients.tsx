@@ -112,8 +112,13 @@ export default function TenantPatients() {
               <TableBody>
                 {rows.map((p) => {
                   const st = stats.get(p.name.toLowerCase()) || { total: 0, count: 0, last: null };
+                  const isRealPatient = !p.id.startsWith("sale:");
                   return (
-                    <TableRow key={p.id}>
+                    <TableRow
+                      key={p.id}
+                      className={isRealPatient ? "cursor-pointer hover:bg-muted/40" : ""}
+                      onClick={isRealPatient ? () => setPanelId(p.id) : undefined}
+                    >
                       <TableCell className="font-medium flex items-center gap-2">
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center"><UserCircle2 className="w-4 h-4 text-primary" /></div>
                         <span>{p.name}</span>
