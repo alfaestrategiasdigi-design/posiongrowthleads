@@ -176,13 +176,13 @@ export default function LeadSummaryTab({ lead, onSave, entityKind }: Props) {
       {/* Diagnóstico rápido */}
 
       <div className="grid grid-cols-2 gap-2 pt-3 border-t border-border/40 text-sm">
-        {!isTenantContext && <Field label="Empresa" value={lead.company} />}
-        {!isTenantContext && <Field label={lead.volumeLabel} value={lead.volume} />}
+        {cfg.company && <Field label="Empresa" value={lead.company} />}
+        {cfg.volume && <Field label={lead.volumeLabel} value={lead.volume} />}
         <Field label="Cidade" value={lead.city} />
         <Field label="E-mail" value={lead.email} />
         <Field label="WhatsApp" value={lead.whatsapp} />
         <Field label="Origem" value={lead.origem} />
-        {lead.source === "lead" && !isTenantContext && (
+        {lead.source === "lead" && cfg.b2bBlock && (
           <>
             <Field label="Especialidade" value={lead.raw.especialidade} />
             <Field label="Nº profissionais" value={lead.raw.num_profissionais} />
