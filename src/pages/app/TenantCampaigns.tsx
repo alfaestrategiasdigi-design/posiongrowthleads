@@ -303,16 +303,20 @@ export default function TenantCampaigns() {
       </div>
 
       {/* KPIs com sparkline */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-9 gap-3">
         <Kpi icon={Activity} label="Ativas" value={`${kpis.active}/${kpis.total}`} tone="primary" />
         <Kpi icon={DollarSign} label="Investido" value={BRL(kpis.spend)} tone="amber"
              series={dailyTotals} dataKey="spend" formatter={(v) => BRL(v)} />
         <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan"
              series={dailyTotals} dataKey="leads" formatter={(v) => NUM(v)} />
         <Kpi icon={Target} label="CPL" value={BRL(kpis.cpl)} tone="violet" />
+        <Kpi icon={CalendarCheck} label="Reuniões" value={NUM(kpis.meetings)} tone="cyan" />
+        <Kpi icon={Target} label="Custo/Reunião" value={BRL(kpis.cpm_meeting)} tone="violet" />
+        <Kpi icon={UserCheck} label="CAC" value={BRL(kpis.cac)} tone="rose" />
         <Kpi icon={TrendingUp} label="Faturamento" value={BRL(kpis.revenue)} tone="emerald" />
         <Kpi icon={Star} label="ROAS" value={`${kpis.roas.toFixed(2)}x`} tone="rose" />
       </div>
+
 
 
       {/* Linked Lead Forms */}
