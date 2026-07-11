@@ -36,7 +36,7 @@ export default function TenantPatients() {
     if (!tenant) return;
     setLoading(true);
     const [{ data: pts }, { data: sls }] = await Promise.all([
-      supabase.from("patients").select("*").eq("tenant_id", tenant.id).order("name"),
+      supabase.from("patients").select("*").eq("tenant_id", tenant.id).is("promotion_reverted_at", null).order("name"),
       supabase.from("sales").select("*").eq("tenant_id", tenant.id),
     ]);
     setPatients((pts || []) as Patient[]);
@@ -45,17 +45,43 @@ export default function TenantPatients() {
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [tenant?.id]);
 
-  const stats = useMemo(() => {
-    const map = new Map<string, { total: number; count: number; last: string | null }>();
+  // Aggregate sales by patient_id (primary) with case-insensitive name fallback (cosmetic only).
+  const { statsById, statsByName, orphanCount } = useMemo(() => {
+    const byId = new Map<string, { total: number; count: number; last: string | null }>();
+    const byName = new Map<string, { total: number; count: number; last: string | null }>();
+    const patientNames = new Set(patients.map((p) => p.name.toLowerCase()));
+    let orphan = 0;
     for (const s of sales) {
-      const k = s.patient_name.toLowerCase();
-      const a = map.get(k) || { total: 0, count: 0, last: null };
-      a.total += Number(s.amount); a.count += 1;
-      if (!a.last || s.sale_date > a.last) a.last = s.sale_date;
-      map.set(k, a);
+      const amt = Number(s.amount);
+      if (s.patient_id) {
+        const a = byId.get(s.patient_id) || { total: 0, count: 0, last: null };
+        a.total += amt; a.count += 1;
+        if (!a.last || s.sale_date > a.last) a.last = s.sale_date;
+        byId.set(s.patient_id, a);
+      } else {
+        const k = (s.patient_name || "").toLowerCase();
+        if (k && patientNames.has(k)) {
+          const a = byName.get(k) || { total: 0, count: 0, last: null };
+          a.total += amt; a.count += 1;
+          if (!a.last || s.sale_date > a.last) a.last = s.sale_date;
+          byName.set(k, a);
+        } else {
+          orphan += 1;
+        }
+      }
     }
-    return map;
-  }, [sales]);
+    return { statsById: byId, statsByName: byName, orphanCount: orphan };
+  }, [patients, sales]);
+
+  const rows = useMemo(() => {
+    return patients
+      .filter((p) => !q || p.name.toLowerCase().includes(q.toLowerCase()))
+      .map((p) => ({
+        p,
+        st: statsById.get(p.id) || statsByName.get(p.name.toLowerCase()) || { total: 0, count: 0, last: null },
+      }))
+      .sort((a, b) => b.st.total - a.st.total);
+  }, [patients, q, statsById, statsByName]);
 
   // Merge: patients table + names appearing only in sales
   const rows = useMemo(() => {
