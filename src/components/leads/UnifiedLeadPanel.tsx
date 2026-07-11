@@ -109,6 +109,7 @@ const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated, entityKind
                 <TabsContent value="summary" className="mt-0">
                   <LeadSummaryTab
                     lead={lead}
+                    entityKind={kind}
                     onSave={async (patch) => {
                       const { error } = await savePatch(patch);
                       if (!error) onUpdated?.();
