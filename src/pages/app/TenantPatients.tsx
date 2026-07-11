@@ -138,6 +138,7 @@ export default function TenantPatients() {
           )}
         </CardContent>
       </Card>
+      <ClientPanel kind="patient" id={panelId} open={!!panelId} onClose={() => setPanelId(null)} />
     </div>
   );
 }
