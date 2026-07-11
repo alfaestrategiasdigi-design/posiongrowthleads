@@ -2505,6 +2505,7 @@ export type Database = {
           primeiro_contato: string | null
           promoted_at: string | null
           promoted_by: string | null
+          promotion_reverted_at: string | null
           recorrente: boolean
           sexo: string | null
           source_form_lead_id: string | null
@@ -2529,6 +2530,7 @@ export type Database = {
           primeiro_contato?: string | null
           promoted_at?: string | null
           promoted_by?: string | null
+          promotion_reverted_at?: string | null
           recorrente?: boolean
           sexo?: string | null
           source_form_lead_id?: string | null
@@ -2553,6 +2555,7 @@ export type Database = {
           primeiro_contato?: string | null
           promoted_at?: string | null
           promoted_by?: string | null
+          promotion_reverted_at?: string | null
           recorrente?: boolean
           sexo?: string | null
           source_form_lead_id?: string | null
@@ -3521,6 +3524,7 @@ export type Database = {
           num_profissionais: string | null
           observacoes_conta: string | null
           onboarding_completed_at: string | null
+          promotion_reverted_at: string | null
           proximo_checkin_at: string | null
           responsavel_cs: string | null
           responsavel_email: string | null
@@ -3541,6 +3545,7 @@ export type Database = {
           num_profissionais?: string | null
           observacoes_conta?: string | null
           onboarding_completed_at?: string | null
+          promotion_reverted_at?: string | null
           proximo_checkin_at?: string | null
           responsavel_cs?: string | null
           responsavel_email?: string | null
@@ -3561,6 +3566,7 @@ export type Database = {
           num_profissionais?: string | null
           observacoes_conta?: string | null
           onboarding_completed_at?: string | null
+          promotion_reverted_at?: string | null
           proximo_checkin_at?: string | null
           responsavel_cs?: string | null
           responsavel_email?: string | null
