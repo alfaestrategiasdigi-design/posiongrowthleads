@@ -392,8 +392,14 @@ export default function TenantCampaigns() {
         {campaigns.map((c) => {
           const key = c.name.trim().toLowerCase();
           const win = crmWins[key];
+          const stat = crmStats[key];
+          const meetings = stat?.meetings ?? 0;
+          const wins = stat?.wins ?? win?.count ?? 0;
           const revenue = (c.insights?.purchase_value || 0) + (win?.value || 0);
-          const roas = c.insights?.spend ? revenue / c.insights.spend : 0;
+          const spend = c.insights?.spend || 0;
+          const roas = spend ? revenue / spend : 0;
+          const cpMeeting = meetings ? spend / meetings : 0;
+          const cac = wins ? spend / wins : 0;
           const isActive = c.effective_status === "ACTIVE" || c.status === "ACTIVE";
           const metaUrl = `https://business.facebook.com/adsmanager/manage/campaigns?act=${(c.ad_account_id || "").replace(/^act_/, "")}&selected_campaign_ids=${c.id}`;
           const copyId = async () => {
@@ -423,21 +429,30 @@ export default function TenantCampaigns() {
               </div>
 
               {c.insights ? (
-                <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
-                  <Metric label="Gasto" value={BRL(c.insights.spend)} />
-                  <Metric
-                    label={c.insights.result_label || "Leads"}
-                    value={NUM(c.insights.result_value ?? c.insights.leads)}
-                  />
-                  <Metric
-                    label={cprLabel(c.insights.result_kind)}
-                    value={BRL(c.insights.cost_per_result ?? c.insights.cpl)}
-                  />
-                  <Metric label="CTR" value={`${c.insights.ctr.toFixed(1)}%`} />
-                </div>
+                <>
+                  <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
+                    <Metric label="Gasto" value={BRL(c.insights.spend)} />
+                    <Metric
+                      label={c.insights.result_label || "Leads"}
+                      value={NUM(c.insights.result_value ?? c.insights.leads)}
+                    />
+                    <Metric
+                      label={cprLabel(c.insights.result_kind)}
+                      value={BRL(c.insights.cost_per_result ?? c.insights.cpl)}
+                    />
+                    <Metric label="CTR" value={`${c.insights.ctr.toFixed(1)}%`} />
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
+                    <Metric label="Reuniões" value={NUM(meetings)} />
+                    <Metric label="Custo/Reun." value={meetings ? BRL(cpMeeting) : "—"} />
+                    <Metric label="Vendas" value={NUM(wins)} />
+                    <Metric label="CAC" value={wins ? BRL(cac) : "—"} />
+                  </div>
+                </>
               ) : (
                 <div className="text-[11px] text-muted-foreground italic pl-1">Sem dados no período.</div>
               )}
+
 
 
               {c.daily && c.daily.length > 1 && (
