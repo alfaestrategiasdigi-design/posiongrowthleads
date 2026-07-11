@@ -271,33 +271,22 @@ async function sendWhatsapp(
     }
   } else if (kind === "list") {
     endpoint = `${base}/message/sendList/${inst}`;
-    if (Array.isArray(data.sections)) {
-      body = {
-        number: digits,
-        title: data.title || "",
-        description: data.description || data.text || "",
-        buttonText: data.buttonText || "Ver opções",
-        footerText: data.footerText ?? data.footer ?? "",
-        sections: data.sections,
-      };
-    } else {
-      body = {
-        number: digits,
-        title: data.title || "",
-        description: data.text || "",
-        buttonText: data.buttonText || "Ver opções",
-        footerText: data.footer || "",
-        sections: [{
-          title: data.sectionTitle || "Opções",
-          rows: (data.items || []).map((it: any, i: number) => ({
-            rowId: buttonId(it.id, `row_${i}`),
-            title: menuOptionText(it.label, `Opção ${i + 1}`).slice(0, 24),
-            // Evolution rejects list rows when description is empty.
-            description: menuOptionText(it.description || it.label || "Toque para selecionar", "Toque para selecionar"),
-          })),
-        }],
-      };
-    }
+    body = {
+      number: digits,
+      title: data.title || "",
+      description: data.text || "",
+      buttonText: data.buttonText || "Ver opções",
+      footerText: data.footer || "",
+      sections: [{
+        title: data.sectionTitle || "Opções",
+    rows: (data.items || []).map((it: any, i: number) => ({
+      rowId: buttonId(it.id, `row_${i}`),
+      title: menuOptionText(it.label, `Opção ${i + 1}`).slice(0, 24),
+      // Evolution rejects list rows when description is empty.
+      description: menuOptionText(it.description || it.label || "Toque para selecionar", "Toque para selecionar"),
+    })),
+      }],
+    };
   } else if (kind === "audio") {
     endpoint = `${base}/message/sendWhatsAppAudio/${inst}`;
     body.audio = data.url;
@@ -311,14 +300,56 @@ async function sendWhatsapp(
   }
 
   try {
-    if (kind === "list") {
-      console.log("[automation-dispatch] Evolution sendList request", JSON.stringify({ method: "POST", endpoint, body }));
-    }
     const r = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(20_000) });
     const raw = await r.text();
-    if (kind === "list") {
-      console.log("[automation-dispatch] Evolution sendList response", JSON.stringify({ status: r.status, body: raw }));
-    }
+    let j: any = {};
+    try { j = raw ? JSON.parse(raw) : {}; } catch { j = { raw }; }
+    if (!r.ok) return { ok: false, error: `evolution_${r.status}: ${JSON.stringify(j).slice(0, 300)}` };
+    const wamid = j?.key?.id ?? j?.messageId ?? null;
+    return { ok: true, wamid };
+  } catch (e) {
+    const msg = e instanceof DOMException && e.name === "TimeoutError" ? "timeout_20s" : String(e).slice(0, 200);
+    return { ok: false, error: `network: ${msg}` };
+  }
+}
+
+async function sendEvolutionListMessage(
+  tenantId: string | null,
+  phone: string,
+  data: EvolutionListPayload,
+): Promise<{ ok: boolean; error?: string; wamid?: string | null }> {
+  const digits = onlyDigits(phone);
+  if (!digits || digits.length < 8) return { ok: false, error: "phone_invalid" };
+
+  let q = admin.from("zapi_connections").select("instance_url, api_key, instance_name")
+    .eq("provider", "evolution");
+  q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
+  const { data: conn } = await q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
+  if (!conn) return { ok: false, error: "no_evolution_connection" };
+
+  let base = conn.instance_url.trim();
+  if (!/^https?:\/\//i.test(base)) base = "http://" + base;
+  try { const u = new URL(base); base = `${u.protocol}//${u.host}`; } catch {}
+  const endpoint = `${base}/message/sendList/${encodeURIComponent(conn.instance_name)}`;
+  const body = {
+    number: digits,
+    title: data.title,
+    description: data.description,
+    buttonText: data.buttonText,
+    footerText: data.footerText,
+    sections: data.sections,
+  };
+
+  console.log("[automation-dispatch] Evolution sendList request", JSON.stringify({ method: "POST", endpoint, body }));
+  try {
+    const r = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: conn.api_key },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20_000),
+    });
+    const raw = await r.text();
+    console.log("[automation-dispatch] Evolution sendList response", JSON.stringify({ status: r.status, body: raw }));
     let j: any = {};
     try { j = raw ? JSON.parse(raw) : {}; } catch { j = { raw }; }
     if (!r.ok) return { ok: false, error: `evolution_${r.status}: ${JSON.stringify(j).slice(0, 300)}` };
@@ -453,7 +484,7 @@ async function runFlow(
           };
           let r: Awaited<ReturnType<typeof sendWhatsapp>>;
           try {
-            r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "list", listPayload);
+            r = await sendEvolutionListMessage(tenantId, vars.lead.whatsapp, listPayload);
           } catch (e) {
             r = { ok: false, error: `throw: ${errText(e).slice(0, 200)}` };
           }
@@ -541,7 +572,7 @@ async function runFlow(
           };
           let r: Awaited<ReturnType<typeof sendWhatsapp>>;
           try {
-            r = await sendWhatsapp(tenantId, vars.lead.whatsapp, "list", listPayload);
+            r = await sendEvolutionListMessage(tenantId, vars.lead.whatsapp, listPayload);
           } catch (e) {
             r = { ok: false, error: `throw: ${errText(e).slice(0, 200)}` };
           }
