@@ -11,6 +11,7 @@ import { ptBR } from "date-fns/locale";
 import type { UnifiedLeadView } from "@/hooks/useUnifiedLead";
 import { PIPELINE_STAGES } from "@/types/admin";
 import LeadAppointmentsSection from "@/components/tenant/LeadAppointmentsSection";
+import { FIELDS_BY_KIND, resolveEntityKindLegacy, type EntityKind } from "@/lib/entity-fields";
 
 
 const AGENCY_STAGES = [
@@ -26,11 +27,15 @@ const AGENCY_STAGES = [
 interface Props {
   lead: UnifiedLeadView;
   onSave: (patch: Record<string, any>) => Promise<void> | void;
+  /** Opcional: se omitido, cai no default legado (mantém comportamento atual). */
+  entityKind?: EntityKind;
 }
 
-export default function LeadSummaryTab({ lead, onSave }: Props) {
+export default function LeadSummaryTab({ lead, onSave, entityKind }: Props) {
   const location = useLocation();
   const isTenantContext = location.pathname.startsWith("/app/");
+  const kind: EntityKind = entityKind ?? resolveEntityKindLegacy(lead.source, isTenantContext);
+  const cfg = FIELDS_BY_KIND[kind].summary;
   const toLocalInput = (iso: string | null | undefined) => {
     if (!iso) return "";
     const d = new Date(iso);
