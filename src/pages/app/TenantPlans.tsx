@@ -201,8 +201,8 @@ export default function TenantPlans() {
                   {hasPaid ? (
                     <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Assinatura ativa</Badge>
                   ) : (
-                    <Button size="lg" className="gap-2" onClick={() => setFounderOpen(true)}>
-                      <Zap className="w-4 h-4" /> Gerar Pix — {BRL(customOffer.entry_amount_cents)}
+                    <Button size="lg" className="gap-2" onClick={() => navigate(`/app/${tenant?.slug}/checkout?offer_id=${customOffer.id}`)}>
+                      <Zap className="w-4 h-4" /> Pagar agora — {BRL(customOffer.entry_amount_cents)}
                     </Button>
                   )}
                 </div>
@@ -279,9 +279,9 @@ export default function TenantPlans() {
                       size="lg"
                       className="gap-2"
                       disabled={soldOut}
-                      onClick={() => setFounderOpen(true)}
+                      onClick={() => navigate(`/app/${tenant?.slug}/checkout`)}
                     >
-                      <Zap className="w-4 h-4" /> Gerar Pix — R$ 250 (1º mês)
+                      <Zap className="w-4 h-4" /> Pagar agora — R$ 250 (1º mês)
                     </Button>
                   )}
                 </div>
@@ -486,16 +486,6 @@ export default function TenantPlans() {
           </CardContent>
         </Card>
       </div>
-      {tenant?.id && (
-        <FounderPixCheckoutDialog
-          open={founderOpen}
-          onClose={() => { setFounderOpen(false); refresh(); }}
-          onPaid={() => { setFounderOpen(false); refresh(); }}
-          tenantId={tenant.id}
-          payerEmail={user?.email ?? undefined}
-          offer={customOffer}
-        />
-      )}
     </div>
   );
 }
