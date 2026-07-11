@@ -449,7 +449,6 @@ async function runFlow(
           }
         });
         const menuText = buildButtonsTextMessage({ title, text, footer, buttons: items });
-        const menuText = buildButtonsTextMessage({ title, text, footer, buttons: items });
         if (dryRun) detail = `enviaria list message (${items.length}) → ${new Set(Object.values(listMap)).size} rotas`;
         else {
           const listPayload = {
