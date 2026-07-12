@@ -10,7 +10,14 @@ import {
   Activity, AlertCircle, Megaphone, Star, ExternalLink, Copy, Eye, MousePointerClick,
   CalendarCheck, UserCheck, Zap, Repeat,
   Wallet, ArrowUpRight, ArrowDownRight, BadgeCheck,
+  Search, GitCompare, ArrowDownAZ, X, Heart, ChevronDown,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 
 
 import {
