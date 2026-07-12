@@ -192,6 +192,8 @@ function ContractDialog({ contract, onOpenChange, onSaved }: { contract: AgencyC
   const isNew = contract === "new";
   const c = isNew ? null : (contract as AgencyContract | null);
   const [saving, setSaving] = useState(false);
+  const [leads, setLeads] = useState<AgencyLeadOption[]>([]);
+  const [agencyLeadId, setAgencyLeadId] = useState<string>("");
   const [form, setForm] = useState({
     cliente_nome: "", valor_total: 0, valor_comissao: 0, duracao_meses: 12,
     data_assinatura: new Date().toISOString().slice(0, 10),
@@ -199,23 +201,40 @@ function ContractDialog({ contract, onOpenChange, onSaved }: { contract: AgencyC
   });
 
   useEffect(() => {
-    if (c) setForm({
-      cliente_nome: c.cliente_nome,
-      valor_total: Number(c.valor_total),
-      valor_comissao: Number(c.valor_comissao),
-      duracao_meses: c.duracao_meses || 12,
-      data_assinatura: c.data_assinatura,
-      status: c.status,
-      observacoes: c.observacoes || "",
-    });
-    else setForm({ cliente_nome: "", valor_total: 0, valor_comissao: 0, duracao_meses: 12, data_assinatura: new Date().toISOString().slice(0, 10), status: "ativo", observacoes: "" });
+    if (!open) return;
+    supabase
+      .from("agency_leads")
+      .select("id,nome_clinica,responsavel,stage,valor_proposta")
+      .in("stage", ["ganho", "ativo", "proposta", "negociacao"])
+      .order("updated_at", { ascending: false })
+      .limit(200)
+      .then(({ data }) => setLeads((data || []) as AgencyLeadOption[]));
+  }, [open]);
+
+  useEffect(() => {
+    if (c) {
+      setForm({
+        cliente_nome: c.cliente_nome,
+        valor_total: Number(c.valor_total),
+        valor_comissao: Number(c.valor_comissao),
+        duracao_meses: c.duracao_meses || 12,
+        data_assinatura: c.data_assinatura,
+        status: c.status,
+        observacoes: c.observacoes || "",
+      });
+      setAgencyLeadId(c.agency_lead_id || "");
+    } else {
+      setForm({ cliente_nome: "", valor_total: 0, valor_comissao: 0, duracao_meses: 12, data_assinatura: new Date().toISOString().slice(0, 10), status: "ativo", observacoes: "" });
+      setAgencyLeadId("");
+    }
   }, [contract]);
 
   const save = async () => {
     if (!form.cliente_nome.trim()) { toast.error("Cliente obrigatório"); return; }
+    if (!agencyLeadId) { toast.error("Selecione o lead do pipeline Posion Master"); return; }
     setSaving(true);
-    // agency_contracts pertencem à POSION (admin master) — NUNCA vinculados a tenant.
-    const payload = { ...form, tenant_id: null as string | null };
+    // agency_contracts pertencem à POSION Master — vinculados a um lead do pipeline, nunca a tenant.
+    const payload = { ...form, tenant_id: null as string | null, agency_lead_id: agencyLeadId };
     const { error } = c
       ? await supabase.from("agency_contracts").update(payload).eq("id", c.id)
       : await supabase.from("agency_contracts").insert(payload);
