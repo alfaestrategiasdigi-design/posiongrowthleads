@@ -190,7 +190,60 @@ export default function TenantPlans() {
           <Button variant="outline" onClick={refresh} className="gap-2"><RefreshCw className="w-4 h-4" /> Atualizar</Button>
         </div>
 
-        {customOffer ? (() => {
+        {hasPaid && (
+          <Card className="relative overflow-visible border-emerald-500/40 bg-gradient-to-br from-emerald-950/40 via-[#0E1730] to-[#0B1220]">
+            <div className="absolute -top-3 left-6 text-[10px] uppercase tracking-widest bg-emerald-500 text-emerald-950 px-2.5 py-1 rounded shadow-lg z-10 flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3" /> Assinatura ativa
+            </div>
+            <CardHeader className="pt-10 pb-3">
+              <div className="flex items-start justify-between gap-6 flex-wrap">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-6 h-6 text-emerald-300" />
+                  </div>
+                  <div className="min-w-0">
+                    <CardTitle className="text-2xl">POSION Pro — {intervalLabel(paidInterval)}</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Pagamento confirmado. Sua clínica está com acesso liberado.
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Valor pago</div>
+                  <div className="font-display text-3xl tabular-nums leading-tight">{BRL(paidAmountCents)}</div>
+                  <div className="text-[10px] text-muted-foreground mt-1">{intervalUnit(paidInterval)}</div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="grid sm:grid-cols-3 gap-4 pt-2 border-t border-white/5">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Último pagamento</div>
+                <div className="font-display text-xl mt-1">
+                  {lastPaidAt ? lastPaidAt.toLocaleDateString("pt-BR") : "—"}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Próxima cobrança</div>
+                <div className="font-display text-xl mt-1">
+                  {nextPaymentDate ? nextPaymentDate.toLocaleDateString("pt-BR") : "—"}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Faltam</div>
+                <div className="font-display text-2xl mt-1 text-emerald-300 tabular-nums">
+                  {daysLeft !== null
+                    ? daysLeft === 0
+                      ? "hoje"
+                      : `${daysLeft} ${daysLeft === 1 ? "dia" : "dias"}`
+                    : "—"}
+                </div>
+                <div className="text-[10px] text-muted-foreground">para o próximo pagamento</div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {!hasPaid && (customOffer ? (() => {
           const intervalLabel = (i: string) => i === "semester" ? "semestre" : i === "quarter" ? "trimestre" : "mês";
           const cyclesLabel = customOffer.entry_cycles > 1
             ? `${customOffer.entry_cycles} ${customOffer.interval === "month" ? "meses" : intervalLabel(customOffer.interval) + "s"}`
