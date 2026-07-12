@@ -235,6 +235,9 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       const apptCampaignKeys = new Set<string>();
       let unassignedAppointments = 0;
       let unassignedShowed = 0;
+      // Dedup global de reuniões: usa lead_id quando existir; caso contrário telefone normalizado + data.
+      const meetingDedup = new Set<string>();
+      const showedDedup = new Set<string>();
       for (const a of appts ?? []) {
         const linkedLead = a.lead_id
           ? leadRows.find((l) => l.id === a.lead_id)
@@ -245,33 +248,44 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
           scheduledSet.add(linkedLead.id);
           if (showed) showedSet.add(linkedLead.id);
         }
+        const dedupKey = a.lead_id
+          ? `lead:${a.lead_id}`
+          : `phone:${normalizedPhone(a.client_phone)}:${(a.date_time || "").slice(0,10)}`;
+        if (!meetingDedup.has(dedupKey)) {
+          meetingDedup.add(dedupKey);
+          if (showed) showedDedup.add(dedupKey);
+        }
         if (k) {
-          const token = `${k}:${a.lead_id ?? a.client_phone ?? a.date_time}`;
+          const token = `${k}:${dedupKey}`;
           if (!apptCampaignKeys.has(token)) {
             apptCampaignKeys.add(token);
             stats[k] = stats[k] || { leads: 0, meetings: 0, showed: 0, wins: 0, revenue: 0, contacts: 0 };
             stats[k].meetings += 1;
             if (showed) stats[k].showed += 1;
           }
-        } else {
-          // Reunião criada direto na agenda (sem lead vinculado) — conta no total da conta.
-          unassignedAppointments += 1;
-          if (showed) unassignedShowed += 1;
         }
       }
       for (const l of leadRows) {
         const k = keyFor(l);
         bump(k, (s) => { s.leads += 1; });
         if (l.status && !["lead","perdido"].includes(l.status)) bump(k, (s) => { s.contacts += 1; });
-        if (l.reuniao_agendada_em && !scheduledSet.has(l.id)) bump(k, (s) => { s.meetings += 1; });
-        if (l.reuniao_realizada_em && !showedSet.has(l.id)) bump(k, (s) => { s.showed += 1; });
-        if (l.status === "ganho") {
+        // Atribuição por campanha: soma reuniões do CRM que não passaram pela agenda
+        if (l.reuniao_agendada_em && !scheduledSet.has(l.id) && k) {
+          stats[k] = stats[k] || { leads: 0, meetings: 0, showed: 0, wins: 0, revenue: 0, contacts: 0 };
+          stats[k].meetings += 1;
+        }
+        if (l.reuniao_realizada_em && !showedSet.has(l.id) && k) {
+          stats[k] = stats[k] || { leads: 0, meetings: 0, showed: 0, wins: 0, revenue: 0, contacts: 0 };
+          stats[k].showed += 1;
+        }
+        // No Posion Master, contratos/receita vêm SOMENTE de agency_contracts (bloco abaixo).
+        if (!isMasterAccount && l.status === "ganho") {
           const v = Number(l.valor_proposta) || 0;
           bump(k, (s) => { s.wins += 1; s.revenue += v; });
         }
       }
-      globals.meetings += scheduledSet.size + unassignedAppointments;
-      globals.showed += showedSet.size + unassignedShowed;
+      globals.meetings = meetingDedup.size;
+      globals.showed = showedDedup.size;
 
       // Posion Master: receita real = agency_contracts (valor assinado no contrato).
       // O trigger cria contrato quando o lead vai para stage IN ('ganho','ativo').
