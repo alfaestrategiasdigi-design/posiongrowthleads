@@ -31,6 +31,11 @@ interface Invoice {
   status: string | null; paid_at: string | null; receipt_url: string | null;
   period_start: string | null; period_end: string | null; mp_payment_id: string | null;
 }
+interface FounderSlot {
+  id: string; tenant_id: string; status: string; amount_cents: number; currency: string | null;
+  paid_at: string | null; next_charge_at: string | null; offer_id: string | null;
+  payment_id: string | null; payer_email: string | null;
+}
 interface MpConfig {
   account_email: string | null; account_id: string | null; account_site: string | null;
   webhook_url: string | null; last_validated_at: string | null;
@@ -56,6 +61,7 @@ export default function SubscriptionsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [subs, setSubs] = useState<Sub[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [founderSlots, setFounderSlots] = useState<FounderSlot[]>([]);
   const [mpConfig, setMpConfig] = useState<MpConfig | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -70,19 +76,20 @@ export default function SubscriptionsPage() {
 
   const [offerTenant, setOfferTenant] = useState<Tenant | null>(null);
   const [offerTick, setOfferTick] = useState(0);
-  const [offerMap, setOfferMap] = useState<Map<string, { label: string; entry_amount_cents: number; recurring_amount_cents: number; active: boolean }>>(new Map());
+  const [offerMap, setOfferMap] = useState<Map<string, { id: string; label: string; interval: string; entry_amount_cents: number; recurring_amount_cents: number; active: boolean }>>(new Map());
 
   const [validating, setValidating] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
-    const [planRes, tenantRes, subRes, invRes, cfgRes, offersRes] = await Promise.all([
+    const [planRes, tenantRes, subRes, invRes, cfgRes, offersRes, slotsRes] = await Promise.all([
       supabase.from("plan_catalog").select("*").order("sort_order"),
       supabase.from("tenants").select("id,slug,name,plan,status").order("name"),
       supabase.from("subscriptions").select("*").order("created_at", { ascending: false }),
       supabase.from("subscription_invoices").select("*").order("paid_at", { ascending: false, nullsFirst: false }).limit(100),
       supabase.from("payment_provider_config").select("account_email,account_id,account_site,webhook_url,last_validated_at,last_validation_result,public_key").eq("provider", "mercadopago").maybeSingle(),
-      (supabase as any).from("tenant_custom_offers").select("tenant_id,label,entry_amount_cents,recurring_amount_cents,active"),
+      (supabase as any).from("tenant_custom_offers").select("id,tenant_id,label,interval,entry_amount_cents,recurring_amount_cents,active"),
+      (supabase as any).from("founder_slots").select("*"),
     ]);
     setPlans((planRes.data || []) as Plan[]);
     setTenants((tenantRes.data || []) as Tenant[]);
@@ -92,6 +99,7 @@ export default function SubscriptionsPage() {
     const m = new Map<string, any>();
     for (const o of (offersRes.data || []) as any[]) m.set(o.tenant_id, o);
     setOfferMap(m);
+    setFounderSlots((slotsRes.data || []) as FounderSlot[]);
     setLoading(false);
   };
   useEffect(() => { refresh(); }, [offerTick]);
@@ -111,6 +119,62 @@ export default function SubscriptionsPage() {
     }
     return map;
   }, [invoices]);
+
+  const slotsByTenant = useMemo(() => {
+    const map = new Map<string, FounderSlot>();
+    for (const slot of founderSlots) {
+      if (slot.status === "paid" && !map.has(slot.tenant_id)) map.set(slot.tenant_id, slot);
+    }
+    return map;
+  }, [founderSlots]);
+
+  const effectiveSubByTenant = useMemo(() => {
+    const map = new Map<string, Sub>();
+    for (const t of tenants) {
+      const realSub = subByTenant.get(t.id);
+      if (realSub) {
+        map.set(t.id, realSub);
+        continue;
+      }
+      const slot = slotsByTenant.get(t.id);
+      const approvedInvoice = invoicesByTenant.get(t.id)?.find((i) => i.status === "approved");
+      const offer = slot ? offerMap.get(t.id) : null;
+      if (slot) {
+        map.set(t.id, {
+          id: slot.id,
+          tenant_id: t.id,
+          plan_code: offer?.label || "founder",
+          interval: offer?.interval || "month",
+          lookup_key: null,
+          status: "active",
+          current_period_end: slot.next_charge_at,
+          cancel_at_period_end: false,
+          amount_cents: slot.amount_cents,
+          currency: slot.currency || "brl",
+          mp_preapproval_id: slot.payment_id || null,
+          mp_payer_email: slot.payer_email || null,
+          mp_init_point: null,
+        });
+      } else if (approvedInvoice) {
+        map.set(t.id, {
+          id: approvedInvoice.id,
+          tenant_id: t.id,
+          plan_code: "pago",
+          interval: "month",
+          lookup_key: null,
+          status: "approved",
+          current_period_end: approvedInvoice.period_end,
+          cancel_at_period_end: false,
+          amount_cents: approvedInvoice.amount_paid_cents,
+          currency: approvedInvoice.currency || "brl",
+          mp_preapproval_id: approvedInvoice.mp_payment_id || null,
+          mp_payer_email: null,
+          mp_init_point: null,
+        });
+      }
+    }
+    return map;
+  }, [tenants, subByTenant, slotsByTenant, invoicesByTenant, offerMap]);
 
   // ── Plan catalog ────────────────────────────────────────────────
   const openEditPlan = (p: Plan) => {
@@ -275,10 +339,21 @@ export default function SubscriptionsPage() {
     toast.success(`${label} copiado`);
   };
 
+  const activeSubIds = new Set<string>();
   const activeSubs = subs.filter((s) => ["active", "authorized"].includes(s.status));
+  for (const s of activeSubs) activeSubIds.add(s.tenant_id);
   const mrr = activeSubs.reduce((acc, s) => {
     const amt = s.amount_cents || 0;
     const monthly = s.interval === "semester" ? amt / 6 : s.interval === "quarter" ? amt / 3 : amt;
+    return acc + monthly;
+  }, 0) + tenants.reduce((acc, t) => {
+    if (activeSubIds.has(t.id)) return acc;
+    const slot = slotsByTenant.get(t.id);
+    if (!slot) return acc;
+    const offer = offerMap.get(t.id);
+    if (!offer?.active) return acc;
+    const recurring = offer.recurring_amount_cents || offer.entry_amount_cents || slot.amount_cents || 0;
+    const monthly = offer.interval === "semester" ? recurring / 6 : offer.interval === "quarter" ? recurring / 3 : recurring;
     return acc + monthly;
   }, 0);
 
@@ -331,8 +406,9 @@ export default function SubscriptionsPage() {
                     </TableHeader>
                     <TableBody>
                       {tenants.map((t) => {
-                        const sub = subByTenant.get(t.id);
+                        const sub = effectiveSubByTenant.get(t.id);
                         const offer = offerMap.get(t.id);
+                        const isSynthetic = sub && !subByTenant.has(t.id);
                         return (
                           <TableRow key={t.id}>
                             <TableCell>
@@ -344,6 +420,7 @@ export default function SubscriptionsPage() {
                                 <div className="flex items-center gap-2">
                                   <Badge variant="outline" className="capitalize">{sub.plan_code}</Badge>
                                   <span className="text-xs text-muted-foreground">{sub.interval === "semester" ? "semestral" : sub.interval === "quarter" ? "trimestral" : "mensal"}</span>
+                                  {isSynthetic && <span className="text-[10px] text-emerald-300/80">(ativo)</span>}
                                 </div>
                               ) : <span className="text-xs text-muted-foreground italic">sem assinatura</span>}
                             </TableCell>
@@ -358,7 +435,7 @@ export default function SubscriptionsPage() {
                               ) : <span className="text-xs text-muted-foreground italic">—</span>}
                             </TableCell>
                             <TableCell>
-                              {sub ? <Badge className={STATUS_BADGE[sub.status] || ""}>{sub.status}</Badge> : <Badge variant="outline">—</Badge>}
+                              {sub ? <Badge className={STATUS_BADGE[sub.status] || ""}>{isSynthetic ? "ativo" : sub.status}</Badge> : <Badge variant="outline">—</Badge>}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
                               {sub?.current_period_end ? new Date(sub.current_period_end).toLocaleDateString("pt-BR") : "—"}
@@ -526,16 +603,22 @@ export default function SubscriptionsPage() {
           <DialogHeader>
             <DialogTitle>Assinatura — {actionTenant?.name}</DialogTitle>
             <DialogDescription>
-              {subByTenant.get(actionTenant?.id || "")?.mp_preapproval_id
-                ? "Gerencie a assinatura ativa no Mercado Pago."
-                : "Nenhuma assinatura. Inicie um checkout para gerar o link de cobrança."}
+              {(() => {
+                const real = actionTenant ? subByTenant.get(actionTenant.id) : null;
+                const effective = actionTenant ? effectiveSubByTenant.get(actionTenant.id) : null;
+                if (real?.mp_preapproval_id) return "Gerencie a assinatura ativa no Mercado Pago.";
+                if (effective) return "Cliente ativo. Pagamento confirmado via oferta/founder slot.";
+                return "Nenhuma assinatura. Inicie um checkout para gerar o link de cobrança.";
+              })()}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             {(() => {
-              const sub = actionTenant ? subByTenant.get(actionTenant.id) : null;
+              const sub = actionTenant ? effectiveSubByTenant.get(actionTenant.id) : null;
+              const realSub = actionTenant ? subByTenant.get(actionTenant.id) : null;
               const tenantInvoices = actionTenant ? invoicesByTenant.get(actionTenant.id) || [] : [];
+              const isSynthetic = !!sub && !realSub;
               return (
                 <>
                   <div>
@@ -567,13 +650,18 @@ export default function SubscriptionsPage() {
 
                   {sub && (
                     <div className="rounded-lg bg-white/5 border border-white/10 p-3 space-y-1 text-sm">
-                      <div className="flex justify-between"><span className="text-muted-foreground">Status</span><Badge className={STATUS_BADGE[sub.status]}>{sub.status}</Badge></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Status</span><Badge className={STATUS_BADGE[sub.status]}>{isSynthetic ? "ativo" : sub.status}</Badge></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Plano</span><span className="capitalize">{sub.plan_code} · {sub.interval === "semester" ? "semestral" : sub.interval === "quarter" ? "trimestral" : "mensal"}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Valor</span><span className="tabular-nums">{BRL(sub.amount_cents || 0, sub.currency || "brl")}</span></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">Próxima cobrança</span><span>{sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString("pt-BR") : "—"}</span></div>
                       {sub.mp_preapproval_id && <div className="flex justify-between"><span className="text-muted-foreground">MP ID</span><span className="font-mono text-[10px]">{sub.mp_preapproval_id}</span></div>}
                       {sub.mp_init_point && (
                         <a className="text-primary hover:underline text-xs inline-flex items-center gap-1 mt-1" href={sub.mp_init_point} target="_blank" rel="noreferrer">
                           Link de pagamento <ExternalLink className="w-3 h-3" />
                         </a>
+                      )}
+                      {isSynthetic && (
+                        <div className="text-[10px] text-emerald-300/90 mt-1">Pagamento confirmado — sem gestão direta no Mercado Pago.</div>
                       )}
                     </div>
                   )}
@@ -609,9 +697,11 @@ export default function SubscriptionsPage() {
 
           <DialogFooter className="flex-wrap gap-2">
             {(() => {
-              const sub = actionTenant ? subByTenant.get(actionTenant.id) : null;
-              const hasActive = sub && ["authorized", "active"].includes(sub.status);
-              const isPaused = sub?.status === "paused";
+              const realSub = actionTenant ? subByTenant.get(actionTenant.id) : null;
+              const effective = actionTenant ? effectiveSubByTenant.get(actionTenant.id) : null;
+              const hasActive = realSub && ["authorized", "active"].includes(realSub.status);
+              const isPaused = realSub?.status === "paused";
+              const hasAny = !!effective;
               return (
                 <>
                   {hasActive && (
@@ -635,7 +725,7 @@ export default function SubscriptionsPage() {
                   </Button>
                   <Button onClick={startCheckout} disabled={busy || !selectedLookupKey || !selectedPayerEmail.trim()} className="gap-2">
                     {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                    {hasActive ? "Novo checkout (troca de plano)" : "Iniciar assinatura"}
+                    {hasActive ? "Novo checkout (troca de plano)" : hasAny ? "Novo checkout (próxima cobrança)" : "Iniciar assinatura"}
                   </Button>
                 </>
               );
