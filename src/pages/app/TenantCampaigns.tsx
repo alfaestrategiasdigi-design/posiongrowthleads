@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Loader2, RefreshCw, TrendingUp, Users, DollarSign, Target, Download,
   Activity, AlertCircle, Megaphone, Star, ExternalLink, Copy, Eye, MousePointerClick,
-  CalendarCheck, UserCheck,
+  CalendarCheck, UserCheck, Zap, Repeat,
 } from "lucide-react";
 
 
@@ -17,6 +17,9 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { ResponsiveContainer, AreaChart, Area, LineChart, Line, Tooltip as RTooltip } from "recharts";
+import CampaignFunnel from "@/components/campaigns/CampaignFunnel";
+import CampaignDetailSheet from "@/components/campaigns/CampaignDetailSheet";
+import AlertsPanel, { Alert } from "@/components/campaigns/AlertsPanel";
 
 const BRL = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v || 0);
 const NUM = (v: number) => new Intl.NumberFormat("pt-BR").format(Math.round(v || 0));
@@ -66,6 +69,7 @@ interface Campaign {
   insights: null | {
     spend: number; impressions: number; clicks: number;
     ctr: number; cpc: number; cpm: number;
+    reach?: number; frequency?: number;
     leads: number; cpl: number;
     messaging?: number; link_clicks?: number;
     result_kind?: "messaging" | "leads" | "purchases" | "link_clicks";
@@ -73,6 +77,7 @@ interface Campaign {
     result_value?: number;
     cost_per_result?: number;
     purchases: number; purchase_value: number; roas: number;
+    hook_rate?: number; hold_rate?: number;
   };
   daily?: DailyPoint[];
 }
@@ -84,6 +89,8 @@ type LinkedForm = {
   last_lead_at: string | null;
 };
 
+type CampaignStats = { leads: number; meetings: number; showed: number; wins: number; revenue: number; contacts: number };
+
 export default function TenantCampaigns() {
   const { tenant, loading: tLoading } = useTenant();
   const [loading, setLoading] = useState(false);
@@ -92,13 +99,15 @@ export default function TenantCampaigns() {
   const [period, setPeriod] = useState<1 | 7 | 14 | 30 | 90>(30);
   const [reason, setReason] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [crmWins, setCrmWins] = useState<Record<string, { count: number; value: number }>>({});
-  const [crmStats, setCrmStats] = useState<Record<string, { leads: number; meetings: number; wins: number; revenue: number }>>({});
+  const [crmStats, setCrmStats] = useState<Record<string, CampaignStats>>({});
+  const [globalStats, setGlobalStats] = useState<CampaignStats>({ leads: 0, meetings: 0, showed: 0, wins: 0, revenue: 0, contacts: 0 });
+  const [detailCampaign, setDetailCampaign] = useState<Campaign | null>(null);
 
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [linkedForms, setLinkedForms] = useState<LinkedForm[]>([]);
   const [lastBackfill, setLastBackfill] = useState<Date | null>(null);
   const [detail, setDetail] = useState<Campaign | null>(null);
+
 
   const load = async () => {
     if (!tenant) return;
