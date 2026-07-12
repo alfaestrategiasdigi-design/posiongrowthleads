@@ -158,6 +158,13 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       }
       const stats: Record<string, CampaignStats> = {};
       const globals: CampaignStats = { leads: 0, meetings: 0, showed: 0, wins: 0, revenue: 0, contacts: 0 };
+      const normalizedPhone = (value?: string | null) => String(value ?? "").replace(/\D/g, "");
+      const samePhone = (a?: string | null, b?: string | null) => {
+        const pa = normalizedPhone(a);
+        const pb = normalizedPhone(b);
+        if (!pa || !pb) return false;
+        return pa === pb || pa === `55${pb}` || `55${pa}` === pb || pa.slice(-8) === pb.slice(-8);
+      };
       const bump = (key: string | null, patch: (s: CampaignStats) => void) => {
         if (key) {
           stats[key] = stats[key] || { leads: 0, meetings: 0, showed: 0, wins: 0, revenue: 0, contacts: 0 };
@@ -166,9 +173,10 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
         patch(globals);
       };
       const keyFor = (l: any): string | null => {
-        if (l.facebook_campaign_id && byId[l.facebook_campaign_id]) return byId[l.facebook_campaign_id];
+        if (l.facebook_campaign_id && byId[String(l.facebook_campaign_id).trim()]) return byId[String(l.facebook_campaign_id).trim()];
         // Alguns leads gravam o ID da campanha no campo `facebook_campaign` (não no *_id)
-        if (l.facebook_campaign && byId[l.facebook_campaign]) return byId[l.facebook_campaign];
+        if (l.facebook_campaign && byId[String(l.facebook_campaign).trim()]) return byId[String(l.facebook_campaign).trim()];
+        if (l.campaign_id_manual && byId[String(l.campaign_id_manual).trim()]) return byId[String(l.campaign_id_manual).trim()];
         const n1 = (l.utm_campaign || "").trim().toLowerCase();
         if (n1 && byName[n1]) return byName[n1];
         const n2 = (l.facebook_campaign || "").trim().toLowerCase();
@@ -180,7 +188,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       // Filtramos por facebook_campaign_id / facebook_campaign nas campanhas listadas.
       let leadsQuery = supabase
         .from("leads")
-        .select("id,utm_campaign,facebook_campaign,facebook_campaign_id,valor_proposta,status,reuniao_agendada_em,fechado_em,created_at,tenant_id")
+        .select("id,whatsapp,utm_campaign,facebook_campaign,facebook_campaign_id,campaign_id_manual,valor_proposta,status,reuniao_agendada_em,reuniao_realizada_em,fechado_em,created_at,tenant_id")
         .gte("created_at", sinceISO);
       if (isMasterAccount) {
         if (campIds.length === 0) { leadsQuery = leadsQuery.eq("id", "00000000-0000-0000-0000-000000000000"); }
@@ -194,32 +202,63 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       const { data: allLeads } = await leadsQuery;
       const leadRows = (allLeads ?? []) as any[];
       const leadIds = leadRows.map((l) => l.id);
-      // Appointments no período (por lead)
+      // Appointments no período (por lead). No Posion Master também existem reuniões criadas
+      // direto na agenda sem lead_id; contamos globalmente e vinculamos por telefone quando possível.
       const untilISO = new Date(todayISO() + "T23:59:59").toISOString();
-      const { data: appts } = leadIds.length ? await supabase
+      let apptQuery = supabase
         .from("appointments")
-        .select("lead_id,status,date_time")
-        .in("lead_id", leadIds)
+        .select("lead_id,client_phone,status,date_time,tenant_id")
         .gte("date_time", sinceISO)
-        .lte("date_time", untilISO) : { data: [] as any[] };
+        .lte("date_time", untilISO);
+      if (isMasterAccount) {
+        apptQuery = apptQuery.is("tenant_id", null);
+      } else if (leadIds.length) {
+        apptQuery = apptQuery.in("lead_id", leadIds);
+      } else {
+        apptQuery = apptQuery.eq("lead_id", "00000000-0000-0000-0000-000000000000");
+      }
+      const { data: appts } = await apptQuery;
       const scheduledSet = new Set<string>();
       const showedSet = new Set<string>();
+      const apptCampaignKeys = new Set<string>();
+      let unassignedAppointments = 0;
+      let unassignedShowed = 0;
       for (const a of appts ?? []) {
-        if (!a.lead_id) continue;
-        scheduledSet.add(a.lead_id);
-        if (["compareceu","realizado","fechado","confirmado"].includes(a.status)) showedSet.add(a.lead_id);
+        const linkedLead = a.lead_id
+          ? leadRows.find((l) => l.id === a.lead_id)
+          : leadRows.find((l) => samePhone(l.whatsapp, a.client_phone));
+        const k = linkedLead ? keyFor(linkedLead) : null;
+        const showed = ["compareceu","realizado","fechado","confirmado"].includes(a.status);
+        if (linkedLead?.id) {
+          scheduledSet.add(linkedLead.id);
+          if (showed) showedSet.add(linkedLead.id);
+        }
+        if (k) {
+          const token = `${k}:${a.lead_id ?? a.client_phone ?? a.date_time}`;
+          if (!apptCampaignKeys.has(token)) {
+            apptCampaignKeys.add(token);
+            stats[k] = stats[k] || { leads: 0, meetings: 0, showed: 0, wins: 0, revenue: 0, contacts: 0 };
+            stats[k].meetings += 1;
+            if (showed) stats[k].showed += 1;
+          }
+        } else if (isMasterAccount) {
+          unassignedAppointments += 1;
+          if (showed) unassignedShowed += 1;
+        }
       }
       for (const l of leadRows) {
         const k = keyFor(l);
         bump(k, (s) => { s.leads += 1; });
         if (l.status && !["lead","perdido"].includes(l.status)) bump(k, (s) => { s.contacts += 1; });
-        if (scheduledSet.has(l.id) || l.reuniao_agendada_em) bump(k, (s) => { s.meetings += 1; });
-        if (showedSet.has(l.id)) bump(k, (s) => { s.showed += 1; });
+        if (l.reuniao_agendada_em && !scheduledSet.has(l.id)) bump(k, (s) => { s.meetings += 1; });
+        if (l.reuniao_realizada_em && !showedSet.has(l.id)) bump(k, (s) => { s.showed += 1; });
         if (l.status === "ganho") {
           const v = Number(l.valor_proposta) || 0;
           bump(k, (s) => { s.wins += 1; s.revenue += v; });
         }
       }
+      globals.meetings += scheduledSet.size + unassignedAppointments;
+      globals.showed += showedSet.size + unassignedShowed;
       setCrmStats(stats);
       setGlobalStats(globals);
       setLastSync(new Date());
