@@ -603,6 +603,11 @@ export default function TenantCampaigns() {
         })}
       </div>
 
+      {/* Alertas globais (compacto, após os cards) */}
+      <AlertsPanel alerts={globalAlerts} />
+
+
+
       <CampaignDetailSheet
         open={!!detailCampaign}
         onClose={() => setDetailCampaign(null)}
