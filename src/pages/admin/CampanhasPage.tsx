@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "@/hooks/use-toast";
 import {
   RefreshCw, ShieldCheck, ShieldAlert, Loader2, Play, Pause, ExternalLink,
-  ChevronDown, Plus, X, Link2, Wallet, Crown,
+  ChevronDown, Plus, X, Link2, Wallet, Crown, AlertTriangle, Settings, CheckSquare, Square, Zap,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { requestFacebookReconnect, detectNeedReconnect } from "@/components/facebook/ReconnectFacebookDialog";
@@ -52,6 +52,22 @@ export default function CampanhasPage() {
   const [since, setSince] = useState<string>(daysAgoISO(30));
   const [until, setUntil] = useState<string>(todayISO());
   const [onlyActive, setOnlyActive] = useState(true);
+
+  // ===== Gestão de eficiência (alertas) =====
+  type Thresholds = { cplTarget: number; cprLimit: number; alertMarginPct: number };
+  const THRESH_KEY = "posion.campanhas.thresholds.v1";
+  const [thresholds, setThresholds] = useState<Thresholds>(() => {
+    try {
+      const raw = localStorage.getItem(THRESH_KEY);
+      if (raw) return { cplTarget: 25, cprLimit: 150, alertMarginPct: 20, ...JSON.parse(raw) };
+    } catch {}
+    return { cplTarget: 25, cprLimit: 150, alertMarginPct: 20 };
+  });
+  useEffect(() => { try { localStorage.setItem(THRESH_KEY, JSON.stringify(thresholds)); } catch {} }, [thresholds]);
+  const [thresholdDialog, setThresholdDialog] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "critical" | "warn" | "ok">("all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkPausing, setBulkPausing] = useState(false);
 
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
@@ -670,6 +686,63 @@ export default function CampanhasPage() {
     };
   }, [metaCampaigns, crmRevenueByCampaign]);
 
+  // ===== Gestão de eficiência =====
+  const campaignStatus = (c: MetaCampaign): { level: "ok"|"warn"|"critical"; reasons: string[]; cpl: number; cpr: number } => {
+    const i = c.insights;
+    const key = c.name.trim().toLowerCase();
+    const crmComp = crmCompByCampaign[key] || 0;
+    const cpl = i && i.leads ? i.spend / i.leads : 0;
+    const cpr = i && crmComp ? i.spend / crmComp : 0;
+    const reasons: string[] = [];
+    const critCplGate = thresholds.cplTarget * (1 + thresholds.alertMarginPct / 100);
+    const warnCplGate = thresholds.cplTarget;
+    let level: "ok"|"warn"|"critical" = "ok";
+    if (cpl > 0 && cpl > critCplGate) { level = "critical"; reasons.push(`CPL ${BRL(cpl)} > ${BRL(critCplGate)} (meta+${thresholds.alertMarginPct}%)`); }
+    else if (cpl > 0 && cpl > warnCplGate) { level = "warn"; reasons.push(`CPL ${BRL(cpl)} > meta ${BRL(warnCplGate)}`); }
+    if (cpr > 0 && cpr > thresholds.cprLimit) {
+      level = "critical";
+      reasons.push(`Custo/Reunião ${BRL(cpr)} > limite ${BRL(thresholds.cprLimit)}`);
+    }
+    // Sem leads mas com gasto relevante = warn
+    if ((i?.spend || 0) > thresholds.cplTarget * 3 && (i?.leads || 0) === 0) {
+      level = level === "critical" ? "critical" : "warn";
+      reasons.push(`Gasto ${BRL(i!.spend)} sem leads`);
+    }
+    return { level, reasons, cpl, cpr };
+  };
+
+  const criticalCount = useMemo(() => metaCampaigns.filter((c) => c.effective_status === "ACTIVE" && campaignStatus(c).level === "critical").length, [metaCampaigns, thresholds, crmCompByCampaign]);
+  const warnCount = useMemo(() => metaCampaigns.filter((c) => c.effective_status === "ACTIVE" && campaignStatus(c).level === "warn").length, [metaCampaigns, thresholds, crmCompByCampaign]);
+
+  const toggleSelect = (id: string) => setSelectedIds((prev) => {
+    const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n;
+  });
+  const selectAllCritical = () => {
+    const ids = metaCampaigns.filter((c) => c.effective_status === "ACTIVE" && campaignStatus(c).level === "critical").map((c) => c.id);
+    setSelectedIds(new Set(ids));
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const bulkPause = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Pausar ${selectedIds.size} campanha(s) selecionada(s)?`)) return;
+    setBulkPausing(true);
+    let ok = 0, fail = 0;
+    for (const id of Array.from(selectedIds)) {
+      try {
+        const { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
+          body: { action: "set_status", object_id: id, status: "PAUSED" },
+        });
+        if (error || data?.error) throw new Error(error?.message || data?.error);
+        ok++;
+      } catch { fail++; }
+    }
+    setBulkPausing(false);
+    setSelectedIds(new Set());
+    toast({ title: `Pausadas: ${ok}${fail ? ` · Falhas: ${fail}` : ""}`, variant: fail ? "destructive" : "default" });
+    loadMetaCampaigns();
+  };
+
   const lastSyncLabel = lastSync
     ? new Date(lastSync).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
     : "nunca";
@@ -969,14 +1042,57 @@ export default function CampanhasPage() {
 
         {/* Campaigns — Card Grid */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between px-1">
+          <div className="flex items-center justify-between px-1 flex-wrap gap-2">
             <div>
               <h3 className="text-xs font-bold text-slate-500 tracking-widest uppercase">Performance de Campanhas</h3>
-              <p className="text-[10px] text-slate-600 mt-0.5">Grid tecnológico · ordenado por investimento</p>
+              <p className="text-[10px] text-slate-600 mt-0.5">Gestão global · ordenado por investimento</p>
             </div>
-            <span className="text-[10px] text-slate-600 uppercase tabular-nums">
-              {loadingCampaigns ? "Carregando…" : `${visibleCampaigns.length} campanha(s)`}
-            </span>
+            <div className="flex items-center gap-2 text-[10px]">
+              <span className="px-2 py-1 rounded-md bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold uppercase tracking-widest">
+                <AlertTriangle className="w-3 h-3 inline mr-1" />{criticalCount} pausar
+              </span>
+              <span className="px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold uppercase tracking-widest">
+                {warnCount} atenção
+              </span>
+              <span className="text-slate-600 uppercase tabular-nums">{loadingCampaigns ? "Carregando…" : `${visibleCampaigns.length} total`}</span>
+            </div>
+          </div>
+
+          {/* Barra de eficiência */}
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-xl bg-[#0A0A0A] border border-white/5">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Filtro</span>
+            <div className="flex items-center rounded-md border border-white/10 overflow-hidden">
+              {(["all","critical","warn","ok"] as const).map((k) => (
+                <button key={k} onClick={() => setStatusFilter(k)}
+                  className={`px-2.5 h-7 text-[10px] font-bold uppercase tracking-widest transition ${statusFilter === k ? "bg-[#C9A84C]/20 text-[#F0D78C]" : "text-slate-500 hover:text-slate-300"}`}>
+                  {k === "all" ? "Todas" : k === "critical" ? "Pausar" : k === "warn" ? "Atenção" : "OK"}
+                </button>
+              ))}
+            </div>
+            <div className="h-5 w-px bg-white/10" />
+            <Button size="sm" variant="ghost" onClick={() => setThresholdDialog(true)}
+              className="h-7 px-2 text-[10px] text-slate-400 hover:text-white">
+              <Settings className="w-3 h-3 mr-1" /> Limites de eficiência
+            </Button>
+            <Button size="sm" variant="ghost" onClick={selectAllCritical}
+              className="h-7 px-2 text-[10px] text-rose-400 hover:text-rose-300 hover:bg-rose-500/10">
+              <CheckSquare className="w-3 h-3 mr-1" /> Selecionar críticas ({criticalCount})
+            </Button>
+            <div className="ml-auto flex items-center gap-2">
+              {selectedIds.size > 0 && (
+                <>
+                  <span className="text-[10px] text-slate-400 tabular-nums">{selectedIds.size} selecionada(s)</span>
+                  <Button size="sm" variant="ghost" onClick={clearSelection} className="h-7 px-2 text-[10px] text-slate-500 hover:text-white">
+                    Limpar
+                  </Button>
+                  <Button size="sm" onClick={bulkPause} disabled={bulkPausing}
+                    className="h-7 px-3 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold uppercase tracking-widest">
+                    {bulkPausing ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Pause className="w-3 h-3 mr-1" />}
+                    Pausar em massa
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
           {!adAccountConfigured && (
@@ -992,7 +1108,16 @@ export default function CampanhasPage() {
           )}
 
           <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-            {[...visibleCampaigns].sort((a, b) => (b.insights?.spend || 0) - (a.insights?.spend || 0)).map((c) => {
+            {[...visibleCampaigns]
+              .map((c) => ({ c, s: campaignStatus(c) }))
+              .filter(({ s }) => statusFilter === "all" || s.level === statusFilter)
+              .sort((a, b) => {
+                const rank = { critical: 0, warn: 1, ok: 2 };
+                const r = rank[a.s.level] - rank[b.s.level];
+                if (r !== 0) return r;
+                return (b.c.insights?.spend || 0) - (a.c.insights?.spend || 0);
+              })
+              .map(({ c, s }) => {
               const i = c.insights;
               const key = c.name.trim().toLowerCase();
               const crmWins = crmWinsByCampaign[key] || 0;
@@ -1003,27 +1128,58 @@ export default function CampanhasPage() {
               const isActive = c.effective_status === "ACTIVE";
               const dailyBudgetR = c.daily_budget ? Number(c.daily_budget) / 100 : null;
               const roas = i && i.spend ? ((i.purchase_value + crmRev) / i.spend) : 0;
-              const cpl = i && i.leads ? i.spend / i.leads : 0;
-              const cpr = i && crmComp ? i.spend / crmComp : 0;
+              const cpl = s.cpl;
+              const cpr = s.cpr;
+              const selected = selectedIds.has(c.id);
+              const stripCls =
+                s.level === "critical" ? "bg-gradient-to-r from-rose-500/0 via-rose-500 to-rose-500/0" :
+                s.level === "warn"     ? "bg-gradient-to-r from-amber-500/0 via-amber-500 to-amber-500/0" :
+                isActive ? "bg-gradient-to-r from-emerald-500/0 via-emerald-500 to-emerald-500/0" : "bg-slate-800";
+              const borderCls =
+                s.level === "critical" ? "border-rose-500/50 shadow-[0_0_28px_-8px_rgba(244,63,94,0.55)]" :
+                s.level === "warn"     ? "border-amber-500/40" :
+                isActive               ? "border-white/5 hover:border-[#C9A84C]/40 hover:shadow-[0_0_40px_-10px_rgba(201,168,76,0.35)]" :
+                                         "border-white/[0.03] opacity-70 hover:opacity-100";
 
               return (
                 <div key={c.id}
-                  className={`relative bg-gradient-to-br from-[#0B0B0B] to-[#080808] border rounded-2xl overflow-hidden transition-all group
-                    ${isActive ? "border-white/5 hover:border-[#C9A84C]/40 hover:shadow-[0_0_40px_-10px_rgba(201,168,76,0.35)]" : "border-white/[0.03] opacity-70 hover:opacity-100"}`}>
-                  {/* Status strip */}
-                  <div className={`absolute top-0 left-0 right-0 h-[2px] ${isActive ? "bg-gradient-to-r from-emerald-500/0 via-emerald-500 to-emerald-500/0" : "bg-slate-800"}`} />
+                  className={`relative bg-gradient-to-br from-[#0B0B0B] to-[#080808] border rounded-2xl overflow-hidden transition-all group ${borderCls}`}>
+                  <div className={`absolute top-0 left-0 right-0 h-[2px] ${stripCls}`} />
 
                   {/* Header */}
                   <div className="p-4 pb-3">
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <button onClick={() => toggleSelect(c.id)} title="Selecionar" className="shrink-0 text-slate-500 hover:text-white">
+                          {selected ? <CheckSquare className="w-3.5 h-3.5 text-[#C9A84C]" /> : <Square className="w-3.5 h-3.5" />}
+                        </button>
                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" : "bg-slate-700"}`} />
                         <span className={`text-[9px] uppercase tracking-widest font-bold ${isActive ? "text-emerald-500" : "text-slate-600"}`}>
                           {isActive ? "AO VIVO" : (c.effective_status || c.status)}
                         </span>
+                        {s.level === "critical" && (
+                          <span className="text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/40 flex items-center gap-1">
+                            <AlertTriangle className="w-2.5 h-2.5" /> Pausar
+                          </span>
+                        )}
+                        {s.level === "warn" && (
+                          <span className="text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/40">
+                            Atenção
+                          </span>
+                        )}
+                        {s.level === "ok" && isActive && (
+                          <span className="text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            Otimizada
+                          </span>
+                        )}
                       </div>
                       <span className="text-[9px] font-mono text-slate-600 truncate max-w-[110px]" title={c.id}>{c.id}</span>
                     </div>
+                    {s.reasons.length > 0 && (
+                      <div className={`text-[10px] mb-1.5 ${s.level === "critical" ? "text-rose-300" : "text-amber-300"}`}>
+                        {s.reasons.join(" · ")}
+                      </div>
+                    )}
                     <h4 className={`font-serif text-[15px] leading-tight ${isActive ? "text-white group-hover:text-[#F0D78C]" : "text-slate-400"} transition-colors line-clamp-2`}
                       title={c.name}>
                       {c.name}
@@ -1115,6 +1271,51 @@ export default function CampanhasPage() {
             <Button onClick={submitBudget} disabled={busy === budgetDialog.id}
               className="bg-[#C9A84C] hover:bg-[#F0D78C] text-[#050505] font-bold">
               {busy === budgetDialog.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Thresholds dialog */}
+      <Dialog open={thresholdDialog} onOpenChange={setThresholdDialog}>
+        <DialogContent className="bg-[#0A0A0A] border-white/10 text-slate-200">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Zap className="w-4 h-4 text-[#C9A84C]" /> Limites de eficiência (Posion Master)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <p className="text-xs text-slate-500">
+              Padrões globais aplicados a todas as contas. Campanhas ativas que ultrapassarem os limites são destacadas em vermelho e podem ser pausadas em massa.
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-widest text-slate-500">Meta CPL (R$)</Label>
+                <Input type="number" step="1" value={thresholds.cplTarget}
+                  onChange={(e) => setThresholds({ ...thresholds, cplTarget: Number(e.target.value) || 0 })}
+                  className="bg-[#111] border-white/10 text-white mt-1" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-widest text-slate-500">Margem alerta (%)</Label>
+                <Input type="number" step="1" value={thresholds.alertMarginPct}
+                  onChange={(e) => setThresholds({ ...thresholds, alertMarginPct: Number(e.target.value) || 0 })}
+                  className="bg-[#111] border-white/10 text-white mt-1" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-widest text-slate-500">Limite CAC/Reunião (R$)</Label>
+                <Input type="number" step="1" value={thresholds.cprLimit}
+                  onChange={(e) => setThresholds({ ...thresholds, cprLimit: Number(e.target.value) || 0 })}
+                  className="bg-[#111] border-white/10 text-white mt-1" />
+              </div>
+            </div>
+            <div className="text-[11px] text-slate-400 bg-[#111] border border-white/5 rounded-lg p-3 space-y-1">
+              <div><b className="text-amber-400">Atenção</b>: CPL &gt; {BRL(thresholds.cplTarget)} (meta)</div>
+              <div><b className="text-rose-400">Pausar</b>: CPL &gt; {BRL(thresholds.cplTarget * (1 + thresholds.alertMarginPct / 100))} <span className="text-slate-600">(meta + {thresholds.alertMarginPct}%)</span></div>
+              <div><b className="text-rose-400">Pausar</b>: Custo/Reunião &gt; {BRL(thresholds.cprLimit)}</div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setThresholdDialog(false)}
+              className="bg-[#C9A84C] hover:bg-[#F0D78C] text-[#050505] font-bold">
+              OK
             </Button>
           </DialogFooter>
         </DialogContent>
