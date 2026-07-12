@@ -25,6 +25,22 @@ interface CapiRow {
   default_event: string | null;
   test_event_code: string | null;
   enabled: boolean | null;
+  send_appointment_event?: boolean | null;
+  send_sale_event?: boolean | null;
+  appointment_event_name?: string | null;
+  sale_event_name?: string | null;
+}
+
+interface CapiLog {
+  id: string;
+  event_name: string | null;
+  status: string;
+  http_status: number | null;
+  error: string | null;
+  created_at: string;
+  lead_id: string | null;
+  appointment_id: string | null;
+  sale_id: string | null;
 }
 
 export default function CapiConfigPage() {
