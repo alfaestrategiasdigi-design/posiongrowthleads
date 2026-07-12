@@ -47,7 +47,7 @@ export default function CampaignFunnel({
     <Card className="p-4 bg-gradient-to-br from-card to-background/60 border-primary/10">
       <div className="flex items-center justify-between mb-3">
         <div className="text-[10px] uppercase tracking-[0.22em] text-primary/80">
-          Funil da Clínica
+          {labels?.title ?? "Funil da Clínica"}
         </div>
         <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
           <span className={`flex items-center gap-1 ${showRate >= (benchmarks?.show ?? 60) ? "text-emerald-400" : "text-rose-400"}`}>
