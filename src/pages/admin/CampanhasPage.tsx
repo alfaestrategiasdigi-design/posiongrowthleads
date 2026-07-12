@@ -1342,6 +1342,16 @@ export default function CampanhasPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Campaign detail sheet (mesmo layout dos tenants) */}
+      <CampaignDetailSheet
+        open={!!detailCampaign}
+        onClose={() => setDetailCampaign(null)}
+        tenantId={detailCampaign ? (resolveTenantId(detailCampaign) || "") : ""}
+        campaign={detailCampaign as any}
+        since={since}
+        until={until}
+      />
+
     </div>
   );
 }
