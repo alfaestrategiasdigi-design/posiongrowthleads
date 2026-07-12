@@ -749,7 +749,7 @@ export default function CampanhasPage() {
           <KpiTile label="Clínicas interessadas" value={NUM(kpis.leads)} />
           <KpiTile label="Custo/Clínica" value={kpis.cpl != null ? BRL(kpis.cpl) : "—"} />
           <KpiTile label="ROAS" value={kpis.roas != null ? `${kpis.roas.toFixed(2)}x` : "—"} accentSoft />
-          <KpiTile label="Receita CRM" value={BRL(kpis.crmRevenue)} accent />
+          <KpiTile label="Receita contratos (CRM)" value={BRL(kpis.crmRevenue)} accent />
           <KpiTile label="Ativas / Total" value={`${kpis.active} / ${kpis.total}`} />
         </div>
 
