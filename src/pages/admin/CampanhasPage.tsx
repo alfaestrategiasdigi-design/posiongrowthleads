@@ -118,6 +118,17 @@ export default function CampanhasPage() {
     return m;
   }, [rules]);
 
+  const resolveTenantId = (c: MetaCampaign): string | null => {
+    const raw = c.account_id || c.ad_account_id || "";
+    const key = raw ? (raw.startsWith("act_") ? raw : `act_${raw}`) : "";
+    if (key && accountTenantMap.get(key)) return accountTenantMap.get(key)!;
+    if (adAccountFilter !== "all") {
+      const k2 = adAccountFilter.startsWith("act_") ? adAccountFilter : `act_${adAccountFilter}`;
+      return accountTenantMap.get(k2) ?? null;
+    }
+    return null;
+  };
+
   const formIdRules = useMemo(
     () => rules.filter((r) => r.active && r.match_type === "form_id"),
     [rules],
