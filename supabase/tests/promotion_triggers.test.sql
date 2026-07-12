@@ -7,23 +7,9 @@
 
 \set ON_ERROR_STOP on
 BEGIN;
-
--- Silence noisy side-effect triggers (DDL is rolled back with the tx).
-ALTER TABLE public.leads DISABLE TRIGGER trg_fire_automation_lead;
-ALTER TABLE public.leads DISABLE TRIGGER trg_fire_capi_on_lead_insert;
-ALTER TABLE public.leads DISABLE TRIGGER trg_fire_capi_on_won;
-ALTER TABLE public.leads DISABLE TRIGGER trg_fire_welcome;
-ALTER TABLE public.leads DISABLE TRIGGER trg_create_sale_on_lead_ganho;
-ALTER TABLE public.leads DISABLE TRIGGER trg_sync_sale_on_lead_update;
-ALTER TABLE public.leads DISABLE TRIGGER mirror_lead_to_agency_ins;
-ALTER TABLE public.leads DISABLE TRIGGER mirror_lead_to_agency_upd;
-ALTER TABLE public.leads DISABLE TRIGGER trg_leads_link_on_won;
-ALTER TABLE public.leads DISABLE TRIGGER leads_link_conversations;
-ALTER TABLE public.leads DISABLE TRIGGER trg_link_form_lead_to_agency_leads;
-ALTER TABLE public.leads DISABLE TRIGGER trg_leads_status_audit;
-
-ALTER TABLE public.agency_leads DISABLE TRIGGER trg_agency_leads_link_on_won;
-ALTER TABLE public.agency_leads DISABLE TRIGGER trg_link_agency_lead_to_form_lead;
+-- Side-effect triggers (CAPI dispatch, sales mirror, automation) run too, but the
+-- whole transaction rolls back so nothing persists. HTTP dispatch via pg_net is
+-- fire-and-forget and cannot fail the tx.
 
 DO $test$
 DECLARE
