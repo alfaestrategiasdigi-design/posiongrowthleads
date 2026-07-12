@@ -1041,7 +1041,7 @@ export default function CampanhasPage() {
                     </div>
                     <div className="p-3">
                       <div className="text-[9px] text-[#C9A84C] uppercase tracking-widest font-bold flex items-center gap-1">
-                        <Crown className="w-2.5 h-2.5" /> Ganhos CRM
+                        <Crown className="w-2.5 h-2.5" /> Contratos fechados
                       </div>
                       <div className="text-lg font-serif text-[#C9A84C] tabular-nums mt-0.5">{BRL(crmRev)}</div>
                     </div>
