@@ -91,6 +91,7 @@ export default function CampanhasPage() {
   const [budgetDialog, setBudgetDialog] = useState<{ open: boolean; id?: string; name?: string; current?: string }>({ open: false });
   const [budgetValue, setBudgetValue] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [detailCampaign, setDetailCampaign] = useState<MetaCampaign | null>(null);
 
   type LeadForm = { id: string; name: string; status?: string; leads_count?: number; created_time?: string; page_id?: string; page_name?: string };
   type PageSummary = { id: string; name: string; forms_count: number; error?: boolean };
