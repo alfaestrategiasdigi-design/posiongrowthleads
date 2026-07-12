@@ -137,6 +137,43 @@ export default function TenantPlans() {
     return cents / div;
   };
 
+  // ==== Detecta pagamento efetuado mesmo sem subscription formal ====
+  const lastApprovedInvoice = invoices.find((i) => i.status === "approved");
+  const founderPaid = founderSlot?.status === "paid";
+  const subPaid = sub && ["active", "authorized"].includes(sub.status);
+  const hasPaid = !!(subPaid || lastApprovedInvoice || founderPaid);
+
+  // Determina intervalo e data do último pagamento
+  const paidInterval: "month" | "quarter" | "semester" =
+    (sub?.interval as any) || (customOffer?.interval as any) || "month";
+  const monthsPerCycle = paidInterval === "semester" ? 6 : paidInterval === "quarter" ? 3 : 1;
+
+  const lastPaidAt: Date | null = (() => {
+    if (sub?.current_period_start) return new Date(sub.current_period_start);
+    if (lastApprovedInvoice?.paid_at) return new Date(lastApprovedInvoice.paid_at);
+    if (founderSlot?.paid_at) return new Date(founderSlot.paid_at);
+    if (founderSlot?.created_at) return new Date(founderSlot.created_at);
+    return null;
+  })();
+
+  const nextPaymentDate: Date | null = (() => {
+    if (sub?.current_period_end) return new Date(sub.current_period_end);
+    if (!lastPaidAt) return null;
+    const d = new Date(lastPaidAt);
+    d.setMonth(d.getMonth() + monthsPerCycle);
+    return d;
+  })();
+
+  const daysLeft = nextPaymentDate
+    ? Math.max(0, Math.ceil((nextPaymentDate.getTime() - Date.now()) / 86_400_000))
+    : null;
+
+  const paidAmountCents =
+    sub?.amount_cents ||
+    lastApprovedInvoice?.amount_paid_cents ||
+    customOffer?.recurring_amount_cents ||
+    0;
+
   return (
     <div className="min-h-screen">
       <div className="p-4 md:p-10 max-w-[1200px] mx-auto space-y-8">
