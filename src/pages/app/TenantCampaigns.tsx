@@ -276,20 +276,21 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       globals.meetings += scheduledSet.size + unassignedAppointments;
       globals.showed += showedSet.size + unassignedShowed;
 
-      // Posion Master: contratos/receita vêm de agency_leads (kanban da agência).
+      // Posion Master: receita real = agency_contracts (valor assinado no contrato).
+      // O trigger cria contrato quando o lead vai para stage IN ('ganho','ativo').
       if (isMasterAccount) {
-        const { data: agencyWins } = await supabase
-          .from("agency_leads")
-          .select("id,stage,valor_proposta,ganho_at,campaign_id,campaign_id_manual,utm_campaign")
-          .eq("stage", "ganho")
-          .gte("ganho_at", sinceISO);
-        for (const w of (agencyWins ?? []) as any[]) {
-          const v = Number(w.valor_proposta) || 0;
-          const rawKey = w.campaign_id || w.campaign_id_manual;
-          const nameNorm = (w.utm_campaign || "").trim().toLowerCase();
+        const { data: contracts } = await supabase
+          .from("agency_contracts")
+          .select("id,valor_total,data_assinatura,agency_leads!inner(campaign_id,campaign_id_manual,utm_campaign)")
+          .gte("data_assinatura", sinceISO.slice(0, 10));
+        for (const c of (contracts ?? []) as any[]) {
+          const v = Number(c.valor_total) || 0;
+          const lead = (c as any).agency_leads || {};
+          const rawKey = lead.campaign_id || lead.campaign_id_manual;
+          const nameNorm = (lead.utm_campaign || "").trim().toLowerCase();
           const k = (rawKey && byId[String(rawKey).trim()])
             || (nameNorm && byName[nameNorm])
-            || similarCampaignName(w.utm_campaign);
+            || similarCampaignName(lead.utm_campaign);
           bump(k, (s) => { s.wins += 1; s.revenue += v; });
         }
       }
