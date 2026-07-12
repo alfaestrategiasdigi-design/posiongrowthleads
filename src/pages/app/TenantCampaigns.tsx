@@ -920,6 +920,15 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
         campaign={detailCampaign as any}
         since={daysAgoISO(period)}
         until={todayISO()}
+        labels={isMasterAccount ? {
+          title: "Funil da Agência",
+          appointments: "Reuniões",
+          showed: "Realizadas",
+          sales: "Contratos",
+          appointmentCost: "Custo/Reunião",
+          showedCost: "Custo/Realizada",
+          cac: "CAC",
+        } : undefined}
       />
 
       {/* Diálogo de comparação */}
