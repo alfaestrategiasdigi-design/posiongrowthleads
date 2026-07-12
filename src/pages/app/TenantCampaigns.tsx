@@ -506,43 +506,61 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
         </div>
       </div>
 
-      {/* Bloco 2: Funil da Clínica */}
-      <div>
-        <div className="text-[10px] uppercase tracking-[0.22em] text-cyan-400/80 mb-2">Funil da Clínica</div>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
-          <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan"
-               series={dailyTotals} dataKey="leads" formatter={(v) => NUM(v)} delta={deltas.leads} />
+      {/* Bloco 2: Funil da Clínica — oculto para Posion Master (conta de agência) */}
+      {!isMasterAccount && (
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-cyan-400/80 mb-2">Funil da Clínica</div>
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
+            <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan"
+                 series={dailyTotals} dataKey="leads" formatter={(v) => NUM(v)} delta={deltas.leads} />
 
-          <Kpi icon={Target} label="CPL" value={BRL(kpis.cpl)} tone="violet" />
-          <Kpi icon={CalendarCheck} label="Consultas Agendadas" value={NUM(kpis.appointments)} tone="cyan" />
-          <Kpi icon={Target} label="Custo/Consulta" value={kpis.appointments ? BRL(kpis.cost_per_appointment) : "—"} tone="violet" />
-          <Kpi icon={UserCheck} label="Consultas Realizadas" value={NUM(kpis.showed)} tone="emerald" />
-          <Kpi icon={Target} label="Custo/Realizada" value={kpis.showed ? BRL(kpis.cost_per_show) : "—"} tone="rose" />
-          <Kpi icon={TrendingUp} label="Taxa de Show" value={kpis.appointments ? `${kpis.show_rate.toFixed(0)}%` : "—"} tone={kpis.show_rate >= 60 ? "emerald" : "rose"} />
+            <Kpi icon={Target} label="CPL" value={BRL(kpis.cpl)} tone="violet" />
+            <Kpi icon={CalendarCheck} label="Consultas Agendadas" value={NUM(kpis.appointments)} tone="cyan" />
+            <Kpi icon={Target} label="Custo/Consulta" value={kpis.appointments ? BRL(kpis.cost_per_appointment) : "—"} tone="violet" />
+            <Kpi icon={UserCheck} label="Consultas Realizadas" value={NUM(kpis.showed)} tone="emerald" />
+            <Kpi icon={Target} label="Custo/Realizada" value={kpis.showed ? BRL(kpis.cost_per_show) : "—"} tone="rose" />
+            <Kpi icon={TrendingUp} label="Taxa de Show" value={kpis.appointments ? `${kpis.show_rate.toFixed(0)}%` : "—"} tone={kpis.show_rate >= 60 ? "emerald" : "rose"} />
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Bloco 3: Resultado */}
-      <div>
-        <div className="text-[10px] uppercase tracking-[0.22em] text-emerald-400/80 mb-2">Resultado · CRM</div>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
-          <Kpi icon={Star} label="Vendas" value={NUM(kpis.wins)} tone="emerald" />
-          <Kpi icon={DollarSign} label="Ticket Médio" value={kpis.wins ? BRL(kpis.ticket) : "—"} tone="amber" />
-          <Kpi icon={TrendingUp} label="Receita" value={BRL(kpis.revenue)} tone="emerald" />
-          <Kpi icon={UserCheck} label="CAC" value={kpis.wins ? BRL(kpis.cac) : "—"} tone="rose" />
-          <Kpi icon={Star} label="ROAS real" value={`${kpis.roas.toFixed(2)}x`} tone={kpis.roas >= 2 ? "emerald" : "rose"} />
+      {/* Bloco 3: Resultado — CRM clínico oculto para Posion Master */}
+      {!isMasterAccount ? (
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-emerald-400/80 mb-2">Resultado · CRM</div>
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+            <Kpi icon={Star} label="Vendas" value={NUM(kpis.wins)} tone="emerald" />
+            <Kpi icon={DollarSign} label="Ticket Médio" value={kpis.wins ? BRL(kpis.ticket) : "—"} tone="amber" />
+            <Kpi icon={TrendingUp} label="Receita" value={BRL(kpis.revenue)} tone="emerald" />
+            <Kpi icon={UserCheck} label="CAC" value={kpis.wins ? BRL(kpis.cac) : "—"} tone="rose" />
+            <Kpi icon={Star} label="ROAS real" value={`${kpis.roas.toFixed(2)}x`} tone={kpis.roas >= 2 ? "emerald" : "rose"} />
+          </div>
         </div>
-      </div>
+      ) : (
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-emerald-400/80 mb-2">Captação · Agência</div>
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+            <Kpi icon={Users} label="Leads gerados" value={NUM(kpis.leads)} tone="cyan"
+                 series={dailyTotals} dataKey="leads" formatter={(v) => NUM(v)} delta={deltas.leads} />
+            <Kpi icon={Target} label="CPL" value={kpis.leads ? BRL(kpis.cpl) : "—"} tone="violet" />
+            <Kpi icon={MousePointerClick} label="Cliques no link" value={NUM(campaigns.reduce((a,c)=>a+(c.insights?.link_clicks||c.insights?.clicks||0),0))} tone="cyan" />
+            <Kpi icon={Target} label="Custo/Clique" value={kpis.spend && campaigns.some(c=>c.insights?.clicks) ? BRL(kpis.spend / Math.max(1, campaigns.reduce((a,c)=>a+(c.insights?.clicks||0),0))) : "—"} tone="amber" />
+            <Kpi icon={Activity} label="Campanhas ativas" value={`${kpis.active}/${kpis.total}`} tone="primary" />
+          </div>
+        </div>
+      )}
 
-      {/* Funil visual */}
-      <CampaignFunnel
-        spend={kpis.spend}
-        leads={globalStats.leads}
-        contacts={globalStats.contacts}
-        appointments={kpis.appointments}
-        showed={kpis.showed}
-        sales={kpis.wins}
-      />
+      {/* Funil visual — oculto para Posion Master */}
+      {!isMasterAccount && (
+        <CampaignFunnel
+          spend={kpis.spend}
+          leads={globalStats.leads}
+          contacts={globalStats.contacts}
+          appointments={kpis.appointments}
+          showed={kpis.showed}
+          sales={kpis.wins}
+        />
+      )}
 
 
 
