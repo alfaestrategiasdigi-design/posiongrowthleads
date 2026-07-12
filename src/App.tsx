@@ -19,6 +19,7 @@ import AutomacoesPage from "./pages/admin/AutomacoesPage";
 import FacebookConfigPage from "./pages/admin/FacebookConfigPage";
 import CapiConfigPage from "./pages/admin/CapiConfigPage";
 import CampanhasPage from "./pages/admin/CampanhasPage";
+import MetaAdsAdminPage from "./pages/admin/MetaAdsAdminPage";
 
 
 import SubscriptionsPage from "./pages/admin/SubscriptionsPage";
@@ -106,6 +107,8 @@ const App = () => (
           <Route path="/admin/facebook" element={<AdminLayout><FacebookConfigPage /></AdminLayout>} />
           <Route path="/admin/capi" element={<AdminLayout><CapiConfigPage /></AdminLayout>} />
           <Route path="/admin/campanhas" element={<AdminLayout><CampanhasPage /></AdminLayout>} />
+          <Route path="/admin/campanhas/:tenantSlug" element={<AdminLayout><CampanhasPage /></AdminLayout>} />
+          <Route path="/admin/facebook/gestao" element={<AdminLayout><MetaAdsAdminPage /></AdminLayout>} />
           <Route path="/admin/relatorios" element={<AdminLayout><RelatoriosPage /></AdminLayout>} />
 
           <Route path="/admin/meta-ads" element={<Navigate to="/admin/campanhas" replace />} />

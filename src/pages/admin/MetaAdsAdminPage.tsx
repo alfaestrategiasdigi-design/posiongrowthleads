@@ -46,7 +46,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 const daysAgoISO = (d: number) =>
   new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
 
-export default function CampanhasPage() {
+export default function MetaAdsAdminPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [adAccounts, setAdAccounts] = useState<AdAccount[]>([]);
   const [rules, setRules] = useState<RoutingRule[]>([]);
