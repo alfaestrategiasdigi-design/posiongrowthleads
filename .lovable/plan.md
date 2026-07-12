@@ -1,52 +1,144 @@
-## Objetivo
-Corrigir `TenantPatients.tsx` para listar pacientes reais da tabela `patients` (fonte da verdade), enriquecendo com métricas de `sales` por `patient_id`. Vendas sem paciente cadastrado deixam de virar linhas fantasma e passam a ser expostas apenas como contador discreto.
+# Redesign da página `/campanhas` (Tenant) — Meta Ads para Clínicas
 
-## Mudanças
+Objetivo: transformar a página de campanhas do tenant em um cockpit completo de tráfego pago para clínicas, unindo (a) métricas nativas do Meta, (b) funil comercial da clínica (lead → agendamento → consulta → venda), e (c) drill‑down até o criativo com preview visual.
 
-### `src/pages/app/TenantPatients.tsx`
-1. **Fonte da lista = `patients`**
-   - Query: `patients.select("*").eq("tenant_id", tenant.id).is("promotion_reverted_at", null).order("name")`.
-   - Remover o merge com `sales` que criava entradas `id: "sale:..."`.
+Baseado em pesquisa de mercado (Triple Whale, Northbeam, docs oficiais Meta v22, Wordstream 2025, benchmarks de agências BR — fiveperformance, elogrowth, triagefy).
 
-2. **Enriquecimento com vendas**
-   - Continuar buscando `sales` do tenant.
-   - Agregar por `patient_id` (não por nome): `{ total, count, last }`.
-   - Fallback: quando `sales.patient_id` for null mas `patient_name` casar exatamente (case-insensitive) com um paciente, agregar por nome — puramente cosmético, não cria linha.
+---
 
-3. **Vendas órfãs (sem `patient_id` e sem match por nome)**
-   - Contar quantas são e exibir um aviso discreto acima/abaixo da tabela:
-     `N venda(s) sem paciente cadastrado` com tooltip: "Serão vinculadas no backfill (Fase 7)."
-   - Não renderizar linhas fantasma.
+## 1. Correção de nomenclatura (tenant view)
 
-4. **Clique sempre abre `ClientPanel`**
-   - Todas as linhas são pacientes reais → `onClick={() => setPanelId(p.id)}`, cursor pointer, hover normal.
-   - Remover a lógica `isRealPatient` / ícone `Info` / tooltip "Sem cadastro de paciente" (não é mais necessária).
-   - Remover imports não utilizados após a limpeza (`Tooltip*`, `Info`, `TooltipProvider`).
+No contexto de clínica, "reunião" não faz sentido — o evento é **consulta / agendamento**.
 
-5. **Contagem**
-   - `p.muted-foreground` "X pacientes" continua refletindo o total real da lista filtrada.
+- `Custo por Reunião` → **`Custo por Consulta`** (agendada)
+- `Reuniões` → **`Consultas Agendadas`**
+- Novo KPI: **`Custo por Consulta Realizada`** (usa `appointments.status IN ('compareceu','realizado','fechado')`)
+- Novo KPI: **`Taxa de Show`** (Realizadas ÷ Agendadas)
 
-6. **"Novo Paciente"**
-   - Intocado; segue inserindo em `patients` e recarregando.
+Master view (agência) segue com "Reunião" onde couber.
 
-## Fora de escopo (confirmado)
-- Não altera banco, triggers, automações, webhooks, envio.
-- Backfill de `sales` órfãs → Fase 7.
-- Não mexe em `ClientPanel`, `TenantsPage`, `useClientData`, entity-fields.
-- Não altera nada relacionado ao Dr. Alessandro além do que já vem via Fase 6 (ele deve aparecer naturalmente na lista assim que houver `patients` para o tenant dele — a mudança desta fase é o que torna isso visível).
+---
 
-## Como testar
-1. Abrir `/app/<tenant>/pacientes` como um tenant que já teve leads promovidos a "ganho" (ex: Dr. Alessandro Transplante Capilar) → devem aparecer os pacientes reais da tabela `patients`.
-2. Cada linha deve ser clicável → abre `ClientPanel` com a ficha rica.
-3. Pacientes com `promotion_reverted_at` preenchido não devem aparecer.
-4. Se houver vendas antigas sem `patient_id` correspondente, deve aparecer o contador discreto "N venda(s) sem paciente cadastrado" (sem linhas fantasma).
-5. Botão "Novo Paciente" continua criando e a lista atualiza.
-6. `tsgo` / build: 0 erros de TypeScript.
+## 2. Novos KPIs (linha de topo)
 
-## Observação sobre "concluir tudo em aberto"
-Esta fase entrega apenas o item pedido (leitura correta em Pacientes Ativos). Itens ainda em aberto que citei em fases anteriores e que NÃO faço aqui sem sua aprovação explícita:
-- Fase 5 real (edição do ClientPanel) — hoje a ficha é read-only.
-- Fase 7 (backfill de `patients` a partir de `sales` órfãs e vinculação de agency_contracts órfãos).
-- Filtro `promotion_reverted_at IS NULL` na lista de Clínicas Clientes do Master (mesmo princípio, mas em `TenantsPage.tsx`).
+Cards agrupados em 3 blocos com sparkline:
 
-Se quiser que eu já inclua o filtro de revertidos em `TenantsPage.tsx` nesta mesma fase (é uma mudança pequena e da mesma família), me avise antes de aprovar e eu adiciono ao plano. As demais (Fase 5, Fase 7) recomendo tratar em fases próprias.
+**Mídia (Meta):** Investido · Impressões · CTR · CPM · Frequência
+**Funil da clínica:** Leads · CPL · Consultas Agendadas · Custo/Consulta · Consultas Realizadas · Custo/Consulta Realizada · Taxa de Show
+**Resultado:** Vendas · Ticket Médio · Receita · CAC (spend ÷ vendas) · ROAS real (receita CRM ÷ spend)
+
+CAC e ROAS usam receita real do CRM (kanban ganho + `sales` do tenant), não o `purchase_value` do pixel.
+
+---
+
+## 3. Funil visual etapa‑a‑etapa
+
+Componente novo `CampaignFunnel` acima dos cards de campanha:
+
+```text
+Leads → Contato WhatsApp → Consulta Agendada → Consulta Realizada → Venda
+  562        420 (75%)         180 (43%)           126 (70%)      38 (30%)
+```
+
+Cada etapa mostra: absoluto, % vs etapa anterior, custo acumulado, badge vermelho quando abaixo do benchmark (show < 60%, fechamento < 20%).
+
+---
+
+## 4. Drill‑down em 3 níveis (Campanha → AdSet → Ad/Criativo)
+
+Ao clicar num card de campanha, abre um **painel lateral (Sheet full‑height)** com abas:
+
+1. **Visão Geral** — todos os KPIs da campanha + funil próprio + gráfico diário (spend/leads/consultas).
+2. **AdSets** — tabela expansível; cada linha mostra spend, leads, CPL, público‑alvo, status. Ao expandir, lista os Ads.
+3. **Criativos** — grid de cards com:
+   - Thumbnail/preview do vídeo ou imagem (via `GET /{ad-id}/previews` + `image_url`/`thumbnail_url` do creative)
+   - Hook Rate (video_p25 ÷ impressions), Hold Rate (thruplay ÷ p25), CTR, CPM
+   - Custo por resultado do criativo isolado
+   - Frequência isolada + idade em dias
+   - Ranking de qualidade/engajamento/conversão do Meta
+   - Badges automáticos: `🔥 Top`, `⚠️ Fadigado`, `📉 CTR caindo`
+4. **Leads da Campanha** — tabela dos leads atribuídos (por `facebook_campaign_id` ou nome), status no kanban, valor, agendamentos, vendas. Export CSV.
+5. **Insights** — alertas automáticos (ver §6).
+
+Breadcrumb no topo do painel: `Conta > Campanha > AdSet > Ad`.
+
+---
+
+## 5. Preview de criativos (Meta Marketing API)
+
+Nova função edge `tenant-campaign-detail` que, dado `campaign_id`:
+- Lista adsets (`GET /{campaign_id}/adsets` — fields: `id,name,status,targeting,daily_budget,optimization_goal`)
+- Lista ads (`GET /{adset_id}/ads` — fields: `id,name,status,creative,effective_status`)
+- Para cada ad, busca creative (`GET /{creative_id}` — `object_story_spec,image_url,video_id,thumbnail_url,body,title,call_to_action_type,instagram_permalink_url`)
+- Busca preview HTML (`GET /{ad_id}/previews?ad_format=MOBILE_FEED_STANDARD`) — retorna iframe embutível
+- Insights por ad com `video_play_actions`, `video_p25/50/75/100_watched_actions`, `video_thruplay_watched_actions` para calcular Hook/Hold Rate
+
+Cache TTL de 5–10 min por campanha.
+
+---
+
+## 6. Alertas automáticos
+
+Painel `CampaignInsights` (Card lateral ou dialog dedicado) com regras client‑side sobre os dados carregados:
+
+- **Fadiga criativa**: Frequência > 3,5 nos últimos 7d **e** CTR caiu >20% vs média 14d
+- **CPM inflando**: CPM subiu >20% vs 7d anteriores
+- **Adset ocioso**: gasto < 20% do daily_budget em 3 dias
+- **Learning travado**: menos de 50 eventos de otimização/semana
+- **Vazamento no funil**: show‑rate < 60% ou fechamento < 20%
+- **CPL bom, CPA ruim**: CPL abaixo da mediana mas custo por agendamento acima → problema comercial, não de mídia
+
+Cada alerta com severidade (info/warn/critical), campanha/adset afetado e sugestão de ação.
+
+---
+
+## 7. Atribuição corrigida (backend)
+
+Problema atual: lead da Andreia guarda `facebook_campaign = '52565356266108'` (ID puro) porque o webhook não conseguiu buscar o `campaign_name` no Graph. Isso quebra a atribuição por nome.
+
+Correções:
+- **Migração**: adicionar coluna `facebook_campaign_id text` em `leads` (persistir explicitamente o ID). Backfill: mover valores 100% numéricos de `facebook_campaign` para `facebook_campaign_id`.
+- **Webhook `facebook-leads-webhook`**: salvar sempre `facebook_campaign_id`, `facebook_adset_id`, `facebook_ad_id` além dos nomes; preferir nome do Graph, cair para ID somente quando faltar.
+- **Frontend `TenantCampaigns`**: atribuição por `facebook_campaign_id === c.id` (primário) OU nome case‑insensitive (fallback) OU `utm_campaign`.
+
+---
+
+## 8. Eventos offline / CAPI (fase 2, opcional nesta iteração)
+
+Estender `facebook-capi-event` para disparar quando:
+- `appointments.status` vira `compareceu` → evento `Schedule` / custom `AppointmentCompleted`
+- `sales` insert com `amount > 0` → `Purchase` com valor real
+
+Isso permite otimizar campanhas por receita real e não por lead. Fica pronto para ligar via toggle em `Configurações → Meta CAPI`.
+
+---
+
+## 9. Detalhamento técnico
+
+**Frontend**
+- `src/pages/app/TenantCampaigns.tsx` — refactor: 3 grupos de KPIs, funil, cards com botão "Analisar" que abre Sheet.
+- Novo: `src/components/campaigns/CampaignFunnel.tsx`
+- Novo: `src/components/campaigns/CampaignDetailSheet.tsx` (abas: Overview | AdSets | Criativos | Leads | Insights)
+- Novo: `src/components/campaigns/CreativeCard.tsx` (thumbnail + hook/hold + badges)
+- Novo: `src/components/campaigns/AlertsPanel.tsx`
+- Reusar `Sheet`, `Tabs`, `Table`, `Badge` do shadcn.
+
+**Backend (edge functions)**
+- Refactor `supabase/functions/tenant-campaigns/index.ts`: adicionar `reach`, `frequency`, `video_*_watched_actions`, `quality_ranking`, `engagement_rate_ranking`, `conversion_rate_ranking` aos fields de insights.
+- Nova: `supabase/functions/tenant-campaign-detail/index.ts` — dado `tenant_id` + `campaign_id`, retorna adsets, ads, creatives com preview, insights por ad.
+- Update `supabase/functions/facebook-leads-webhook/index.ts` — persistir `facebook_campaign_id/adset_id/ad_id`.
+
+**Banco**
+- Migração: `ALTER TABLE leads ADD COLUMN IF NOT EXISTS facebook_campaign_id text, ADD COLUMN IF NOT EXISTS facebook_adset_id text, ADD COLUMN IF NOT EXISTS facebook_ad_id text` — já existem `facebook_adset_id`/`facebook_ad_id`; só falta `facebook_campaign_id`. Backfill dos numéricos.
+- Índice em `leads(facebook_campaign_id)` para atribuição rápida.
+
+**Fase 2 (não incluída na primeira entrega, sinalizada como próximo passo)**
+- CAPI de eventos offline (agendamento/venda).
+- Persistir snapshot histórico de insights por ad (`campaign_insights_breakdown` já existe) para permitir comparações temporais de criativos.
+
+---
+
+## 10. Escopo desta entrega
+
+Nesta iteração entregarei §1, §2, §3, §4, §5, §6, §7, §9 (frontend + backend + migração).
+§8 (CAPI offline) fica documentado como próxima fase — envolve mudança de trigger e toggle de configuração que merecem ciclo próprio.
