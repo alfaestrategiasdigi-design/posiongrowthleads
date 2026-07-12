@@ -761,11 +761,12 @@ const TONE_HSL: Record<string, string> = {
 
 function Kpi({
   icon: Icon, label, value, tone,
-  series, dataKey, formatter,
+  series, dataKey, formatter, delta,
 }: {
   icon: any; label: string; value: string; tone: string;
   series?: Array<Record<string, any>>; dataKey?: string;
   formatter?: (v: number) => string;
+  delta?: number;
 }) {
   const toneMap: Record<string, string> = {
     primary: "text-primary border-primary/20 bg-primary/5",
@@ -778,12 +779,23 @@ function Kpi({
   const showSpark = !!(series && series.length > 1 && dataKey);
   const color = TONE_HSL[tone] ?? "currentColor";
   const gid = `spark-${tone}-${label}`.replace(/\s+/g, "-");
+  const showDelta = typeof delta === "number" && isFinite(delta) && delta !== 0;
+  const deltaUp = (delta ?? 0) > 0;
   return (
     <Card className={`p-3 border ${toneMap[tone]} relative overflow-hidden`}>
       <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider opacity-80">
         <Icon className="w-3.5 h-3.5" /> {label}
       </div>
-      <div className="text-lg font-bold tabular-nums mt-1">{value}</div>
+      <div className="flex items-baseline gap-2 mt-1">
+        <div className="text-lg font-bold tabular-nums">{value}</div>
+        {showDelta && (
+          <span className={`text-[10px] font-semibold tabular-nums flex items-center gap-0.5 ${deltaUp ? "text-emerald-400" : "text-rose-400"}`}>
+            {deltaUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+            {Math.abs(delta!).toFixed(0)}%
+          </span>
+        )}
+      </div>
+
       {showSpark && (
         <div className="h-8 -mx-1 -mb-1 mt-1">
           <ResponsiveContainer width="100%" height="100%">
