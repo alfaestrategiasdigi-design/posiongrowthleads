@@ -342,7 +342,107 @@ export default function TenantCampaigns() {
   }, [campaigns, kpis]);
 
 
+  // Delta período-a-período (2ª metade x 1ª metade das séries diárias)
+  const deltas = useMemo(() => {
+    const arr = dailyTotals;
+    if (arr.length < 2) return { spend: 0, leads: 0 };
+    const mid = Math.floor(arr.length / 2);
+    const a = arr.slice(0, mid); const b = arr.slice(mid);
+    const sumA = a.reduce((s, d) => ({ spend: s.spend + d.spend, leads: s.leads + d.leads }), { spend: 0, leads: 0 });
+    const sumB = b.reduce((s, d) => ({ spend: s.spend + d.spend, leads: s.leads + d.leads }), { spend: 0, leads: 0 });
+    const pct = (prev: number, curr: number) => prev > 0 ? ((curr - prev) / prev) * 100 : 0;
+    return { spend: pct(sumA.spend, sumB.spend), leads: pct(sumA.leads, sumB.leads) };
+  }, [dailyTotals]);
+
+  // Objetivos únicos para filtro
+  const objectiveOptions = useMemo(() => {
+    const set = new Set<string>();
+    campaigns.forEach((c) => { if (c.objective) set.add(c.objective); });
+    return Array.from(set);
+  }, [campaigns]);
+
+  // Score de saúde da campanha (0-100)
+  const healthOf = (c: Campaign, revenue: number): { label: string; tone: "emerald" | "amber" | "rose" | "muted"; score: number } => {
+    if (!c.insights || c.insights.spend === 0) return { label: "Sem dados", tone: "muted", score: 0 };
+    const roas = c.insights.spend ? revenue / c.insights.spend : 0;
+    const ctr = c.insights.ctr ?? 0;
+    const freq = c.insights.frequency ?? 0;
+    let score = 50;
+    if (roas >= 2) score += 30; else if (roas >= 1) score += 15; else if (roas > 0) score -= 15;
+    if (ctr >= 2) score += 15; else if (ctr < 0.8) score -= 10;
+    if (freq > 4) score -= 15; else if (freq > 3) score -= 5;
+    if (c.insights.leads > 0 && c.insights.cpl > 0) {
+      // heurística leve — CPL muito alto derruba
+      if (c.insights.cpl > 100) score -= 10;
+    }
+    score = Math.max(0, Math.min(100, score));
+    if (score >= 75) return { label: "Ótima", tone: "emerald", score };
+    if (score >= 50) return { label: "OK", tone: "amber", score };
+    return { label: "Atenção", tone: "rose", score };
+  };
+
+  // Filtra + ordena
+  const visibleCampaigns = useMemo(() => {
+    let list = campaigns.slice();
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((c) => c.name.toLowerCase().includes(q) || c.id.includes(q));
+    }
+    if (objectiveFilter !== "all") list = list.filter((c) => c.objective === objectiveFilter);
+    const getVal = (c: Campaign): number | string => {
+      const ins = c.insights;
+      const stat = crmStats[c.id];
+      const rev = (ins?.purchase_value || 0) + (stat?.revenue || 0);
+      switch (sortKey) {
+        case "spend": return ins?.spend ?? 0;
+        case "leads": return ins?.leads ?? 0;
+        case "cpl": return ins?.cpl ?? Infinity;
+        case "roas": return ins?.spend ? rev / ins.spend : 0;
+        case "ctr": return ins?.ctr ?? 0;
+        case "name": return c.name.toLowerCase();
+      }
+    };
+    list.sort((a, b) => {
+      const va = getVal(a); const vb = getVal(b);
+      if (sortKey === "name") return String(va).localeCompare(String(vb));
+      if (sortKey === "cpl") return (Number(va) || 0) - (Number(vb) || 0);
+      return (Number(vb) || 0) - (Number(va) || 0);
+    });
+    return list;
+  }, [campaigns, crmStats, search, objectiveFilter, sortKey]);
+
+  // Best/worst por ROAS (com investimento)
+  const bestWorst = useMemo(() => {
+    const withRoas = campaigns
+      .filter((c) => c.insights && c.insights.spend > 50)
+      .map((c) => {
+        const rev = (c.insights!.purchase_value || 0) + (crmStats[c.id]?.revenue || 0);
+        return { id: c.id, name: c.name, roas: c.insights!.spend ? rev / c.insights!.spend : 0, spend: c.insights!.spend };
+      });
+    if (!withRoas.length) return { best: null, worst: null };
+    const sorted = withRoas.slice().sort((a, b) => b.roas - a.roas);
+    return { best: sorted[0], worst: sorted[sorted.length - 1] };
+  }, [campaigns, crmStats]);
+
+  // Agrupamento
+  const grouped = useMemo(() => {
+    if (groupBy === "none") return [{ key: "all", label: "", items: visibleCampaigns }];
+    const map = new Map<string, { label: string; items: Campaign[] }>();
+    for (const c of visibleCampaigns) {
+      const key = groupBy === "account" ? (c.ad_account_label || c.ad_account_id) : (c.objective || "Sem objetivo");
+      const label = groupBy === "account" ? (c.ad_account_label || c.ad_account_id) : formatObjective(c.objective);
+      if (!map.has(key)) map.set(key, { label, items: [] });
+      map.get(key)!.items.push(c);
+    }
+    return Array.from(map.entries()).map(([key, v]) => ({ key, label: v.label, items: v.items }));
+  }, [visibleCampaigns, groupBy]);
+
+  const toggleCompare = (id: string) => {
+    setCompareIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= 4 ? prev : [...prev, id]);
+  };
+
   const periodLabel = period === 1 ? "hoje" : period === 7 ? "últimos 7 dias" : period === 14 ? "últimos 14 dias" : period === 30 ? "últimos 30 dias" : "últimos 90 dias";
+
 
   if (tLoading || !tenant) {
     return <div className="p-8 flex items-center gap-2 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
