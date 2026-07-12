@@ -10,7 +10,14 @@ import {
   Activity, AlertCircle, Megaphone, Star, ExternalLink, Copy, Eye, MousePointerClick,
   CalendarCheck, UserCheck, Zap, Repeat,
   Wallet, ArrowUpRight, ArrowDownRight, BadgeCheck,
+  Search, GitCompare, ArrowDownAZ, X, Heart, ChevronDown,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 
 
 import {
@@ -108,6 +115,16 @@ export default function TenantCampaigns() {
   const [linkedForms, setLinkedForms] = useState<LinkedForm[]>([]);
   const [lastBackfill, setLastBackfill] = useState<Date | null>(null);
   const [detail, setDetail] = useState<Campaign | null>(null);
+
+  // Filtros / ordenação / agrupamento / compare
+  const [search, setSearch] = useState("");
+  const [objectiveFilter, setObjectiveFilter] = useState<string>("all");
+  const [sortKey, setSortKey] = useState<"spend" | "leads" | "cpl" | "roas" | "ctr" | "name">("spend");
+  const [groupBy, setGroupBy] = useState<"none" | "account" | "objective">("none");
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [compareOpen, setCompareOpen] = useState(false);
+
 
 
   const load = async () => {
@@ -325,14 +342,114 @@ export default function TenantCampaigns() {
   }, [campaigns, kpis]);
 
 
+  // Delta período-a-período (2ª metade x 1ª metade das séries diárias)
+  const deltas = useMemo(() => {
+    const arr = dailyTotals;
+    if (arr.length < 2) return { spend: 0, leads: 0 };
+    const mid = Math.floor(arr.length / 2);
+    const a = arr.slice(0, mid); const b = arr.slice(mid);
+    const sumA = a.reduce((s, d) => ({ spend: s.spend + d.spend, leads: s.leads + d.leads }), { spend: 0, leads: 0 });
+    const sumB = b.reduce((s, d) => ({ spend: s.spend + d.spend, leads: s.leads + d.leads }), { spend: 0, leads: 0 });
+    const pct = (prev: number, curr: number) => prev > 0 ? ((curr - prev) / prev) * 100 : 0;
+    return { spend: pct(sumA.spend, sumB.spend), leads: pct(sumA.leads, sumB.leads) };
+  }, [dailyTotals]);
+
+  // Objetivos únicos para filtro
+  const objectiveOptions = useMemo(() => {
+    const set = new Set<string>();
+    campaigns.forEach((c) => { if (c.objective) set.add(c.objective); });
+    return Array.from(set);
+  }, [campaigns]);
+
+  // Score de saúde da campanha (0-100)
+  const healthOf = (c: Campaign, revenue: number): { label: string; tone: "emerald" | "amber" | "rose" | "muted"; score: number } => {
+    if (!c.insights || c.insights.spend === 0) return { label: "Sem dados", tone: "muted", score: 0 };
+    const roas = c.insights.spend ? revenue / c.insights.spend : 0;
+    const ctr = c.insights.ctr ?? 0;
+    const freq = c.insights.frequency ?? 0;
+    let score = 50;
+    if (roas >= 2) score += 30; else if (roas >= 1) score += 15; else if (roas > 0) score -= 15;
+    if (ctr >= 2) score += 15; else if (ctr < 0.8) score -= 10;
+    if (freq > 4) score -= 15; else if (freq > 3) score -= 5;
+    if (c.insights.leads > 0 && c.insights.cpl > 0) {
+      // heurística leve — CPL muito alto derruba
+      if (c.insights.cpl > 100) score -= 10;
+    }
+    score = Math.max(0, Math.min(100, score));
+    if (score >= 75) return { label: "Ótima", tone: "emerald", score };
+    if (score >= 50) return { label: "OK", tone: "amber", score };
+    return { label: "Atenção", tone: "rose", score };
+  };
+
+  // Filtra + ordena
+  const visibleCampaigns = useMemo(() => {
+    let list = campaigns.slice();
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((c) => c.name.toLowerCase().includes(q) || c.id.includes(q));
+    }
+    if (objectiveFilter !== "all") list = list.filter((c) => c.objective === objectiveFilter);
+    const getVal = (c: Campaign): number | string => {
+      const ins = c.insights;
+      const stat = crmStats[c.id];
+      const rev = (ins?.purchase_value || 0) + (stat?.revenue || 0);
+      switch (sortKey) {
+        case "spend": return ins?.spend ?? 0;
+        case "leads": return ins?.leads ?? 0;
+        case "cpl": return ins?.cpl ?? Infinity;
+        case "roas": return ins?.spend ? rev / ins.spend : 0;
+        case "ctr": return ins?.ctr ?? 0;
+        case "name": return c.name.toLowerCase();
+      }
+    };
+    list.sort((a, b) => {
+      const va = getVal(a); const vb = getVal(b);
+      if (sortKey === "name") return String(va).localeCompare(String(vb));
+      if (sortKey === "cpl") return (Number(va) || 0) - (Number(vb) || 0);
+      return (Number(vb) || 0) - (Number(va) || 0);
+    });
+    return list;
+  }, [campaigns, crmStats, search, objectiveFilter, sortKey]);
+
+  // Best/worst por ROAS (com investimento)
+  const bestWorst = useMemo(() => {
+    const withRoas = campaigns
+      .filter((c) => c.insights && c.insights.spend > 50)
+      .map((c) => {
+        const rev = (c.insights!.purchase_value || 0) + (crmStats[c.id]?.revenue || 0);
+        return { id: c.id, name: c.name, roas: c.insights!.spend ? rev / c.insights!.spend : 0, spend: c.insights!.spend };
+      });
+    if (!withRoas.length) return { best: null, worst: null };
+    const sorted = withRoas.slice().sort((a, b) => b.roas - a.roas);
+    return { best: sorted[0], worst: sorted[sorted.length - 1] };
+  }, [campaigns, crmStats]);
+
+  // Agrupamento
+  const grouped = useMemo(() => {
+    if (groupBy === "none") return [{ key: "all", label: "", items: visibleCampaigns }];
+    const map = new Map<string, { label: string; items: Campaign[] }>();
+    for (const c of visibleCampaigns) {
+      const key = groupBy === "account" ? (c.ad_account_label || c.ad_account_id) : (c.objective || "Sem objetivo");
+      const label = groupBy === "account" ? (c.ad_account_label || c.ad_account_id) : formatObjective(c.objective);
+      if (!map.has(key)) map.set(key, { label, items: [] });
+      map.get(key)!.items.push(c);
+    }
+    return Array.from(map.entries()).map(([key, v]) => ({ key, label: v.label, items: v.items }));
+  }, [visibleCampaigns, groupBy]);
+
+  const toggleCompare = (id: string) => {
+    setCompareIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= 4 ? prev : [...prev, id]);
+  };
+
   const periodLabel = period === 1 ? "hoje" : period === 7 ? "últimos 7 dias" : period === 14 ? "últimos 14 dias" : period === 30 ? "últimos 30 dias" : "últimos 90 dias";
+
 
   if (tLoading || !tenant) {
     return <div className="p-8 flex items-center gap-2 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6 space-y-5 max-w-[1600px] mx-auto">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
@@ -378,7 +495,8 @@ export default function TenantCampaigns() {
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           <Kpi icon={Activity} label="Ativas" value={`${kpis.active}/${kpis.total}`} tone="primary" />
           <Kpi icon={DollarSign} label="Investido" value={BRL(kpis.spend)} tone="amber"
-               series={dailyTotals} dataKey="spend" formatter={(v) => BRL(v)} />
+               series={dailyTotals} dataKey="spend" formatter={(v) => BRL(v)} delta={deltas.spend} />
+
           <Kpi icon={MousePointerClick} label="Impressões" value={NUM(kpis.spend > 0 ? campaigns.reduce((a,c)=>a+(c.insights?.impressions||0),0) : 0)} tone="cyan" />
           <Kpi icon={Target} label="CTR" value={`${kpis.ctr.toFixed(2)}%`} tone="violet" />
           <Kpi icon={DollarSign} label="CPM" value={BRL(kpis.cpm)} tone="amber" />
@@ -391,7 +509,8 @@ export default function TenantCampaigns() {
         <div className="text-[10px] uppercase tracking-[0.22em] text-cyan-400/80 mb-2">Funil da Clínica</div>
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
           <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan"
-               series={dailyTotals} dataKey="leads" formatter={(v) => NUM(v)} />
+               series={dailyTotals} dataKey="leads" formatter={(v) => NUM(v)} delta={deltas.leads} />
+
           <Kpi icon={Target} label="CPL" value={BRL(kpis.cpl)} tone="violet" />
           <Kpi icon={CalendarCheck} label="Consultas Agendadas" value={NUM(kpis.appointments)} tone="cyan" />
           <Kpi icon={Target} label="Custo/Consulta" value={kpis.appointments ? BRL(kpis.cost_per_appointment) : "—"} tone="violet" />
@@ -497,127 +616,218 @@ export default function TenantCampaigns() {
         </Card>
       )}
 
-      {/* Cards compactos */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-        {campaigns.map((c) => {
-          const stat = crmStats[c.id];
-          const meetings = stat?.meetings ?? 0;
-          const showed = stat?.showed ?? 0;
-          const wins = stat?.wins ?? 0;
-          const revenue = (c.insights?.purchase_value || 0) + (stat?.revenue || 0);
-          const spend = c.insights?.spend || 0;
-          const roas = spend ? revenue / spend : 0;
-          const cpAppt = meetings ? spend / meetings : 0;
-          const cac = revenue > 0 && wins ? spend / wins : 0;
-          const isActive = c.effective_status === "ACTIVE" || c.status === "ACTIVE";
-          const metaUrl = `https://business.facebook.com/adsmanager/manage/campaigns?act=${(c.ad_account_id || "").replace(/^act_/, "")}&selected_campaign_ids=${c.id}`;
-          const copyId = async () => {
-            await navigator.clipboard.writeText(c.id);
-            toast.success("ID da campanha copiado");
-          };
-          return (
-          <Card
-            key={c.id}
-            className="relative p-3.5 flex flex-col gap-2.5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all overflow-hidden group cursor-pointer"
-            onClick={() => setDetailCampaign(c)}
-          >
-            {/* status strip */}
-            <div className={`absolute left-0 top-0 h-full w-[3px] ${isActive ? "bg-emerald-400 shadow-[0_0_12px_hsl(var(--success))]" : "bg-muted"}`} />
-
-            {/* Header com status e identificação */}
-            <div className="flex items-start justify-between gap-2 pl-1">
-              <div className="min-w-0 flex-1">
-                <div className="text-[9px] uppercase tracking-wider text-muted-foreground truncate">
-                  {c.ad_account_label || c.ad_account_id}
-                </div>
-                <div className="text-sm font-medium truncate leading-tight mt-0.5" title={c.name}>{c.name}</div>
-                {c.objective && (
-                  <div className="text-[9px] uppercase tracking-wider text-primary/70 truncate mt-0.5" title={c.objective}>
-                    {formatObjective(c.objective)}
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-col items-end gap-1 shrink-0">
-                <div className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${isActive ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-muted/40 border-white/10 text-muted-foreground"}`}>
-                  {isActive ? <BadgeCheck className="w-3 h-3" /> : <div className="w-2 h-2 rounded-full bg-muted-foreground" />}
-                  {isActive ? "ATIVA" : (c.effective_status || c.status || "PAUSADA").slice(0, 8)}
-                </div>
-              </div>
-            </div>
-
-            {/* Painel financeiro destacado */}
-            <div className="grid grid-cols-2 gap-2 pl-1">
-              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 flex flex-col">
-                <div className="text-[9px] uppercase tracking-wider text-amber-400 flex items-center gap-1">
-                  <Wallet className="w-3 h-3" /> Custo
-                </div>
-                <div className="text-sm font-bold tabular-nums text-amber-400 mt-0.5">{BRL(spend)}</div>
-                <div className="text-[9px] text-muted-foreground mt-0.5">
-                  {c.insights?.leads ? `${BRL(c.insights.cpl)} CPL` : "sem leads"}
-                </div>
-              </div>
-              <div className={`rounded-lg border px-3 py-2 flex flex-col ${revenue > 0 && roas >= 1 ? "border-emerald-500/20 bg-emerald-500/5" : revenue > 0 && roas < 1 ? "border-rose-500/20 bg-rose-500/5" : "border-muted-foreground/20 bg-muted/30"}`}>
-                <div className={`text-[9px] uppercase tracking-wider flex items-center gap-1 ${revenue > 0 && roas >= 1 ? "text-emerald-400" : revenue > 0 && roas < 1 ? "text-rose-400" : "text-muted-foreground"}`}>
-                  <Star className="w-3 h-3" /> Receita
-                </div>
-                <div className={`text-sm font-bold tabular-nums mt-0.5 ${revenue > 0 && roas >= 1 ? "text-emerald-400" : revenue > 0 && roas < 1 ? "text-rose-400" : "text-muted-foreground"}`}>{BRL(revenue)}</div>
-                <div className="text-[9px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                  ROAS {roas.toFixed(2)}x
-                  {revenue > 0 && roas >= 1 ? <ArrowUpRight className="w-3 h-3 text-emerald-400" /> : revenue > 0 && roas < 1 ? <ArrowDownRight className="w-3 h-3 text-rose-400" /> : null}
-                  {wins ? ` · ${wins} venda${wins > 1 ? "s" : ""}` : ""}
-                </div>
-              </div>
-            </div>
-
-            {c.insights ? (
-              <>
-                <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
-                  <Metric label="Leads" value={NUM(stat?.leads ?? c.insights.leads)} />
-                  <Metric label="Consultas" value={NUM(meetings)} />
-                  <Metric label="Realizadas" value={NUM(showed)} />
-                  <Metric label="Vendas" value={NUM(wins)} />
-                </div>
-                <div className="grid grid-cols-3 gap-1.5 text-xs pl-1">
-                  <Metric label="CTR" value={`${c.insights.ctr.toFixed(1)}%`} />
-                  <Metric label="Custo/Consulta" value={meetings ? BRL(cpAppt) : "—"} />
-                  <Metric label="CAC" value={revenue > 0 && wins ? BRL(cac) : "—"} />
-                </div>
-              </>
-            ) : (
-              <div className="text-[11px] text-muted-foreground italic pl-1">Sem dados no período.</div>
-            )}
-
-            {c.daily && c.daily.length > 1 && (
-              <div className="pl-1">
-                <div className="flex items-center justify-between text-[9px] uppercase tracking-wider text-muted-foreground mb-0.5">
-                  <span>Tendência de leads · {period}d</span>
-                  <span className="tabular-nums text-cyan-400">{NUM(c.daily.reduce((a, d) => a + (d.leads || 0), 0))}</span>
-                </div>
-                <Sparkline data={c.daily} dataKey="leads" color="#22d3ee" />
-              </div>
-            )}
-
-            {/* Ações rápidas */}
-            <div className="flex items-center gap-1 pl-1 pt-0.5 opacity-70 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-              <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={() => setDetailCampaign(c)}>
-                <Eye className="w-3 h-3" /> Analisar
-              </Button>
-              <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={() => window.open(metaUrl, "_blank")}>
-                <ExternalLink className="w-3 h-3" /> Meta
-              </Button>
-              <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={copyId}>
-                <Copy className="w-3 h-3" /> ID
-              </Button>
-            </div>
-          </Card>
-          );
-        })}
+      {/* Barra de filtros / ordenação / agrupamento */}
+      <div className="flex flex-wrap items-center gap-2 border-t border-white/5 pt-4">
+        <div className="text-[10px] uppercase tracking-[0.22em] text-primary/70 mr-2">
+          Performance · {visibleCampaigns.length}/{campaigns.length}
+        </div>
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar campanha ou ID…"
+            className="h-8 pl-8 text-xs bg-background/60"
+          />
+        </div>
+        <Select value={objectiveFilter} onValueChange={setObjectiveFilter}>
+          <SelectTrigger className="h-8 text-xs w-[140px] bg-background/60"><SelectValue placeholder="Objetivo" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos objetivos</SelectItem>
+            {objectiveOptions.map((o) => <SelectItem key={o} value={o}>{formatObjective(o)}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={sortKey} onValueChange={(v) => setSortKey(v as any)}>
+          <SelectTrigger className="h-8 text-xs w-[150px] bg-background/60">
+            <ArrowDownAZ className="w-3.5 h-3.5 mr-1" /><SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="spend">Ordenar: Investido</SelectItem>
+            <SelectItem value="leads">Ordenar: Leads</SelectItem>
+            <SelectItem value="cpl">Ordenar: CPL ↑</SelectItem>
+            <SelectItem value="roas">Ordenar: ROAS</SelectItem>
+            <SelectItem value="ctr">Ordenar: CTR</SelectItem>
+            <SelectItem value="name">Ordenar: Nome</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={groupBy} onValueChange={(v) => setGroupBy(v as any)}>
+          <SelectTrigger className="h-8 text-xs w-[140px] bg-background/60"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Sem agrupar</SelectItem>
+            <SelectItem value="account">Por conta</SelectItem>
+            <SelectItem value="objective">Por objetivo</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          size="sm" variant={compareMode ? "default" : "outline"}
+          className="h-8 text-xs gap-1"
+          onClick={() => { setCompareMode((v) => !v); if (compareMode) setCompareIds([]); }}
+        >
+          <GitCompare className="w-3.5 h-3.5" /> Comparar
+        </Button>
       </div>
+
+      {/* Best / Worst */}
+      {(bestWorst.best || bestWorst.worst) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {bestWorst.best && (
+            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 flex items-center gap-2 text-xs">
+              <ArrowUpRight className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[9px] uppercase tracking-wider text-emerald-400/80">Melhor ROAS</div>
+                <div className="truncate">{bestWorst.best.name}</div>
+              </div>
+              <div className="font-bold tabular-nums text-emerald-400">{bestWorst.best.roas.toFixed(2)}x</div>
+            </div>
+          )}
+          {bestWorst.worst && bestWorst.worst.id !== bestWorst.best?.id && (
+            <div className="rounded-lg border border-rose-500/20 bg-rose-500/5 px-3 py-2 flex items-center gap-2 text-xs">
+              <ArrowDownRight className="w-4 h-4 text-rose-400 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[9px] uppercase tracking-wider text-rose-400/80">Pior ROAS</div>
+                <div className="truncate">{bestWorst.worst.name}</div>
+              </div>
+              <div className="font-bold tabular-nums text-rose-400">{bestWorst.worst.roas.toFixed(2)}x</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Barra de compare fixa */}
+      {compareMode && compareIds.length > 0 && (
+        <div className="sticky top-2 z-30 flex items-center gap-2 rounded-lg border border-primary/30 bg-background/95 backdrop-blur px-3 py-2 shadow-lg">
+          <GitCompare className="w-4 h-4 text-primary" />
+          <div className="text-xs font-medium">{compareIds.length} selecionada(s) — máx 4</div>
+          <div className="flex-1" />
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setCompareIds([])}>
+            <X className="w-3 h-3 mr-1" /> Limpar
+          </Button>
+          <Button size="sm" className="h-7 text-xs" disabled={compareIds.length < 2} onClick={() => setCompareOpen(true)}>
+            Comparar {compareIds.length}
+          </Button>
+        </div>
+      )}
+
+      {/* Grupos + Cards densos */}
+      {grouped.map((g) => (
+        <div key={g.key} className="space-y-2">
+          {g.label && (
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-muted-foreground border-b border-white/5 pb-1">
+              <ChevronDown className="w-3 h-3" /> {g.label}
+              <span className="text-primary/70">· {g.items.length}</span>
+            </div>
+          )}
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            {g.items.map((c) => {
+              const stat = crmStats[c.id];
+              const wins = stat?.wins ?? 0;
+              const revenue = (c.insights?.purchase_value || 0) + (stat?.revenue || 0);
+              const spend = c.insights?.spend || 0;
+              const roas = spend ? revenue / spend : 0;
+              const isActive = c.effective_status === "ACTIVE" || c.status === "ACTIVE";
+              const health = healthOf(c, revenue);
+              const dailyBudget = c.daily_budget ? Number(c.daily_budget) / 100 : 0;
+              const spendPct = dailyBudget > 0 ? Math.min(100, (spend / (dailyBudget * period)) * 100) : 0;
+              const selected = compareIds.includes(c.id);
+              const metaUrl = `https://business.facebook.com/adsmanager/manage/campaigns?act=${(c.ad_account_id || "").replace(/^act_/, "")}&selected_campaign_ids=${c.id}`;
+              const toneMap = {
+                emerald: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+                amber: "bg-amber-500/10 text-amber-400 border-amber-500/30",
+                rose: "bg-rose-500/10 text-rose-400 border-rose-500/30",
+                muted: "bg-muted/40 text-muted-foreground border-white/10",
+              } as const;
+              return (
+                <Card
+                  key={c.id}
+                  className={`relative p-3 flex flex-col gap-2 transition-all overflow-hidden group cursor-pointer hover:shadow-lg hover:shadow-primary/5 ${selected ? "border-primary ring-1 ring-primary/40" : "hover:border-primary/40"}`}
+                  onClick={() => compareMode ? toggleCompare(c.id) : setDetailCampaign(c)}
+                >
+                  <div className={`absolute left-0 top-0 h-full w-[3px] ${isActive ? "bg-emerald-400" : "bg-muted"}`} />
+
+                  {compareMode && (
+                    <div className="absolute right-2 top-2 z-10" onClick={(e) => { e.stopPropagation(); toggleCompare(c.id); }}>
+                      <Checkbox checked={selected} />
+                    </div>
+                  )}
+
+                  {/* Cabeçalho */}
+                  <div className="pl-1.5 pr-6">
+                    <div className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider">
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${isActive ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-muted/40 border-white/10 text-muted-foreground"}`}>
+                        {isActive ? "● ativa" : "○ pausada"}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${toneMap[health.tone]}`}>
+                        <Heart className="w-2.5 h-2.5" /> {health.label}
+                      </span>
+                      {c.objective && <span className="text-primary/60 truncate">{formatObjective(c.objective)}</span>}
+                    </div>
+                    <div className="text-[13px] font-medium leading-tight mt-1 line-clamp-2" title={c.name}>{c.name}</div>
+                    <div className="text-[9px] text-muted-foreground truncate mt-0.5">{c.ad_account_label || c.ad_account_id}</div>
+                  </div>
+
+                  {/* Métricas principais em linha */}
+                  <div className="grid grid-cols-3 gap-1 pl-1.5">
+                    <div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-2 py-1.5">
+                      <div className="text-[8px] uppercase tracking-wider text-amber-400/80">Custo</div>
+                      <div className="text-[13px] font-bold tabular-nums text-amber-400">{BRL(spend)}</div>
+                    </div>
+                    <div className="rounded-md border border-cyan-500/20 bg-cyan-500/5 px-2 py-1.5">
+                      <div className="text-[8px] uppercase tracking-wider text-cyan-400/80">CPL</div>
+                      <div className="text-[13px] font-bold tabular-nums text-cyan-400">{c.insights?.leads ? BRL(c.insights.cpl) : "—"}</div>
+                    </div>
+                    <div className={`rounded-md border px-2 py-1.5 ${revenue > 0 && roas >= 1 ? "border-emerald-500/20 bg-emerald-500/5" : revenue > 0 ? "border-rose-500/20 bg-rose-500/5" : "border-muted-foreground/20 bg-muted/30"}`}>
+                      <div className={`text-[8px] uppercase tracking-wider ${revenue > 0 && roas >= 1 ? "text-emerald-400/80" : revenue > 0 ? "text-rose-400/80" : "text-muted-foreground"}`}>ROAS</div>
+                      <div className={`text-[13px] font-bold tabular-nums ${revenue > 0 && roas >= 1 ? "text-emerald-400" : revenue > 0 ? "text-rose-400" : "text-muted-foreground"}`}>{revenue > 0 ? `${roas.toFixed(2)}x` : "—"}</div>
+                    </div>
+                  </div>
+
+                  {/* Micro-métricas */}
+                  <div className="grid grid-cols-4 gap-1 pl-1.5 text-[10px]">
+                    <MiniStat label="Leads" value={NUM(stat?.leads ?? c.insights?.leads ?? 0)} />
+                    <MiniStat label="Consult." value={NUM(stat?.meetings ?? 0)} />
+                    <MiniStat label="Vendas" value={NUM(wins)} />
+                    <MiniStat label="CTR" value={c.insights ? `${c.insights.ctr.toFixed(1)}%` : "—"} />
+                  </div>
+
+                  {/* Barra de orçamento diário */}
+                  {dailyBudget > 0 && (
+                    <div className="pl-1.5">
+                      <div className="flex items-center justify-between text-[9px] text-muted-foreground mb-0.5">
+                        <span>Uso do orçamento · {BRL(dailyBudget)}/dia</span>
+                        <span className="tabular-nums">{spendPct.toFixed(0)}%</span>
+                      </div>
+                      <Progress value={spendPct} className="h-1" />
+                    </div>
+                  )}
+
+                  {/* Sparkline compacta */}
+                  {c.daily && c.daily.length > 1 && (
+                    <div className="pl-1.5">
+                      <Sparkline data={c.daily} dataKey="leads" color="#22d3ee" />
+                    </div>
+                  )}
+
+                  {/* Ações */}
+                  <div className="flex items-center gap-0.5 pl-1 pt-0.5 opacity-70 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                    <Button size="sm" variant="ghost" className="h-6 px-1.5 text-[10px] gap-1" onClick={() => setDetailCampaign(c)}>
+                      <Eye className="w-3 h-3" /> Analisar
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-6 px-1.5 text-[10px] gap-1" onClick={() => window.open(metaUrl, "_blank")}>
+                      <ExternalLink className="w-3 h-3" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-6 px-1.5 text-[10px] gap-1" onClick={async () => { await navigator.clipboard.writeText(c.id); toast.success("ID copiado"); }}>
+                      <Copy className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      ))}
 
       {/* Alertas globais (compacto, após os cards) */}
       <AlertsPanel alerts={globalAlerts} />
-
-
 
       <CampaignDetailSheet
         open={!!detailCampaign}
@@ -627,8 +837,65 @@ export default function TenantCampaigns() {
         since={daysAgoISO(period)}
         until={todayISO()}
       />
+
+      {/* Diálogo de comparação */}
+      <Dialog open={compareOpen} onOpenChange={setCompareOpen}>
+        <DialogContent className="max-w-6xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><GitCompare className="w-5 h-5 text-primary" /> Comparar campanhas</DialogTitle>
+            <DialogDescription>Métricas lado a lado no período de {periodLabel}.</DialogDescription>
+          </DialogHeader>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-white/10 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <th className="text-left py-2 px-2 sticky left-0 bg-card">Métrica</th>
+                  {compareIds.map((id) => {
+                    const c = campaigns.find((x) => x.id === id);
+                    return <th key={id} className="text-left py-2 px-2 font-medium text-foreground max-w-[220px] truncate" title={c?.name}>{c?.name || id}</th>;
+                  })}
+                </tr>
+              </thead>
+              <tbody className="tabular-nums">
+                {(() => {
+                  const rows: Array<{ label: string; fn: (c: Campaign) => string }> = [
+                    { label: "Status", fn: (c) => (c.effective_status === "ACTIVE" || c.status === "ACTIVE") ? "Ativa" : "Pausada" },
+                    { label: "Objetivo", fn: (c) => formatObjective(c.objective) },
+                    { label: "Investido", fn: (c) => BRL(c.insights?.spend || 0) },
+                    { label: "Impressões", fn: (c) => NUM(c.insights?.impressions || 0) },
+                    { label: "CTR", fn: (c) => c.insights ? `${c.insights.ctr.toFixed(2)}%` : "—" },
+                    { label: "CPM", fn: (c) => c.insights ? BRL(c.insights.cpm) : "—" },
+                    { label: "Frequência", fn: (c) => c.insights?.frequency ? c.insights.frequency.toFixed(2) : "—" },
+                    { label: "Leads", fn: (c) => NUM(c.insights?.leads || 0) },
+                    { label: "CPL", fn: (c) => c.insights?.leads ? BRL(c.insights.cpl) : "—" },
+                    { label: "Consultas", fn: (c) => NUM(crmStats[c.id]?.meetings || 0) },
+                    { label: "Realizadas", fn: (c) => NUM(crmStats[c.id]?.showed || 0) },
+                    { label: "Vendas", fn: (c) => NUM(crmStats[c.id]?.wins || 0) },
+                    { label: "Receita", fn: (c) => BRL((c.insights?.purchase_value || 0) + (crmStats[c.id]?.revenue || 0)) },
+                    { label: "ROAS", fn: (c) => {
+                      const rev = (c.insights?.purchase_value || 0) + (crmStats[c.id]?.revenue || 0);
+                      const s = c.insights?.spend || 0;
+                      return s ? `${(rev / s).toFixed(2)}x` : "—";
+                    } },
+                  ];
+                  return rows.map((r) => (
+                    <tr key={r.label} className="border-b border-white/5">
+                      <td className="py-1.5 px-2 text-muted-foreground sticky left-0 bg-card">{r.label}</td>
+                      {compareIds.map((id) => {
+                        const c = campaigns.find((x) => x.id === id);
+                        return <td key={id} className="py-1.5 px-2">{c ? r.fn(c) : "—"}</td>;
+                      })}
+                    </tr>
+                  ));
+                })()}
+              </tbody>
+            </table>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
+
 }
 
 
@@ -643,11 +910,12 @@ const TONE_HSL: Record<string, string> = {
 
 function Kpi({
   icon: Icon, label, value, tone,
-  series, dataKey, formatter,
+  series, dataKey, formatter, delta,
 }: {
   icon: any; label: string; value: string; tone: string;
   series?: Array<Record<string, any>>; dataKey?: string;
   formatter?: (v: number) => string;
+  delta?: number;
 }) {
   const toneMap: Record<string, string> = {
     primary: "text-primary border-primary/20 bg-primary/5",
@@ -660,12 +928,23 @@ function Kpi({
   const showSpark = !!(series && series.length > 1 && dataKey);
   const color = TONE_HSL[tone] ?? "currentColor";
   const gid = `spark-${tone}-${label}`.replace(/\s+/g, "-");
+  const showDelta = typeof delta === "number" && isFinite(delta) && delta !== 0;
+  const deltaUp = (delta ?? 0) > 0;
   return (
     <Card className={`p-3 border ${toneMap[tone]} relative overflow-hidden`}>
       <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider opacity-80">
         <Icon className="w-3.5 h-3.5" /> {label}
       </div>
-      <div className="text-lg font-bold tabular-nums mt-1">{value}</div>
+      <div className="flex items-baseline gap-2 mt-1">
+        <div className="text-lg font-bold tabular-nums">{value}</div>
+        {showDelta && (
+          <span className={`text-[10px] font-semibold tabular-nums flex items-center gap-0.5 ${deltaUp ? "text-emerald-400" : "text-rose-400"}`}>
+            {deltaUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+            {Math.abs(delta!).toFixed(0)}%
+          </span>
+        )}
+      </div>
+
       {showSpark && (
         <div className="h-8 -mx-1 -mb-1 mt-1">
           <ResponsiveContainer width="100%" height="100%">
@@ -700,6 +979,15 @@ function Sparkline({ data, dataKey, color = "hsl(var(--primary))" }: { data: Arr
           <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={1.2} dot={false} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded bg-muted/20 px-1.5 py-1">
+      <div className="text-[8px] uppercase tracking-wider text-muted-foreground truncate">{label}</div>
+      <div className="font-semibold tabular-nums text-[11px]">{value}</div>
     </div>
   );
 }
