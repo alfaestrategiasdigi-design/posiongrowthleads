@@ -103,6 +103,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
   const hookState = useTenant({ skip: !!tenantOverride });
   const tenant = (tenantOverride as any) ?? hookState.tenant;
   const tLoading = tenantOverride ? false : hookState.loading;
+  const isMasterAccount = tenant?.id === "00000000-0000-0000-0000-000000000001";
   const [loading, setLoading] = useState(false);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [activeOnly, setActiveOnly] = useState(true);
