@@ -686,6 +686,63 @@ export default function CampanhasPage() {
     };
   }, [metaCampaigns, crmRevenueByCampaign]);
 
+  // ===== Gestão de eficiência =====
+  const campaignStatus = (c: MetaCampaign): { level: "ok"|"warn"|"critical"; reasons: string[]; cpl: number; cpr: number } => {
+    const i = c.insights;
+    const key = c.name.trim().toLowerCase();
+    const crmComp = crmCompByCampaign[key] || 0;
+    const cpl = i && i.leads ? i.spend / i.leads : 0;
+    const cpr = i && crmComp ? i.spend / crmComp : 0;
+    const reasons: string[] = [];
+    const critCplGate = thresholds.cplTarget * (1 + thresholds.alertMarginPct / 100);
+    const warnCplGate = thresholds.cplTarget;
+    let level: "ok"|"warn"|"critical" = "ok";
+    if (cpl > 0 && cpl > critCplGate) { level = "critical"; reasons.push(`CPL ${BRL(cpl)} > ${BRL(critCplGate)} (meta+${thresholds.alertMarginPct}%)`); }
+    else if (cpl > 0 && cpl > warnCplGate) { level = "warn"; reasons.push(`CPL ${BRL(cpl)} > meta ${BRL(warnCplGate)}`); }
+    if (cpr > 0 && cpr > thresholds.cprLimit) {
+      level = "critical";
+      reasons.push(`Custo/Reunião ${BRL(cpr)} > limite ${BRL(thresholds.cprLimit)}`);
+    }
+    // Sem leads mas com gasto relevante = warn
+    if ((i?.spend || 0) > thresholds.cplTarget * 3 && (i?.leads || 0) === 0) {
+      level = level === "critical" ? "critical" : "warn";
+      reasons.push(`Gasto ${BRL(i!.spend)} sem leads`);
+    }
+    return { level, reasons, cpl, cpr };
+  };
+
+  const criticalCount = useMemo(() => metaCampaigns.filter((c) => c.effective_status === "ACTIVE" && campaignStatus(c).level === "critical").length, [metaCampaigns, thresholds, crmCompByCampaign]);
+  const warnCount = useMemo(() => metaCampaigns.filter((c) => c.effective_status === "ACTIVE" && campaignStatus(c).level === "warn").length, [metaCampaigns, thresholds, crmCompByCampaign]);
+
+  const toggleSelect = (id: string) => setSelectedIds((prev) => {
+    const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n;
+  });
+  const selectAllCritical = () => {
+    const ids = metaCampaigns.filter((c) => c.effective_status === "ACTIVE" && campaignStatus(c).level === "critical").map((c) => c.id);
+    setSelectedIds(new Set(ids));
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const bulkPause = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Pausar ${selectedIds.size} campanha(s) selecionada(s)?`)) return;
+    setBulkPausing(true);
+    let ok = 0, fail = 0;
+    for (const id of Array.from(selectedIds)) {
+      try {
+        const { data, error } = await supabase.functions.invoke("facebook-ads-manage", {
+          body: { action: "set_status", object_id: id, status: "PAUSED" },
+        });
+        if (error || data?.error) throw new Error(error?.message || data?.error);
+        ok++;
+      } catch { fail++; }
+    }
+    setBulkPausing(false);
+    setSelectedIds(new Set());
+    toast({ title: `Pausadas: ${ok}${fail ? ` · Falhas: ${fail}` : ""}`, variant: fail ? "destructive" : "default" });
+    loadMetaCampaigns();
+  };
+
   const lastSyncLabel = lastSync
     ? new Date(lastSync).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
     : "nunca";
