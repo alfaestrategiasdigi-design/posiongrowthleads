@@ -1435,10 +1435,16 @@ const FacebookConfigPage = () => {
 
       <Tabs defaultValue="config" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="gestao">Gestão de Campanhas Meta</TabsTrigger>
           <TabsTrigger value="leads">Leads do Facebook</TabsTrigger>
           <TabsTrigger value="import">Importar CSV</TabsTrigger>
           <TabsTrigger value="config">Configuração</TabsTrigger>
         </TabsList>
+        <TabsContent value="gestao">
+          <div className="-mx-6">
+            <MetaAdsAdminPage />
+          </div>
+        </TabsContent>
         <TabsContent value="leads"><LeadsTab reloadKey={reloadKey} /></TabsContent>
         <TabsContent value="import"><ImportTab onImported={() => setReloadKey(k => k + 1)} /></TabsContent>
         <TabsContent value="config"><ConfigTab /></TabsContent>
