@@ -288,6 +288,31 @@ export default function TenantCampaigns() {
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
   }, [campaigns]);
 
+  const globalAlerts: Alert[] = useMemo(() => {
+    const out: Alert[] = [];
+    for (const c of campaigns) {
+      const ins = c.insights;
+      if (!ins) continue;
+      if ((ins.frequency ?? 0) > 3.5) {
+        out.push({ id: `freq-${c.id}`, severity: "warn", title: "Frequência alta", description: `${c.name}: frequência ${ins.frequency?.toFixed(1)}. Sinal de fadiga — considere novos criativos.`, scope: c.ad_account_label || c.ad_account_id });
+      }
+      if ((ins.hook_rate ?? 0) > 0 && (ins.hook_rate ?? 0) < 15) {
+        out.push({ id: `hook-${c.id}`, severity: "warn", title: "Hook Rate fraco", description: `${c.name}: Hook Rate ${ins.hook_rate?.toFixed(0)}% (< 15%). Reescreva os primeiros 3 segundos.`, scope: c.ad_account_label || c.ad_account_id });
+      }
+    }
+    if (kpis.show_rate > 0 && kpis.show_rate < 60 && kpis.appointments >= 5) {
+      out.push({ id: "show-rate", severity: "critical", title: "Taxa de show baixa", description: `${kpis.show_rate.toFixed(0)}% (< 60%). Reforce lembretes por WhatsApp ou peça sinal/pré-pagamento.`, scope: "Funil" });
+    }
+    if (kpis.wins > 0 && kpis.leads > 20) {
+      const closeRate = (kpis.wins / kpis.leads) * 100;
+      if (closeRate < 5) {
+        out.push({ id: "close-rate", severity: "warn", title: "Conversão de leads em vendas baixa", description: `Apenas ${closeRate.toFixed(1)}% dos leads viraram venda. Reveja qualificação e atendimento SDR.`, scope: "Funil" });
+      }
+    }
+    return out;
+  }, [campaigns, kpis]);
+
+
   const periodLabel = period === 1 ? "hoje" : period === 7 ? "últimos 7 dias" : period === 14 ? "últimos 14 dias" : period === 30 ? "últimos 30 dias" : "últimos 90 dias";
 
   if (tLoading || !tenant) {
