@@ -213,10 +213,49 @@ export default function CapiConfigPage() {
             <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
               <div>
                 <p className="text-sm font-medium">Envio automático ao marcar como Ganho</p>
-                <p className="text-xs text-muted-foreground">Desligue para pausar sem perder a configuração.</p>
+                <p className="text-xs text-muted-foreground">Purchase ao mover lead para "Ganho" no Kanban.</p>
               </div>
               <Switch checked={enabled} onCheckedChange={setEnabled} disabled={!selectedId} />
             </div>
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div className="rounded-md border border-border p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">📅 Consultas realizadas</p>
+                    <p className="text-[11px] text-muted-foreground">Dispara ao marcar como compareceu/realizado.</p>
+                  </div>
+                  <Switch checked={sendAppt} onCheckedChange={setSendAppt} disabled={!selectedId || !enabled} />
+                </div>
+                <Select value={apptEventName} onValueChange={setApptEventName} disabled={!sendAppt}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Schedule">Schedule</SelectItem>
+                    <SelectItem value="CompleteRegistration">CompleteRegistration</SelectItem>
+                    <SelectItem value="Contact">Contact</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="rounded-md border border-border p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">💰 Vendas registradas</p>
+                    <p className="text-[11px] text-muted-foreground">Purchase com valor real ao criar venda.</p>
+                  </div>
+                  <Switch checked={sendSale} onCheckedChange={setSendSale} disabled={!selectedId || !enabled} />
+                </div>
+                <Select value={saleEventName} onValueChange={setSaleEventName} disabled={!sendSale}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Purchase">Purchase</SelectItem>
+                    <SelectItem value="Subscribe">Subscribe</SelectItem>
+                    <SelectItem value="StartTrial">StartTrial</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
 
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="space-y-2">
