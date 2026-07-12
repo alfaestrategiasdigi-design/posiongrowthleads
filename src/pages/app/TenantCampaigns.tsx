@@ -399,7 +399,7 @@ export default function TenantCampaigns() {
           const spend = c.insights?.spend || 0;
           const roas = spend ? revenue / spend : 0;
           const cpMeeting = meetings ? spend / meetings : 0;
-          const cac = wins ? spend / wins : 0;
+          const cac = revenue > 0 && wins ? spend / wins : 0;
           const isActive = c.effective_status === "ACTIVE" || c.status === "ACTIVE";
           const metaUrl = `https://business.facebook.com/adsmanager/manage/campaigns?act=${(c.ad_account_id || "").replace(/^act_/, "")}&selected_campaign_ids=${c.id}`;
           const copyId = async () => {
@@ -442,11 +442,10 @@ export default function TenantCampaigns() {
                     />
                     <Metric label="CTR" value={`${c.insights.ctr.toFixed(1)}%`} />
                   </div>
-                  <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
+                  <div className="grid grid-cols-3 gap-1.5 text-xs pl-1">
                     <Metric label="Reuniões" value={NUM(meetings)} />
                     <Metric label="Custo/Reun." value={meetings ? BRL(cpMeeting) : "—"} />
-                    <Metric label="Vendas" value={NUM(wins)} />
-                    <Metric label="CAC" value={wins ? BRL(cac) : "—"} />
+                    <Metric label="CAC" value={revenue > 0 && wins ? BRL(cac) : "—"} />
                   </div>
                 </>
               ) : (
