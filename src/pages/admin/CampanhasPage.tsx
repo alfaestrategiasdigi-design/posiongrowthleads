@@ -1108,7 +1108,16 @@ export default function CampanhasPage() {
           )}
 
           <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-            {[...visibleCampaigns].sort((a, b) => (b.insights?.spend || 0) - (a.insights?.spend || 0)).map((c) => {
+            {[...visibleCampaigns]
+              .map((c) => ({ c, s: campaignStatus(c) }))
+              .filter(({ s }) => statusFilter === "all" || s.level === statusFilter)
+              .sort((a, b) => {
+                const rank = { critical: 0, warn: 1, ok: 2 };
+                const r = rank[a.s.level] - rank[b.s.level];
+                if (r !== 0) return r;
+                return (b.c.insights?.spend || 0) - (a.c.insights?.spend || 0);
+              })
+              .map(({ c, s }) => {
               const i = c.insights;
               const key = c.name.trim().toLowerCase();
               const crmWins = crmWinsByCampaign[key] || 0;
@@ -1119,27 +1128,58 @@ export default function CampanhasPage() {
               const isActive = c.effective_status === "ACTIVE";
               const dailyBudgetR = c.daily_budget ? Number(c.daily_budget) / 100 : null;
               const roas = i && i.spend ? ((i.purchase_value + crmRev) / i.spend) : 0;
-              const cpl = i && i.leads ? i.spend / i.leads : 0;
-              const cpr = i && crmComp ? i.spend / crmComp : 0;
+              const cpl = s.cpl;
+              const cpr = s.cpr;
+              const selected = selectedIds.has(c.id);
+              const stripCls =
+                s.level === "critical" ? "bg-gradient-to-r from-rose-500/0 via-rose-500 to-rose-500/0" :
+                s.level === "warn"     ? "bg-gradient-to-r from-amber-500/0 via-amber-500 to-amber-500/0" :
+                isActive ? "bg-gradient-to-r from-emerald-500/0 via-emerald-500 to-emerald-500/0" : "bg-slate-800";
+              const borderCls =
+                s.level === "critical" ? "border-rose-500/50 shadow-[0_0_28px_-8px_rgba(244,63,94,0.55)]" :
+                s.level === "warn"     ? "border-amber-500/40" :
+                isActive               ? "border-white/5 hover:border-[#C9A84C]/40 hover:shadow-[0_0_40px_-10px_rgba(201,168,76,0.35)]" :
+                                         "border-white/[0.03] opacity-70 hover:opacity-100";
 
               return (
                 <div key={c.id}
-                  className={`relative bg-gradient-to-br from-[#0B0B0B] to-[#080808] border rounded-2xl overflow-hidden transition-all group
-                    ${isActive ? "border-white/5 hover:border-[#C9A84C]/40 hover:shadow-[0_0_40px_-10px_rgba(201,168,76,0.35)]" : "border-white/[0.03] opacity-70 hover:opacity-100"}`}>
-                  {/* Status strip */}
-                  <div className={`absolute top-0 left-0 right-0 h-[2px] ${isActive ? "bg-gradient-to-r from-emerald-500/0 via-emerald-500 to-emerald-500/0" : "bg-slate-800"}`} />
+                  className={`relative bg-gradient-to-br from-[#0B0B0B] to-[#080808] border rounded-2xl overflow-hidden transition-all group ${borderCls}`}>
+                  <div className={`absolute top-0 left-0 right-0 h-[2px] ${stripCls}`} />
 
                   {/* Header */}
                   <div className="p-4 pb-3">
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <button onClick={() => toggleSelect(c.id)} title="Selecionar" className="shrink-0 text-slate-500 hover:text-white">
+                          {selected ? <CheckSquare className="w-3.5 h-3.5 text-[#C9A84C]" /> : <Square className="w-3.5 h-3.5" />}
+                        </button>
                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" : "bg-slate-700"}`} />
                         <span className={`text-[9px] uppercase tracking-widest font-bold ${isActive ? "text-emerald-500" : "text-slate-600"}`}>
                           {isActive ? "AO VIVO" : (c.effective_status || c.status)}
                         </span>
+                        {s.level === "critical" && (
+                          <span className="text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/40 flex items-center gap-1">
+                            <AlertTriangle className="w-2.5 h-2.5" /> Pausar
+                          </span>
+                        )}
+                        {s.level === "warn" && (
+                          <span className="text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/40">
+                            Atenção
+                          </span>
+                        )}
+                        {s.level === "ok" && isActive && (
+                          <span className="text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            Otimizada
+                          </span>
+                        )}
                       </div>
                       <span className="text-[9px] font-mono text-slate-600 truncate max-w-[110px]" title={c.id}>{c.id}</span>
                     </div>
+                    {s.reasons.length > 0 && (
+                      <div className={`text-[10px] mb-1.5 ${s.level === "critical" ? "text-rose-300" : "text-amber-300"}`}>
+                        {s.reasons.join(" · ")}
+                      </div>
+                    )}
                     <h4 className={`font-serif text-[15px] leading-tight ${isActive ? "text-white group-hover:text-[#F0D78C]" : "text-slate-400"} transition-colors line-clamp-2`}
                       title={c.name}>
                       {c.name}
