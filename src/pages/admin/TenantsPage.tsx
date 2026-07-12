@@ -32,6 +32,25 @@ export default function TenantsPage() {
   const [creating, setCreating] = useState(false);
   const [usersFor, setUsersFor] = useState<Tenant | null>(null);
   const [panelTenantId, setPanelTenantId] = useState<string | null>(null);
+  const [deleteFor, setDeleteFor] = useState<Tenant | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!deleteFor) return;
+    if (deleteConfirm.trim().toLowerCase() !== deleteFor.slug.toLowerCase()) {
+      toast.error("Digite o slug exatamente para confirmar");
+      return;
+    }
+    setDeleting(true);
+    const { error } = await supabase.from("tenants").delete().eq("id", deleteFor.id);
+    setDeleting(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Clínica "${deleteFor.name}" excluída`);
+    setDeleteFor(null);
+    setDeleteConfirm("");
+    refresh();
+  };
 
   const refresh = async () => {
     setLoading(true);
