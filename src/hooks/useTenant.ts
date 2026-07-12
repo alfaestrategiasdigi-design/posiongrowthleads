@@ -23,14 +23,16 @@ interface TenantState {
   error: string | null;
 }
 
-export function useTenant() {
+export function useTenant(options?: { skip?: boolean }) {
+  const skip = options?.skip === true;
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const navigate = useNavigate();
   const [state, setState] = useState<TenantState>({
-    loading: true, user: null, tenant: null, role: null, error: null,
+    loading: !skip, user: null, tenant: null, role: null, error: null,
   });
 
   useEffect(() => {
+    if (skip) return;
     let active = true;
 
     const load = async (user: User | null) => {
@@ -84,7 +86,7 @@ export function useTenant() {
     supabase.auth.getSession().then(({ data: { session } }) => load(session?.user ?? null));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => load(session?.user ?? null));
     return () => { active = false; subscription.unsubscribe(); };
-  }, [tenantSlug, navigate]);
+  }, [tenantSlug, navigate, skip]);
 
   return state;
 }

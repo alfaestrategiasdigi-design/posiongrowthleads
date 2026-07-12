@@ -107,11 +107,41 @@ function TenantPicker() {
   );
 }
 
+const MASTER_TENANT = {
+  id: MASTER_TENANT_ID,
+  slug: "admin-master",
+  name: "Posion Master · Alfa Reserva - Oficial",
+  logo_url: null,
+  plan: "master",
+  status: "active",
+  segment: null,
+};
+
 export default function CampanhasPage() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const navigate = useNavigate();
 
-  if (!tenantSlug) return <TenantPicker />;
+  if (!tenantSlug) {
+    return (
+      <div className="space-y-8">
+        <TenantPicker />
+        <div className="px-6 max-w-6xl mx-auto">
+          <div className="border-t border-border/60 pt-6">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <div className="text-xs uppercase tracking-widest text-muted-foreground">Posion Master</div>
+                <h2 className="text-2xl font-bold">Campanhas · Alfa Reserva - Oficial</h2>
+                <p className="text-sm text-muted-foreground">
+                  Conta de anúncios <span className="font-mono">542268044702233</span> vinculada ao Posion Master.
+                </p>
+              </div>
+            </div>
+          </div>
+          <TenantCampaigns tenantOverride={MASTER_TENANT} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
