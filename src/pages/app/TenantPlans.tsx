@@ -174,6 +174,10 @@ export default function TenantPlans() {
     customOffer?.recurring_amount_cents ||
     0;
 
+  const lastInvoiceNumber = lastApprovedInvoice?.stripe_invoice_id || lastApprovedInvoice?.mp_payment_id;
+  const lastInvoiceUrl = lastApprovedInvoice?.hosted_invoice_url || lastApprovedInvoice?.receipt_url;
+  const lastInvoiceAmount = lastApprovedInvoice?.amount_paid_cents;
+
   return (
     <div className="min-h-screen">
       <div className="p-4 md:p-10 max-w-[1200px] mx-auto space-y-8">
@@ -215,7 +219,7 @@ export default function TenantPlans() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="grid sm:grid-cols-3 gap-4 pt-2 border-t border-white/5">
+            <CardContent className="grid sm:grid-cols-2 md:grid-cols-4 gap-4 pt-2 border-t border-white/5">
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Último pagamento</div>
                 <div className="font-display text-xl mt-1">
@@ -239,6 +243,24 @@ export default function TenantPlans() {
                 </div>
                 <div className="text-[10px] text-muted-foreground">para o próximo pagamento</div>
               </div>
+              {lastInvoiceNumber && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Último comprovante</div>
+                  <a
+                    href={lastInvoiceUrl || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group inline-flex items-center gap-1.5 mt-2 text-xs font-medium text-emerald-300 hover:text-emerald-200 hover:underline"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span className="truncate max-w-[140px]">{lastInvoiceNumber}</span>
+                    <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100" />
+                  </a>
+                  <div className="text-[10px] text-muted-foreground mt-1">
+                    {lastInvoiceAmount ? BRL(lastInvoiceAmount) : "—"}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
