@@ -356,7 +356,7 @@ export default function Dashboard() {
 
         <div className="space-y-3">
           <MetricCard
-            label="Leads no pipeline"
+            label="Clínicas interessadas no pipeline"
             value={String(agency.leadsPeriodo)}
             current={agency.leadsPeriodo}
             previous={agency.leadsPrev}

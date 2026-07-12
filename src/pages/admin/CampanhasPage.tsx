@@ -746,10 +746,10 @@ export default function CampanhasPage() {
         {/* KPI Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <KpiTile label="Investido" value={BRL(kpis.spend)} accent />
-          <KpiTile label="Leads" value={NUM(kpis.leads)} />
-          <KpiTile label="CPL" value={kpis.cpl != null ? BRL(kpis.cpl) : "—"} />
+          <KpiTile label="Clínicas interessadas" value={NUM(kpis.leads)} />
+          <KpiTile label="Custo/Clínica" value={kpis.cpl != null ? BRL(kpis.cpl) : "—"} />
           <KpiTile label="ROAS" value={kpis.roas != null ? `${kpis.roas.toFixed(2)}x` : "—"} accentSoft />
-          <KpiTile label="Receita CRM" value={BRL(kpis.crmRevenue)} accent />
+          <KpiTile label="Receita contratos (CRM)" value={BRL(kpis.crmRevenue)} accent />
           <KpiTile label="Ativas / Total" value={`${kpis.active} / ${kpis.total}`} />
         </div>
 
@@ -1041,7 +1041,7 @@ export default function CampanhasPage() {
                     </div>
                     <div className="p-3">
                       <div className="text-[9px] text-[#C9A84C] uppercase tracking-widest font-bold flex items-center gap-1">
-                        <Crown className="w-2.5 h-2.5" /> Ganhos CRM
+                        <Crown className="w-2.5 h-2.5" /> Contratos fechados
                       </div>
                       <div className="text-lg font-serif text-[#C9A84C] tabular-nums mt-0.5">{BRL(crmRev)}</div>
                     </div>
@@ -1049,10 +1049,10 @@ export default function CampanhasPage() {
 
                   {/* Micro metrics */}
                   <div className="grid grid-cols-6 divide-x divide-white/5 border-b border-white/5 text-center">
-                    <MicroMetric label="Leads" value={NUM(i?.leads || 0)} />
-                    <MicroMetric label="Agendados" value={NUM(crmAppts)} highlight={crmAppts > 0} />
-                    <MicroMetric label="CPL" value={cpl ? BRL(cpl) : "—"} />
-                    <MicroMetric label="CPR" value={cpr ? BRL(cpr) : "—"} highlight={cpr > 0} />
+                    <MicroMetric label="Clínicas" value={NUM(i?.leads || 0)} />
+                    <MicroMetric label="Reuniões" value={NUM(crmAppts)} highlight={crmAppts > 0} />
+                    <MicroMetric label="Custo/Clínica" value={cpl ? BRL(cpl) : "—"} />
+                    <MicroMetric label="Custo/Reunião" value={cpr ? BRL(cpr) : "—"} highlight={cpr > 0} />
                     <MicroMetric label="CTR" value={i ? `${(i.ctr || 0).toFixed(1)}%` : "—"} />
                     <MicroMetric label="ROAS" value={roas ? `${roas.toFixed(1)}x` : "—"}
                       highlight={roas >= 2} />
