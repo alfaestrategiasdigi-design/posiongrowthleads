@@ -150,6 +150,15 @@ export default function TenantsPage() {
                         <Button asChild size="sm" variant="outline" className="gap-2">
                           <Link to={`/app/${t.slug}/dashboard`}><ExternalLink className="w-3 h-3" /> Abrir</Link>
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+                          onClick={() => { setDeleteFor(t); setDeleteConfirm(""); }}
+                          title="Excluir clínica"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
