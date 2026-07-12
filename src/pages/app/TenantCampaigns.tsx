@@ -509,7 +509,8 @@ export default function TenantCampaigns() {
         <div className="text-[10px] uppercase tracking-[0.22em] text-cyan-400/80 mb-2">Funil da Clínica</div>
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
           <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan"
-               series={dailyTotals} dataKey="leads" formatter={(v) => NUM(v)} />
+               series={dailyTotals} dataKey="leads" formatter={(v) => NUM(v)} delta={deltas.leads} />
+
           <Kpi icon={Target} label="CPL" value={BRL(kpis.cpl)} tone="violet" />
           <Kpi icon={CalendarCheck} label="Consultas Agendadas" value={NUM(kpis.appointments)} tone="cyan" />
           <Kpi icon={Target} label="Custo/Consulta" value={kpis.appointments ? BRL(kpis.cost_per_appointment) : "—"} tone="violet" />
