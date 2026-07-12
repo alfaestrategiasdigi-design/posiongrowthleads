@@ -15,6 +15,7 @@ import { format } from "date-fns";
 interface AgencyContract {
   id: string;
   tenant_id: string | null;
+  agency_lead_id: string | null;
   cliente_nome: string;
   valor_total: number;
   valor_comissao: number;
@@ -23,6 +24,13 @@ interface AgencyContract {
   status: "ativo" | "pausado" | "encerrado" | "cancelado";
   observacoes: string | null;
   created_at: string;
+}
+interface AgencyLeadOption {
+  id: string;
+  nome_clinica: string | null;
+  responsavel: string | null;
+  stage: string;
+  valor_proposta: number | null;
 }
 interface SaasContract {
   id: string;
