@@ -1293,6 +1293,7 @@ export type Database = {
       }
       facebook_capi_logs: {
         Row: {
+          appointment_id: string | null
           created_at: string
           error: string | null
           event_name: string | null
@@ -1301,10 +1302,12 @@ export type Database = {
           lead_id: string | null
           request: Json | null
           response: Json | null
+          sale_id: string | null
           status: string
           tenant_id: string | null
         }
         Insert: {
+          appointment_id?: string | null
           created_at?: string
           error?: string | null
           event_name?: string | null
@@ -1313,10 +1316,12 @@ export type Database = {
           lead_id?: string | null
           request?: Json | null
           response?: Json | null
+          sale_id?: string | null
           status: string
           tenant_id?: string | null
         }
         Update: {
+          appointment_id?: string | null
           created_at?: string
           error?: string | null
           event_name?: string | null
@@ -1325,6 +1330,7 @@ export type Database = {
           lead_id?: string | null
           request?: Json | null
           response?: Json | null
+          sale_id?: string | null
           status?: string
           tenant_id?: string | null
         }
@@ -3480,30 +3486,42 @@ export type Database = {
       tenant_capi_config: {
         Row: {
           access_token: string | null
+          appointment_event_name: string
           created_at: string
           default_event: string
           enabled: boolean
           pixel_id: string | null
+          sale_event_name: string
+          send_appointment_event: boolean
+          send_sale_event: boolean
           tenant_id: string
           test_event_code: string | null
           updated_at: string
         }
         Insert: {
           access_token?: string | null
+          appointment_event_name?: string
           created_at?: string
           default_event?: string
           enabled?: boolean
           pixel_id?: string | null
+          sale_event_name?: string
+          send_appointment_event?: boolean
+          send_sale_event?: boolean
           tenant_id: string
           test_event_code?: string | null
           updated_at?: string
         }
         Update: {
           access_token?: string | null
+          appointment_event_name?: string
           created_at?: string
           default_event?: string
           enabled?: boolean
           pixel_id?: string | null
+          sale_event_name?: string
+          send_appointment_event?: boolean
+          send_sale_event?: boolean
           tenant_id?: string
           test_event_code?: string | null
           updated_at?: string
