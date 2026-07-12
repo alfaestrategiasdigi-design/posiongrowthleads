@@ -313,6 +313,71 @@ export default function CapiConfigPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Validação — KPIs + logs recentes */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Validação dos eventos enviados
+            </CardTitle>
+            <CardDescription>Últimos 25 disparos server-side desta clínica (dedup por event_id).</CardDescription>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => loadLogs(selectedId)} disabled={logsLoading}>
+            {logsLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Atualizar"}
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {["Lead", "Schedule", "Purchase", "ViewContent", "InitiateCheckout"].map((ev) => {
+              const rows = logs.filter((l) => l.event_name === ev);
+              const success = rows.filter((r) => r.status === "success").length;
+              return (
+                <div key={ev} className="rounded-md border border-border p-3">
+                  <p className="text-[11px] text-muted-foreground">{ev}</p>
+                  <p className="text-lg font-semibold">{rows.length}</p>
+                  <p className="text-[10px] text-emerald-400">{success} ok</p>
+                </div>
+              );
+            })}
+          </div>
+          <div className="rounded-md border border-border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/40 text-muted-foreground">
+                <tr>
+                  <th className="text-left px-3 py-2">Quando</th>
+                  <th className="text-left px-3 py-2">Evento</th>
+                  <th className="text-left px-3 py-2">Origem</th>
+                  <th className="text-left px-3 py-2">Status</th>
+                  <th className="text-left px-3 py-2">HTTP</th>
+                  <th className="text-left px-3 py-2">Erro</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.length === 0 && (
+                  <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Nenhum evento ainda.</td></tr>
+                )}
+                {logs.map((l) => (
+                  <tr key={l.id} className="border-t border-border">
+                    <td className="px-3 py-2">{new Date(l.created_at).toLocaleString("pt-BR")}</td>
+                    <td className="px-3 py-2">{l.event_name || "—"}</td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {l.sale_id ? "venda" : l.appointment_id ? "consulta" : l.lead_id ? "lead" : "—"}
+                    </td>
+                    <td className="px-3 py-2">
+                      {l.status === "success"
+                        ? <Badge variant="outline" className="border-emerald-500/40 text-emerald-400">ok</Badge>
+                        : <Badge variant="outline" className="border-red-500/40 text-red-400">erro</Badge>}
+                    </td>
+                    <td className="px-3 py-2">{l.http_status ?? "—"}</td>
+                    <td className="px-3 py-2 text-red-400 truncate max-w-[280px]">{l.error || ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
