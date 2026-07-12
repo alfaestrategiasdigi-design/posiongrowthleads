@@ -495,7 +495,8 @@ export default function TenantCampaigns() {
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           <Kpi icon={Activity} label="Ativas" value={`${kpis.active}/${kpis.total}`} tone="primary" />
           <Kpi icon={DollarSign} label="Investido" value={BRL(kpis.spend)} tone="amber"
-               series={dailyTotals} dataKey="spend" formatter={(v) => BRL(v)} />
+               series={dailyTotals} dataKey="spend" formatter={(v) => BRL(v)} delta={deltas.spend} />
+
           <Kpi icon={MousePointerClick} label="Impressões" value={NUM(kpis.spend > 0 ? campaigns.reduce((a,c)=>a+(c.insights?.impressions||0),0) : 0)} tone="cyan" />
           <Kpi icon={Target} label="CTR" value={`${kpis.ctr.toFixed(2)}%`} tone="violet" />
           <Kpi icon={DollarSign} label="CPM" value={BRL(kpis.cpm)} tone="amber" />
