@@ -184,21 +184,23 @@ Deno.serve(async (req) => {
   user_data.client_user_agent = client_ua;
 
   // custom_data per event
-  const value = Number(body?.lead_value ?? lead?.valor_proposta ?? 0) || 0;
-  const category = lead?.especialidade || body?.content_category || null;
+  const value = Number(body?.lead_value ?? saleRow?.amount ?? lead?.valor_proposta ?? 0) || 0;
+  const category = appointmentRow?.procedure || appointmentRow?.appointment_type || saleRow?.product || lead?.especialidade || body?.content_category || null;
   const custom_data: Record<string, unknown> = {
     currency: "BRL",
     content_name: body?.content_name
-      || (event_name === "Purchase" ? (name ? `Lead Fechado - ${name}` : "Lead Fechado")
+      || (event_name === "Purchase" ? (name ? `Venda - ${name}` : "Venda")
+        : event_name === "Schedule" ? (name ? `Consulta Realizada - ${name}` : "Consulta Realizada")
         : event_name === "Lead" ? "Lead Formulário"
         : event_name === "InitiateCheckout" ? "Início de Formulário"
         : "Visita"),
   };
   if (category) custom_data.content_category = category;
-  if (event_name === "Purchase") { custom_data.value = value; custom_data.order_id = lead_id ?? null; }
+  if (event_name === "Purchase") { custom_data.value = value; custom_data.order_id = sale_id ?? lead_id ?? null; }
   else if (event_name === "Lead") { custom_data.value = value || 1; }
+  else if (event_name === "Schedule") { custom_data.value = value || 0; }
 
-  const action_source = body?.action_source || (event_name === "Purchase" || event_name === "Lead" ? "system_generated" : "website");
+  const action_source = body?.action_source || "system_generated";
   const event_source_url = body?.event_source_url || null;
 
   const payload: Record<string, unknown> = {
