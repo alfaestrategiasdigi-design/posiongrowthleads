@@ -135,7 +135,7 @@ export default function RelatoriosContainer({ scope, currentTenantId, scopeLabel
                   <p className="text-xs text-muted-foreground/80 mt-1">Indicadores-chave consolidados</p>
                 </div>
                 <ul className="text-xs md:text-sm space-y-2 mt-3">
-                  <li className="flex items-center justify-between"><span className="text-muted-foreground">Leads</span><span className="tabular-nums font-medium">{data.kpis.totalLeads.toLocaleString("pt-BR")}</span></li>
+                  <li className="flex items-center justify-between"><span className="text-muted-foreground">{scope === "admin" ? "Clínicas interessadas" : "Leads"}</span><span className="tabular-nums font-medium">{data.kpis.totalLeads.toLocaleString("pt-BR")}</span></li>
                   <li className="flex items-center justify-between"><span className="text-muted-foreground">Ganhos</span><span className="tabular-nums font-medium text-emerald-400">{data.kpis.ganhos}</span></li>
                   <li className="flex items-center justify-between"><span className="text-muted-foreground">Valor ganho</span><span className="tabular-nums font-medium text-emerald-400">{data.kpis.valorGanho.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}</span></li>
                   <li className="flex items-center justify-between"><span className="text-muted-foreground">Investimento</span><span className="tabular-nums font-medium">{data.kpis.investimento.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}</span></li>
