@@ -31,6 +31,11 @@ interface Invoice {
   status: string | null; paid_at: string | null; receipt_url: string | null;
   period_start: string | null; period_end: string | null; mp_payment_id: string | null;
 }
+interface FounderSlot {
+  id: string; tenant_id: string; status: string; amount_cents: number; currency: string | null;
+  paid_at: string | null; next_charge_at: string | null; offer_id: string | null;
+  payment_id: string | null; payer_email: string | null;
+}
 interface MpConfig {
   account_email: string | null; account_id: string | null; account_site: string | null;
   webhook_url: string | null; last_validated_at: string | null;
