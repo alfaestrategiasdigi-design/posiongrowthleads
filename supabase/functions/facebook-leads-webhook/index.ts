@@ -425,10 +425,13 @@ Deno.serve(async (req) => {
       const r = await insertLead(flat, {
         facebook_lead_id: body.id ?? body.leadgen_id ?? null,
         facebook_form_id: body.form_id ?? null,
-        facebook_campaign: body.campaign_name ?? body.campaign_id ?? null,
         facebook_form_name: body.form_name ?? null,
+        facebook_campaign: body.campaign_name ?? null,
+        facebook_campaign_id: body.campaign_id ? String(body.campaign_id) : null,
         facebook_ad_name: body.ad_name ?? null,
+        facebook_ad_id: body.ad_id ? String(body.ad_id) : null,
         facebook_adset_name: body.adset_name ?? null,
+        facebook_adset_id: body.adset_id ? String(body.adset_id) : null,
         tenant_id: route.tenantId,
       });
       results.push(r);
@@ -451,12 +454,14 @@ Deno.serve(async (req) => {
       const r = await insertLead(body, {
         facebook_lead_id: body.facebook_lead_id ?? body.lead_id ?? body.id ?? null,
         facebook_form_id: body.form_id ?? null,
-        facebook_campaign: body.campaign_name ?? body.utm_campaign ?? null,
         facebook_form_name: body.form_name ?? null,
+        facebook_campaign: body.campaign_name ?? body.utm_campaign ?? null,
+        facebook_campaign_id: body.campaign_id ? String(body.campaign_id) : null,
         facebook_ad_name: body.ad_name ?? null,
+        facebook_ad_id: body.ad_id ? String(body.ad_id) : null,
         facebook_adset_name: body.adset_name ?? null,
+        facebook_adset_id: body.adset_id ? String(body.adset_id) : null,
         tenant_id: route.tenantId,
-
       });
       results.push(r);
     }
