@@ -3071,6 +3071,7 @@ export type Database = {
           amount: number
           amount_paid: number
           amount_pending: number
+          appointment_id: string | null
           attended: string | null
           category: string | null
           channel: string | null
@@ -3107,6 +3108,7 @@ export type Database = {
           amount?: number
           amount_paid?: number
           amount_pending?: number
+          appointment_id?: string | null
           attended?: string | null
           category?: string | null
           channel?: string | null
@@ -3143,6 +3145,7 @@ export type Database = {
           amount?: number
           amount_paid?: number
           amount_pending?: number
+          appointment_id?: string | null
           attended?: string | null
           category?: string | null
           channel?: string | null
@@ -4173,6 +4176,24 @@ export type Database = {
       _internal_dispatch_headers: { Args: never; Returns: Json }
       count_founder_slots_taken: { Args: never; Returns: number }
       current_tenant_ids: { Args: never; Returns: string[] }
+      get_cost_per_appointment: {
+        Args: { p_end: string; p_start: string; p_tenant?: string }
+        Returns: {
+          cost_per_appointment: number
+          total_appointments: number
+          total_spend: number
+        }[]
+      }
+      get_cost_per_appointment_by_tenant: {
+        Args: { p_end: string; p_start: string }
+        Returns: {
+          cost_per_appointment: number
+          tenant_id: string
+          tenant_name: string
+          total_appointments: number
+          total_spend: number
+        }[]
+      }
       get_facebook_config_meta: {
         Args: never
         Returns: {
