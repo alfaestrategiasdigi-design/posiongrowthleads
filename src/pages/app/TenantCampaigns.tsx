@@ -116,6 +116,16 @@ export default function TenantCampaigns() {
   const [lastBackfill, setLastBackfill] = useState<Date | null>(null);
   const [detail, setDetail] = useState<Campaign | null>(null);
 
+  // Filtros / ordenação / agrupamento / compare
+  const [search, setSearch] = useState("");
+  const [objectiveFilter, setObjectiveFilter] = useState<string>("all");
+  const [sortKey, setSortKey] = useState<"spend" | "leads" | "cpl" | "roas" | "ctr" | "name">("spend");
+  const [groupBy, setGroupBy] = useState<"none" | "account" | "objective">("none");
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [compareOpen, setCompareOpen] = useState(false);
+
+
 
   const load = async () => {
     if (!tenant) return;
