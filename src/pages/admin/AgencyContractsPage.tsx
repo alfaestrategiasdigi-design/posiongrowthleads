@@ -84,9 +84,9 @@ export default function AgencyContractsPage() {
     <div className="p-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.22em] text-primary/70 mb-1">POSION Agência</div>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-primary/70 mb-1">POSION Master</div>
           <h1 className="text-3xl font-bold">Contratos</h1>
-          <p className="text-sm text-muted-foreground mt-1">Contratos de serviço + assinaturas SaaS.</p>
+          <p className="text-sm text-muted-foreground mt-1">Contratos originados do pipeline Posion Master + assinaturas SaaS.</p>
         </div>
         <Button onClick={() => setDialog("new")} className="gap-2"><Plus className="w-4 h-4" />Novo Contrato</Button>
       </div>
