@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { requestFacebookReconnect, detectNeedReconnect } from "@/components/facebook/ReconnectFacebookDialog";
+import CampaignDetailSheet from "@/components/campaigns/CampaignDetailSheet";
+import { Eye } from "lucide-react";
 
 type Tenant = { id: string; name: string; slug: string };
 type AdAccount = {
@@ -27,6 +29,7 @@ type RoutingRule = {
 type MetaCampaign = {
   id: string; name: string; status: string; effective_status: string;
   objective?: string; daily_budget?: string; lifetime_budget?: string;
+  account_id?: string; ad_account_id?: string;
   insights?: {
     spend: number; impressions: number; clicks: number; ctr: number;
     cpc: number; cpm: number; reach: number; frequency: number;
@@ -89,6 +92,7 @@ export default function CampanhasPage() {
   const [budgetDialog, setBudgetDialog] = useState<{ open: boolean; id?: string; name?: string; current?: string }>({ open: false });
   const [budgetValue, setBudgetValue] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [detailCampaign, setDetailCampaign] = useState<MetaCampaign | null>(null);
 
   type LeadForm = { id: string; name: string; status?: string; leads_count?: number; created_time?: string; page_id?: string; page_name?: string };
   type PageSummary = { id: string; name: string; forms_count: number; error?: boolean };
@@ -113,6 +117,17 @@ export default function CampanhasPage() {
     }
     return m;
   }, [rules]);
+
+  const resolveTenantId = (c: MetaCampaign): string | null => {
+    const raw = c.account_id || c.ad_account_id || "";
+    const key = raw ? (raw.startsWith("act_") ? raw : `act_${raw}`) : "";
+    if (key && accountTenantMap.get(key)) return accountTenantMap.get(key)!;
+    if (adAccountFilter !== "all") {
+      const k2 = adAccountFilter.startsWith("act_") ? adAccountFilter : `act_${adAccountFilter}`;
+      return accountTenantMap.get(k2) ?? null;
+    }
+    return null;
+  };
 
   const formIdRules = useMemo(
     () => rules.filter((r) => r.active && r.match_type === "form_id"),
@@ -1180,8 +1195,9 @@ export default function CampanhasPage() {
                         {s.reasons.join(" · ")}
                       </div>
                     )}
-                    <h4 className={`font-serif text-[15px] leading-tight ${isActive ? "text-white group-hover:text-[#F0D78C]" : "text-slate-400"} transition-colors line-clamp-2`}
-                      title={c.name}>
+                    <h4 className={`font-serif text-[15px] leading-tight ${isActive ? "text-white group-hover:text-[#F0D78C]" : "text-slate-400"} transition-colors line-clamp-2 cursor-pointer hover:underline`}
+                      title={`Ver detalhes: ${c.name}`}
+                      onClick={() => setDetailCampaign(c)}>
                       {c.name}
                     </h4>
                     <p className="text-[10px] text-slate-600 mt-1 truncate">
@@ -1231,6 +1247,11 @@ export default function CampanhasPage() {
                   {/* Actions */}
                   <div className="p-3 flex items-center justify-between gap-1">
                     <div className="flex items-center gap-1">
+                      <Button size="sm" variant="ghost"
+                        onClick={() => setDetailCampaign(c)}
+                        className="h-6 px-2 text-[9px] text-[#C9A84C] hover:text-[#F0D78C] hover:bg-white/5">
+                        <Eye className="w-3 h-3 mr-1" /> DETALHES
+                      </Button>
                       <Button size="sm" variant="ghost"
                         onClick={() => setBudgetDialog({ open: true, id: c.id, name: c.name, current: c.daily_budget })}
                         className="h-6 px-2 text-[9px] text-slate-400 hover:text-white hover:bg-white/5">
@@ -1320,6 +1341,16 @@ export default function CampanhasPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Campaign detail sheet (mesmo layout dos tenants) */}
+      <CampaignDetailSheet
+        open={!!detailCampaign}
+        onClose={() => setDetailCampaign(null)}
+        tenantId={detailCampaign ? (resolveTenantId(detailCampaign) || "") : ""}
+        campaign={detailCampaign as any}
+        since={since}
+        until={until}
+      />
 
     </div>
   );
