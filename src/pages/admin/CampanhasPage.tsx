@@ -746,8 +746,8 @@ export default function CampanhasPage() {
         {/* KPI Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <KpiTile label="Investido" value={BRL(kpis.spend)} accent />
-          <KpiTile label="Leads" value={NUM(kpis.leads)} />
-          <KpiTile label="CPL" value={kpis.cpl != null ? BRL(kpis.cpl) : "—"} />
+          <KpiTile label="Clínicas interessadas" value={NUM(kpis.leads)} />
+          <KpiTile label="Custo/Clínica" value={kpis.cpl != null ? BRL(kpis.cpl) : "—"} />
           <KpiTile label="ROAS" value={kpis.roas != null ? `${kpis.roas.toFixed(2)}x` : "—"} accentSoft />
           <KpiTile label="Receita CRM" value={BRL(kpis.crmRevenue)} accent />
           <KpiTile label="Ativas / Total" value={`${kpis.active} / ${kpis.total}`} />
