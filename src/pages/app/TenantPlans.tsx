@@ -137,6 +137,43 @@ export default function TenantPlans() {
     return cents / div;
   };
 
+  // ==== Detecta pagamento efetuado mesmo sem subscription formal ====
+  const lastApprovedInvoice = invoices.find((i) => i.status === "approved");
+  const founderPaid = founderSlot?.status === "paid";
+  const subPaid = sub && ["active", "authorized"].includes(sub.status);
+  const hasPaid = !!(subPaid || lastApprovedInvoice || founderPaid);
+
+  // Determina intervalo e data do último pagamento
+  const paidInterval: "month" | "quarter" | "semester" =
+    (sub?.interval as any) || (customOffer?.interval as any) || "month";
+  const monthsPerCycle = paidInterval === "semester" ? 6 : paidInterval === "quarter" ? 3 : 1;
+
+  const lastPaidAt: Date | null = (() => {
+    if (sub?.current_period_start) return new Date(sub.current_period_start);
+    if (lastApprovedInvoice?.paid_at) return new Date(lastApprovedInvoice.paid_at);
+    if (founderSlot?.paid_at) return new Date(founderSlot.paid_at);
+    if (founderSlot?.created_at) return new Date(founderSlot.created_at);
+    return null;
+  })();
+
+  const nextPaymentDate: Date | null = (() => {
+    if (sub?.current_period_end) return new Date(sub.current_period_end);
+    if (!lastPaidAt) return null;
+    const d = new Date(lastPaidAt);
+    d.setMonth(d.getMonth() + monthsPerCycle);
+    return d;
+  })();
+
+  const daysLeft = nextPaymentDate
+    ? Math.max(0, Math.ceil((nextPaymentDate.getTime() - Date.now()) / 86_400_000))
+    : null;
+
+  const paidAmountCents =
+    sub?.amount_cents ||
+    lastApprovedInvoice?.amount_paid_cents ||
+    customOffer?.recurring_amount_cents ||
+    0;
+
   return (
     <div className="min-h-screen">
       <div className="p-4 md:p-10 max-w-[1200px] mx-auto space-y-8">
@@ -153,7 +190,60 @@ export default function TenantPlans() {
           <Button variant="outline" onClick={refresh} className="gap-2"><RefreshCw className="w-4 h-4" /> Atualizar</Button>
         </div>
 
-        {customOffer ? (() => {
+        {hasPaid && (
+          <Card className="relative overflow-visible border-emerald-500/40 bg-gradient-to-br from-emerald-950/40 via-[#0E1730] to-[#0B1220]">
+            <div className="absolute -top-3 left-6 text-[10px] uppercase tracking-widest bg-emerald-500 text-emerald-950 px-2.5 py-1 rounded shadow-lg z-10 flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3" /> Assinatura ativa
+            </div>
+            <CardHeader className="pt-10 pb-3">
+              <div className="flex items-start justify-between gap-6 flex-wrap">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-6 h-6 text-emerald-300" />
+                  </div>
+                  <div className="min-w-0">
+                    <CardTitle className="text-2xl">POSION Pro — {intervalLabel(paidInterval)}</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Pagamento confirmado. Sua clínica está com acesso liberado.
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Valor pago</div>
+                  <div className="font-display text-3xl tabular-nums leading-tight">{BRL(paidAmountCents)}</div>
+                  <div className="text-[10px] text-muted-foreground mt-1">{intervalUnit(paidInterval)}</div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="grid sm:grid-cols-3 gap-4 pt-2 border-t border-white/5">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Último pagamento</div>
+                <div className="font-display text-xl mt-1">
+                  {lastPaidAt ? lastPaidAt.toLocaleDateString("pt-BR") : "—"}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Próxima cobrança</div>
+                <div className="font-display text-xl mt-1">
+                  {nextPaymentDate ? nextPaymentDate.toLocaleDateString("pt-BR") : "—"}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Faltam</div>
+                <div className="font-display text-2xl mt-1 text-emerald-300 tabular-nums">
+                  {daysLeft !== null
+                    ? daysLeft === 0
+                      ? "hoje"
+                      : `${daysLeft} ${daysLeft === 1 ? "dia" : "dias"}`
+                    : "—"}
+                </div>
+                <div className="text-[10px] text-muted-foreground">para o próximo pagamento</div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {!hasPaid && (customOffer ? (() => {
           const intervalLabel = (i: string) => i === "semester" ? "semestre" : i === "quarter" ? "trimestre" : "mês";
           const cyclesLabel = customOffer.entry_cycles > 1
             ? `${customOffer.entry_cycles} ${customOffer.interval === "month" ? "meses" : intervalLabel(customOffer.interval) + "s"}`
@@ -291,11 +381,11 @@ export default function TenantPlans() {
               </CardContent>
             </Card>
           );
-        })()}
+        })())}
 
 
 
-        {hasActiveSub && (
+        {hasActiveSub && !hasPaid && (
           <Card className="bg-[#0E1730] border-primary/30">
             <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
@@ -334,7 +424,7 @@ export default function TenantPlans() {
           </Card>
         )}
 
-        <TrialGate tenant={tenant as any}>
+        {!hasPaid && <TrialGate tenant={tenant as any}>
           <div>
             <h2 className="font-display text-xl mb-6">{hasActiveSub ? "Trocar de plano" : "Escolha seu compromisso"}</h2>
 
@@ -449,7 +539,7 @@ export default function TenantPlans() {
               Pagamentos processados pelo Mercado Pago. Cartão de crédito com cobrança automática recorrente.
             </div>
           )}
-        </TrialGate>
+        </TrialGate>}
 
 
         <Card className="bg-[#0E1730] border-white/10">
