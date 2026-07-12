@@ -165,6 +165,23 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
         if (!pa || !pb) return false;
         return pa === pb || pa === `55${pb}` || `55${pa}` === pb || pa.slice(-8) === pb.slice(-8);
       };
+      const normalizeCampaignText = (value?: string | null) => String(value ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      const similarCampaignName = (leadName?: string | null) => {
+        const leadNorm = normalizeCampaignText(leadName);
+        if (!leadNorm) return null;
+        for (const c of campList) {
+          const campNorm = normalizeCampaignText(c.name);
+          if (!campNorm) continue;
+          if (leadNorm === campNorm || leadNorm.startsWith(campNorm) || campNorm.startsWith(leadNorm)) return c.id;
+        }
+        return null;
+      };
       const bump = (key: string | null, patch: (s: CampaignStats) => void) => {
         if (key) {
           stats[key] = stats[key] || { leads: 0, meetings: 0, showed: 0, wins: 0, revenue: 0, contacts: 0 };
@@ -181,7 +198,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
         if (n1 && byName[n1]) return byName[n1];
         const n2 = (l.facebook_campaign || "").trim().toLowerCase();
         if (n2 && byName[n2]) return byName[n2];
-        return null;
+        return similarCampaignName(l.utm_campaign) ?? similarCampaignName(l.facebook_campaign);
       };
       const campIds = campList.map((c) => c.id).filter(Boolean);
       // Posion Master: leads da conta de agência ficam com tenant_id NULL.
@@ -835,7 +852,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
                   {/* Métricas principais em linha */}
                   <div className="grid grid-cols-3 gap-1 pl-1.5">
                     <div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-2 py-1.5">
-                      <div className="text-[8px] uppercase tracking-wider text-amber-400/80">Custo</div>
+                      <div className="text-[8px] uppercase tracking-wider text-amber-400/80">Investido</div>
                       <div className="text-[13px] font-bold tabular-nums text-amber-400">{BRL(spend)}</div>
                     </div>
                     <div className="rounded-md border border-cyan-500/20 bg-cyan-500/5 px-2 py-1.5">
@@ -850,9 +867,9 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
 
                   {/* Micro-métricas */}
                   <div className="grid grid-cols-4 gap-1 pl-1.5 text-[10px]">
-                    <MiniStat label="Leads" value={NUM(stat?.leads ?? c.insights?.leads ?? 0)} />
-                    <MiniStat label="Consult." value={NUM(stat?.meetings ?? 0)} />
-                    <MiniStat label="Vendas" value={NUM(wins)} />
+                    <MiniStat label="Leads" value={NUM(stat?.leads ?? 0)} />
+                    <MiniStat label={isMasterAccount ? "Reuniões" : "Consult."} value={NUM(stat?.meetings ?? 0)} />
+                    <MiniStat label={isMasterAccount ? "Contratos" : "Vendas"} value={NUM(wins)} />
                     <MiniStat label="CTR" value={c.insights ? `${c.insights.ctr.toFixed(1)}%` : "—"} />
                   </div>
 
