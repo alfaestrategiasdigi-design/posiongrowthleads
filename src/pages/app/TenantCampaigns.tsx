@@ -556,14 +556,14 @@ export default function TenantCampaigns() {
                   {c.insights?.leads ? `${BRL(c.insights.cpl)} CPL` : "sem leads"}
                 </div>
               </div>
-              <div className={`rounded-lg border px-3 py-2 flex flex-col ${revenue > spend ? "border-emerald-500/20 bg-emerald-500/5" : "border-rose-500/20 bg-rose-500/5"}`}>
-                <div className={`text-[9px] uppercase tracking-wider flex items-center gap-1 ${revenue > spend ? "text-emerald-400" : "text-rose-400"}`}>
+              <div className={`rounded-lg border px-3 py-2 flex flex-col ${revenue > 0 && roas >= 1 ? "border-emerald-500/20 bg-emerald-500/5" : revenue > 0 && roas < 1 ? "border-rose-500/20 bg-rose-500/5" : "border-muted-foreground/20 bg-muted/30"}`}>
+                <div className={`text-[9px] uppercase tracking-wider flex items-center gap-1 ${revenue > 0 && roas >= 1 ? "text-emerald-400" : revenue > 0 && roas < 1 ? "text-rose-400" : "text-muted-foreground"}`}>
                   <Star className="w-3 h-3" /> Receita
                 </div>
-                <div className={`text-sm font-bold tabular-nums mt-0.5 ${revenue > spend ? "text-emerald-400" : "text-rose-400"}`}>{BRL(revenue)}</div>
+                <div className={`text-sm font-bold tabular-nums mt-0.5 ${revenue > 0 && roas >= 1 ? "text-emerald-400" : revenue > 0 && roas < 1 ? "text-rose-400" : "text-muted-foreground"}`}>{BRL(revenue)}</div>
                 <div className="text-[9px] text-muted-foreground mt-0.5 flex items-center gap-1">
                   ROAS {roas.toFixed(2)}x
-                  {roas >= 2 ? <ArrowUpRight className="w-3 h-3 text-emerald-400" /> : roas > 0 ? <ArrowDownRight className="w-3 h-3 text-rose-400" /> : null}
+                  {revenue > 0 && roas >= 1 ? <ArrowUpRight className="w-3 h-3 text-emerald-400" /> : revenue > 0 && roas < 1 ? <ArrowDownRight className="w-3 h-3 text-rose-400" /> : null}
                   {wins ? ` · ${wins} venda${wins > 1 ? "s" : ""}` : ""}
                 </div>
               </div>
