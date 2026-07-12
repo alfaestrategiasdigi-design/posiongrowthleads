@@ -1042,14 +1042,57 @@ export default function CampanhasPage() {
 
         {/* Campaigns — Card Grid */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between px-1">
+          <div className="flex items-center justify-between px-1 flex-wrap gap-2">
             <div>
               <h3 className="text-xs font-bold text-slate-500 tracking-widest uppercase">Performance de Campanhas</h3>
-              <p className="text-[10px] text-slate-600 mt-0.5">Grid tecnológico · ordenado por investimento</p>
+              <p className="text-[10px] text-slate-600 mt-0.5">Gestão global · ordenado por investimento</p>
             </div>
-            <span className="text-[10px] text-slate-600 uppercase tabular-nums">
-              {loadingCampaigns ? "Carregando…" : `${visibleCampaigns.length} campanha(s)`}
-            </span>
+            <div className="flex items-center gap-2 text-[10px]">
+              <span className="px-2 py-1 rounded-md bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold uppercase tracking-widest">
+                <AlertTriangle className="w-3 h-3 inline mr-1" />{criticalCount} pausar
+              </span>
+              <span className="px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold uppercase tracking-widest">
+                {warnCount} atenção
+              </span>
+              <span className="text-slate-600 uppercase tabular-nums">{loadingCampaigns ? "Carregando…" : `${visibleCampaigns.length} total`}</span>
+            </div>
+          </div>
+
+          {/* Barra de eficiência */}
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-xl bg-[#0A0A0A] border border-white/5">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Filtro</span>
+            <div className="flex items-center rounded-md border border-white/10 overflow-hidden">
+              {(["all","critical","warn","ok"] as const).map((k) => (
+                <button key={k} onClick={() => setStatusFilter(k)}
+                  className={`px-2.5 h-7 text-[10px] font-bold uppercase tracking-widest transition ${statusFilter === k ? "bg-[#C9A84C]/20 text-[#F0D78C]" : "text-slate-500 hover:text-slate-300"}`}>
+                  {k === "all" ? "Todas" : k === "critical" ? "Pausar" : k === "warn" ? "Atenção" : "OK"}
+                </button>
+              ))}
+            </div>
+            <div className="h-5 w-px bg-white/10" />
+            <Button size="sm" variant="ghost" onClick={() => setThresholdDialog(true)}
+              className="h-7 px-2 text-[10px] text-slate-400 hover:text-white">
+              <Settings className="w-3 h-3 mr-1" /> Limites de eficiência
+            </Button>
+            <Button size="sm" variant="ghost" onClick={selectAllCritical}
+              className="h-7 px-2 text-[10px] text-rose-400 hover:text-rose-300 hover:bg-rose-500/10">
+              <CheckSquare className="w-3 h-3 mr-1" /> Selecionar críticas ({criticalCount})
+            </Button>
+            <div className="ml-auto flex items-center gap-2">
+              {selectedIds.size > 0 && (
+                <>
+                  <span className="text-[10px] text-slate-400 tabular-nums">{selectedIds.size} selecionada(s)</span>
+                  <Button size="sm" variant="ghost" onClick={clearSelection} className="h-7 px-2 text-[10px] text-slate-500 hover:text-white">
+                    Limpar
+                  </Button>
+                  <Button size="sm" onClick={bulkPause} disabled={bulkPausing}
+                    className="h-7 px-3 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold uppercase tracking-widest">
+                    {bulkPausing ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Pause className="w-3 h-3 mr-1" />}
+                    Pausar em massa
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
           {!adAccountConfigured && (
