@@ -289,17 +289,28 @@ export default function TenantCampaigns() {
   }, [campaigns]);
 
   const globalAlerts: Alert[] = useMemo(() => {
-    const out: Alert[] = [];
+    const freqAlerts: Alert[] = [];
+    const hookAlerts: Alert[] = [];
     for (const c of campaigns) {
-      const ins = c.insights;
+      const ins: any = c.insights;
       if (!ins) continue;
-      if ((ins.frequency ?? 0) > 3.5) {
-        out.push({ id: `freq-${c.id}`, severity: "warn", title: "Frequência alta", description: `${c.name}: frequência ${ins.frequency?.toFixed(1)}. Sinal de fadiga — considere novos criativos.`, scope: c.ad_account_label || c.ad_account_id });
+      const impressions = ins.impressions ?? 0;
+      const videoViews = ins.video_views ?? 0;
+      if ((ins.frequency ?? 0) > 3.5 && impressions >= 2000) {
+        freqAlerts.push({ id: `freq-${c.id}`, severity: "warn", title: "Frequência alta", description: `${c.name}: frequência ${ins.frequency?.toFixed(1)}. Sinal de fadiga — considere novos criativos.`, scope: c.ad_account_label || c.ad_account_id });
       }
-      if ((ins.hook_rate ?? 0) > 0 && (ins.hook_rate ?? 0) < 15) {
-        out.push({ id: `hook-${c.id}`, severity: "warn", title: "Hook Rate fraco", description: `${c.name}: Hook Rate ${ins.hook_rate?.toFixed(0)}% (< 15%). Reescreva os primeiros 3 segundos.`, scope: c.ad_account_label || c.ad_account_id });
+      if ((ins.hook_rate ?? 0) > 0 && (ins.hook_rate ?? 0) < 15 && impressions >= 1000 && videoViews >= 200) {
+        hookAlerts.push({ id: `hook-${c.id}`, severity: "warn", title: "Hook Rate fraco", description: `${c.name}: Hook Rate ${ins.hook_rate?.toFixed(0)}% (< 15%). Reescreva os primeiros 3 segundos.`, scope: c.ad_account_label || c.ad_account_id });
       }
     }
+    // Limita ruído: mostra no máximo 3 por regra (adicionamos sufixo se houver mais)
+    const cap = (list: Alert[], key: string): Alert[] => {
+      if (list.length <= 3) return list;
+      const top = list.slice(0, 3);
+      top.push({ id: `${key}-more`, severity: "info", title: `+${list.length - 3} campanhas com ${key === "hook" ? "Hook Rate fraco" : "frequência alta"}`, description: "Abra a campanha para investigar." });
+      return top;
+    };
+    const out: Alert[] = [...cap(freqAlerts, "freq"), ...cap(hookAlerts, "hook")];
     if (kpis.show_rate > 0 && kpis.show_rate < 60 && kpis.appointments >= 5) {
       out.push({ id: "show-rate", severity: "critical", title: "Taxa de show baixa", description: `${kpis.show_rate.toFixed(0)}% (< 60%). Reforce lembretes por WhatsApp ou peça sinal/pré-pagamento.`, scope: "Funil" });
     }
