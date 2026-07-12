@@ -53,7 +53,11 @@ export default function AgencyContractsPage() {
   const load = async () => {
     setLoading(true);
     const [a, s] = await Promise.all([
-      supabase.from("agency_contracts").select("*").order("data_assinatura", { ascending: false }),
+      supabase
+        .from("agency_contracts")
+        .select("*")
+        .not("agency_lead_id", "is", null)
+        .order("data_assinatura", { ascending: false }),
       supabase.from("saas_contracts").select("*").order("started_at", { ascending: false }),
     ]);
     setAgency((a.data || []) as AgencyContract[]);
