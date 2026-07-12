@@ -233,8 +233,6 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       const scheduledSet = new Set<string>();
       const showedSet = new Set<string>();
       const apptCampaignKeys = new Set<string>();
-      let unassignedAppointments = 0;
-      let unassignedShowed = 0;
       // Dedup global de reuniões: usa lead_id quando existir; caso contrário telefone normalizado + data.
       const meetingDedup = new Set<string>();
       const showedDedup = new Set<string>();
