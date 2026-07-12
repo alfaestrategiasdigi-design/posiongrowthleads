@@ -120,6 +120,62 @@ export default function SubscriptionsPage() {
     return map;
   }, [invoices]);
 
+  const slotsByTenant = useMemo(() => {
+    const map = new Map<string, FounderSlot>();
+    for (const slot of founderSlots) {
+      if (slot.status === "paid" && !map.has(slot.tenant_id)) map.set(slot.tenant_id, slot);
+    }
+    return map;
+  }, [founderSlots]);
+
+  const effectiveSubByTenant = useMemo(() => {
+    const map = new Map<string, Sub>();
+    for (const t of tenants) {
+      const realSub = subByTenant.get(t.id);
+      if (realSub) {
+        map.set(t.id, realSub);
+        continue;
+      }
+      const slot = slotsByTenant.get(t.id);
+      const approvedInvoice = invoicesByTenant.get(t.id)?.find((i) => i.status === "approved");
+      const offer = slot ? offerMap.get(t.id) : null;
+      if (slot) {
+        map.set(t.id, {
+          id: slot.id,
+          tenant_id: t.id,
+          plan_code: offer?.label || "founder",
+          interval: offer?.interval || "month",
+          lookup_key: null,
+          status: "active",
+          current_period_end: slot.next_charge_at,
+          cancel_at_period_end: false,
+          amount_cents: slot.amount_cents,
+          currency: slot.currency || "brl",
+          mp_preapproval_id: slot.payment_id || null,
+          mp_payer_email: slot.payer_email || null,
+          mp_init_point: null,
+        });
+      } else if (approvedInvoice) {
+        map.set(t.id, {
+          id: approvedInvoice.id,
+          tenant_id: t.id,
+          plan_code: "pago",
+          interval: "month",
+          lookup_key: null,
+          status: "approved",
+          current_period_end: approvedInvoice.period_end,
+          cancel_at_period_end: false,
+          amount_cents: approvedInvoice.amount_paid_cents,
+          currency: approvedInvoice.currency || "brl",
+          mp_preapproval_id: approvedInvoice.mp_payment_id || null,
+          mp_payer_email: null,
+          mp_init_point: null,
+        });
+      }
+    }
+    return map;
+  }, [tenants, subByTenant, slotsByTenant, invoicesByTenant, offerMap]);
+
   // ── Plan catalog ────────────────────────────────────────────────
   const openEditPlan = (p: Plan) => {
     setEditPlan(p);
