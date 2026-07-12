@@ -54,9 +54,15 @@ export default function CapiConfigPage() {
   const [event, setEvent] = useState("Purchase");
   const [testCode, setTestCode] = useState("");
   const [enabled, setEnabled] = useState(true);
+  const [sendAppt, setSendAppt] = useState(false);
+  const [sendSale, setSendSale] = useState(false);
+  const [apptEventName, setApptEventName] = useState("Schedule");
+  const [saleEventName, setSaleEventName] = useState("Purchase");
   const [reveal, setReveal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [logs, setLogs] = useState<CapiLog[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -75,6 +81,19 @@ export default function CapiConfigPage() {
     })();
   }, []);
 
+  const loadLogs = async (tid: string) => {
+    if (!tid) return;
+    setLogsLoading(true);
+    const { data } = await supabase
+      .from("facebook_capi_logs")
+      .select("id,event_name,status,http_status,error,created_at,lead_id,appointment_id,sale_id")
+      .eq("tenant_id", tid)
+      .order("created_at", { ascending: false })
+      .limit(25);
+    setLogs((data as any) || []);
+    setLogsLoading(false);
+  };
+
   useEffect(() => {
     const c = configs[selectedId];
     setPixel(c?.pixel_id || "");
@@ -82,7 +101,12 @@ export default function CapiConfigPage() {
     setEvent(c?.default_event || "Purchase");
     setTestCode(c?.test_event_code || "");
     setEnabled(c?.enabled !== false);
+    setSendAppt(!!c?.send_appointment_event);
+    setSendSale(!!c?.send_sale_event);
+    setApptEventName(c?.appointment_event_name || "Schedule");
+    setSaleEventName(c?.sale_event_name || "Purchase");
     setReveal(false);
+    loadLogs(selectedId);
   }, [selectedId, configs]);
 
   const save = async () => {
@@ -95,6 +119,10 @@ export default function CapiConfigPage() {
       default_event: event || "Purchase",
       test_event_code: testCode.trim() || null,
       enabled,
+      send_appointment_event: sendAppt,
+      send_sale_event: sendSale,
+      appointment_event_name: apptEventName || "Schedule",
+      sale_event_name: saleEventName || "Purchase",
     };
     const { error } = await supabase.from("tenant_capi_config").upsert(payload, { onConflict: "tenant_id" });
     setSaving(false);
@@ -102,6 +130,8 @@ export default function CapiConfigPage() {
     setConfigs((p) => ({ ...p, [selectedId]: payload as any }));
     toast.success("Configuração CAPI salva");
   };
+
+
 
   const test = async () => {
     if (!selectedId) return;
