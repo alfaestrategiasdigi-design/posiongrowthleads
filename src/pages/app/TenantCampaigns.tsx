@@ -463,15 +463,14 @@ export default function TenantCampaigns() {
       {/* Cards compactos */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {campaigns.map((c) => {
-          const key = c.name.trim().toLowerCase();
-          const win = crmWins[key];
-          const stat = crmStats[key];
+          const stat = crmStats[c.id];
           const meetings = stat?.meetings ?? 0;
-          const wins = stat?.wins ?? win?.count ?? 0;
-          const revenue = (c.insights?.purchase_value || 0) + (win?.value || 0);
+          const showed = stat?.showed ?? 0;
+          const wins = stat?.wins ?? 0;
+          const revenue = (c.insights?.purchase_value || 0) + (stat?.revenue || 0);
           const spend = c.insights?.spend || 0;
           const roas = spend ? revenue / spend : 0;
-          const cpMeeting = meetings ? spend / meetings : 0;
+          const cpAppt = meetings ? spend / meetings : 0;
           const cac = revenue > 0 && wins ? spend / wins : 0;
           const isActive = c.effective_status === "ACTIVE" || c.status === "ACTIVE";
           const metaUrl = `https://business.facebook.com/adsmanager/manage/campaigns?act=${(c.ad_account_id || "").replace(/^act_/, "")}&selected_campaign_ids=${c.id}`;
@@ -480,7 +479,11 @@ export default function TenantCampaigns() {
             toast.success("ID da campanha copiado");
           };
           return (
-            <Card key={c.id} className="relative p-3.5 flex flex-col gap-2.5 hover:border-primary/40 transition-colors overflow-hidden group">
+            <Card
+              key={c.id}
+              className="relative p-3.5 flex flex-col gap-2.5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all overflow-hidden group cursor-pointer"
+              onClick={() => setDetailCampaign(c)}
+            >
               {/* status strip */}
               <div className={`absolute left-0 top-0 h-full w-[3px] ${isActive ? "bg-emerald-400 shadow-[0_0_12px_hsl(var(--primary))]" : "bg-muted"}`} />
 
@@ -505,27 +508,25 @@ export default function TenantCampaigns() {
                 <>
                   <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
                     <Metric label="Gasto" value={BRL(c.insights.spend)} />
-                    <Metric
-                      label={c.insights.result_label || "Leads"}
-                      value={NUM(c.insights.result_value ?? c.insights.leads)}
-                    />
-                    <Metric
-                      label={cprLabel(c.insights.result_kind)}
-                      value={BRL(c.insights.cost_per_result ?? c.insights.cpl)}
-                    />
                     <Metric label="CTR" value={`${c.insights.ctr.toFixed(1)}%`} />
+                    <Metric label="CPM" value={BRL(c.insights.cpm)} />
+                    <Metric label="Freq" value={(c.insights.frequency ?? 0).toFixed(1)} />
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
+                    <Metric label="Leads" value={NUM(stat?.leads ?? c.insights.leads)} />
+                    <Metric label="Consultas" value={NUM(meetings)} />
+                    <Metric label="Realizadas" value={NUM(showed)} />
+                    <Metric label="Vendas" value={NUM(wins)} />
                   </div>
                   <div className="grid grid-cols-3 gap-1.5 text-xs pl-1">
-                    <Metric label="Reuniões" value={NUM(meetings)} />
-                    <Metric label="Custo/Reun." value={meetings ? BRL(cpMeeting) : "—"} />
+                    <Metric label="CPL" value={c.insights.leads > 0 ? BRL(c.insights.cpl) : "—"} />
+                    <Metric label="Custo/Consulta" value={meetings ? BRL(cpAppt) : "—"} />
                     <Metric label="CAC" value={revenue > 0 && wins ? BRL(cac) : "—"} />
                   </div>
                 </>
               ) : (
                 <div className="text-[11px] text-muted-foreground italic pl-1">Sem dados no período.</div>
               )}
-
-
 
               {c.daily && c.daily.length > 1 && (
                 <div className="pl-1">
@@ -537,7 +538,6 @@ export default function TenantCampaigns() {
                 </div>
               )}
 
-
               <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1.5 flex items-center justify-between ml-1">
                 <div className="text-[9px] uppercase tracking-wider text-emerald-400 flex items-center gap-1">
                   <Star className="w-3 h-3" /> Receita
@@ -545,15 +545,15 @@ export default function TenantCampaigns() {
                 <div className="text-right leading-tight">
                   <div className="text-xs font-bold tabular-nums text-emerald-400">{BRL(revenue)}</div>
                   <div className="text-[9px] text-muted-foreground">
-                    ROAS {roas.toFixed(2)}x{win?.count ? ` · ${win.count} venda${win.count > 1 ? "s" : ""}` : ""}
+                    ROAS {roas.toFixed(2)}x{wins ? ` · ${wins} venda${wins > 1 ? "s" : ""}` : ""}
                   </div>
                 </div>
               </div>
 
               {/* Ações rápidas */}
-              <div className="flex items-center gap-1 pl-1 pt-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
-                <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={() => setDetail(c)}>
-                  <Eye className="w-3 h-3" /> Detalhes
+              <div className="flex items-center gap-1 pl-1 pt-0.5 opacity-70 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={() => setDetailCampaign(c)}>
+                  <Eye className="w-3 h-3" /> Analisar
                 </Button>
                 <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={() => window.open(metaUrl, "_blank")}>
                   <ExternalLink className="w-3 h-3" /> Meta
@@ -567,56 +567,18 @@ export default function TenantCampaigns() {
         })}
       </div>
 
-      {/* Detail Dialog */}
-      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="pr-6">{detail?.name}</DialogTitle>
-            <DialogDescription className="font-mono text-[11px]">
-              {detail?.ad_account_label || detail?.ad_account_id} · {detail?.id}
-            </DialogDescription>
-          </DialogHeader>
-          {detail?.insights ? (
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              <Metric label="Gasto" value={BRL(detail.insights.spend)} />
-              <Metric label="Impr." value={NUM(detail.insights.impressions)} />
-              <Metric label="Cliques" value={NUM(detail.insights.clicks)} />
-              <Metric label="CTR" value={`${detail.insights.ctr.toFixed(2)}%`} />
-              <Metric label="CPC" value={BRL(detail.insights.cpc)} />
-              <Metric label="CPM" value={BRL(detail.insights.cpm)} />
-              <Metric label="Leads" value={NUM(detail.insights.leads)} />
-              <Metric label="CPL" value={BRL(detail.insights.cpl)} />
-              <Metric label="ROAS" value={`${detail.insights.roas.toFixed(2)}x`} />
-            </div>
-          ) : (
-            <div className="text-sm text-muted-foreground italic">Sem insights no período.</div>
-          )}
-          <div className="flex items-center gap-2 pt-2">
-            <Badge variant="outline" className="text-[10px]">{detail?.objective || "—"}</Badge>
-            <Badge variant="outline" className="text-[10px]">Status: {detail?.effective_status || detail?.status}</Badge>
-            {detail?.daily_budget && (
-              <Badge variant="outline" className="text-[10px]">
-                Diário: {BRL(Number(detail.daily_budget) / 100)}
-              </Badge>
-            )}
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" className="gap-1" onClick={() => detail && navigator.clipboard.writeText(detail.id).then(() => toast.success("ID copiado"))}>
-              <Copy className="w-3.5 h-3.5" /> Copiar ID
-            </Button>
-            <Button size="sm" className="gap-1" onClick={() => {
-              if (!detail) return;
-              const url = `https://business.facebook.com/adsmanager/manage/campaigns?act=${(detail.ad_account_id || "").replace(/^act_/, "")}&selected_campaign_ids=${detail.id}`;
-              window.open(url, "_blank");
-            }}>
-              <ExternalLink className="w-3.5 h-3.5" /> Abrir no Meta
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <CampaignDetailSheet
+        open={!!detailCampaign}
+        onClose={() => setDetailCampaign(null)}
+        tenantId={tenant.id}
+        campaign={detailCampaign as any}
+        since={daysAgoISO(period)}
+        until={todayISO()}
+      />
     </div>
   );
 }
+
 
 const TONE_HSL: Record<string, string> = {
   primary: "hsl(var(--primary))",
