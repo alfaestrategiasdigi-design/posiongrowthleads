@@ -29,6 +29,7 @@ type RoutingRule = {
 type MetaCampaign = {
   id: string; name: string; status: string; effective_status: string;
   objective?: string; daily_budget?: string; lifetime_budget?: string;
+  account_id?: string; ad_account_id?: string;
   insights?: {
     spend: number; impressions: number; clicks: number; ctr: number;
     cpc: number; cpm: number; reach: number; frequency: number;
