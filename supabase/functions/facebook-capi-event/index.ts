@@ -77,7 +77,9 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return json({ ok: false, error: "invalid_json" }, 400); }
 
   const tenant_id: string | undefined = body?.tenant_id;
-  const lead_id: string | undefined = body?.lead_id;
+  let lead_id: string | undefined = body?.lead_id;
+  const appointment_id: string | undefined = body?.appointment_id;
+  const sale_id: string | undefined = body?.sale_id;
   const event_name: string = body?.event_name || "Lead";
   const test_mode: boolean = Boolean(body?.test);
 
@@ -86,13 +88,35 @@ Deno.serve(async (req) => {
 
   const { data: cfg, error: cfgErr } = await admin
     .from("tenant_capi_config")
-    .select("pixel_id, access_token, default_event, test_event_code, enabled")
+    .select("pixel_id, access_token, default_event, test_event_code, enabled, send_appointment_event, send_sale_event")
     .eq("tenant_id", tenant_id)
     .maybeSingle();
 
   if (cfgErr) return json({ ok: false, error: cfgErr.message }, 500);
   if (!cfg || !cfg.enabled) return json({ ok: false, error: "capi_disabled" }, 200);
   if (!cfg.pixel_id || !cfg.access_token) return json({ ok: false, error: "missing_pixel_or_token" }, 400);
+  if (appointment_id && !(cfg as any).send_appointment_event) return json({ ok: false, error: "appointment_events_disabled" }, 200);
+  if (sale_id && !(cfg as any).send_sale_event) return json({ ok: false, error: "sale_events_disabled" }, 200);
+
+  // Resolve lead_id from appointment/sale when possible
+  let appointmentRow: any = null;
+  let saleRow: any = null;
+  if (appointment_id) {
+    const { data } = await admin.from("appointments")
+      .select("id, tenant_id, lead_id, client_name, client_phone, procedure, appointment_type, date_time")
+      .eq("id", appointment_id).maybeSingle();
+    if (data && data.tenant_id && data.tenant_id !== tenant_id) return json({ ok: false, error: "tenant_mismatch" }, 403);
+    appointmentRow = data;
+    if (!lead_id && data?.lead_id) lead_id = data.lead_id;
+  }
+  if (sale_id) {
+    const { data } = await admin.from("sales")
+      .select("id, tenant_id, lead_id, patient_name, amount, product")
+      .eq("id", sale_id).maybeSingle();
+    if (data && data.tenant_id && data.tenant_id !== tenant_id) return json({ ok: false, error: "tenant_mismatch" }, 403);
+    saleRow = data;
+    if (!lead_id && data?.lead_id) lead_id = data.lead_id;
+  }
 
   // Load lead when relevant
   let lead: any = null;
