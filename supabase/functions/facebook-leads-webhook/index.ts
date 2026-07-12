@@ -335,6 +335,10 @@ Deno.serve(async (req) => {
         let adName: string | null = null;
         let adsetName: string | null = null;
         let campaignName: string | null = null;
+        let adIdFromGraph: string | null = null;
+        let adsetIdFromGraph: string | null = null;
+        let campaignIdFromGraph: string | null = null;
+        let formNameFromGraph: string | null = null;
 
         const pageIdForRoute = v.page_id ? String(v.page_id) : (entry.id ? String(entry.id) : null);
         const formIdForRoute = v.form_id ? String(v.form_id) : null;
@@ -344,9 +348,13 @@ Deno.serve(async (req) => {
           const full = await fetchLeadFromGraph(String(leadgenId), graphToken);
           if (full) {
             flat = flattenFieldData(full.field_data);
-            adName = full.ad_name ?? null;
-            adsetName = full.adset_name ?? null;
-            campaignName = full.campaign_name ?? null;
+            adName             = full.ad_name ?? null;
+            adsetName          = full.adset_name ?? null;
+            campaignName       = full.campaign_name ?? null;
+            adIdFromGraph      = full.ad_id ? String(full.ad_id) : null;
+            adsetIdFromGraph   = full.adset_id ? String(full.adset_id) : null;
+            campaignIdFromGraph= full.campaign_id ? String(full.campaign_id) : null;
+            formNameFromGraph  = full.form_name ?? null;
           }
         }
 
@@ -375,14 +383,16 @@ Deno.serve(async (req) => {
         // matched: pode ser tenant (route.tenantId) OU admin_master (tenantId=null)
         const routedTenant = route.tenantId;
 
-
         const r = await insertLead(flat, {
           facebook_lead_id: leadgenId,
           facebook_form_id: v.form_id ?? null,
-          facebook_campaign: campaignName ?? v.campaign_id ?? v.ad_id ?? null,
-          facebook_form_name: null,
+          facebook_form_name: formNameFromGraph,
+          facebook_campaign: campaignName,
+          facebook_campaign_id: campaignIdFromGraph ?? (v.campaign_id ? String(v.campaign_id) : null),
           facebook_ad_name: adName,
+          facebook_ad_id: adIdFromGraph ?? (v.ad_id ? String(v.ad_id) : null),
           facebook_adset_name: adsetName,
+          facebook_adset_id: adsetIdFromGraph,
           tenant_id: routedTenant,
         });
         results.push(r);
