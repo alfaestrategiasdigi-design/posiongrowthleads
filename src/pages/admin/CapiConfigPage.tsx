@@ -25,6 +25,22 @@ interface CapiRow {
   default_event: string | null;
   test_event_code: string | null;
   enabled: boolean | null;
+  send_appointment_event?: boolean | null;
+  send_sale_event?: boolean | null;
+  appointment_event_name?: string | null;
+  sale_event_name?: string | null;
+}
+
+interface CapiLog {
+  id: string;
+  event_name: string | null;
+  status: string;
+  http_status: number | null;
+  error: string | null;
+  created_at: string;
+  lead_id: string | null;
+  appointment_id: string | null;
+  sale_id: string | null;
 }
 
 export default function CapiConfigPage() {
@@ -38,9 +54,15 @@ export default function CapiConfigPage() {
   const [event, setEvent] = useState("Purchase");
   const [testCode, setTestCode] = useState("");
   const [enabled, setEnabled] = useState(true);
+  const [sendAppt, setSendAppt] = useState(false);
+  const [sendSale, setSendSale] = useState(false);
+  const [apptEventName, setApptEventName] = useState("Schedule");
+  const [saleEventName, setSaleEventName] = useState("Purchase");
   const [reveal, setReveal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [logs, setLogs] = useState<CapiLog[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -59,6 +81,19 @@ export default function CapiConfigPage() {
     })();
   }, []);
 
+  const loadLogs = async (tid: string) => {
+    if (!tid) return;
+    setLogsLoading(true);
+    const { data } = await supabase
+      .from("facebook_capi_logs")
+      .select("id,event_name,status,http_status,error,created_at,lead_id,appointment_id,sale_id")
+      .eq("tenant_id", tid)
+      .order("created_at", { ascending: false })
+      .limit(25);
+    setLogs((data as any) || []);
+    setLogsLoading(false);
+  };
+
   useEffect(() => {
     const c = configs[selectedId];
     setPixel(c?.pixel_id || "");
@@ -66,7 +101,12 @@ export default function CapiConfigPage() {
     setEvent(c?.default_event || "Purchase");
     setTestCode(c?.test_event_code || "");
     setEnabled(c?.enabled !== false);
+    setSendAppt(!!c?.send_appointment_event);
+    setSendSale(!!c?.send_sale_event);
+    setApptEventName(c?.appointment_event_name || "Schedule");
+    setSaleEventName(c?.sale_event_name || "Purchase");
     setReveal(false);
+    loadLogs(selectedId);
   }, [selectedId, configs]);
 
   const save = async () => {
@@ -79,6 +119,10 @@ export default function CapiConfigPage() {
       default_event: event || "Purchase",
       test_event_code: testCode.trim() || null,
       enabled,
+      send_appointment_event: sendAppt,
+      send_sale_event: sendSale,
+      appointment_event_name: apptEventName || "Schedule",
+      sale_event_name: saleEventName || "Purchase",
     };
     const { error } = await supabase.from("tenant_capi_config").upsert(payload, { onConflict: "tenant_id" });
     setSaving(false);
@@ -86,6 +130,8 @@ export default function CapiConfigPage() {
     setConfigs((p) => ({ ...p, [selectedId]: payload as any }));
     toast.success("Configuração CAPI salva");
   };
+
+
 
   const test = async () => {
     if (!selectedId) return;
@@ -167,10 +213,49 @@ export default function CapiConfigPage() {
             <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
               <div>
                 <p className="text-sm font-medium">Envio automático ao marcar como Ganho</p>
-                <p className="text-xs text-muted-foreground">Desligue para pausar sem perder a configuração.</p>
+                <p className="text-xs text-muted-foreground">Purchase ao mover lead para "Ganho" no Kanban.</p>
               </div>
               <Switch checked={enabled} onCheckedChange={setEnabled} disabled={!selectedId} />
             </div>
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div className="rounded-md border border-border p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">📅 Consultas realizadas</p>
+                    <p className="text-[11px] text-muted-foreground">Dispara ao marcar como compareceu/realizado.</p>
+                  </div>
+                  <Switch checked={sendAppt} onCheckedChange={setSendAppt} disabled={!selectedId || !enabled} />
+                </div>
+                <Select value={apptEventName} onValueChange={setApptEventName} disabled={!sendAppt}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Schedule">Schedule</SelectItem>
+                    <SelectItem value="CompleteRegistration">CompleteRegistration</SelectItem>
+                    <SelectItem value="Contact">Contact</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="rounded-md border border-border p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">💰 Vendas registradas</p>
+                    <p className="text-[11px] text-muted-foreground">Purchase com valor real ao criar venda.</p>
+                  </div>
+                  <Switch checked={sendSale} onCheckedChange={setSendSale} disabled={!selectedId || !enabled} />
+                </div>
+                <Select value={saleEventName} onValueChange={setSaleEventName} disabled={!sendSale}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Purchase">Purchase</SelectItem>
+                    <SelectItem value="Subscribe">Subscribe</SelectItem>
+                    <SelectItem value="StartTrial">StartTrial</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
 
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="space-y-2">
@@ -228,6 +313,71 @@ export default function CapiConfigPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Validação — KPIs + logs recentes */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Validação dos eventos enviados
+            </CardTitle>
+            <CardDescription>Últimos 25 disparos server-side desta clínica (dedup por event_id).</CardDescription>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => loadLogs(selectedId)} disabled={logsLoading}>
+            {logsLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Atualizar"}
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {["Lead", "Schedule", "Purchase", "ViewContent", "InitiateCheckout"].map((ev) => {
+              const rows = logs.filter((l) => l.event_name === ev);
+              const success = rows.filter((r) => r.status === "success").length;
+              return (
+                <div key={ev} className="rounded-md border border-border p-3">
+                  <p className="text-[11px] text-muted-foreground">{ev}</p>
+                  <p className="text-lg font-semibold">{rows.length}</p>
+                  <p className="text-[10px] text-emerald-400">{success} ok</p>
+                </div>
+              );
+            })}
+          </div>
+          <div className="rounded-md border border-border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/40 text-muted-foreground">
+                <tr>
+                  <th className="text-left px-3 py-2">Quando</th>
+                  <th className="text-left px-3 py-2">Evento</th>
+                  <th className="text-left px-3 py-2">Origem</th>
+                  <th className="text-left px-3 py-2">Status</th>
+                  <th className="text-left px-3 py-2">HTTP</th>
+                  <th className="text-left px-3 py-2">Erro</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.length === 0 && (
+                  <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Nenhum evento ainda.</td></tr>
+                )}
+                {logs.map((l) => (
+                  <tr key={l.id} className="border-t border-border">
+                    <td className="px-3 py-2">{new Date(l.created_at).toLocaleString("pt-BR")}</td>
+                    <td className="px-3 py-2">{l.event_name || "—"}</td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {l.sale_id ? "venda" : l.appointment_id ? "consulta" : l.lead_id ? "lead" : "—"}
+                    </td>
+                    <td className="px-3 py-2">
+                      {l.status === "success"
+                        ? <Badge variant="outline" className="border-emerald-500/40 text-emerald-400">ok</Badge>
+                        : <Badge variant="outline" className="border-red-500/40 text-red-400">erro</Badge>}
+                    </td>
+                    <td className="px-3 py-2">{l.http_status ?? "—"}</td>
+                    <td className="px-3 py-2 text-red-400 truncate max-w-[280px]">{l.error || ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
