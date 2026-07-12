@@ -516,90 +516,100 @@ export default function TenantCampaigns() {
             toast.success("ID da campanha copiado");
           };
           return (
-            <Card
-              key={c.id}
-              className="relative p-3.5 flex flex-col gap-2.5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all overflow-hidden group cursor-pointer"
-              onClick={() => setDetailCampaign(c)}
-            >
-              {/* status strip */}
-              <div className={`absolute left-0 top-0 h-full w-[3px] ${isActive ? "bg-emerald-400 shadow-[0_0_12px_hsl(var(--primary))]" : "bg-muted"}`} />
+          <Card
+            key={c.id}
+            className="relative p-3.5 flex flex-col gap-2.5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all overflow-hidden group cursor-pointer"
+            onClick={() => setDetailCampaign(c)}
+          >
+            {/* status strip */}
+            <div className={`absolute left-0 top-0 h-full w-[3px] ${isActive ? "bg-emerald-400 shadow-[0_0_12px_hsl(var(--success))]" : "bg-muted"}`} />
 
-              <div className="flex items-start justify-between gap-2 pl-1">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground truncate">
-                    {c.ad_account_label || c.ad_account_id}
-                  </div>
-                  <div className="text-sm font-medium truncate leading-tight mt-0.5" title={c.name}>{c.name}</div>
-                  {c.objective && (
-                    <div className="text-[9px] uppercase tracking-wider text-primary/70 truncate mt-0.5" title={c.objective}>
-                      {formatObjective(c.objective)}
-                    </div>
-                  )}
+            {/* Header com status e identificação */}
+            <div className="flex items-start justify-between gap-2 pl-1">
+              <div className="min-w-0 flex-1">
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground truncate">
+                  {c.ad_account_label || c.ad_account_id}
                 </div>
-                <Badge variant={isActive ? "default" : "secondary"} className="shrink-0 text-[9px] px-1.5 py-0 h-4">
-                  {isActive ? "ATIVA" : (c.effective_status || c.status || "").slice(0, 8)}
-                </Badge>
+                <div className="text-sm font-medium truncate leading-tight mt-0.5" title={c.name}>{c.name}</div>
+                {c.objective && (
+                  <div className="text-[9px] uppercase tracking-wider text-primary/70 truncate mt-0.5" title={c.objective}>
+                    {formatObjective(c.objective)}
+                  </div>
+                )}
               </div>
-
-              {c.insights ? (
-                <>
-                  <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
-                    <Metric label="Gasto" value={BRL(c.insights.spend)} />
-                    <Metric label="CTR" value={`${c.insights.ctr.toFixed(1)}%`} />
-                    <Metric label="CPM" value={BRL(c.insights.cpm)} />
-                    <Metric label="Freq" value={(c.insights.frequency ?? 0).toFixed(1)} />
-                  </div>
-                  <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
-                    <Metric label="Leads" value={NUM(stat?.leads ?? c.insights.leads)} />
-                    <Metric label="Consultas" value={NUM(meetings)} />
-                    <Metric label="Realizadas" value={NUM(showed)} />
-                    <Metric label="Vendas" value={NUM(wins)} />
-                  </div>
-                  <div className="grid grid-cols-3 gap-1.5 text-xs pl-1">
-                    <Metric label="CPL" value={c.insights.leads > 0 ? BRL(c.insights.cpl) : "—"} />
-                    <Metric label="Custo/Consulta" value={meetings ? BRL(cpAppt) : "—"} />
-                    <Metric label="CAC" value={revenue > 0 && wins ? BRL(cac) : "—"} />
-                  </div>
-                </>
-              ) : (
-                <div className="text-[11px] text-muted-foreground italic pl-1">Sem dados no período.</div>
-              )}
-
-              {c.daily && c.daily.length > 1 && (
-                <div className="pl-1">
-                  <div className="flex items-center justify-between text-[9px] uppercase tracking-wider text-muted-foreground mb-0.5">
-                    <span>Tendência de leads · {period}d</span>
-                    <span className="tabular-nums text-cyan-400">{NUM(c.daily.reduce((a, d) => a + (d.leads || 0), 0))}</span>
-                  </div>
-                  <Sparkline data={c.daily} dataKey="leads" color="#22d3ee" />
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                <div className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${isActive ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-muted/40 border-white/10 text-muted-foreground"}`}>
+                  {isActive ? <BadgeCheck className="w-3 h-3" /> : <div className="w-2 h-2 rounded-full bg-muted-foreground" />}
+                  {isActive ? "ATIVA" : (c.effective_status || c.status || "PAUSADA").slice(0, 8)}
                 </div>
-              )}
+              </div>
+            </div>
 
-              <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1.5 flex items-center justify-between ml-1">
-                <div className="text-[9px] uppercase tracking-wider text-emerald-400 flex items-center gap-1">
+            {/* Painel financeiro destacado */}
+            <div className="grid grid-cols-2 gap-2 pl-1">
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 flex flex-col">
+                <div className="text-[9px] uppercase tracking-wider text-amber-400 flex items-center gap-1">
+                  <Wallet className="w-3 h-3" /> Custo
+                </div>
+                <div className="text-sm font-bold tabular-nums text-amber-400 mt-0.5">{BRL(spend)}</div>
+                <div className="text-[9px] text-muted-foreground mt-0.5">
+                  {c.insights?.leads ? `${BRL(c.insights.cpl)} CPL` : "sem leads"}
+                </div>
+              </div>
+              <div className={`rounded-lg border px-3 py-2 flex flex-col ${revenue > spend ? "border-emerald-500/20 bg-emerald-500/5" : "border-rose-500/20 bg-rose-500/5"}`}>
+                <div className={`text-[9px] uppercase tracking-wider flex items-center gap-1 ${revenue > spend ? "text-emerald-400" : "text-rose-400"}`}>
                   <Star className="w-3 h-3" /> Receita
                 </div>
-                <div className="text-right leading-tight">
-                  <div className="text-xs font-bold tabular-nums text-emerald-400">{BRL(revenue)}</div>
-                  <div className="text-[9px] text-muted-foreground">
-                    ROAS {roas.toFixed(2)}x{wins ? ` · ${wins} venda${wins > 1 ? "s" : ""}` : ""}
-                  </div>
+                <div className={`text-sm font-bold tabular-nums mt-0.5 ${revenue > spend ? "text-emerald-400" : "text-rose-400"}`}>{BRL(revenue)}</div>
+                <div className="text-[9px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                  ROAS {roas.toFixed(2)}x
+                  {roas >= 2 ? <ArrowUpRight className="w-3 h-3 text-emerald-400" /> : roas > 0 ? <ArrowDownRight className="w-3 h-3 text-rose-400" /> : null}
+                  {wins ? ` · ${wins} venda${wins > 1 ? "s" : ""}` : ""}
                 </div>
               </div>
+            </div>
 
-              {/* Ações rápidas */}
-              <div className="flex items-center gap-1 pl-1 pt-0.5 opacity-70 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={() => setDetailCampaign(c)}>
-                  <Eye className="w-3 h-3" /> Analisar
-                </Button>
-                <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={() => window.open(metaUrl, "_blank")}>
-                  <ExternalLink className="w-3 h-3" /> Meta
-                </Button>
-                <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={copyId}>
-                  <Copy className="w-3 h-3" /> ID
-                </Button>
+            {c.insights ? (
+              <>
+                <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
+                  <Metric label="Leads" value={NUM(stat?.leads ?? c.insights.leads)} />
+                  <Metric label="Consultas" value={NUM(meetings)} />
+                  <Metric label="Realizadas" value={NUM(showed)} />
+                  <Metric label="Vendas" value={NUM(wins)} />
+                </div>
+                <div className="grid grid-cols-3 gap-1.5 text-xs pl-1">
+                  <Metric label="CTR" value={`${c.insights.ctr.toFixed(1)}%`} />
+                  <Metric label="Custo/Consulta" value={meetings ? BRL(cpAppt) : "—"} />
+                  <Metric label="CAC" value={revenue > 0 && wins ? BRL(cac) : "—"} />
+                </div>
+              </>
+            ) : (
+              <div className="text-[11px] text-muted-foreground italic pl-1">Sem dados no período.</div>
+            )}
+
+            {c.daily && c.daily.length > 1 && (
+              <div className="pl-1">
+                <div className="flex items-center justify-between text-[9px] uppercase tracking-wider text-muted-foreground mb-0.5">
+                  <span>Tendência de leads · {period}d</span>
+                  <span className="tabular-nums text-cyan-400">{NUM(c.daily.reduce((a, d) => a + (d.leads || 0), 0))}</span>
+                </div>
+                <Sparkline data={c.daily} dataKey="leads" color="#22d3ee" />
               </div>
-            </Card>
+            )}
+
+            {/* Ações rápidas */}
+            <div className="flex items-center gap-1 pl-1 pt-0.5 opacity-70 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={() => setDetailCampaign(c)}>
+                <Eye className="w-3 h-3" /> Analisar
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={() => window.open(metaUrl, "_blank")}>
+                <ExternalLink className="w-3 h-3" /> Meta
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={copyId}>
+                <Copy className="w-3 h-3" /> ID
+              </Button>
+            </div>
+          </Card>
           );
         })}
       </div>
