@@ -339,10 +339,21 @@ export default function SubscriptionsPage() {
     toast.success(`${label} copiado`);
   };
 
+  const activeSubIds = new Set<string>();
   const activeSubs = subs.filter((s) => ["active", "authorized"].includes(s.status));
+  for (const s of activeSubs) activeSubIds.add(s.tenant_id);
   const mrr = activeSubs.reduce((acc, s) => {
     const amt = s.amount_cents || 0;
     const monthly = s.interval === "semester" ? amt / 6 : s.interval === "quarter" ? amt / 3 : amt;
+    return acc + monthly;
+  }, 0) + tenants.reduce((acc, t) => {
+    if (activeSubIds.has(t.id)) return acc;
+    const slot = slotsByTenant.get(t.id);
+    if (!slot) return acc;
+    const offer = offerMap.get(t.id);
+    if (!offer?.active) return acc;
+    const recurring = offer.recurring_amount_cents || offer.entry_amount_cents || slot.amount_cents || 0;
+    const monthly = offer.interval === "semester" ? recurring / 6 : offer.interval === "quarter" ? recurring / 3 : recurring;
     return acc + monthly;
   }, 0);
 
