@@ -539,7 +539,7 @@ export default function TenantPlans() {
               Pagamentos processados pelo Mercado Pago. Cartão de crédito com cobrança automática recorrente.
             </div>
           )}
-        </TrialGate>
+        </TrialGate>}
 
 
         <Card className="bg-[#0E1730] border-white/10">
