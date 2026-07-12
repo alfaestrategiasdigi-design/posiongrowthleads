@@ -385,7 +385,7 @@ export default function TenantPlans() {
 
 
 
-        {hasActiveSub && (
+        {hasActiveSub && !hasPaid && (
           <Card className="bg-[#0E1730] border-primary/30">
             <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
