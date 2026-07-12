@@ -229,10 +229,8 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
         .lte("date_time", untilISO);
       if (isMasterAccount) {
         apptQuery = apptQuery.is("tenant_id", null);
-      } else if (leadIds.length) {
-        apptQuery = apptQuery.in("lead_id", leadIds);
       } else {
-        apptQuery = apptQuery.eq("lead_id", "00000000-0000-0000-0000-000000000000");
+        apptQuery = apptQuery.eq("tenant_id", tenant.id);
       }
       const { data: appts } = await apptQuery;
       const scheduledSet = new Set<string>();
@@ -258,7 +256,8 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
             stats[k].meetings += 1;
             if (showed) stats[k].showed += 1;
           }
-        } else if (isMasterAccount) {
+        } else {
+          // Reunião criada direto na agenda (sem lead vinculado) — conta no total da conta.
           unassignedAppointments += 1;
           if (showed) unassignedShowed += 1;
         }
