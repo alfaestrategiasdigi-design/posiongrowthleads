@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Loader2, Plus, ExternalLink, Building2, Users, CalendarIcon, TimerReset } from "lucide-react";
+import { Loader2, Plus, ExternalLink, Building2, Users, CalendarIcon, TimerReset, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { TenantUsersDialog } from "@/components/admin/TenantUsersDialog";
@@ -31,6 +32,25 @@ export default function TenantsPage() {
   const [creating, setCreating] = useState(false);
   const [usersFor, setUsersFor] = useState<Tenant | null>(null);
   const [panelTenantId, setPanelTenantId] = useState<string | null>(null);
+  const [deleteFor, setDeleteFor] = useState<Tenant | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!deleteFor) return;
+    if (deleteConfirm.trim().toLowerCase() !== deleteFor.slug.toLowerCase()) {
+      toast.error("Digite o slug exatamente para confirmar");
+      return;
+    }
+    setDeleting(true);
+    const { error } = await supabase.from("tenants").delete().eq("id", deleteFor.id);
+    setDeleting(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Clínica "${deleteFor.name}" excluída`);
+    setDeleteFor(null);
+    setDeleteConfirm("");
+    refresh();
+  };
 
   const refresh = async () => {
     setLoading(true);
@@ -130,6 +150,15 @@ export default function TenantsPage() {
                         <Button asChild size="sm" variant="outline" className="gap-2">
                           <Link to={`/app/${t.slug}/dashboard`}><ExternalLink className="w-3 h-3" /> Abrir</Link>
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+                          onClick={() => { setDeleteFor(t); setDeleteConfirm(""); }}
+                          title="Excluir clínica"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -153,6 +182,44 @@ export default function TenantsPage() {
         open={!!panelTenantId}
         onClose={() => setPanelTenantId(null)}
       />
+
+      <AlertDialog open={!!deleteFor} onOpenChange={(v) => { if (!v) { setDeleteFor(null); setDeleteConfirm(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="w-4 h-4" /> Excluir clínica "{deleteFor?.name}"?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm">
+                <p>
+                  Esta ação é <b>irreversível</b>. Serão apagados em cascata: leads, pacientes,
+                  conversas, mensagens, agendamentos, prontuários, campanhas, automações,
+                  usuários vinculados e demais dados desta clínica.
+                </p>
+                <div>
+                  <p className="mb-1.5">Para confirmar, digite o slug <code className="px-1.5 py-0.5 rounded bg-muted font-mono text-xs">{deleteFor?.slug}</code>:</p>
+                  <Input
+                    value={deleteConfirm}
+                    onChange={(e) => setDeleteConfirm(e.target.value)}
+                    placeholder={deleteFor?.slug}
+                    autoFocus
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDelete(); }}
+              disabled={deleting || deleteConfirm.trim().toLowerCase() !== (deleteFor?.slug || "").toLowerCase()}
+              className="bg-destructive hover:bg-destructive/90 gap-2"
+            >
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Excluir definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
