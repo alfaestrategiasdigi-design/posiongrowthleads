@@ -77,6 +77,13 @@ const samePhone = (a: unknown, b: unknown) => {
   if (!pa || !pb) return false;
   return pa === pb || pa === `55${pb}` || `55${pa}` === pb || pa.slice(-8) === pb.slice(-8);
 };
+const normalizeCampaignText = (value: unknown) => String(value ?? "")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, " ")
+  .replace(/\s+/g, " ")
+  .trim();
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -187,16 +194,37 @@ Deno.serve(async (req) => {
       `facebook_campaign_id.eq.${campaignId}`,
       `facebook_campaign.eq.${campaignId}`,
       `campaign_id_manual.eq.${campaignId}`,
-      campName ? `facebook_campaign.ilike.${campName}` : "",
-      campName ? `utm_campaign.ilike.${campName}` : "",
     ].filter(Boolean).join(","))
     .order("created_at", { ascending: false })
     .limit(500);
   leadsQuery = tenantId === MASTER_TENANT_ID ? leadsQuery.is("tenant_id", null) : leadsQuery.eq("tenant_id", tenantId);
-  const { data: leads } = await leadsQuery;
+  const { data: directLeads } = await leadsQuery;
+
+  let leads = directLeads ?? [];
+  if (campName) {
+    let nameQuery = admin
+      .from("leads")
+      .select("id,nome_completo,whatsapp,email,status,valor_proposta,created_at,facebook_form_name,facebook_ad_name,facebook_adset_name,facebook_ad_id,facebook_adset_id,facebook_campaign_id,facebook_campaign,utm_campaign,campaign_id_manual")
+      .gte("created_at", `${since}T00:00:00`)
+      .lte("created_at", `${until}T23:59:59`)
+      .order("created_at", { ascending: false })
+      .limit(1000);
+    nameQuery = tenantId === MASTER_TENANT_ID ? nameQuery.is("tenant_id", null) : nameQuery.eq("tenant_id", tenantId);
+    const { data: tenantPeriodLeads } = await nameQuery;
+    const campNorm = normalizeCampaignText(campName);
+    const fuzzy = (tenantPeriodLeads ?? []).filter((l: any) => {
+      const fb = normalizeCampaignText(l.facebook_campaign);
+      const utm = normalizeCampaignText(l.utm_campaign);
+      return (fb && (fb === campNorm || fb.startsWith(campNorm) || campNorm.startsWith(fb))) ||
+        (utm && (utm === campNorm || utm.startsWith(campNorm) || campNorm.startsWith(utm)));
+    });
+    const byId = new Map<string, any>();
+    [...leads, ...fuzzy].forEach((l: any) => byId.set(l.id, l));
+    leads = Array.from(byId.values()).sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)));
+  }
 
   // 8) Appointments dos leads
-  const leadIds = (leads ?? []).map((l: any) => l.id);
+  const leadIds = leads.map((l: any) => l.id);
   let appts: any[] = [];
   if (tenantId === MASTER_TENANT_ID) {
     const { data: rows } = await admin
