@@ -445,7 +445,7 @@ export default function TenantCampaigns() {
                   <div className="grid grid-cols-3 gap-1.5 text-xs pl-1">
                     <Metric label="Reuniões" value={NUM(meetings)} />
                     <Metric label="Custo/Reun." value={meetings ? BRL(cpMeeting) : "—"} />
-                    <Metric label="CAC" value={wins ? BRL(cac) : "—"} />
+                    <Metric label="CAC" value={revenue > 0 && wins ? BRL(cac) : "—"} />
                   </div>
                 </>
               ) : (
