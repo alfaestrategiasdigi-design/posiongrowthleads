@@ -86,7 +86,7 @@ export function useTenant(options?: { skip?: boolean }) {
     supabase.auth.getSession().then(({ data: { session } }) => load(session?.user ?? null));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => load(session?.user ?? null));
     return () => { active = false; subscription.unsubscribe(); };
-  }, [tenantSlug, navigate]);
+  }, [tenantSlug, navigate, skip]);
 
   return state;
 }

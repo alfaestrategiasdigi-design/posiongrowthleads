@@ -100,7 +100,7 @@ type LinkedForm = {
 type CampaignStats = { leads: number; meetings: number; showed: number; wins: number; revenue: number; contacts: number };
 
 export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: { id: string; slug: string; name: string; logo_url?: string | null; plan?: string; status?: string; segment?: string | null } } = {}) {
-  const hookState = useTenant();
+  const hookState = useTenant({ skip: !!tenantOverride });
   const tenant = (tenantOverride as any) ?? hookState.tenant;
   const tLoading = tenantOverride ? false : hookState.loading;
   const [loading, setLoading] = useState(false);
