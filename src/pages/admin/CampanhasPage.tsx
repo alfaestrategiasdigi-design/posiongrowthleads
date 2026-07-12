@@ -726,8 +726,8 @@ export default function CampanhasPage() {
     return { level, reasons, cpl, cpr };
   };
 
-  const criticalCount = useMemo(() => metaCampaigns.filter((c) => c.effective_status === "ACTIVE" && campaignStatus(c).level === "critical").length, [metaCampaigns, thresholds, crmCompByCampaign]);
-  const warnCount = useMemo(() => metaCampaigns.filter((c) => c.effective_status === "ACTIVE" && campaignStatus(c).level === "warn").length, [metaCampaigns, thresholds, crmCompByCampaign]);
+  const criticalCount = useMemo(() => metaCampaigns.filter((c) => c.effective_status === "ACTIVE" && campaignStatus(c).level === "critical").length, [metaCampaigns, thresholds, crmApptsByCampaign]);
+  const warnCount = useMemo(() => metaCampaigns.filter((c) => c.effective_status === "ACTIVE" && campaignStatus(c).level === "warn").length, [metaCampaigns, thresholds, crmApptsByCampaign]);
 
   const toggleSelect = (id: string) => setSelectedIds((prev) => {
     const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n;
