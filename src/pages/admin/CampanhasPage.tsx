@@ -1248,6 +1248,11 @@ export default function CampanhasPage() {
                   <div className="p-3 flex items-center justify-between gap-1">
                     <div className="flex items-center gap-1">
                       <Button size="sm" variant="ghost"
+                        onClick={() => setDetailCampaign(c)}
+                        className="h-6 px-2 text-[9px] text-[#C9A84C] hover:text-[#F0D78C] hover:bg-white/5">
+                        <Eye className="w-3 h-3 mr-1" /> DETALHES
+                      </Button>
+                      <Button size="sm" variant="ghost"
                         onClick={() => setBudgetDialog({ open: true, id: c.id, name: c.name, current: c.daily_budget })}
                         className="h-6 px-2 text-[9px] text-slate-400 hover:text-white hover:bg-white/5">
                         <Wallet className="w-3 h-3 mr-1" /> ORÇ.
