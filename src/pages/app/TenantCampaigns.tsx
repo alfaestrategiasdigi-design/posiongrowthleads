@@ -125,53 +125,68 @@ export default function TenantCampaigns() {
         setCampaigns(data.data ?? []);
         setReason((data.data ?? []).length === 0 ? "no_campaigns" : null);
       }
-      // Agregado por nome de campanha (utm_campaign / facebook_campaign) no período selecionado.
+      // Atribuição por campaign_id (primário), nome (fallback) e utm.
+      // Consideramos leads criados no período E leads que ganharam no período (mesmo se antigos).
       const sinceISO = new Date(daysAgoISO(period) + "T00:00:00").toISOString();
+      const campList = (data?.data ?? []) as Campaign[];
+      const byId: Record<string, string> = {}; // campaign_id → key (id)
+      const byName: Record<string, string> = {}; // nome normalizado → key (id)
+      for (const c of campList) {
+        byId[c.id] = c.id;
+        if (c.name) byName[c.name.trim().toLowerCase()] = c.id;
+      }
+      const stats: Record<string, CampaignStats> = {};
+      const globals: CampaignStats = { leads: 0, meetings: 0, showed: 0, wins: 0, revenue: 0, contacts: 0 };
+      const bump = (key: string | null, patch: (s: CampaignStats) => void) => {
+        if (key) {
+          stats[key] = stats[key] || { leads: 0, meetings: 0, showed: 0, wins: 0, revenue: 0, contacts: 0 };
+          patch(stats[key]);
+        }
+        patch(globals);
+      };
+      const keyFor = (l: any): string | null => {
+        if (l.facebook_campaign_id && byId[l.facebook_campaign_id]) return byId[l.facebook_campaign_id];
+        const n1 = (l.utm_campaign || "").trim().toLowerCase();
+        if (n1 && byName[n1]) return byName[n1];
+        const n2 = (l.facebook_campaign || "").trim().toLowerCase();
+        if (n2 && byName[n2]) return byName[n2];
+        return null;
+      };
       const { data: allLeads } = await supabase
         .from("leads")
-        .select("utm_campaign,facebook_campaign,valor_proposta,status,reuniao_agendada_em,created_at")
+        .select("id,utm_campaign,facebook_campaign,facebook_campaign_id,valor_proposta,status,reuniao_agendada_em,fechado_em,created_at")
         .eq("tenant_id", tenant.id)
         .gte("created_at", sinceISO);
-      const stats: Record<string, { leads: number; meetings: number; wins: number; revenue: number }> = {};
-      const wins: Record<string, { count: number; value: number }> = {};
-      const bump = (name: string | null | undefined, patch: (s: any) => void) => {
-        if (!name) return;
-        const key = String(name).trim().toLowerCase();
-        if (!key) return;
-        stats[key] = stats[key] || { leads: 0, meetings: 0, wins: 0, revenue: 0 };
-        patch(stats[key]);
-      };
-      (allLeads ?? []).forEach((l: any) => {
-        const name = l.utm_campaign || l.facebook_campaign;
-        bump(name, (s) => { s.leads += 1; });
-        if (l.reuniao_agendada_em) bump(name, (s) => { s.meetings += 1; });
+      const leadRows = (allLeads ?? []) as any[];
+      const leadIds = leadRows.map((l) => l.id);
+      // Appointments no período (por lead)
+      const untilISO = new Date(todayISO() + "T23:59:59").toISOString();
+      const { data: appts } = leadIds.length ? await supabase
+        .from("appointments")
+        .select("lead_id,status,date_time")
+        .in("lead_id", leadIds)
+        .gte("date_time", sinceISO)
+        .lte("date_time", untilISO) : { data: [] as any[] };
+      const scheduledSet = new Set<string>();
+      const showedSet = new Set<string>();
+      for (const a of appts ?? []) {
+        if (!a.lead_id) continue;
+        scheduledSet.add(a.lead_id);
+        if (["compareceu","realizado","fechado","confirmado"].includes(a.status)) showedSet.add(a.lead_id);
+      }
+      for (const l of leadRows) {
+        const k = keyFor(l);
+        bump(k, (s) => { s.leads += 1; });
+        if (l.status && !["lead","perdido"].includes(l.status)) bump(k, (s) => { s.contacts += 1; });
+        if (scheduledSet.has(l.id) || l.reuniao_agendada_em) bump(k, (s) => { s.meetings += 1; });
+        if (showedSet.has(l.id)) bump(k, (s) => { s.showed += 1; });
         if (l.status === "ganho") {
           const v = Number(l.valor_proposta) || 0;
-          bump(name, (s) => { s.wins += 1; s.revenue += v; });
-          if (name) {
-            const k = String(name).trim().toLowerCase();
-            wins[k] = wins[k] || { count: 0, value: 0 };
-            wins[k].count += 1; wins[k].value += v;
-          }
+          bump(k, (s) => { s.wins += 1; s.revenue += v; });
         }
-      });
-      // agency_leads ganhos (também contam como vendas atribuídas por utm)
-      const { data: agencyWins } = await supabase
-        .from("agency_leads")
-        .select("utm_campaign,valor_proposta,tenant_id_criado,stage")
-        .eq("stage", "ganho")
-        .eq("tenant_id_criado", tenant.id);
-      (agencyWins ?? []).forEach((w: any) => {
-        const v = Number(w.valor_proposta) || 0;
-        bump(w.utm_campaign, (s) => { s.wins += 1; s.revenue += v; });
-        if (w.utm_campaign) {
-          const k = String(w.utm_campaign).trim().toLowerCase();
-          wins[k] = wins[k] || { count: 0, value: 0 };
-          wins[k].count += 1; wins[k].value += v;
-        }
-      });
+      }
       setCrmStats(stats);
-      setCrmWins(wins);
+      setGlobalStats(globals);
       setLastSync(new Date());
 
     } catch (e: any) {
