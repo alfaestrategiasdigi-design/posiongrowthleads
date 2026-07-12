@@ -276,6 +276,24 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       }
       globals.meetings += scheduledSet.size + unassignedAppointments;
       globals.showed += showedSet.size + unassignedShowed;
+
+      // Posion Master: contratos/receita vêm de agency_leads (kanban da agência).
+      if (isMasterAccount) {
+        const { data: agencyWins } = await supabase
+          .from("agency_leads")
+          .select("id,stage,valor_proposta,ganho_at,campaign_id,campaign_id_manual,utm_campaign")
+          .eq("stage", "ganho")
+          .gte("ganho_at", sinceISO);
+        for (const w of (agencyWins ?? []) as any[]) {
+          const v = Number(w.valor_proposta) || 0;
+          const rawKey = w.campaign_id || w.campaign_id_manual;
+          const nameNorm = (w.utm_campaign || "").trim().toLowerCase();
+          const k = (rawKey && byId[String(rawKey).trim()])
+            || (nameNorm && byName[nameNorm])
+            || similarCampaignName(w.utm_campaign);
+          bump(k, (s) => { s.wins += 1; s.revenue += v; });
+        }
+      }
       setCrmStats(stats);
       setGlobalStats(globals);
       setLastSync(new Date());
