@@ -442,10 +442,9 @@ export default function TenantCampaigns() {
                     />
                     <Metric label="CTR" value={`${c.insights.ctr.toFixed(1)}%`} />
                   </div>
-                  <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
+                  <div className="grid grid-cols-3 gap-1.5 text-xs pl-1">
                     <Metric label="Reuniões" value={NUM(meetings)} />
                     <Metric label="Custo/Reun." value={meetings ? BRL(cpMeeting) : "—"} />
-                    <Metric label="Vendas" value={NUM(wins)} />
                     <Metric label="CAC" value={wins ? BRL(cac) : "—"} />
                   </div>
                 </>
