@@ -1276,6 +1276,51 @@ export default function CampanhasPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Thresholds dialog */}
+      <Dialog open={thresholdDialog} onOpenChange={setThresholdDialog}>
+        <DialogContent className="bg-[#0A0A0A] border-white/10 text-slate-200">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Zap className="w-4 h-4 text-[#C9A84C]" /> Limites de eficiência (Posion Master)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <p className="text-xs text-slate-500">
+              Padrões globais aplicados a todas as contas. Campanhas ativas que ultrapassarem os limites são destacadas em vermelho e podem ser pausadas em massa.
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label className="text-[10px] uppercase tracking-widest text-slate-500">Meta CPL (R$)</Label>
+                <Input type="number" step="1" value={thresholds.cplTarget}
+                  onChange={(e) => setThresholds({ ...thresholds, cplTarget: Number(e.target.value) || 0 })}
+                  className="bg-[#111] border-white/10 text-white mt-1" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-widest text-slate-500">Margem alerta (%)</Label>
+                <Input type="number" step="1" value={thresholds.alertMarginPct}
+                  onChange={(e) => setThresholds({ ...thresholds, alertMarginPct: Number(e.target.value) || 0 })}
+                  className="bg-[#111] border-white/10 text-white mt-1" />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase tracking-widest text-slate-500">Limite CAC/Reunião (R$)</Label>
+                <Input type="number" step="1" value={thresholds.cprLimit}
+                  onChange={(e) => setThresholds({ ...thresholds, cprLimit: Number(e.target.value) || 0 })}
+                  className="bg-[#111] border-white/10 text-white mt-1" />
+              </div>
+            </div>
+            <div className="text-[11px] text-slate-400 bg-[#111] border border-white/5 rounded-lg p-3 space-y-1">
+              <div><b className="text-amber-400">Atenção</b>: CPL &gt; {BRL(thresholds.cplTarget)} (meta)</div>
+              <div><b className="text-rose-400">Pausar</b>: CPL &gt; {BRL(thresholds.cplTarget * (1 + thresholds.alertMarginPct / 100))} <span className="text-slate-600">(meta + {thresholds.alertMarginPct}%)</span></div>
+              <div><b className="text-rose-400">Pausar</b>: Custo/Reunião &gt; {BRL(thresholds.cprLimit)}</div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setThresholdDialog(false)}
+              className="bg-[#C9A84C] hover:bg-[#F0D78C] text-[#050505] font-bold">
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
