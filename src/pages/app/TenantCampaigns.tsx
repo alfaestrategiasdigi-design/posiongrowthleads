@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Loader2, RefreshCw, TrendingUp, Users, DollarSign, Target, Download,
   Activity, AlertCircle, Megaphone, Star, ExternalLink, Copy, Eye, MousePointerClick,
-  CalendarCheck, UserCheck,
+  CalendarCheck, UserCheck, Zap, Repeat,
 } from "lucide-react";
 
 
@@ -17,6 +17,9 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { ResponsiveContainer, AreaChart, Area, LineChart, Line, Tooltip as RTooltip } from "recharts";
+import CampaignFunnel from "@/components/campaigns/CampaignFunnel";
+import CampaignDetailSheet from "@/components/campaigns/CampaignDetailSheet";
+import AlertsPanel, { Alert } from "@/components/campaigns/AlertsPanel";
 
 const BRL = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v || 0);
 const NUM = (v: number) => new Intl.NumberFormat("pt-BR").format(Math.round(v || 0));
@@ -66,6 +69,7 @@ interface Campaign {
   insights: null | {
     spend: number; impressions: number; clicks: number;
     ctr: number; cpc: number; cpm: number;
+    reach?: number; frequency?: number;
     leads: number; cpl: number;
     messaging?: number; link_clicks?: number;
     result_kind?: "messaging" | "leads" | "purchases" | "link_clicks";
@@ -73,6 +77,7 @@ interface Campaign {
     result_value?: number;
     cost_per_result?: number;
     purchases: number; purchase_value: number; roas: number;
+    hook_rate?: number; hold_rate?: number;
   };
   daily?: DailyPoint[];
 }
@@ -84,6 +89,8 @@ type LinkedForm = {
   last_lead_at: string | null;
 };
 
+type CampaignStats = { leads: number; meetings: number; showed: number; wins: number; revenue: number; contacts: number };
+
 export default function TenantCampaigns() {
   const { tenant, loading: tLoading } = useTenant();
   const [loading, setLoading] = useState(false);
@@ -92,13 +99,15 @@ export default function TenantCampaigns() {
   const [period, setPeriod] = useState<1 | 7 | 14 | 30 | 90>(30);
   const [reason, setReason] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [crmWins, setCrmWins] = useState<Record<string, { count: number; value: number }>>({});
-  const [crmStats, setCrmStats] = useState<Record<string, { leads: number; meetings: number; wins: number; revenue: number }>>({});
+  const [crmStats, setCrmStats] = useState<Record<string, CampaignStats>>({});
+  const [globalStats, setGlobalStats] = useState<CampaignStats>({ leads: 0, meetings: 0, showed: 0, wins: 0, revenue: 0, contacts: 0 });
+  const [detailCampaign, setDetailCampaign] = useState<Campaign | null>(null);
 
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [linkedForms, setLinkedForms] = useState<LinkedForm[]>([]);
   const [lastBackfill, setLastBackfill] = useState<Date | null>(null);
   const [detail, setDetail] = useState<Campaign | null>(null);
+
 
   const load = async () => {
     if (!tenant) return;
@@ -116,53 +125,68 @@ export default function TenantCampaigns() {
         setCampaigns(data.data ?? []);
         setReason((data.data ?? []).length === 0 ? "no_campaigns" : null);
       }
-      // Agregado por nome de campanha (utm_campaign / facebook_campaign) no período selecionado.
+      // Atribuição por campaign_id (primário), nome (fallback) e utm.
+      // Consideramos leads criados no período E leads que ganharam no período (mesmo se antigos).
       const sinceISO = new Date(daysAgoISO(period) + "T00:00:00").toISOString();
+      const campList = (data?.data ?? []) as Campaign[];
+      const byId: Record<string, string> = {}; // campaign_id → key (id)
+      const byName: Record<string, string> = {}; // nome normalizado → key (id)
+      for (const c of campList) {
+        byId[c.id] = c.id;
+        if (c.name) byName[c.name.trim().toLowerCase()] = c.id;
+      }
+      const stats: Record<string, CampaignStats> = {};
+      const globals: CampaignStats = { leads: 0, meetings: 0, showed: 0, wins: 0, revenue: 0, contacts: 0 };
+      const bump = (key: string | null, patch: (s: CampaignStats) => void) => {
+        if (key) {
+          stats[key] = stats[key] || { leads: 0, meetings: 0, showed: 0, wins: 0, revenue: 0, contacts: 0 };
+          patch(stats[key]);
+        }
+        patch(globals);
+      };
+      const keyFor = (l: any): string | null => {
+        if (l.facebook_campaign_id && byId[l.facebook_campaign_id]) return byId[l.facebook_campaign_id];
+        const n1 = (l.utm_campaign || "").trim().toLowerCase();
+        if (n1 && byName[n1]) return byName[n1];
+        const n2 = (l.facebook_campaign || "").trim().toLowerCase();
+        if (n2 && byName[n2]) return byName[n2];
+        return null;
+      };
       const { data: allLeads } = await supabase
         .from("leads")
-        .select("utm_campaign,facebook_campaign,valor_proposta,status,reuniao_agendada_em,created_at")
+        .select("id,utm_campaign,facebook_campaign,facebook_campaign_id,valor_proposta,status,reuniao_agendada_em,fechado_em,created_at")
         .eq("tenant_id", tenant.id)
         .gte("created_at", sinceISO);
-      const stats: Record<string, { leads: number; meetings: number; wins: number; revenue: number }> = {};
-      const wins: Record<string, { count: number; value: number }> = {};
-      const bump = (name: string | null | undefined, patch: (s: any) => void) => {
-        if (!name) return;
-        const key = String(name).trim().toLowerCase();
-        if (!key) return;
-        stats[key] = stats[key] || { leads: 0, meetings: 0, wins: 0, revenue: 0 };
-        patch(stats[key]);
-      };
-      (allLeads ?? []).forEach((l: any) => {
-        const name = l.utm_campaign || l.facebook_campaign;
-        bump(name, (s) => { s.leads += 1; });
-        if (l.reuniao_agendada_em) bump(name, (s) => { s.meetings += 1; });
+      const leadRows = (allLeads ?? []) as any[];
+      const leadIds = leadRows.map((l) => l.id);
+      // Appointments no período (por lead)
+      const untilISO = new Date(todayISO() + "T23:59:59").toISOString();
+      const { data: appts } = leadIds.length ? await supabase
+        .from("appointments")
+        .select("lead_id,status,date_time")
+        .in("lead_id", leadIds)
+        .gte("date_time", sinceISO)
+        .lte("date_time", untilISO) : { data: [] as any[] };
+      const scheduledSet = new Set<string>();
+      const showedSet = new Set<string>();
+      for (const a of appts ?? []) {
+        if (!a.lead_id) continue;
+        scheduledSet.add(a.lead_id);
+        if (["compareceu","realizado","fechado","confirmado"].includes(a.status)) showedSet.add(a.lead_id);
+      }
+      for (const l of leadRows) {
+        const k = keyFor(l);
+        bump(k, (s) => { s.leads += 1; });
+        if (l.status && !["lead","perdido"].includes(l.status)) bump(k, (s) => { s.contacts += 1; });
+        if (scheduledSet.has(l.id) || l.reuniao_agendada_em) bump(k, (s) => { s.meetings += 1; });
+        if (showedSet.has(l.id)) bump(k, (s) => { s.showed += 1; });
         if (l.status === "ganho") {
           const v = Number(l.valor_proposta) || 0;
-          bump(name, (s) => { s.wins += 1; s.revenue += v; });
-          if (name) {
-            const k = String(name).trim().toLowerCase();
-            wins[k] = wins[k] || { count: 0, value: 0 };
-            wins[k].count += 1; wins[k].value += v;
-          }
+          bump(k, (s) => { s.wins += 1; s.revenue += v; });
         }
-      });
-      // agency_leads ganhos (também contam como vendas atribuídas por utm)
-      const { data: agencyWins } = await supabase
-        .from("agency_leads")
-        .select("utm_campaign,valor_proposta,tenant_id_criado,stage")
-        .eq("stage", "ganho")
-        .eq("tenant_id_criado", tenant.id);
-      (agencyWins ?? []).forEach((w: any) => {
-        const v = Number(w.valor_proposta) || 0;
-        bump(w.utm_campaign, (s) => { s.wins += 1; s.revenue += v; });
-        if (w.utm_campaign) {
-          const k = String(w.utm_campaign).trim().toLowerCase();
-          wins[k] = wins[k] || { count: 0, value: 0 };
-          wins[k].count += 1; wins[k].value += v;
-        }
-      });
+      }
       setCrmStats(stats);
-      setCrmWins(wins);
+      setGlobalStats(globals);
       setLastSync(new Date());
 
     } catch (e: any) {
@@ -219,25 +243,34 @@ export default function TenantCampaigns() {
       acc.leads += c.insights.leads;
       acc.impressions += c.insights.impressions;
       acc.clicks += c.insights.clicks;
+      acc.reach += c.insights.reach || 0;
       acc.revenue += c.insights.purchase_value;
       return acc;
-    }, { spend: 0, leads: 0, impressions: 0, clicks: 0, revenue: 0 });
-    const crmTotal = Object.values(crmWins).reduce((sum, v) => sum + v.value, 0);
-    const crmCount = Object.values(crmWins).reduce((sum, v) => sum + v.count, 0);
-    const meetingsTotal = Object.values(crmStats).reduce((sum, v) => sum + v.meetings, 0);
-    const totalRev = s.revenue + crmTotal;
+    }, { spend: 0, leads: 0, impressions: 0, clicks: 0, reach: 0, revenue: 0 });
+    // Faturamento e CAC baseados na receita real do CRM (kanban ganho).
+    const totalRev = s.revenue + globalStats.revenue;
+    const wins = globalStats.wins;
+    // Frequência média ponderada (pelo alcance)
+    const freq = s.reach > 0 ? s.impressions / s.reach : 0;
     return {
       spend: s.spend, leads: s.leads, revenue: totalRev,
       cpl: s.leads ? s.spend / s.leads : 0,
       roas: s.spend ? totalRev / s.spend : 0,
       active: campaigns.filter((c) => c.effective_status === "ACTIVE" || c.status === "ACTIVE").length,
-      total: campaigns.length, crmWins: crmCount,
+      total: campaigns.length,
+      wins,
       ctr: s.impressions ? (s.clicks / s.impressions) * 100 : 0,
-      meetings: meetingsTotal,
-      cpm_meeting: meetingsTotal ? s.spend / meetingsTotal : 0,
-      cac: crmCount ? s.spend / crmCount : 0,
+      cpm: s.impressions ? (s.spend / s.impressions) * 1000 : 0,
+      frequency: freq,
+      appointments: globalStats.meetings,
+      showed: globalStats.showed,
+      cost_per_appointment: globalStats.meetings ? s.spend / globalStats.meetings : 0,
+      cost_per_show: globalStats.showed ? s.spend / globalStats.showed : 0,
+      show_rate: globalStats.meetings ? (globalStats.showed / globalStats.meetings) * 100 : 0,
+      cac: wins ? s.spend / wins : 0,
+      ticket: wins ? totalRev / wins : 0,
     };
-  }, [campaigns, crmWins, crmStats]);
+  }, [campaigns, globalStats]);
 
 
   // Agrega séries diárias de todas as campanhas para os sparklines dos KPIs
@@ -254,6 +287,31 @@ export default function TenantCampaigns() {
     }
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
   }, [campaigns]);
+
+  const globalAlerts: Alert[] = useMemo(() => {
+    const out: Alert[] = [];
+    for (const c of campaigns) {
+      const ins = c.insights;
+      if (!ins) continue;
+      if ((ins.frequency ?? 0) > 3.5) {
+        out.push({ id: `freq-${c.id}`, severity: "warn", title: "Frequência alta", description: `${c.name}: frequência ${ins.frequency?.toFixed(1)}. Sinal de fadiga — considere novos criativos.`, scope: c.ad_account_label || c.ad_account_id });
+      }
+      if ((ins.hook_rate ?? 0) > 0 && (ins.hook_rate ?? 0) < 15) {
+        out.push({ id: `hook-${c.id}`, severity: "warn", title: "Hook Rate fraco", description: `${c.name}: Hook Rate ${ins.hook_rate?.toFixed(0)}% (< 15%). Reescreva os primeiros 3 segundos.`, scope: c.ad_account_label || c.ad_account_id });
+      }
+    }
+    if (kpis.show_rate > 0 && kpis.show_rate < 60 && kpis.appointments >= 5) {
+      out.push({ id: "show-rate", severity: "critical", title: "Taxa de show baixa", description: `${kpis.show_rate.toFixed(0)}% (< 60%). Reforce lembretes por WhatsApp ou peça sinal/pré-pagamento.`, scope: "Funil" });
+    }
+    if (kpis.wins > 0 && kpis.leads > 20) {
+      const closeRate = (kpis.wins / kpis.leads) * 100;
+      if (closeRate < 5) {
+        out.push({ id: "close-rate", severity: "warn", title: "Conversão de leads em vendas baixa", description: `Apenas ${closeRate.toFixed(1)}% dos leads viraram venda. Reveja qualificação e atendimento SDR.`, scope: "Funil" });
+      }
+    }
+    return out;
+  }, [campaigns, kpis]);
+
 
   const periodLabel = period === 1 ? "hoje" : period === 7 ? "últimos 7 dias" : period === 14 ? "últimos 14 dias" : period === 30 ? "últimos 30 dias" : "últimos 90 dias";
 
@@ -292,7 +350,7 @@ export default function TenantCampaigns() {
           <label className="flex items-center gap-2 text-sm">
             <Switch checked={activeOnly} onCheckedChange={setActiveOnly} /> Apenas ativas
           </label>
-          <Button variant="outline" size="sm" onClick={() => exportCsv(campaigns, crmWins)} disabled={!campaigns.length} className="gap-2" aria-label="Exportar CSV">
+          <Button variant="outline" size="sm" onClick={() => exportCsv(campaigns, crmStats)} disabled={!campaigns.length} className="gap-2" aria-label="Exportar CSV">
             <Download className="w-4 h-4" /> CSV
           </Button>
           <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-2">
@@ -302,20 +360,60 @@ export default function TenantCampaigns() {
         </div>
       </div>
 
-      {/* KPIs com sparkline */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-9 gap-3">
-        <Kpi icon={Activity} label="Ativas" value={`${kpis.active}/${kpis.total}`} tone="primary" />
-        <Kpi icon={DollarSign} label="Investido" value={BRL(kpis.spend)} tone="amber"
-             series={dailyTotals} dataKey="spend" formatter={(v) => BRL(v)} />
-        <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan"
-             series={dailyTotals} dataKey="leads" formatter={(v) => NUM(v)} />
-        <Kpi icon={Target} label="CPL" value={BRL(kpis.cpl)} tone="violet" />
-        <Kpi icon={CalendarCheck} label="Reuniões" value={NUM(kpis.meetings)} tone="cyan" />
-        <Kpi icon={Target} label="Custo/Reunião" value={BRL(kpis.cpm_meeting)} tone="violet" />
-        <Kpi icon={UserCheck} label="CAC" value={BRL(kpis.cac)} tone="rose" />
-        <Kpi icon={TrendingUp} label="Faturamento" value={BRL(kpis.revenue)} tone="emerald" />
-        <Kpi icon={Star} label="ROAS" value={`${kpis.roas.toFixed(2)}x`} tone="rose" />
+      {/* Bloco 1: Mídia (Meta) */}
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-2">Mídia · Meta Ads</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+          <Kpi icon={Activity} label="Ativas" value={`${kpis.active}/${kpis.total}`} tone="primary" />
+          <Kpi icon={DollarSign} label="Investido" value={BRL(kpis.spend)} tone="amber"
+               series={dailyTotals} dataKey="spend" formatter={(v) => BRL(v)} />
+          <Kpi icon={MousePointerClick} label="Impressões" value={NUM(kpis.spend > 0 ? campaigns.reduce((a,c)=>a+(c.insights?.impressions||0),0) : 0)} tone="cyan" />
+          <Kpi icon={Target} label="CTR" value={`${kpis.ctr.toFixed(2)}%`} tone="violet" />
+          <Kpi icon={DollarSign} label="CPM" value={BRL(kpis.cpm)} tone="amber" />
+          <Kpi icon={Repeat} label="Frequência" value={kpis.frequency.toFixed(2)} tone="violet" />
+        </div>
       </div>
+
+      {/* Bloco 2: Funil da Clínica */}
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.22em] text-cyan-400/80 mb-2">Funil da Clínica</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
+          <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan"
+               series={dailyTotals} dataKey="leads" formatter={(v) => NUM(v)} />
+          <Kpi icon={Target} label="CPL" value={BRL(kpis.cpl)} tone="violet" />
+          <Kpi icon={CalendarCheck} label="Consultas Agendadas" value={NUM(kpis.appointments)} tone="cyan" />
+          <Kpi icon={Target} label="Custo/Consulta" value={kpis.appointments ? BRL(kpis.cost_per_appointment) : "—"} tone="violet" />
+          <Kpi icon={UserCheck} label="Consultas Realizadas" value={NUM(kpis.showed)} tone="emerald" />
+          <Kpi icon={Target} label="Custo/Realizada" value={kpis.showed ? BRL(kpis.cost_per_show) : "—"} tone="rose" />
+          <Kpi icon={TrendingUp} label="Taxa de Show" value={kpis.appointments ? `${kpis.show_rate.toFixed(0)}%` : "—"} tone={kpis.show_rate >= 60 ? "emerald" : "rose"} />
+        </div>
+      </div>
+
+      {/* Bloco 3: Resultado */}
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.22em] text-emerald-400/80 mb-2">Resultado · CRM</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+          <Kpi icon={Star} label="Vendas" value={NUM(kpis.wins)} tone="emerald" />
+          <Kpi icon={DollarSign} label="Ticket Médio" value={kpis.wins ? BRL(kpis.ticket) : "—"} tone="amber" />
+          <Kpi icon={TrendingUp} label="Receita" value={BRL(kpis.revenue)} tone="emerald" />
+          <Kpi icon={UserCheck} label="CAC" value={kpis.wins ? BRL(kpis.cac) : "—"} tone="rose" />
+          <Kpi icon={Star} label="ROAS real" value={`${kpis.roas.toFixed(2)}x`} tone={kpis.roas >= 2 ? "emerald" : "rose"} />
+        </div>
+      </div>
+
+      {/* Funil visual */}
+      <CampaignFunnel
+        spend={kpis.spend}
+        leads={globalStats.leads}
+        contacts={globalStats.contacts}
+        appointments={kpis.appointments}
+        showed={kpis.showed}
+        sales={kpis.wins}
+      />
+
+      {/* Alertas globais */}
+      <AlertsPanel alerts={globalAlerts} />
+
 
 
 
@@ -390,15 +488,14 @@ export default function TenantCampaigns() {
       {/* Cards compactos */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {campaigns.map((c) => {
-          const key = c.name.trim().toLowerCase();
-          const win = crmWins[key];
-          const stat = crmStats[key];
+          const stat = crmStats[c.id];
           const meetings = stat?.meetings ?? 0;
-          const wins = stat?.wins ?? win?.count ?? 0;
-          const revenue = (c.insights?.purchase_value || 0) + (win?.value || 0);
+          const showed = stat?.showed ?? 0;
+          const wins = stat?.wins ?? 0;
+          const revenue = (c.insights?.purchase_value || 0) + (stat?.revenue || 0);
           const spend = c.insights?.spend || 0;
           const roas = spend ? revenue / spend : 0;
-          const cpMeeting = meetings ? spend / meetings : 0;
+          const cpAppt = meetings ? spend / meetings : 0;
           const cac = revenue > 0 && wins ? spend / wins : 0;
           const isActive = c.effective_status === "ACTIVE" || c.status === "ACTIVE";
           const metaUrl = `https://business.facebook.com/adsmanager/manage/campaigns?act=${(c.ad_account_id || "").replace(/^act_/, "")}&selected_campaign_ids=${c.id}`;
@@ -407,7 +504,11 @@ export default function TenantCampaigns() {
             toast.success("ID da campanha copiado");
           };
           return (
-            <Card key={c.id} className="relative p-3.5 flex flex-col gap-2.5 hover:border-primary/40 transition-colors overflow-hidden group">
+            <Card
+              key={c.id}
+              className="relative p-3.5 flex flex-col gap-2.5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all overflow-hidden group cursor-pointer"
+              onClick={() => setDetailCampaign(c)}
+            >
               {/* status strip */}
               <div className={`absolute left-0 top-0 h-full w-[3px] ${isActive ? "bg-emerald-400 shadow-[0_0_12px_hsl(var(--primary))]" : "bg-muted"}`} />
 
@@ -432,27 +533,25 @@ export default function TenantCampaigns() {
                 <>
                   <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
                     <Metric label="Gasto" value={BRL(c.insights.spend)} />
-                    <Metric
-                      label={c.insights.result_label || "Leads"}
-                      value={NUM(c.insights.result_value ?? c.insights.leads)}
-                    />
-                    <Metric
-                      label={cprLabel(c.insights.result_kind)}
-                      value={BRL(c.insights.cost_per_result ?? c.insights.cpl)}
-                    />
                     <Metric label="CTR" value={`${c.insights.ctr.toFixed(1)}%`} />
+                    <Metric label="CPM" value={BRL(c.insights.cpm)} />
+                    <Metric label="Freq" value={(c.insights.frequency ?? 0).toFixed(1)} />
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5 text-xs pl-1">
+                    <Metric label="Leads" value={NUM(stat?.leads ?? c.insights.leads)} />
+                    <Metric label="Consultas" value={NUM(meetings)} />
+                    <Metric label="Realizadas" value={NUM(showed)} />
+                    <Metric label="Vendas" value={NUM(wins)} />
                   </div>
                   <div className="grid grid-cols-3 gap-1.5 text-xs pl-1">
-                    <Metric label="Reuniões" value={NUM(meetings)} />
-                    <Metric label="Custo/Reun." value={meetings ? BRL(cpMeeting) : "—"} />
+                    <Metric label="CPL" value={c.insights.leads > 0 ? BRL(c.insights.cpl) : "—"} />
+                    <Metric label="Custo/Consulta" value={meetings ? BRL(cpAppt) : "—"} />
                     <Metric label="CAC" value={revenue > 0 && wins ? BRL(cac) : "—"} />
                   </div>
                 </>
               ) : (
                 <div className="text-[11px] text-muted-foreground italic pl-1">Sem dados no período.</div>
               )}
-
-
 
               {c.daily && c.daily.length > 1 && (
                 <div className="pl-1">
@@ -464,7 +563,6 @@ export default function TenantCampaigns() {
                 </div>
               )}
 
-
               <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1.5 flex items-center justify-between ml-1">
                 <div className="text-[9px] uppercase tracking-wider text-emerald-400 flex items-center gap-1">
                   <Star className="w-3 h-3" /> Receita
@@ -472,15 +570,15 @@ export default function TenantCampaigns() {
                 <div className="text-right leading-tight">
                   <div className="text-xs font-bold tabular-nums text-emerald-400">{BRL(revenue)}</div>
                   <div className="text-[9px] text-muted-foreground">
-                    ROAS {roas.toFixed(2)}x{win?.count ? ` · ${win.count} venda${win.count > 1 ? "s" : ""}` : ""}
+                    ROAS {roas.toFixed(2)}x{wins ? ` · ${wins} venda${wins > 1 ? "s" : ""}` : ""}
                   </div>
                 </div>
               </div>
 
               {/* Ações rápidas */}
-              <div className="flex items-center gap-1 pl-1 pt-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
-                <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={() => setDetail(c)}>
-                  <Eye className="w-3 h-3" /> Detalhes
+              <div className="flex items-center gap-1 pl-1 pt-0.5 opacity-70 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={() => setDetailCampaign(c)}>
+                  <Eye className="w-3 h-3" /> Analisar
                 </Button>
                 <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] gap-1" onClick={() => window.open(metaUrl, "_blank")}>
                   <ExternalLink className="w-3 h-3" /> Meta
@@ -494,56 +592,18 @@ export default function TenantCampaigns() {
         })}
       </div>
 
-      {/* Detail Dialog */}
-      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="pr-6">{detail?.name}</DialogTitle>
-            <DialogDescription className="font-mono text-[11px]">
-              {detail?.ad_account_label || detail?.ad_account_id} · {detail?.id}
-            </DialogDescription>
-          </DialogHeader>
-          {detail?.insights ? (
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              <Metric label="Gasto" value={BRL(detail.insights.spend)} />
-              <Metric label="Impr." value={NUM(detail.insights.impressions)} />
-              <Metric label="Cliques" value={NUM(detail.insights.clicks)} />
-              <Metric label="CTR" value={`${detail.insights.ctr.toFixed(2)}%`} />
-              <Metric label="CPC" value={BRL(detail.insights.cpc)} />
-              <Metric label="CPM" value={BRL(detail.insights.cpm)} />
-              <Metric label="Leads" value={NUM(detail.insights.leads)} />
-              <Metric label="CPL" value={BRL(detail.insights.cpl)} />
-              <Metric label="ROAS" value={`${detail.insights.roas.toFixed(2)}x`} />
-            </div>
-          ) : (
-            <div className="text-sm text-muted-foreground italic">Sem insights no período.</div>
-          )}
-          <div className="flex items-center gap-2 pt-2">
-            <Badge variant="outline" className="text-[10px]">{detail?.objective || "—"}</Badge>
-            <Badge variant="outline" className="text-[10px]">Status: {detail?.effective_status || detail?.status}</Badge>
-            {detail?.daily_budget && (
-              <Badge variant="outline" className="text-[10px]">
-                Diário: {BRL(Number(detail.daily_budget) / 100)}
-              </Badge>
-            )}
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" className="gap-1" onClick={() => detail && navigator.clipboard.writeText(detail.id).then(() => toast.success("ID copiado"))}>
-              <Copy className="w-3.5 h-3.5" /> Copiar ID
-            </Button>
-            <Button size="sm" className="gap-1" onClick={() => {
-              if (!detail) return;
-              const url = `https://business.facebook.com/adsmanager/manage/campaigns?act=${(detail.ad_account_id || "").replace(/^act_/, "")}&selected_campaign_ids=${detail.id}`;
-              window.open(url, "_blank");
-            }}>
-              <ExternalLink className="w-3.5 h-3.5" /> Abrir no Meta
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <CampaignDetailSheet
+        open={!!detailCampaign}
+        onClose={() => setDetailCampaign(null)}
+        tenantId={tenant.id}
+        campaign={detailCampaign as any}
+        since={daysAgoISO(period)}
+        until={todayISO()}
+      />
     </div>
   );
 }
+
 
 const TONE_HSL: Record<string, string> = {
   primary: "hsl(var(--primary))",
@@ -626,28 +686,33 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function exportCsv(campaigns: any[], crmWins: Record<string, { count: number; value: number }>) {
-  const header = ["campaign_id","name","status","spend","leads","cpl","impressions","clicks","ctr","cpc","crm_wins","crm_revenue"];
+function exportCsv(campaigns: any[], crmStats: Record<string, CampaignStats>) {
+  const header = ["campaign_id","name","status","spend","impressions","clicks","ctr","cpm","frequency","leads","cpl","appointments","showed","wins","revenue","cac"];
   const rows = campaigns.map((c) => {
     const ins = c.insights || {};
     const spend = Number(ins.spend || 0);
     const leads = Number(ins.leads || 0);
-    const wins = crmWins[c.id] || { count: 0, value: 0 };
+    const stat = crmStats[c.id] || { leads: 0, meetings: 0, showed: 0, wins: 0, revenue: 0, contacts: 0 };
     return [
       c.id,
       `"${String(c.name || "").replace(/"/g, '""')}"`,
       c.effective_status || c.status || "",
       spend.toFixed(2),
-      leads,
-      leads > 0 ? (spend / leads).toFixed(2) : "",
       ins.impressions || 0,
       ins.clicks || 0,
-      ins.ctr || "",
-      ins.cpc || "",
-      wins.count,
-      wins.value.toFixed(2),
+      (ins.ctr ?? 0).toFixed(2),
+      (ins.cpm ?? 0).toFixed(2),
+      (ins.frequency ?? 0).toFixed(2),
+      leads,
+      leads > 0 ? (spend / leads).toFixed(2) : "",
+      stat.meetings,
+      stat.showed,
+      stat.wins,
+      stat.revenue.toFixed(2),
+      stat.wins > 0 ? (spend / stat.wins).toFixed(2) : "",
     ].join(",");
   });
+
   const csv = [header.join(","), ...rows].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);

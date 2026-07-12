@@ -147,10 +147,13 @@ function flattenFieldData(arr: any[] | undefined): Record<string, string> {
 export async function insertLead(payload: Record<string, string>, meta: {
   facebook_lead_id?: string | null;
   facebook_form_id?: string | null;
-  facebook_campaign?: string | null;
   facebook_form_name?: string | null;
+  facebook_campaign?: string | null;      // campaign NAME
+  facebook_campaign_id?: string | null;   // campaign ID (numeric)
   facebook_ad_name?: string | null;
+  facebook_ad_id?: string | null;
   facebook_adset_name?: string | null;
+  facebook_adset_id?: string | null;
   tenant_id?: string | null;
 }) {
   const nome      = pick(payload, ["full_name","nome","nome_completo","name","first_name"]);
@@ -176,8 +179,17 @@ export async function insertLead(payload: Record<string, string>, meta: {
     const { data: existing } = await admin
       .from("leads").select("id").eq("facebook_lead_id", meta.facebook_lead_id).maybeSingle();
     if (existing) {
-      if (Object.prototype.hasOwnProperty.call(meta, "tenant_id")) {
-        await admin.from("leads").update({ tenant_id: meta.tenant_id }).eq("id", existing.id);
+      const backfill: Record<string, any> = {};
+      if (Object.prototype.hasOwnProperty.call(meta, "tenant_id")) backfill.tenant_id = meta.tenant_id;
+      if (meta.facebook_campaign_id) backfill.facebook_campaign_id = meta.facebook_campaign_id;
+      if (meta.facebook_adset_id)    backfill.facebook_adset_id    = meta.facebook_adset_id;
+      if (meta.facebook_ad_id)       backfill.facebook_ad_id       = meta.facebook_ad_id;
+      if (meta.facebook_campaign)    backfill.facebook_campaign    = meta.facebook_campaign;
+      if (meta.facebook_adset_name)  backfill.facebook_adset_name  = meta.facebook_adset_name;
+      if (meta.facebook_ad_name)     backfill.facebook_ad_name     = meta.facebook_ad_name;
+      if (meta.facebook_form_name)   backfill.facebook_form_name   = meta.facebook_form_name;
+      if (Object.keys(backfill).length) {
+        await admin.from("leads").update(backfill).eq("id", existing.id);
       }
       console.log(`[webhook] Lead duplicado (já existe): ${meta.facebook_lead_id} → ${existing.id}`);
       return { ok: true, deduped: true, id: existing.id };
@@ -189,22 +201,20 @@ export async function insertLead(payload: Record<string, string>, meta: {
   if (trafego)   notesParts.push(`Tráfego pago: ${trafego}`);
   const observacoes = notesParts.length ? notesParts.join(" | ") : null;
 
-  // Persiste TODAS as respostas do formulário em extras.form_fields
-  // para a aba "Formulário" do UnifiedLeadPanel exibir corretamente.
   const formFields = Object.entries(payload).map(([name, value]) => ({
-    name,
-    label: name,
-    value: String(value ?? ""),
+    name, label: name, value: String(value ?? ""),
   }));
   const extras = {
     form_fields: formFields,
     facebook: {
       form_id: meta.facebook_form_id ?? null,
       form_name: meta.facebook_form_name ?? null,
-      campaign_id: meta.facebook_campaign ?? null,
+      campaign_id: meta.facebook_campaign_id ?? null,
       campaign_name: meta.facebook_campaign ?? null,
-      ad_name: meta.facebook_ad_name ?? null,
+      adset_id: meta.facebook_adset_id ?? null,
       adset_name: meta.facebook_adset_name ?? null,
+      ad_id: meta.facebook_ad_id ?? null,
+      ad_name: meta.facebook_ad_name ?? null,
       lead_id: meta.facebook_lead_id ?? null,
     },
   };
@@ -222,15 +232,18 @@ export async function insertLead(payload: Record<string, string>, meta: {
     revendedor_iniciante: false,
     facebook_lead_id: meta.facebook_lead_id,
     facebook_form_id: meta.facebook_form_id,
-    facebook_campaign: meta.facebook_campaign,
     facebook_form_name: meta.facebook_form_name,
-    facebook_ad_name: meta.facebook_ad_name,
+    facebook_campaign: meta.facebook_campaign,
+    facebook_campaign_id: meta.facebook_campaign_id,
     facebook_adset_name: meta.facebook_adset_name,
+    facebook_adset_id: meta.facebook_adset_id,
+    facebook_ad_name: meta.facebook_ad_name,
+    facebook_ad_id: meta.facebook_ad_id,
     observacoes,
     extras,
     utm_source: "facebook",
     utm_medium: "paid",
-    utm_campaign: meta.facebook_campaign ?? null,
+    utm_campaign: meta.facebook_campaign ?? meta.facebook_campaign_id ?? null,
     utm_content: meta.facebook_ad_name ?? null,
     utm_term: meta.facebook_adset_name ?? null,
   };
@@ -322,6 +335,10 @@ Deno.serve(async (req) => {
         let adName: string | null = null;
         let adsetName: string | null = null;
         let campaignName: string | null = null;
+        let adIdFromGraph: string | null = null;
+        let adsetIdFromGraph: string | null = null;
+        let campaignIdFromGraph: string | null = null;
+        let formNameFromGraph: string | null = null;
 
         const pageIdForRoute = v.page_id ? String(v.page_id) : (entry.id ? String(entry.id) : null);
         const formIdForRoute = v.form_id ? String(v.form_id) : null;
@@ -331,9 +348,13 @@ Deno.serve(async (req) => {
           const full = await fetchLeadFromGraph(String(leadgenId), graphToken);
           if (full) {
             flat = flattenFieldData(full.field_data);
-            adName = full.ad_name ?? null;
-            adsetName = full.adset_name ?? null;
-            campaignName = full.campaign_name ?? null;
+            adName             = full.ad_name ?? null;
+            adsetName          = full.adset_name ?? null;
+            campaignName       = full.campaign_name ?? null;
+            adIdFromGraph      = full.ad_id ? String(full.ad_id) : null;
+            adsetIdFromGraph   = full.adset_id ? String(full.adset_id) : null;
+            campaignIdFromGraph= full.campaign_id ? String(full.campaign_id) : null;
+            formNameFromGraph  = full.form_name ?? null;
           }
         }
 
@@ -362,14 +383,16 @@ Deno.serve(async (req) => {
         // matched: pode ser tenant (route.tenantId) OU admin_master (tenantId=null)
         const routedTenant = route.tenantId;
 
-
         const r = await insertLead(flat, {
           facebook_lead_id: leadgenId,
           facebook_form_id: v.form_id ?? null,
-          facebook_campaign: campaignName ?? v.campaign_id ?? v.ad_id ?? null,
-          facebook_form_name: null,
+          facebook_form_name: formNameFromGraph,
+          facebook_campaign: campaignName,
+          facebook_campaign_id: campaignIdFromGraph ?? (v.campaign_id ? String(v.campaign_id) : null),
           facebook_ad_name: adName,
+          facebook_ad_id: adIdFromGraph ?? (v.ad_id ? String(v.ad_id) : null),
           facebook_adset_name: adsetName,
+          facebook_adset_id: adsetIdFromGraph,
           tenant_id: routedTenant,
         });
         results.push(r);
@@ -402,10 +425,13 @@ Deno.serve(async (req) => {
       const r = await insertLead(flat, {
         facebook_lead_id: body.id ?? body.leadgen_id ?? null,
         facebook_form_id: body.form_id ?? null,
-        facebook_campaign: body.campaign_name ?? body.campaign_id ?? null,
         facebook_form_name: body.form_name ?? null,
+        facebook_campaign: body.campaign_name ?? null,
+        facebook_campaign_id: body.campaign_id ? String(body.campaign_id) : null,
         facebook_ad_name: body.ad_name ?? null,
+        facebook_ad_id: body.ad_id ? String(body.ad_id) : null,
         facebook_adset_name: body.adset_name ?? null,
+        facebook_adset_id: body.adset_id ? String(body.adset_id) : null,
         tenant_id: route.tenantId,
       });
       results.push(r);
@@ -428,12 +454,14 @@ Deno.serve(async (req) => {
       const r = await insertLead(body, {
         facebook_lead_id: body.facebook_lead_id ?? body.lead_id ?? body.id ?? null,
         facebook_form_id: body.form_id ?? null,
-        facebook_campaign: body.campaign_name ?? body.utm_campaign ?? null,
         facebook_form_name: body.form_name ?? null,
+        facebook_campaign: body.campaign_name ?? body.utm_campaign ?? null,
+        facebook_campaign_id: body.campaign_id ? String(body.campaign_id) : null,
         facebook_ad_name: body.ad_name ?? null,
+        facebook_ad_id: body.ad_id ? String(body.ad_id) : null,
         facebook_adset_name: body.adset_name ?? null,
+        facebook_adset_id: body.adset_id ? String(body.adset_id) : null,
         tenant_id: route.tenantId,
-
       });
       results.push(r);
     }

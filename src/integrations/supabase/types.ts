@@ -1920,6 +1920,7 @@ export type Database = {
           facebook_adset_id: string | null
           facebook_adset_name: string | null
           facebook_campaign: string | null
+          facebook_campaign_id: string | null
           facebook_form_id: string | null
           facebook_form_name: string | null
           facebook_lead_id: string | null
@@ -1973,6 +1974,7 @@ export type Database = {
           facebook_adset_id?: string | null
           facebook_adset_name?: string | null
           facebook_campaign?: string | null
+          facebook_campaign_id?: string | null
           facebook_form_id?: string | null
           facebook_form_name?: string | null
           facebook_lead_id?: string | null
@@ -2026,6 +2028,7 @@ export type Database = {
           facebook_adset_id?: string | null
           facebook_adset_name?: string | null
           facebook_campaign?: string | null
+          facebook_campaign_id?: string | null
           facebook_form_id?: string | null
           facebook_form_name?: string | null
           facebook_lead_id?: string | null
