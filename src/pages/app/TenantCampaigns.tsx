@@ -686,28 +686,33 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function exportCsv(campaigns: any[], crmWins: Record<string, { count: number; value: number }>) {
-  const header = ["campaign_id","name","status","spend","leads","cpl","impressions","clicks","ctr","cpc","crm_wins","crm_revenue"];
+function exportCsv(campaigns: any[], crmStats: Record<string, CampaignStats>) {
+  const header = ["campaign_id","name","status","spend","impressions","clicks","ctr","cpm","frequency","leads","cpl","appointments","showed","wins","revenue","cac"];
   const rows = campaigns.map((c) => {
     const ins = c.insights || {};
     const spend = Number(ins.spend || 0);
     const leads = Number(ins.leads || 0);
-    const wins = crmWins[c.id] || { count: 0, value: 0 };
+    const stat = crmStats[c.id] || { leads: 0, meetings: 0, showed: 0, wins: 0, revenue: 0, contacts: 0 };
     return [
       c.id,
       `"${String(c.name || "").replace(/"/g, '""')}"`,
       c.effective_status || c.status || "",
       spend.toFixed(2),
-      leads,
-      leads > 0 ? (spend / leads).toFixed(2) : "",
       ins.impressions || 0,
       ins.clicks || 0,
-      ins.ctr || "",
-      ins.cpc || "",
-      wins.count,
-      wins.value.toFixed(2),
+      (ins.ctr ?? 0).toFixed(2),
+      (ins.cpm ?? 0).toFixed(2),
+      (ins.frequency ?? 0).toFixed(2),
+      leads,
+      leads > 0 ? (spend / leads).toFixed(2) : "",
+      stat.meetings,
+      stat.showed,
+      stat.wins,
+      stat.revenue.toFixed(2),
+      stat.wins > 0 ? (spend / stat.wins).toFixed(2) : "",
     ].join(",");
   });
+
   const csv = [header.join(","), ...rows].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
