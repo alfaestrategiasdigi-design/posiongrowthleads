@@ -399,7 +399,7 @@ export default function TenantCampaigns() {
           const spend = c.insights?.spend || 0;
           const roas = spend ? revenue / spend : 0;
           const cpMeeting = meetings ? spend / meetings : 0;
-          const cac = wins ? spend / wins : 0;
+          const cac = revenue > 0 && wins ? spend / wins : 0;
           const isActive = c.effective_status === "ACTIVE" || c.status === "ACTIVE";
           const metaUrl = `https://business.facebook.com/adsmanager/manage/campaigns?act=${(c.ad_account_id || "").replace(/^act_/, "")}&selected_campaign_ids=${c.id}`;
           const copyId = async () => {
