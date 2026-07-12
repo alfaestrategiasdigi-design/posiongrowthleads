@@ -1,21 +1,33 @@
-## Problema
-O painel de alertas está renderizando um card grande para cada campanha com "Hook Rate fraco" (uma linha por campanha), empurrando os cards de campanha para baixo e dominando a tela. Além disso, o alerta dispara mesmo quando o hook rate é baixo por pouco volume de vídeo (falso positivo).
+## Objetivo
 
-## Mudanças
+O funil do Posion Master (conta de agência) deve ter **exatamente o mesmo layout, mesmas métricas e mesmas fontes de dados** do funil das clínicas — a única diferença é o rótulo: onde na clínica é "Consulta", na agência é "Reunião". Custo/Reunião, CAC, Ticket, Receita e ROAS continuam existindo, calculados igual.
 
-**1. `src/components/campaigns/AlertsPanel.tsx` — versão compacta e recolhível**
-- Renderizar por padrão apenas 1 linha resumo: "⚠️ 8 alertas · 0 críticos" com botão "Ver detalhes" para expandir.
-- Se houver 0 alertas, mantém o card verde atual (curto).
-- Quando expandido, agrupar por título (ex.: "Hook Rate fraco (8)") em vez de repetir card por campanha; ao clicar no grupo, mostra a lista das campanhas afetadas.
-- Reduzir padding e tamanho de fonte para não competir visualmente com os cards.
+## O que muda em `src/pages/app/TenantCampaigns.tsx`
 
-**2. `src/pages/app/TenantCampaigns.tsx` — regras mais rigorosas para reduzir ruído**
-- Só emitir "Hook Rate fraco" quando `impressions >= 1000` **e** `video_views >= 200` (evita alertar campanhas de foto/baixo volume).
-- Só emitir "Frequência alta" quando `impressions >= 2000`.
-- Limitar a no máximo 3 alertas por regra (os piores casos); adicionar contador "+N campanhas" no grupo.
+1. **Remover o bloco alternativo "Captação · Agência"** que eu tinha criado (ele escondia os KPIs de reunião/CAC).
+2. **Restaurar os 3 blocos originais** (Mídia · Meta Ads, Funil, Resultado · CRM) e o `CampaignFunnel` visual para o Posion Master também.
+3. **Parametrizar apenas os rótulos** com base em `isMasterAccount`:
+   - Título do bloco: `Funil da Clínica` → `Funil da Agência`
+   - `Consultas Agendadas` → `Reuniões Agendadas`
+   - `Custo/Consulta` → `Custo/Reunião`
+   - `Consultas Realizadas` → `Reuniões Realizadas`
+   - `Custo/Realizada` (mantém)
+   - `Taxa de Show` (mantém)
+   - Bloco Resultado: `Vendas` → `Contratos` no Posion Master; demais mantêm (Ticket Médio, Receita, CAC, ROAS real)
+4. **Passar rótulos customizados para o `CampaignFunnel`** (novo prop opcional `labels`) para que o funil visual mostre "Reunião Agendada / Reunião Realizada / Contrato" no Posion Master. Nenhum cálculo muda.
 
-**3. Posicionamento**
-- Mover o `<AlertsPanel>` para **depois** do grid de campanhas (hoje aparece antes), para que os cards fiquem no topo, imediatamente após os KPIs e o funil.
+## O que muda em `src/components/campaigns/CampaignFunnel.tsx`
+
+- Adicionar prop opcional `labels?: { appointments?: string; showed?: string; sales?: string; appointmentCost?: string; showedCost?: string; cac?: string; title?: string }` e usar nos steps quando fornecido. Sem labels, mantém os textos atuais (clínica).
+
+## Fonte de dados (sem alteração)
+
+- **Reuniões Agendadas** = `kpis.appointments` — vem de `appointments` (agenda) + `leads.reuniao_agendada_em`, filtrado por `tenant_id = 00000000-0000-0000-0000-000000000001` para o Posion Master. Já funciona hoje.
+- **Reuniões Realizadas** = `kpis.showed` — `appointments.status ∈ (compareceu, realizado, fechado, confirmado)`.
+- **Custo/Reunião** = `spend / appointments` — cálculo já existente `kpis.cost_per_appointment`.
+- **CAC** = `spend / wins` (leads com `status = 'ganho'`) — inalterado.
+- **Receita / Ticket / ROAS** — inalterados.
 
 ## Resultado esperado
-Cards de campanhas ganham destaque no topo da página; alertas ficam como uma faixa fina recolhível abaixo, sem esconder informação (basta um clique para expandir agrupado por tipo).
+
+Na página `/admin/campanhas` (aba Posion Master) o usuário vê o mesmo dashboard visual das clínicas, com Custo/Reunião, CAC, Ticket Médio, Receita e ROAS presentes, buscando das mesmas tabelas (`appointments`, `leads`, `campaign_insights`), só com os rótulos trocados para o contexto de agência.
