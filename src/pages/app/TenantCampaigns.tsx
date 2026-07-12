@@ -422,8 +422,8 @@ export default function TenantCampaigns() {
         sales={kpis.wins}
       />
 
-      {/* Alertas globais */}
-      <AlertsPanel alerts={globalAlerts} />
+
+
 
 
 
