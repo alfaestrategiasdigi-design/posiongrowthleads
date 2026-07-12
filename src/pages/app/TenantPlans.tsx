@@ -424,7 +424,7 @@ export default function TenantPlans() {
           </Card>
         )}
 
-        <TrialGate tenant={tenant as any}>
+        {!hasPaid && <TrialGate tenant={tenant as any}>
           <div>
             <h2 className="font-display text-xl mb-6">{hasActiveSub ? "Trocar de plano" : "Escolha seu compromisso"}</h2>
 
