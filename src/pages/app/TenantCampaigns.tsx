@@ -167,17 +167,31 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       };
       const keyFor = (l: any): string | null => {
         if (l.facebook_campaign_id && byId[l.facebook_campaign_id]) return byId[l.facebook_campaign_id];
+        // Alguns leads gravam o ID da campanha no campo `facebook_campaign` (não no *_id)
+        if (l.facebook_campaign && byId[l.facebook_campaign]) return byId[l.facebook_campaign];
         const n1 = (l.utm_campaign || "").trim().toLowerCase();
         if (n1 && byName[n1]) return byName[n1];
         const n2 = (l.facebook_campaign || "").trim().toLowerCase();
         if (n2 && byName[n2]) return byName[n2];
         return null;
       };
-      const { data: allLeads } = await supabase
+      const campIds = campList.map((c) => c.id).filter(Boolean);
+      // Posion Master: leads da conta de agência ficam com tenant_id NULL.
+      // Filtramos por facebook_campaign_id / facebook_campaign nas campanhas listadas.
+      let leadsQuery = supabase
         .from("leads")
-        .select("id,utm_campaign,facebook_campaign,facebook_campaign_id,valor_proposta,status,reuniao_agendada_em,fechado_em,created_at")
-        .eq("tenant_id", tenant.id)
+        .select("id,utm_campaign,facebook_campaign,facebook_campaign_id,valor_proposta,status,reuniao_agendada_em,fechado_em,created_at,tenant_id")
         .gte("created_at", sinceISO);
+      if (isMasterAccount) {
+        if (campIds.length === 0) { leadsQuery = leadsQuery.eq("id", "00000000-0000-0000-0000-000000000000"); }
+        else {
+          const idList = campIds.map((x) => `"${x}"`).join(",");
+          leadsQuery = leadsQuery.or(`facebook_campaign_id.in.(${idList}),facebook_campaign.in.(${idList})`);
+        }
+      } else {
+        leadsQuery = leadsQuery.eq("tenant_id", tenant.id);
+      }
+      const { data: allLeads } = await leadsQuery;
       const leadRows = (allLeads ?? []) as any[];
       const leadIds = leadRows.map((l) => l.id);
       // Appointments no período (por lead)
