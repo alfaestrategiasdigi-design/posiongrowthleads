@@ -7,9 +7,9 @@
 
 \set ON_ERROR_STOP on
 BEGIN;
+SET LOCAL row_security = off;
 -- Side-effect triggers (CAPI dispatch, sales mirror, automation) run too, but the
--- whole transaction rolls back so nothing persists. HTTP dispatch via pg_net is
--- fire-and-forget and cannot fail the tx.
+-- whole transaction rolls back so nothing persists.
 
 DO $test$
 DECLARE
