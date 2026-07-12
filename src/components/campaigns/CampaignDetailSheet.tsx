@@ -31,9 +31,18 @@ interface Props {
   } | null;
   since: string;
   until: string;
+  labels?: {
+    appointments?: string;
+    showed?: string;
+    sales?: string;
+    appointmentCost?: string;
+    showedCost?: string;
+    cac?: string;
+    title?: string;
+  };
 }
 
-export default function CampaignDetailSheet({ open, onClose, tenantId, campaign, since, until }: Props) {
+export default function CampaignDetailSheet({ open, onClose, tenantId, campaign, since, until, labels }: Props) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
@@ -164,6 +173,7 @@ export default function CampaignDetailSheet({ open, onClose, tenantId, campaign,
                 appointments={leadsAgg.scheduled}
                 showed={leadsAgg.showed}
                 sales={leadsAgg.sales}
+                labels={labels}
               />
             </TabsContent>
 
@@ -216,9 +226,9 @@ export default function CampaignDetailSheet({ open, onClose, tenantId, campaign,
             <TabsContent value="leads" className="mt-4">
               <div className="grid grid-cols-4 gap-2 mb-3">
                 <KPI label="Leads" value={NUM(leadsAgg.total)} />
-                <KPI label="Agendados" value={NUM(leadsAgg.scheduled)} />
-                <KPI label="Compareceram" value={NUM(leadsAgg.showed)} />
-                <KPI label="Vendas / Receita" value={`${leadsAgg.sales} · ${BRL(leadsAgg.revenue)}`} />
+                <KPI label={labels?.appointments ?? "Agendados"} value={NUM(leadsAgg.scheduled)} />
+                <KPI label={labels?.showed ?? "Compareceram"} value={NUM(leadsAgg.showed)} />
+                <KPI label={`${labels?.sales ?? "Vendas"} / Receita`} value={`${leadsAgg.sales} · ${BRL(leadsAgg.revenue)}`} />
               </div>
               <div className="rounded-md border overflow-hidden">
                 <table className="w-full text-xs">
