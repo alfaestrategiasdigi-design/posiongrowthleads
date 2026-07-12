@@ -53,6 +53,22 @@ export default function CampanhasPage() {
   const [until, setUntil] = useState<string>(todayISO());
   const [onlyActive, setOnlyActive] = useState(true);
 
+  // ===== Gestão de eficiência (alertas) =====
+  type Thresholds = { cplTarget: number; cprLimit: number; alertMarginPct: number };
+  const THRESH_KEY = "posion.campanhas.thresholds.v1";
+  const [thresholds, setThresholds] = useState<Thresholds>(() => {
+    try {
+      const raw = localStorage.getItem(THRESH_KEY);
+      if (raw) return { cplTarget: 25, cprLimit: 150, alertMarginPct: 20, ...JSON.parse(raw) };
+    } catch {}
+    return { cplTarget: 25, cprLimit: 150, alertMarginPct: 20 };
+  });
+  useEffect(() => { try { localStorage.setItem(THRESH_KEY, JSON.stringify(thresholds)); } catch {} }, [thresholds]);
+  const [thresholdDialog, setThresholdDialog] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "critical" | "warn" | "ok">("all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkPausing, setBulkPausing] = useState(false);
+
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [adAccountId, setAdAccountId] = useState<string | null>(null);
