@@ -15,6 +15,7 @@ import { format } from "date-fns";
 interface AgencyContract {
   id: string;
   tenant_id: string | null;
+  agency_lead_id: string | null;
   cliente_nome: string;
   valor_total: number;
   valor_comissao: number;
@@ -23,6 +24,13 @@ interface AgencyContract {
   status: "ativo" | "pausado" | "encerrado" | "cancelado";
   observacoes: string | null;
   created_at: string;
+}
+interface AgencyLeadOption {
+  id: string;
+  nome_clinica: string | null;
+  responsavel: string | null;
+  stage: string;
+  valor_proposta: number | null;
 }
 interface SaasContract {
   id: string;
@@ -45,7 +53,11 @@ export default function AgencyContractsPage() {
   const load = async () => {
     setLoading(true);
     const [a, s] = await Promise.all([
-      supabase.from("agency_contracts").select("*").order("data_assinatura", { ascending: false }),
+      supabase
+        .from("agency_contracts")
+        .select("*")
+        .not("agency_lead_id", "is", null)
+        .order("data_assinatura", { ascending: false }),
       supabase.from("saas_contracts").select("*").order("started_at", { ascending: false }),
     ]);
     setAgency((a.data || []) as AgencyContract[]);
@@ -72,9 +84,9 @@ export default function AgencyContractsPage() {
     <div className="p-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.22em] text-primary/70 mb-1">POSION Agência</div>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-primary/70 mb-1">POSION Master</div>
           <h1 className="text-3xl font-bold">Contratos</h1>
-          <p className="text-sm text-muted-foreground mt-1">Contratos de serviço + assinaturas SaaS.</p>
+          <p className="text-sm text-muted-foreground mt-1">Contratos originados do pipeline Posion Master + assinaturas SaaS.</p>
         </div>
         <Button onClick={() => setDialog("new")} className="gap-2"><Plus className="w-4 h-4" />Novo Contrato</Button>
       </div>
@@ -180,6 +192,8 @@ function ContractDialog({ contract, onOpenChange, onSaved }: { contract: AgencyC
   const isNew = contract === "new";
   const c = isNew ? null : (contract as AgencyContract | null);
   const [saving, setSaving] = useState(false);
+  const [leads, setLeads] = useState<AgencyLeadOption[]>([]);
+  const [agencyLeadId, setAgencyLeadId] = useState<string>("");
   const [form, setForm] = useState({
     cliente_nome: "", valor_total: 0, valor_comissao: 0, duracao_meses: 12,
     data_assinatura: new Date().toISOString().slice(0, 10),
@@ -187,23 +201,40 @@ function ContractDialog({ contract, onOpenChange, onSaved }: { contract: AgencyC
   });
 
   useEffect(() => {
-    if (c) setForm({
-      cliente_nome: c.cliente_nome,
-      valor_total: Number(c.valor_total),
-      valor_comissao: Number(c.valor_comissao),
-      duracao_meses: c.duracao_meses || 12,
-      data_assinatura: c.data_assinatura,
-      status: c.status,
-      observacoes: c.observacoes || "",
-    });
-    else setForm({ cliente_nome: "", valor_total: 0, valor_comissao: 0, duracao_meses: 12, data_assinatura: new Date().toISOString().slice(0, 10), status: "ativo", observacoes: "" });
+    if (!open) return;
+    supabase
+      .from("agency_leads")
+      .select("id,nome_clinica,responsavel,stage,valor_proposta")
+      .in("stage", ["ganho", "ativo", "proposta", "negociacao"])
+      .order("updated_at", { ascending: false })
+      .limit(200)
+      .then(({ data }) => setLeads((data || []) as AgencyLeadOption[]));
+  }, [open]);
+
+  useEffect(() => {
+    if (c) {
+      setForm({
+        cliente_nome: c.cliente_nome,
+        valor_total: Number(c.valor_total),
+        valor_comissao: Number(c.valor_comissao),
+        duracao_meses: c.duracao_meses || 12,
+        data_assinatura: c.data_assinatura,
+        status: c.status,
+        observacoes: c.observacoes || "",
+      });
+      setAgencyLeadId(c.agency_lead_id || "");
+    } else {
+      setForm({ cliente_nome: "", valor_total: 0, valor_comissao: 0, duracao_meses: 12, data_assinatura: new Date().toISOString().slice(0, 10), status: "ativo", observacoes: "" });
+      setAgencyLeadId("");
+    }
   }, [contract]);
 
   const save = async () => {
     if (!form.cliente_nome.trim()) { toast.error("Cliente obrigatório"); return; }
+    if (!agencyLeadId) { toast.error("Selecione o lead do pipeline Posion Master"); return; }
     setSaving(true);
-    // agency_contracts pertencem à POSION (admin master) — NUNCA vinculados a tenant.
-    const payload = { ...form, tenant_id: null as string | null };
+    // agency_contracts pertencem à POSION Master — vinculados a um lead do pipeline, nunca a tenant.
+    const payload = { ...form, tenant_id: null as string | null, agency_lead_id: agencyLeadId };
     const { error } = c
       ? await supabase.from("agency_contracts").update(payload).eq("id", c.id)
       : await supabase.from("agency_contracts").insert(payload);
@@ -217,6 +248,19 @@ function ContractDialog({ contract, onOpenChange, onSaved }: { contract: AgencyC
       <DialogContent className="max-w-lg">
         <DialogHeader><DialogTitle>{c ? "Editar Contrato" : "Novo Contrato"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
+          <div>
+            <Label>Lead do pipeline Posion Master *</Label>
+            <Select value={agencyLeadId} onValueChange={setAgencyLeadId}>
+              <SelectTrigger><SelectValue placeholder="Selecione um lead" /></SelectTrigger>
+              <SelectContent>
+                {leads.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    {(l.nome_clinica || l.responsavel || "Lead")} · {l.stage}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div><Label>Cliente *</Label><Input value={form.cliente_nome} onChange={(e) => setForm({ ...form, cliente_nome: e.target.value })} /></div>
 
           <div className="grid grid-cols-2 gap-3">
