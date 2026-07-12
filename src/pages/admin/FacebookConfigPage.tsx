@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import MetaAdsAdminPage from "./MetaAdsAdminPage";
 
 const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 const WEBHOOK_URL = `https://${projectId}.supabase.co/functions/v1/facebook-leads-webhook`;
@@ -1435,10 +1436,16 @@ const FacebookConfigPage = () => {
 
       <Tabs defaultValue="config" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="gestao">Gestão de Campanhas Meta</TabsTrigger>
           <TabsTrigger value="leads">Leads do Facebook</TabsTrigger>
           <TabsTrigger value="import">Importar CSV</TabsTrigger>
           <TabsTrigger value="config">Configuração</TabsTrigger>
         </TabsList>
+        <TabsContent value="gestao">
+          <div className="-mx-6">
+            <MetaAdsAdminPage />
+          </div>
+        </TabsContent>
         <TabsContent value="leads"><LeadsTab reloadKey={reloadKey} /></TabsContent>
         <TabsContent value="import"><ImportTab onImported={() => setReloadKey(k => k + 1)} /></TabsContent>
         <TabsContent value="config"><ConfigTab /></TabsContent>
