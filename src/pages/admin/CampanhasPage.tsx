@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { requestFacebookReconnect, detectNeedReconnect } from "@/components/facebook/ReconnectFacebookDialog";
+import CampaignDetailSheet from "@/components/campaigns/CampaignDetailSheet";
+import { Eye } from "lucide-react";
 
 type Tenant = { id: string; name: string; slug: string };
 type AdAccount = {
