@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "@/hooks/use-toast";
 import {
   RefreshCw, ShieldCheck, ShieldAlert, Loader2, Play, Pause, ExternalLink,
-  ChevronDown, Plus, X, Link2, Wallet, Crown,
+  ChevronDown, Plus, X, Link2, Wallet, Crown, AlertTriangle, Settings, CheckSquare, Square, Zap,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { requestFacebookReconnect, detectNeedReconnect } from "@/components/facebook/ReconnectFacebookDialog";
