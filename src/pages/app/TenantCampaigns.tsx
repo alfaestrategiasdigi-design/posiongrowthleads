@@ -325,7 +325,7 @@ export default function TenantCampaigns() {
           <label className="flex items-center gap-2 text-sm">
             <Switch checked={activeOnly} onCheckedChange={setActiveOnly} /> Apenas ativas
           </label>
-          <Button variant="outline" size="sm" onClick={() => exportCsv(campaigns, crmWins)} disabled={!campaigns.length} className="gap-2" aria-label="Exportar CSV">
+          <Button variant="outline" size="sm" onClick={() => exportCsv(campaigns, crmStats)} disabled={!campaigns.length} className="gap-2" aria-label="Exportar CSV">
             <Download className="w-4 h-4" /> CSV
           </Button>
           <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-2">
@@ -335,20 +335,60 @@ export default function TenantCampaigns() {
         </div>
       </div>
 
-      {/* KPIs com sparkline */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-9 gap-3">
-        <Kpi icon={Activity} label="Ativas" value={`${kpis.active}/${kpis.total}`} tone="primary" />
-        <Kpi icon={DollarSign} label="Investido" value={BRL(kpis.spend)} tone="amber"
-             series={dailyTotals} dataKey="spend" formatter={(v) => BRL(v)} />
-        <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan"
-             series={dailyTotals} dataKey="leads" formatter={(v) => NUM(v)} />
-        <Kpi icon={Target} label="CPL" value={BRL(kpis.cpl)} tone="violet" />
-        <Kpi icon={CalendarCheck} label="Reuniões" value={NUM(kpis.meetings)} tone="cyan" />
-        <Kpi icon={Target} label="Custo/Reunião" value={BRL(kpis.cpm_meeting)} tone="violet" />
-        <Kpi icon={UserCheck} label="CAC" value={BRL(kpis.cac)} tone="rose" />
-        <Kpi icon={TrendingUp} label="Faturamento" value={BRL(kpis.revenue)} tone="emerald" />
-        <Kpi icon={Star} label="ROAS" value={`${kpis.roas.toFixed(2)}x`} tone="rose" />
+      {/* Bloco 1: Mídia (Meta) */}
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-2">Mídia · Meta Ads</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+          <Kpi icon={Activity} label="Ativas" value={`${kpis.active}/${kpis.total}`} tone="primary" />
+          <Kpi icon={DollarSign} label="Investido" value={BRL(kpis.spend)} tone="amber"
+               series={dailyTotals} dataKey="spend" formatter={(v) => BRL(v)} />
+          <Kpi icon={MousePointerClick} label="Impressões" value={NUM(kpis.spend > 0 ? campaigns.reduce((a,c)=>a+(c.insights?.impressions||0),0) : 0)} tone="cyan" />
+          <Kpi icon={Target} label="CTR" value={`${kpis.ctr.toFixed(2)}%`} tone="violet" />
+          <Kpi icon={DollarSign} label="CPM" value={BRL(kpis.cpm)} tone="amber" />
+          <Kpi icon={Repeat} label="Frequência" value={kpis.frequency.toFixed(2)} tone="violet" />
+        </div>
       </div>
+
+      {/* Bloco 2: Funil da Clínica */}
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.22em] text-cyan-400/80 mb-2">Funil da Clínica</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
+          <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan"
+               series={dailyTotals} dataKey="leads" formatter={(v) => NUM(v)} />
+          <Kpi icon={Target} label="CPL" value={BRL(kpis.cpl)} tone="violet" />
+          <Kpi icon={CalendarCheck} label="Consultas Agendadas" value={NUM(kpis.appointments)} tone="cyan" />
+          <Kpi icon={Target} label="Custo/Consulta" value={kpis.appointments ? BRL(kpis.cost_per_appointment) : "—"} tone="violet" />
+          <Kpi icon={UserCheck} label="Consultas Realizadas" value={NUM(kpis.showed)} tone="emerald" />
+          <Kpi icon={Target} label="Custo/Realizada" value={kpis.showed ? BRL(kpis.cost_per_show) : "—"} tone="rose" />
+          <Kpi icon={TrendingUp} label="Taxa de Show" value={kpis.appointments ? `${kpis.show_rate.toFixed(0)}%` : "—"} tone={kpis.show_rate >= 60 ? "emerald" : "rose"} />
+        </div>
+      </div>
+
+      {/* Bloco 3: Resultado */}
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.22em] text-emerald-400/80 mb-2">Resultado · CRM</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+          <Kpi icon={Star} label="Vendas" value={NUM(kpis.wins)} tone="emerald" />
+          <Kpi icon={DollarSign} label="Ticket Médio" value={kpis.wins ? BRL(kpis.ticket) : "—"} tone="amber" />
+          <Kpi icon={TrendingUp} label="Receita" value={BRL(kpis.revenue)} tone="emerald" />
+          <Kpi icon={UserCheck} label="CAC" value={kpis.wins ? BRL(kpis.cac) : "—"} tone="rose" />
+          <Kpi icon={Star} label="ROAS real" value={`${kpis.roas.toFixed(2)}x`} tone={kpis.roas >= 2 ? "emerald" : "rose"} />
+        </div>
+      </div>
+
+      {/* Funil visual */}
+      <CampaignFunnel
+        spend={kpis.spend}
+        leads={globalStats.leads}
+        contacts={globalStats.contacts}
+        appointments={kpis.appointments}
+        showed={kpis.showed}
+        sales={kpis.wins}
+      />
+
+      {/* Alertas globais */}
+      <AlertsPanel alerts={globalAlerts} />
+
 
 
 
