@@ -202,17 +202,14 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       };
       const campIds = campList.map((c) => c.id).filter(Boolean);
       // Posion Master: leads da conta de agência ficam com tenant_id NULL.
-      // Filtramos por facebook_campaign_id / facebook_campaign nas campanhas listadas.
+      // Para o funil, contamos TODOS os leads do pipeline no período (mesmo sem match de campanha);
+      // a atribuição por campanha (keyFor) segue restrita aos que casam com facebook_campaign_id/nome.
       let leadsQuery = supabase
         .from("leads")
         .select("id,whatsapp,utm_campaign,facebook_campaign,facebook_campaign_id,campaign_id_manual,valor_proposta,status,reuniao_agendada_em,reuniao_realizada_em,fechado_em,created_at,tenant_id")
         .gte("created_at", sinceISO);
       if (isMasterAccount) {
-        if (campIds.length === 0) { leadsQuery = leadsQuery.eq("id", "00000000-0000-0000-0000-000000000000"); }
-        else {
-          const idList = campIds.map((x) => `"${x}"`).join(",");
-          leadsQuery = leadsQuery.or(`facebook_campaign_id.in.(${idList}),facebook_campaign.in.(${idList})`);
-        }
+        leadsQuery = leadsQuery.is("tenant_id", null);
       } else {
         leadsQuery = leadsQuery.eq("tenant_id", tenant.id);
       }
