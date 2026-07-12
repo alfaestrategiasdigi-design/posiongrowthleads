@@ -150,10 +150,10 @@ Deno.serve(async (req) => {
   }
 
   // Assemble user_data
-  const phone = onlyDigits(body?.lead_phone ?? lead?.whatsapp);
+  const phone = onlyDigits(body?.lead_phone ?? appointmentRow?.client_phone ?? lead?.whatsapp);
   const phoneE164 = phone && phone.length >= 10 ? (phone.startsWith("55") ? phone : `55${phone}`) : phone;
   const email = norm(body?.lead_email ?? lead?.email);
-  const name = (body?.lead_name ?? lead?.nome_completo ?? "").toString().trim();
+  const name = (body?.lead_name ?? saleRow?.patient_name ?? appointmentRow?.client_name ?? lead?.nome_completo ?? "").toString().trim();
   const { city, state } = splitCityState(body?.lead_city_state ?? lead?.cidade_estado);
   const zip = onlyDigits(body?.lead_zip ?? lead?.cep);
   const fbp = body?.fbp ?? lead?.meta_fbp ?? null;
