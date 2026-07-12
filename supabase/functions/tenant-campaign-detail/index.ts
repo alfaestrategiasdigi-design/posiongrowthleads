@@ -69,6 +69,15 @@ function extractInsights(row: any) {
   };
 }
 
+const MASTER_TENANT_ID = "00000000-0000-0000-0000-000000000001";
+const onlyDigits = (value: unknown) => String(value ?? "").replace(/\D/g, "");
+const samePhone = (a: unknown, b: unknown) => {
+  const pa = onlyDigits(a);
+  const pb = onlyDigits(b);
+  if (!pa || !pb) return false;
+  return pa === pb || pa === `55${pb}` || `55${pa}` === pb || pa.slice(-8) === pb.slice(-8);
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const auth = req.headers.get("Authorization");
@@ -167,26 +176,46 @@ Deno.serve(async (req) => {
     previewsByAd[ad.id] = pr.ok ? (pr.body?.data?.[0]?.body ?? null) : null;
   });
 
-  // 7) Leads atribuídos (por facebook_campaign_id ou nome, no tenant)
+  // 7) Leads atribuídos (por facebook_campaign_id, facebook_campaign, manual ou nome).
+  // No Posion Master os leads da conta Alfa Reserva entram sem tenant_id, então não podem
+  // ser filtrados por tenant_id = master.
   const campName = camp.body?.name ?? "";
-  const { data: leads } = await admin
+  let leadsQuery = admin
     .from("leads")
-    .select("id,nome_completo,whatsapp,email,status,valor_proposta,created_at,facebook_form_name,facebook_ad_name,facebook_adset_name,facebook_ad_id,facebook_adset_id,facebook_campaign_id,facebook_campaign,utm_campaign")
-    .eq("tenant_id", tenantId)
+    .select("id,nome_completo,whatsapp,email,status,valor_proposta,created_at,facebook_form_name,facebook_ad_name,facebook_adset_name,facebook_ad_id,facebook_adset_id,facebook_campaign_id,facebook_campaign,utm_campaign,campaign_id_manual")
     .or([
       `facebook_campaign_id.eq.${campaignId}`,
+      `facebook_campaign.eq.${campaignId}`,
+      `campaign_id_manual.eq.${campaignId}`,
       campName ? `facebook_campaign.ilike.${campName}` : "",
       campName ? `utm_campaign.ilike.${campName}` : "",
     ].filter(Boolean).join(","))
     .order("created_at", { ascending: false })
     .limit(500);
+  leadsQuery = tenantId === MASTER_TENANT_ID ? leadsQuery.is("tenant_id", null) : leadsQuery.eq("tenant_id", tenantId);
+  const { data: leads } = await leadsQuery;
 
   // 8) Appointments dos leads
   const leadIds = (leads ?? []).map((l: any) => l.id);
-  const { data: appts } = leadIds.length ? await admin
-    .from("appointments")
-    .select("id,lead_id,status,date_time")
-    .in("lead_id", leadIds) : { data: [] as any[] };
+  let appts: any[] = [];
+  if (tenantId === MASTER_TENANT_ID) {
+    const { data: rows } = await admin
+      .from("appointments")
+      .select("id,lead_id,client_phone,status,date_time,tenant_id")
+      .is("tenant_id", null)
+      .gte("date_time", `${since}T00:00:00`)
+      .lte("date_time", `${until}T23:59:59`)
+      .limit(500);
+    appts = (rows ?? []).filter((a: any) =>
+      (a.lead_id && leadIds.includes(a.lead_id)) || (leads ?? []).some((l: any) => samePhone(l.whatsapp, a.client_phone))
+    );
+  } else if (leadIds.length) {
+    const { data: rows } = await admin
+      .from("appointments")
+      .select("id,lead_id,client_phone,status,date_time,tenant_id")
+      .in("lead_id", leadIds);
+    appts = rows ?? [];
+  }
 
   const result = {
     ok: true,
@@ -202,7 +231,7 @@ Deno.serve(async (req) => {
       preview_html: previewsByAd[ad.id],
     })),
     leads: leads ?? [],
-    appointments: appts ?? [],
+    appointments: appts,
     period: { since, until },
   };
   cache.set(cacheKey, { v: result, exp: Date.now() + TTL });
