@@ -243,25 +243,34 @@ export default function TenantCampaigns() {
       acc.leads += c.insights.leads;
       acc.impressions += c.insights.impressions;
       acc.clicks += c.insights.clicks;
+      acc.reach += c.insights.reach || 0;
       acc.revenue += c.insights.purchase_value;
       return acc;
-    }, { spend: 0, leads: 0, impressions: 0, clicks: 0, revenue: 0 });
-    const crmTotal = Object.values(crmWins).reduce((sum, v) => sum + v.value, 0);
-    const crmCount = Object.values(crmWins).reduce((sum, v) => sum + v.count, 0);
-    const meetingsTotal = Object.values(crmStats).reduce((sum, v) => sum + v.meetings, 0);
-    const totalRev = s.revenue + crmTotal;
+    }, { spend: 0, leads: 0, impressions: 0, clicks: 0, reach: 0, revenue: 0 });
+    // Faturamento e CAC baseados na receita real do CRM (kanban ganho).
+    const totalRev = s.revenue + globalStats.revenue;
+    const wins = globalStats.wins;
+    // Frequência média ponderada (pelo alcance)
+    const freq = s.reach > 0 ? s.impressions / s.reach : 0;
     return {
       spend: s.spend, leads: s.leads, revenue: totalRev,
       cpl: s.leads ? s.spend / s.leads : 0,
       roas: s.spend ? totalRev / s.spend : 0,
       active: campaigns.filter((c) => c.effective_status === "ACTIVE" || c.status === "ACTIVE").length,
-      total: campaigns.length, crmWins: crmCount,
+      total: campaigns.length,
+      wins,
       ctr: s.impressions ? (s.clicks / s.impressions) * 100 : 0,
-      meetings: meetingsTotal,
-      cpm_meeting: meetingsTotal ? s.spend / meetingsTotal : 0,
-      cac: crmCount ? s.spend / crmCount : 0,
+      cpm: s.impressions ? (s.spend / s.impressions) * 1000 : 0,
+      frequency: freq,
+      appointments: globalStats.meetings,
+      showed: globalStats.showed,
+      cost_per_appointment: globalStats.meetings ? s.spend / globalStats.meetings : 0,
+      cost_per_show: globalStats.showed ? s.spend / globalStats.showed : 0,
+      show_rate: globalStats.meetings ? (globalStats.showed / globalStats.meetings) * 100 : 0,
+      cac: wins ? s.spend / wins : 0,
+      ticket: wins ? totalRev / wins : 0,
     };
-  }, [campaigns, crmWins, crmStats]);
+  }, [campaigns, globalStats]);
 
 
   // Agrega séries diárias de todas as campanhas para os sparklines dos KPIs
