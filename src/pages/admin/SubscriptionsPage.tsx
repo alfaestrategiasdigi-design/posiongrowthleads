@@ -406,8 +406,9 @@ export default function SubscriptionsPage() {
                     </TableHeader>
                     <TableBody>
                       {tenants.map((t) => {
-                        const sub = subByTenant.get(t.id);
+                        const sub = effectiveSubByTenant.get(t.id);
                         const offer = offerMap.get(t.id);
+                        const isSynthetic = sub && !subByTenant.has(t.id);
                         return (
                           <TableRow key={t.id}>
                             <TableCell>
@@ -419,6 +420,7 @@ export default function SubscriptionsPage() {
                                 <div className="flex items-center gap-2">
                                   <Badge variant="outline" className="capitalize">{sub.plan_code}</Badge>
                                   <span className="text-xs text-muted-foreground">{sub.interval === "semester" ? "semestral" : sub.interval === "quarter" ? "trimestral" : "mensal"}</span>
+                                  {isSynthetic && <span className="text-[10px] text-emerald-300/80">(ativo)</span>}
                                 </div>
                               ) : <span className="text-xs text-muted-foreground italic">sem assinatura</span>}
                             </TableCell>
@@ -433,7 +435,7 @@ export default function SubscriptionsPage() {
                               ) : <span className="text-xs text-muted-foreground italic">—</span>}
                             </TableCell>
                             <TableCell>
-                              {sub ? <Badge className={STATUS_BADGE[sub.status] || ""}>{sub.status}</Badge> : <Badge variant="outline">—</Badge>}
+                              {sub ? <Badge className={STATUS_BADGE[sub.status] || ""}>{isSynthetic ? "ativo" : sub.status}</Badge> : <Badge variant="outline">—</Badge>}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
                               {sub?.current_period_end ? new Date(sub.current_period_end).toLocaleDateString("pt-BR") : "—"}
