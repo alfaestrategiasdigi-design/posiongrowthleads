@@ -248,6 +248,19 @@ function ContractDialog({ contract, onOpenChange, onSaved }: { contract: AgencyC
       <DialogContent className="max-w-lg">
         <DialogHeader><DialogTitle>{c ? "Editar Contrato" : "Novo Contrato"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
+          <div>
+            <Label>Lead do pipeline Posion Master *</Label>
+            <Select value={agencyLeadId} onValueChange={setAgencyLeadId}>
+              <SelectTrigger><SelectValue placeholder="Selecione um lead" /></SelectTrigger>
+              <SelectContent>
+                {leads.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    {(l.nome_clinica || l.responsavel || "Lead")} · {l.stage}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div><Label>Cliente *</Label><Input value={form.cliente_nome} onChange={(e) => setForm({ ...form, cliente_nome: e.target.value })} /></div>
 
           <div className="grid grid-cols-2 gap-3">
