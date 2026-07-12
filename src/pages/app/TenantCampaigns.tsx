@@ -983,6 +983,15 @@ function Sparkline({ data, dataKey, color = "hsl(var(--primary))" }: { data: Arr
   );
 }
 
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded bg-muted/20 px-1.5 py-1">
+      <div className="text-[8px] uppercase tracking-wider text-muted-foreground truncate">{label}</div>
+      <div className="font-semibold tabular-nums text-[11px]">{value}</div>
+    </div>
+  );
+}
+
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md bg-muted/30 px-2 py-1.5">
