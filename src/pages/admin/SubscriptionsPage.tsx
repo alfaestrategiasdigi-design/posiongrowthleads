@@ -61,6 +61,7 @@ export default function SubscriptionsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [subs, setSubs] = useState<Sub[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [founderSlots, setFounderSlots] = useState<FounderSlot[]>([]);
   const [mpConfig, setMpConfig] = useState<MpConfig | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -75,19 +76,20 @@ export default function SubscriptionsPage() {
 
   const [offerTenant, setOfferTenant] = useState<Tenant | null>(null);
   const [offerTick, setOfferTick] = useState(0);
-  const [offerMap, setOfferMap] = useState<Map<string, { label: string; entry_amount_cents: number; recurring_amount_cents: number; active: boolean }>>(new Map());
+  const [offerMap, setOfferMap] = useState<Map<string, { id: string; label: string; interval: string; entry_amount_cents: number; recurring_amount_cents: number; active: boolean }>>(new Map());
 
   const [validating, setValidating] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
-    const [planRes, tenantRes, subRes, invRes, cfgRes, offersRes] = await Promise.all([
+    const [planRes, tenantRes, subRes, invRes, cfgRes, offersRes, slotsRes] = await Promise.all([
       supabase.from("plan_catalog").select("*").order("sort_order"),
       supabase.from("tenants").select("id,slug,name,plan,status").order("name"),
       supabase.from("subscriptions").select("*").order("created_at", { ascending: false }),
       supabase.from("subscription_invoices").select("*").order("paid_at", { ascending: false, nullsFirst: false }).limit(100),
       supabase.from("payment_provider_config").select("account_email,account_id,account_site,webhook_url,last_validated_at,last_validation_result,public_key").eq("provider", "mercadopago").maybeSingle(),
-      (supabase as any).from("tenant_custom_offers").select("tenant_id,label,entry_amount_cents,recurring_amount_cents,active"),
+      (supabase as any).from("tenant_custom_offers").select("id,tenant_id,label,interval,entry_amount_cents,recurring_amount_cents,active"),
+      (supabase as any).from("founder_slots").select("*"),
     ]);
     setPlans((planRes.data || []) as Plan[]);
     setTenants((tenantRes.data || []) as Tenant[]);
@@ -97,6 +99,7 @@ export default function SubscriptionsPage() {
     const m = new Map<string, any>();
     for (const o of (offersRes.data || []) as any[]) m.set(o.tenant_id, o);
     setOfferMap(m);
+    setFounderSlots((slotsRes.data || []) as FounderSlot[]);
     setLoading(false);
   };
   useEffect(() => { refresh(); }, [offerTick]);
