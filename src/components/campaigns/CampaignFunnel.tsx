@@ -12,7 +12,7 @@ const BRL = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", c
 const NUM = (v: number) => new Intl.NumberFormat("pt-BR").format(Math.round(v || 0));
 
 export default function CampaignFunnel({
-  spend, leads, contacts, appointments, showed, sales, benchmarks,
+  spend, leads, contacts, appointments, showed, sales, benchmarks, labels,
 }: {
   spend: number;
   leads: number;
@@ -21,13 +21,22 @@ export default function CampaignFunnel({
   showed: number;
   sales: number;
   benchmarks?: { show?: number; close?: number };
+  labels?: {
+    title?: string;
+    appointments?: string;
+    showed?: string;
+    sales?: string;
+    appointmentCost?: string;
+    showedCost?: string;
+    cac?: string;
+  };
 }) {
   const steps: Step[] = [
     { label: "Leads", value: leads, cost: leads ? spend / leads : 0, hint: "CPL" },
     { label: "Contato WhatsApp", value: contacts },
-    { label: "Consulta Agendada", value: appointments, cost: appointments ? spend / appointments : 0, hint: "Custo/Consulta" },
-    { label: "Consulta Realizada", value: showed, cost: showed ? spend / showed : 0, hint: "Custo/Realizada" },
-    { label: "Venda", value: sales, cost: sales ? spend / sales : 0, hint: "CAC" },
+    { label: labels?.appointments ?? "Consulta Agendada", value: appointments, cost: appointments ? spend / appointments : 0, hint: labels?.appointmentCost ?? "Custo/Consulta" },
+    { label: labels?.showed ?? "Consulta Realizada", value: showed, cost: showed ? spend / showed : 0, hint: labels?.showedCost ?? "Custo/Realizada" },
+    { label: labels?.sales ?? "Venda", value: sales, cost: sales ? spend / sales : 0, hint: labels?.cac ?? "CAC" },
   ];
 
   const max = Math.max(...steps.map((s) => s.value), 1);
