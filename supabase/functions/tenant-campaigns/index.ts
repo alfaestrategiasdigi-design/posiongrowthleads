@@ -102,15 +102,23 @@ Deno.serve(async (req) => {
       if (hit && hit.exp > Date.now()) rows = hit.v;
       else {
         const ir = await fbGet(`${c.id}/insights`, token, {
-          fields: "spend,impressions,clicks,ctr,cpc,cpm,reach,frequency,actions,action_values",
+          fields: "spend,impressions,clicks,ctr,cpc,cpm,reach,frequency,actions,action_values,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,video_thruplay_watched_actions,quality_ranking,engagement_rate_ranking,conversion_rate_ranking",
           time_range: JSON.stringify({ since, until }),
           level: "campaign",
           time_increment: "1",
         });
         if (ir.ok) { rows = ir.body?.data ?? []; cache.set(key, { v: rows, exp: Date.now() + TTL }); }
       }
-      const agg = { spend: 0, impressions: 0, clicks: 0, reach: 0, leads: 0, purchases: 0, purchase_value: 0, messaging: 0, link_clicks: 0 };
+      const agg = {
+        spend: 0, impressions: 0, clicks: 0, reach: 0,
+        leads: 0, purchases: 0, purchase_value: 0, messaging: 0, link_clicks: 0,
+        video_p25: 0, video_thruplay: 0,
+      };
       const daily: Array<{ date: string; spend: number; leads: number; clicks: number; impressions: number }> = [];
+      let quality_ranking: string | null = null;
+      let engagement_ranking: string | null = null;
+      let conversion_ranking: string | null = null;
+      let last_frequency = 0;
       for (const row of rows ?? []) {
         let dLeads = 0, dPurch = 0, dPurchVal = 0, dMsg = 0, dLinkClicks = 0;
         for (const a of row?.actions ?? []) {
@@ -132,6 +140,15 @@ Deno.serve(async (req) => {
         agg.reach += +row?.reach || 0;
         agg.leads += dLeads; agg.purchases += dPurch; agg.purchase_value += dPurchVal;
         agg.messaging += dMsg; agg.link_clicks += dLinkClicks;
+
+        const p25 = Number(row?.video_p25_watched_actions?.[0]?.value ?? 0);
+        const thruplay = Number(row?.video_thruplay_watched_actions?.[0]?.value ?? 0);
+        agg.video_p25 += p25; agg.video_thruplay += thruplay;
+        last_frequency = Number(row?.frequency ?? last_frequency);
+        quality_ranking    = row?.quality_ranking ?? quality_ranking;
+        engagement_ranking = row?.engagement_rate_ranking ?? engagement_ranking;
+        conversion_ranking = row?.conversion_rate_ranking ?? conversion_ranking;
+
         daily.push({ date: row?.date_start ?? "", spend: dSpend, leads: dLeads, clicks: dClicks, impressions: dImpr });
       }
       const spend = agg.spend;
@@ -152,12 +169,16 @@ Deno.serve(async (req) => {
       } as const;
       const result_value = result_map[result_kind].value;
 
+      const hook_rate = agg.impressions > 0 ? (agg.video_p25 / agg.impressions) * 100 : 0;
+      const hold_rate = agg.video_p25 > 0 ? (agg.video_thruplay / agg.video_p25) * 100 : 0;
+
       return {
         ...c,
         ad_account_id: acc.id,
         ad_account_label: acc.label,
         insights: (rows && rows.length) ? {
           spend, impressions: agg.impressions, clicks: agg.clicks,
+          reach: agg.reach, frequency: last_frequency,
           ctr: agg.impressions ? (agg.clicks / agg.impressions) * 100 : 0,
           cpc: agg.clicks ? spend / agg.clicks : 0,
           cpm: agg.impressions ? (spend / agg.impressions) * 1000 : 0,
@@ -170,6 +191,9 @@ Deno.serve(async (req) => {
           cost_per_result: result_value > 0 ? spend / result_value : 0,
           purchases: agg.purchases, purchase_value: agg.purchase_value,
           roas: spend > 0 ? agg.purchase_value / spend : 0,
+          hook_rate, hold_rate,
+          video_p25: agg.video_p25, video_thruplay: agg.video_thruplay,
+          quality_ranking, engagement_ranking, conversion_ranking,
         } : null,
         daily,
       };
