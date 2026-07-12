@@ -1195,8 +1195,9 @@ export default function CampanhasPage() {
                         {s.reasons.join(" · ")}
                       </div>
                     )}
-                    <h4 className={`font-serif text-[15px] leading-tight ${isActive ? "text-white group-hover:text-[#F0D78C]" : "text-slate-400"} transition-colors line-clamp-2`}
-                      title={c.name}>
+                    <h4 className={`font-serif text-[15px] leading-tight ${isActive ? "text-white group-hover:text-[#F0D78C]" : "text-slate-400"} transition-colors line-clamp-2 cursor-pointer hover:underline`}
+                      title={`Ver detalhes: ${c.name}`}
+                      onClick={() => setDetailCampaign(c)}>
                       {c.name}
                     </h4>
                     <p className="text-[10px] text-slate-600 mt-1 truncate">
