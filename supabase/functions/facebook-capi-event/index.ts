@@ -234,6 +234,8 @@ Deno.serve(async (req) => {
   await admin.from("facebook_capi_logs").insert({
     tenant_id,
     lead_id: lead_id ?? null,
+    appointment_id: appointment_id ?? null,
+    sale_id: sale_id ?? null,
     event_name,
     status: ok ? "success" : "error",
     http_status: httpStatus || null,
