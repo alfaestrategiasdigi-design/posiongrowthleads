@@ -636,7 +636,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       {/* Funil visual */}
       <CampaignFunnel
         spend={kpis.spend}
-        leads={globalStats.leads}
+        leads={kpis.leads}
         contacts={globalStats.contacts}
         appointments={kpis.appointments}
         showed={kpis.showed}
