@@ -603,16 +603,22 @@ export default function SubscriptionsPage() {
           <DialogHeader>
             <DialogTitle>Assinatura — {actionTenant?.name}</DialogTitle>
             <DialogDescription>
-              {subByTenant.get(actionTenant?.id || "")?.mp_preapproval_id
-                ? "Gerencie a assinatura ativa no Mercado Pago."
-                : "Nenhuma assinatura. Inicie um checkout para gerar o link de cobrança."}
+              {(() => {
+                const real = actionTenant ? subByTenant.get(actionTenant.id) : null;
+                const effective = actionTenant ? effectiveSubByTenant.get(actionTenant.id) : null;
+                if (real?.mp_preapproval_id) return "Gerencie a assinatura ativa no Mercado Pago.";
+                if (effective) return "Cliente ativo. Pagamento confirmado via oferta/founder slot.";
+                return "Nenhuma assinatura. Inicie um checkout para gerar o link de cobrança.";
+              })()}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             {(() => {
-              const sub = actionTenant ? subByTenant.get(actionTenant.id) : null;
+              const sub = actionTenant ? effectiveSubByTenant.get(actionTenant.id) : null;
+              const realSub = actionTenant ? subByTenant.get(actionTenant.id) : null;
               const tenantInvoices = actionTenant ? invoicesByTenant.get(actionTenant.id) || [] : [];
+              const isSynthetic = !!sub && !realSub;
               return (
                 <>
                   <div>
@@ -644,13 +650,18 @@ export default function SubscriptionsPage() {
 
                   {sub && (
                     <div className="rounded-lg bg-white/5 border border-white/10 p-3 space-y-1 text-sm">
-                      <div className="flex justify-between"><span className="text-muted-foreground">Status</span><Badge className={STATUS_BADGE[sub.status]}>{sub.status}</Badge></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Status</span><Badge className={STATUS_BADGE[sub.status]}>{isSynthetic ? "ativo" : sub.status}</Badge></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Plano</span><span className="capitalize">{sub.plan_code} · {sub.interval === "semester" ? "semestral" : sub.interval === "quarter" ? "trimestral" : "mensal"}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Valor</span><span className="tabular-nums">{BRL(sub.amount_cents || 0, sub.currency || "brl")}</span></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">Próxima cobrança</span><span>{sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString("pt-BR") : "—"}</span></div>
                       {sub.mp_preapproval_id && <div className="flex justify-between"><span className="text-muted-foreground">MP ID</span><span className="font-mono text-[10px]">{sub.mp_preapproval_id}</span></div>}
                       {sub.mp_init_point && (
                         <a className="text-primary hover:underline text-xs inline-flex items-center gap-1 mt-1" href={sub.mp_init_point} target="_blank" rel="noreferrer">
                           Link de pagamento <ExternalLink className="w-3 h-3" />
                         </a>
+                      )}
+                      {isSynthetic && (
+                        <div className="text-[10px] text-emerald-300/90 mt-1">Pagamento confirmado — sem gestão direta no Mercado Pago.</div>
                       )}
                     </div>
                   )}
@@ -686,9 +697,11 @@ export default function SubscriptionsPage() {
 
           <DialogFooter className="flex-wrap gap-2">
             {(() => {
-              const sub = actionTenant ? subByTenant.get(actionTenant.id) : null;
-              const hasActive = sub && ["authorized", "active"].includes(sub.status);
-              const isPaused = sub?.status === "paused";
+              const realSub = actionTenant ? subByTenant.get(actionTenant.id) : null;
+              const effective = actionTenant ? effectiveSubByTenant.get(actionTenant.id) : null;
+              const hasActive = realSub && ["authorized", "active"].includes(realSub.status);
+              const isPaused = realSub?.status === "paused";
+              const hasAny = !!effective;
               return (
                 <>
                   {hasActive && (
@@ -712,7 +725,7 @@ export default function SubscriptionsPage() {
                   </Button>
                   <Button onClick={startCheckout} disabled={busy || !selectedLookupKey || !selectedPayerEmail.trim()} className="gap-2">
                     {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                    {hasActive ? "Novo checkout (troca de plano)" : "Iniciar assinatura"}
+                    {hasActive ? "Novo checkout (troca de plano)" : hasAny ? "Novo checkout (próxima cobrança)" : "Iniciar assinatura"}
                   </Button>
                 </>
               );
