@@ -182,6 +182,44 @@ export default function TenantsPage() {
         open={!!panelTenantId}
         onClose={() => setPanelTenantId(null)}
       />
+
+      <AlertDialog open={!!deleteFor} onOpenChange={(v) => { if (!v) { setDeleteFor(null); setDeleteConfirm(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="w-4 h-4" /> Excluir clínica "{deleteFor?.name}"?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm">
+                <p>
+                  Esta ação é <b>irreversível</b>. Serão apagados em cascata: leads, pacientes,
+                  conversas, mensagens, agendamentos, prontuários, campanhas, automações,
+                  usuários vinculados e demais dados desta clínica.
+                </p>
+                <div>
+                  <p className="mb-1.5">Para confirmar, digite o slug <code className="px-1.5 py-0.5 rounded bg-muted font-mono text-xs">{deleteFor?.slug}</code>:</p>
+                  <Input
+                    value={deleteConfirm}
+                    onChange={(e) => setDeleteConfirm(e.target.value)}
+                    placeholder={deleteFor?.slug}
+                    autoFocus
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDelete(); }}
+              disabled={deleting || deleteConfirm.trim().toLowerCase() !== (deleteFor?.slug || "").toLowerCase()}
+              className="bg-destructive hover:bg-destructive/90 gap-2"
+            >
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Excluir definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
