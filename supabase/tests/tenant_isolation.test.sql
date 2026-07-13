@@ -99,22 +99,22 @@ BEGIN
   VALUES (v_tenant_b, 'Paciente B', '11900000002', 'ativo') RETURNING id INTO v_pat_b;
 
   -- Conversations
-  INSERT INTO public.conversations (tenant_id, telefone, nome)
+  INSERT INTO public.conversations (tenant_id, telefone, nome_contato)
   VALUES (v_tenant_a, '11900000001', 'A') RETURNING id INTO v_conv_a;
-  INSERT INTO public.conversations (tenant_id, telefone, nome)
+  INSERT INTO public.conversations (tenant_id, telefone, nome_contato)
   VALUES (v_tenant_b, '11900000002', 'B') RETURNING id INTO v_conv_b;
 
   -- Lead tasks
-  INSERT INTO public.lead_tasks (tenant_id, lead_id, title, status)
-  VALUES (v_tenant_a, v_lead_a, 'Task A', 'pendente') RETURNING id INTO v_task_a;
-  INSERT INTO public.lead_tasks (tenant_id, lead_id, title, status)
-  VALUES (v_tenant_b, v_lead_b, 'Task B', 'pendente') RETURNING id INTO v_task_b;
+  INSERT INTO public.lead_tasks (tenant_id, lead_id, title)
+  VALUES (v_tenant_a, v_lead_a, 'Task A') RETURNING id INTO v_task_a;
+  INSERT INTO public.lead_tasks (tenant_id, lead_id, title)
+  VALUES (v_tenant_b, v_lead_b, 'Task B') RETURNING id INTO v_task_b;
 
   -- Medical records
-  INSERT INTO public.medical_records (tenant_id, patient_id, title)
-  VALUES (v_tenant_a, v_pat_a, 'MR A') RETURNING id INTO v_mr_a;
-  INSERT INTO public.medical_records (tenant_id, patient_id, title)
-  VALUES (v_tenant_b, v_pat_b, 'MR B') RETURNING id INTO v_mr_b;
+  INSERT INTO public.medical_records (tenant_id, patient_id, record_type)
+  VALUES (v_tenant_a, v_pat_a, 'anamnese') RETURNING id INTO v_mr_a;
+  INSERT INTO public.medical_records (tenant_id, patient_id, record_type)
+  VALUES (v_tenant_b, v_pat_b, 'anamnese') RETURNING id INTO v_mr_b;
 
   -- Campaign insights
   INSERT INTO public.campaign_insights (tenant_id, ad_account_id, campaign_id, campaign_name, date_start, date_stop, spend)
@@ -123,10 +123,11 @@ BEGIN
   VALUES (v_tenant_b, 'act_2', 'cB', 'Camp B', CURRENT_DATE, CURRENT_DATE, 200) RETURNING id INTO v_ci_b;
 
   -- Campaign spend
-  INSERT INTO public.campaign_spend (tenant_id, campaign_id, date, amount)
-  VALUES (v_tenant_a, 'cA', CURRENT_DATE, 50) RETURNING id INTO v_cs_a;
-  INSERT INTO public.campaign_spend (tenant_id, campaign_id, date, amount)
-  VALUES (v_tenant_b, 'cB', CURRENT_DATE, 60) RETURNING id INTO v_cs_b;
+  INSERT INTO public.campaign_spend (tenant_id, campaign_id, period_start, period_end, amount_spent)
+  VALUES (v_tenant_a, 'cA', CURRENT_DATE, CURRENT_DATE, 50) RETURNING id INTO v_cs_a;
+  INSERT INTO public.campaign_spend (tenant_id, campaign_id, period_start, period_end, amount_spent)
+  VALUES (v_tenant_b, 'cB', CURRENT_DATE, CURRENT_DATE, 60) RETURNING id INTO v_cs_b;
+
 
   -- =================================================================
   -- Assertions: act as USER A (tenant A) — must NOT see tenant B rows
