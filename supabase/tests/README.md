@@ -24,3 +24,30 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/promotion_triggers.
 
 Sucesso = a última linha imprime `ALL PROMOTION TRIGGER TESTS PASSED ✓` e a tx faz `ROLLBACK`.
 Qualquer `FAIL n:` aborta a execução com código de erro (ideal para CI).
+
+---
+
+# Testes de isolamento entre tenants
+
+`tenant_isolation.test.sql` garante que **nenhum tenant leia dados de outro**
+(leads, fechamentos, agendamentos, pacientes, prontuários, conversas,
+mensagens, tarefas, insights e gastos de campanha, automações).
+
+Validações:
+
+1. **Comportamental** — cria 2 tenants + 2 usuários e verifica que
+   `has_tenant_access(userA, tenantB) = false` (e vice-versa), que
+   `is_tenant_admin` também é escopado, e que usuários novos **não** são
+   admin master global.
+2. **Estrutural** — para cada tabela sensível:
+   - RLS está **habilitada**;
+   - **nenhuma** política de leitura/escrita usa `USING (true)`;
+   - toda política referencia `tenant_id` + `has_tenant_access`/`is_tenant_admin`
+     ou é gate explícito de admin (`has_role`/`is_agency_member`).
+
+Se alguém desabilitar RLS ou criar uma policy permissiva, o teste falha.
+
+```bash
+psql -v ON_ERROR_STOP=1 -f supabase/tests/tenant_isolation.test.sql
+```
+
