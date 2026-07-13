@@ -66,11 +66,8 @@ BEGIN
           'iso-b-' || substr(md5(random()::text),1,8), 'starter', 'active')
   RETURNING id INTO v_tenant_b;
 
-  -- Fake auth.users rows so tenant_users FKs resolve
-  INSERT INTO auth.users (id, instance_id, email, aud, role, created_at, updated_at)
-  VALUES
-    (v_user_a, '00000000-0000-0000-0000-000000000000', 'iso-a@test.local', 'authenticated', 'authenticated', now(), now()),
-    (v_user_b, '00000000-0000-0000-0000-000000000000', 'iso-b@test.local', 'authenticated', 'authenticated', now(), now());
+  -- tenant_users has no FK to auth.users; UUIDs are used directly.
+
 
   INSERT INTO public.tenant_users (user_id, tenant_id, role, active)
   VALUES
