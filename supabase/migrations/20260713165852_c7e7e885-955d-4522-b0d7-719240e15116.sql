@@ -1,0 +1,1 @@
+DELETE FROM public.sales WHERE tenant_id = 'f259af97-8ddc-4a07-99ed-19fcb3ba631b';
