@@ -117,10 +117,11 @@ BEGIN
   VALUES (v_tenant_b, v_pat_b, 'anamnese') RETURNING id INTO v_mr_b;
 
   -- Campaign insights
-  INSERT INTO public.campaign_insights (tenant_id, ad_account_id, campaign_id, campaign_name, date_start, date_stop, spend)
-  VALUES (v_tenant_a, 'act_1', 'cA', 'Camp A', CURRENT_DATE, CURRENT_DATE, 100) RETURNING id INTO v_ci_a;
-  INSERT INTO public.campaign_insights (tenant_id, ad_account_id, campaign_id, campaign_name, date_start, date_stop, spend)
-  VALUES (v_tenant_b, 'act_2', 'cB', 'Camp B', CURRENT_DATE, CURRENT_DATE, 200) RETURNING id INTO v_ci_b;
+  INSERT INTO public.campaign_insights (tenant_id, ad_account_id, campaign_id, campaign_name, date_start, spend)
+  VALUES (v_tenant_a, 'act_1', 'cA', 'Camp A', CURRENT_DATE, 100) RETURNING id INTO v_ci_a;
+  INSERT INTO public.campaign_insights (tenant_id, ad_account_id, campaign_id, campaign_name, date_start, spend)
+  VALUES (v_tenant_b, 'act_2', 'cB', 'Camp B', CURRENT_DATE, 200) RETURNING id INTO v_ci_b;
+
 
   -- Campaign spend
   INSERT INTO public.campaign_spend (tenant_id, campaign_id, period_start, period_end, amount_spent)
