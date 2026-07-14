@@ -91,6 +91,35 @@ export function LidReviewDialog({
     onDone?.();
   };
 
+  const deleteOne = async (id: string) => {
+    if (!confirm("Excluir esta conversa @lid? As mensagens vinculadas também serão apagadas. Esta ação é irreversível.")) return;
+    setBusyId(id);
+    // Order matters: reactions -> messages -> conversation
+    await supabase.from("message_reactions").delete().eq("conversation_id", id);
+    await supabase.from("messages").delete().eq("conversation_id", id);
+    const { error } = await supabase.from("conversations").delete().eq("id", id);
+    setBusyId(null);
+    if (error) return toast.error(error.message);
+    toast.success("Conversa @lid excluída");
+    await load();
+    onDone?.();
+  };
+
+  const deleteAll = async () => {
+    if (items.length === 0) return;
+    if (!confirm(`Excluir TODAS as ${items.length} conversas @lid pendentes deste escopo? As mensagens serão apagadas. Esta ação é irreversível.`)) return;
+    setReconciling(true);
+    const ids = items.map((i) => i.id);
+    await supabase.from("message_reactions").delete().in("conversation_id", ids);
+    await supabase.from("messages").delete().in("conversation_id", ids);
+    const { error } = await supabase.from("conversations").delete().in("id", ids);
+    setReconciling(false);
+    if (error) return toast.error(error.message);
+    toast.success(`${ids.length} conversas @lid excluídas`);
+    await load();
+    onDone?.();
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl">
