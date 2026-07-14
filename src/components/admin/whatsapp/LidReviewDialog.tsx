@@ -134,14 +134,19 @@ export function LidReviewDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
           <Button size="sm" variant="outline" onClick={load} disabled={loading}>
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Recarregar
           </Button>
-          <Button size="sm" onClick={runReconcile} disabled={reconciling}>
-            {reconciling ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-            Rodar reconciliação automática
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="destructive" onClick={deleteAll} disabled={reconciling || loading || items.length === 0}>
+              <Trash2 className="w-4 h-4 mr-2" /> Excluir todas ({items.length})
+            </Button>
+            <Button size="sm" onClick={runReconcile} disabled={reconciling}>
+              {reconciling ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Rodar reconciliação automática
+            </Button>
+          </div>
         </div>
 
         <div className="max-h-[60vh] overflow-y-auto space-y-2">
