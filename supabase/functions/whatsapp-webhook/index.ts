@@ -634,7 +634,7 @@ Deno.serve(async (req) => {
     let connResolvedBy: "instance_name" | "tenant" | null = null;
     if (instanceName) {
       const { data } = await admin.from("zapi_connections")
-        .select("tenant_id, instance_url, api_key, instance_name, webhook_secret")
+        .select("id, tenant_id, instance_url, api_key, instance_name, webhook_secret, status")
         .eq("provider", "evolution")
         .eq("instance_name", instanceName)
         .order("updated_at", { ascending: false })
