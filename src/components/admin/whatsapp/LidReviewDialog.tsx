@@ -184,6 +184,15 @@ export function LidReviewDialog({
                   >
                     {busyId === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Mesclar"}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => deleteOne(c.id)}
+                    disabled={busyId === c.id}
+                    title="Excluir esta conversa @lid"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-500" />
+                  </Button>
                 </div>
               </div>
             ))
