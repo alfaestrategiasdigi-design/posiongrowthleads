@@ -948,13 +948,20 @@ Deno.serve(async (req) => {
   }
 
 
-  // Find matching flows
+  // Find matching flows — STRICT tenant isolation:
+  // - Events with tenant_id run ONLY that tenant's flows (never Master).
+  // - Events without tenant_id (Master funnel) run ONLY is_admin_master flows.
   let flowsQ = admin.from("automation_flows").select("*").eq("status", "active");
   if (explicitFlowId) flowsQ = flowsQ.eq("id", explicitFlowId);
   else flowsQ = flowsQ.eq("trigger_type", trigger);
-  if (tenantId) flowsQ = flowsQ.or(`tenant_id.eq.${tenantId},tenant_id.is.null`);
+  if (tenantId) flowsQ = flowsQ.eq("tenant_id", tenantId);
+  else flowsQ = flowsQ.is("tenant_id", null).eq("is_admin_master", true);
   const { data: flows, error: flowsErr } = await flowsQ;
   if (flowsErr) return json({ error: flowsErr.message }, 500);
+  console.log("[automation-dispatch] matched_flows", {
+    trigger, tenant_id: tenantId, count: (flows ?? []).length,
+    flow_ids: (flows ?? []).map((f: any) => f.id),
+  });
 
   const runs: any[] = [];
   for (const flow of flows || []) {
