@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Loader2, AlertTriangle, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 type PendingConv = {
