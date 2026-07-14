@@ -634,7 +634,7 @@ Deno.serve(async (req) => {
     let connResolvedBy: "instance_name" | "tenant" | null = null;
     if (instanceName) {
       const { data } = await admin.from("zapi_connections")
-        .select("tenant_id, instance_url, api_key, instance_name, webhook_secret")
+        .select("id, tenant_id, instance_url, api_key, instance_name, webhook_secret, status")
         .eq("provider", "evolution")
         .eq("instance_name", instanceName)
         .order("updated_at", { ascending: false })
@@ -647,7 +647,7 @@ Deno.serve(async (req) => {
       // and auto-heal the stored instance_name (Evolution may have been
       // recreated with a slightly different name).
       const { data } = await admin.from("zapi_connections")
-        .select("tenant_id, instance_url, api_key, instance_name, webhook_secret")
+        .select("id, tenant_id, instance_url, api_key, instance_name, webhook_secret, status")
         .eq("provider", "evolution")
         .eq("tenant_id", resolvedTenantId)
         .order("updated_at", { ascending: false })
@@ -697,6 +697,23 @@ Deno.serve(async (req) => {
         await upd;
       }
     }
+
+    // Auto-heal: if traffic is arriving (messages/contacts events), the instance
+    // IS connected — even if we never received the connection.update event.
+    // This unblocks the UI from staying stuck on "Pareando" for tenants like Roar.
+    if (conn?.id && conn.status !== "connected" && eventMatches(
+      event, "messages.upsert", "messages.set", "send.message",
+      "messages.update", "contacts.update", "contacts.upsert", "contacts.set",
+    )) {
+      await admin.from("zapi_connections")
+        .update({ status: "connected", updated_at: new Date().toISOString() })
+        .eq("id", conn.id);
+      conn.status = "connected";
+      console.log("[whatsapp-webhook] status_auto_healed", {
+        connection_id: conn.id, tenant_id: conn.tenant_id, event,
+      });
+    }
+
 
     // Contacts update -> pushName + profile pic + automatic (@lid, phone) alias learning.
     // The Evolution/Baileys `contacts.*` events are AUTHORITATIVE: when a single

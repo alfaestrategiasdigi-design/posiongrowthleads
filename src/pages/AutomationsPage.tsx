@@ -100,8 +100,39 @@ function FlowsList({
     reload();
   };
 
+  const inactiveTriggered = flows.filter(
+    (f) => f.status !== "active" && f.trigger_type !== "manual",
+  );
+  const activateAll = async () => {
+    if (inactiveTriggered.length === 0) return;
+    const ids = inactiveTriggered.map((f) => f.id);
+    const { error } = await supabase
+      .from("automation_flows").update({ status: "active" }).in("id", ids);
+    if (error) return toast.error(error.message);
+    toast.success(`${ids.length} fluxo(s) ativado(s)`);
+    reload();
+  };
+
   return (
     <div className="space-y-4">
+      {inactiveTriggered.length > 0 && (
+        <Card className="p-4 border-amber-500/40 bg-amber-500/5 flex items-start gap-3">
+          <Pause className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <div className="font-semibold text-sm">
+              {inactiveTriggered.length} fluxo(s) com gatilho automático não estão ativos
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Esses fluxos têm gatilho ({inactiveTriggered.map((f) => f.trigger_type).slice(0, 4).join(", ")}
+              {inactiveTriggered.length > 4 ? "…" : ""}) mas estão pausados ou em rascunho —
+              não vão disparar até serem ativados.
+            </p>
+          </div>
+          <Button size="sm" onClick={activateAll} className="gap-1 shrink-0">
+            <Play className="w-3 h-3" /> Ativar todos
+          </Button>
+        </Card>
+      )}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
