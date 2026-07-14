@@ -1105,17 +1105,20 @@ Deno.serve(async (req) => {
           || new Date(messageCreatedAt).getTime() >= new Date(conv.ultima_interacao).getTime();
 
         if (!conv) {
+          // For unresolved @lid, avoid storing the LID digits as nome_contato — that
+          // creates noisy fake "pushNames" that never match a real contact.
+          const initialName = isPendingLid ? (pushName || null) : (pushName || phone);
           const ins = await admin.from("conversations").insert({
             tenant_id: tenantId,
             telefone: phone,
             remote_jid: remoteJid,
-            nome_contato: pushName || phone,
+            nome_contato: initialName,
             provider: "evolution",
             ultima_mensagem: preview,
             ultima_interacao: messageCreatedAt,
             nao_lidas: fromMe || isHistorySet ? 0 : 1,
             needs_lid_review: isPendingLid,
-            lid_review_notes: isPendingLid ? "unresolved @lid — pushName sem correspondente único no tenant" : null,
+            lid_review_notes: isPendingLid ? "unresolved @lid — aguardando pushName ou reconciliação" : null,
           }).select("id, nao_lidas, remote_jid, telefone").maybeSingle();
           conv = ins.data;
           if (!conv && ins.error) {
