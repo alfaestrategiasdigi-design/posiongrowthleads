@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Loader2, AlertTriangle, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 type PendingConv = {
@@ -91,6 +91,35 @@ export function LidReviewDialog({
     onDone?.();
   };
 
+  const deleteOne = async (id: string) => {
+    if (!confirm("Excluir esta conversa @lid? As mensagens vinculadas também serão apagadas. Esta ação é irreversível.")) return;
+    setBusyId(id);
+    // Order matters: reactions -> messages -> conversation
+    await supabase.from("message_reactions").delete().eq("conversation_id", id);
+    await supabase.from("messages").delete().eq("conversation_id", id);
+    const { error } = await supabase.from("conversations").delete().eq("id", id);
+    setBusyId(null);
+    if (error) return toast.error(error.message);
+    toast.success("Conversa @lid excluída");
+    await load();
+    onDone?.();
+  };
+
+  const deleteAll = async () => {
+    if (items.length === 0) return;
+    if (!confirm(`Excluir TODAS as ${items.length} conversas @lid pendentes deste escopo? As mensagens serão apagadas. Esta ação é irreversível.`)) return;
+    setReconciling(true);
+    const ids = items.map((i) => i.id);
+    await supabase.from("message_reactions").delete().in("conversation_id", ids);
+    await supabase.from("messages").delete().in("conversation_id", ids);
+    const { error } = await supabase.from("conversations").delete().in("id", ids);
+    setReconciling(false);
+    if (error) return toast.error(error.message);
+    toast.success(`${ids.length} conversas @lid excluídas`);
+    await load();
+    onDone?.();
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl">
@@ -105,14 +134,19 @@ export function LidReviewDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
           <Button size="sm" variant="outline" onClick={load} disabled={loading}>
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Recarregar
           </Button>
-          <Button size="sm" onClick={runReconcile} disabled={reconciling}>
-            {reconciling ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-            Rodar reconciliação automática
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="destructive" onClick={deleteAll} disabled={reconciling || loading || items.length === 0}>
+              <Trash2 className="w-4 h-4 mr-2" /> Excluir todas ({items.length})
+            </Button>
+            <Button size="sm" onClick={runReconcile} disabled={reconciling}>
+              {reconciling ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Rodar reconciliação automática
+            </Button>
+          </div>
         </div>
 
         <div className="max-h-[60vh] overflow-y-auto space-y-2">
@@ -149,6 +183,15 @@ export function LidReviewDialog({
                     disabled={busyId === c.id}
                   >
                     {busyId === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Mesclar"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => deleteOne(c.id)}
+                    disabled={busyId === c.id}
+                    title="Excluir esta conversa @lid"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-500" />
                   </Button>
                 </div>
               </div>
