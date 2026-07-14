@@ -647,7 +647,7 @@ Deno.serve(async (req) => {
       // and auto-heal the stored instance_name (Evolution may have been
       // recreated with a slightly different name).
       const { data } = await admin.from("zapi_connections")
-        .select("tenant_id, instance_url, api_key, instance_name, webhook_secret")
+        .select("id, tenant_id, instance_url, api_key, instance_name, webhook_secret, status")
         .eq("provider", "evolution")
         .eq("tenant_id", resolvedTenantId)
         .order("updated_at", { ascending: false })
