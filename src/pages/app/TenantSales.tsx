@@ -15,13 +15,8 @@ import { toast } from "sonner";
 import { BRL, type SaleRow } from "@/lib/clinic-kpis";
 import { useTenantApptConfig } from "@/hooks/useTenantApptConfig";
 
-const PRODUCTS = [
-  "GOLD + Remodelação","GOLD + Harmonize","GOLD + LINNEA SAFE","Avaliação Gold","Consulta Nutro",
-  "Vitaminas + Hormônio","Bioestimulador","Implante Hormonal","Toxina Botulínica","Contour Emagrecimento",
-  "Ampola Tirezepatida","Peptídeos",
-];
-const CHANNELS = ["Instagram Orgânico","Tráfego Pago","Paciente","Indicação","TikTok","Clínica São Caetano"];
 const PAYMENTS = ["PIX","Crédito","PIX + Crédito","PayPal","Boleto","Dinheiro","Outros"];
+const DEFAULT_CHANNELS = ["Instagram Orgânico","Tráfego Pago","Paciente","Indicação","TikTok"];
 
 export default function TenantSales() {
   const { tenant } = useTenant();
