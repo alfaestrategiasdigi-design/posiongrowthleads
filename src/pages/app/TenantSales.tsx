@@ -15,13 +15,8 @@ import { toast } from "sonner";
 import { BRL, type SaleRow } from "@/lib/clinic-kpis";
 import { useTenantApptConfig } from "@/hooks/useTenantApptConfig";
 
-const PRODUCTS = [
-  "GOLD + Remodelação","GOLD + Harmonize","GOLD + LINNEA SAFE","Avaliação Gold","Consulta Nutro",
-  "Vitaminas + Hormônio","Bioestimulador","Implante Hormonal","Toxina Botulínica","Contour Emagrecimento",
-  "Ampola Tirezepatida","Peptídeos",
-];
-const CHANNELS = ["Instagram Orgânico","Tráfego Pago","Paciente","Indicação","TikTok","Clínica São Caetano"];
 const PAYMENTS = ["PIX","Crédito","PIX + Crédito","PayPal","Boleto","Dinheiro","Outros"];
+const DEFAULT_CHANNELS = ["Instagram Orgânico","Tráfego Pago","Paciente","Indicação","TikTok"];
 
 export default function TenantSales() {
   const { tenant } = useTenant();
@@ -135,9 +130,13 @@ export default function TenantSales() {
 
 function NewSaleDialog({ tenantId, onCreated }: { tenantId: string; onCreated: () => void }) {
   const { config } = useTenantApptConfig(tenantId);
+  const [products, setProducts] = useState<{ id: string; nome: string }[]>([]);
+  const [channels, setChannels] = useState<{ id: string; nome: string }[]>([]);
+  const [newChannel, setNewChannel] = useState("");
+  const [creatingChannel, setCreatingChannel] = useState(false);
   const [f, setF] = useState({
     patient_name: "", seller_name: "", sale_date: new Date().toISOString().slice(0, 10),
-    product: "", amount: "", payment_method: "PIX", installments: 1, channel: "Instagram Orgânico",
+    product: "", amount: "", payment_method: "PIX", installments: 1, channel: "",
     attended: "SIM", first_contact_date: "", international: false, arrival_date: "", notes: "",
   });
   const [customProduct, setCustomProduct] = useState(false);
@@ -147,9 +146,59 @@ function NewSaleDialog({ tenantId, onCreated }: { tenantId: string; onCreated: (
   const sellers = (config?.team_members || []).map((m) => m.name).filter(Boolean);
 
   useEffect(() => {
+    (async () => {
+      if (!tenantId) return;
+      // Procedimentos estritamente do tenant
+      const { data: prod } = await supabase
+        .from("tenant_products")
+        .select("id,nome")
+        .eq("tenant_id", tenantId)
+        .eq("ativo", true)
+        .order("ordem", { ascending: true })
+        .order("nome", { ascending: true });
+      setProducts(prod || []);
+      if ((prod || []).length === 0) setCustomProduct(true);
+
+      // Canais estritamente do tenant
+      const { data: ch } = await supabase
+        .from("tenant_sale_channels")
+        .select("id,nome")
+        .eq("tenant_id", tenantId)
+        .eq("ativo", true)
+        .order("ordem", { ascending: true })
+        .order("nome", { ascending: true });
+      let list = ch || [];
+      // Semear defaults na primeira vez
+      if (list.length === 0) {
+        const seed = DEFAULT_CHANNELS.map((n, i) => ({ tenant_id: tenantId, nome: n, ordem: i }));
+        const { data: seeded } = await supabase.from("tenant_sale_channels").insert(seed).select("id,nome");
+        list = seeded || [];
+      }
+      setChannels(list);
+      setF((p) => (p.channel ? p : { ...p, channel: list[0]?.nome || "" }));
+    })();
+  }, [tenantId]);
+
+  useEffect(() => {
     if (sellers.length && !f.seller_name) setF((p) => ({ ...p, seller_name: sellers[0] }));
     // eslint-disable-next-line
   }, [config]);
+
+  async function addChannel() {
+    const nome = newChannel.trim();
+    if (!nome || !tenantId) return;
+    setCreatingChannel(true);
+    const { data, error } = await supabase
+      .from("tenant_sale_channels")
+      .insert({ tenant_id: tenantId, nome, ordem: channels.length })
+      .select("id,nome")
+      .single();
+    setCreatingChannel(false);
+    if (error) { toast.error(error.message); return; }
+    setChannels((prev) => [...prev, data!]);
+    setF((p) => ({ ...p, channel: data!.nome }));
+    setNewChannel("");
+  }
 
   async function submit() {
     if (!tenantId) return;
@@ -200,19 +249,22 @@ function NewSaleDialog({ tenantId, onCreated }: { tenantId: string; onCreated: (
         <div><Label>Data</Label><Input type="date" value={f.sale_date} onChange={(e) => setF({ ...f, sale_date: e.target.value })} /></div>
         <div className="col-span-2">
           <Label>Procedimento *</Label>
-          {customProduct ? (
+          {customProduct || products.length === 0 ? (
             <div className="flex gap-1">
               <Input value={f.product} onChange={(e) => setF({ ...f, product: e.target.value })} placeholder="Digite o procedimento" />
-              <Button type="button" variant="outline" size="sm" onClick={() => setCustomProduct(false)}>↺</Button>
+              {products.length > 0 && <Button type="button" variant="outline" size="sm" onClick={() => setCustomProduct(false)}>↺</Button>}
             </div>
           ) : (
             <div className="flex gap-1">
               <Select value={f.product} onValueChange={(v) => setF({ ...f, product: v })}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>{PRODUCTS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                <SelectContent>{products.map((p) => <SelectItem key={p.id} value={p.nome}>{p.nome}</SelectItem>)}</SelectContent>
               </Select>
               <Button type="button" variant="outline" size="sm" onClick={() => setCustomProduct(true)} title="Texto livre">✎</Button>
             </div>
+          )}
+          {products.length === 0 && (
+            <p className="text-xs text-muted-foreground mt-1">Nenhum procedimento cadastrado. Cadastre em <b>Configurações › Produtos</b> para reutilizar.</p>
           )}
         </div>
         <div><Label>Valor *</Label><Input type="number" step="0.01" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} /></div>
@@ -232,12 +284,25 @@ function NewSaleDialog({ tenantId, onCreated }: { tenantId: string; onCreated: (
             </Select>
           </div>
         )}
-        <div>
-          <Label>Canal</Label>
-          <Select value={f.channel} onValueChange={(v) => setF({ ...f, channel: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{CHANNELS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-          </Select>
+        <div className="col-span-2">
+          <Label>Canal / Origem do lead</Label>
+          <div className="flex gap-1">
+            <Select value={f.channel} onValueChange={(v) => setF({ ...f, channel: v })}>
+              <SelectTrigger><SelectValue placeholder="Selecione o canal" /></SelectTrigger>
+              <SelectContent>{channels.map((c) => <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-1 mt-2">
+            <Input
+              value={newChannel}
+              onChange={(e) => setNewChannel(e.target.value)}
+              placeholder="Adicionar novo canal (ex: Clínica São Caetano)"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addChannel(); } }}
+            />
+            <Button type="button" variant="outline" size="sm" onClick={addChannel} disabled={!newChannel.trim() || creatingChannel}>
+              {creatingChannel ? <Loader2 className="w-4 h-4 animate-spin" /> : "+ Adicionar"}
+            </Button>
+          </div>
         </div>
         <div>
           <Label>Compareceu?</Label>

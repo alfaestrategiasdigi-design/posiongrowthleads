@@ -9,7 +9,7 @@ import { Loader2, Save } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { UnifiedLeadView } from "@/hooks/useUnifiedLead";
-import { PIPELINE_STAGES } from "@/types/admin";
+import { PIPELINE_STAGES, CLIENT_PIPELINE_STAGES } from "@/types/admin";
 import LeadAppointmentsSection from "@/components/tenant/LeadAppointmentsSection";
 import { FIELDS_BY_KIND, resolveEntityKindLegacy, type EntityKind } from "@/lib/entity-fields";
 
@@ -65,7 +65,7 @@ export default function LeadSummaryTab({ lead, onSave, entityKind }: Props) {
   }, [lead.id]);
 
   const stagesForSource = lead.source === "lead"
-    ? PIPELINE_STAGES.map((s) => ({ id: s.id, title: s.title }))
+    ? (isTenantContext ? CLIENT_PIPELINE_STAGES : PIPELINE_STAGES).map((s) => ({ id: s.id, title: s.title }))
     : AGENCY_STAGES;
 
   const stageField = lead.source === "lead" ? "status" : "stage";
