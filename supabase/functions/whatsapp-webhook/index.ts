@@ -698,6 +698,23 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Auto-heal: if traffic is arriving (messages/contacts events), the instance
+    // IS connected — even if we never received the connection.update event.
+    // This unblocks the UI from staying stuck on "Pareando" for tenants like Roar.
+    if (conn?.id && conn.status !== "connected" && eventMatches(
+      event, "messages.upsert", "messages.set", "send.message",
+      "messages.update", "contacts.update", "contacts.upsert", "contacts.set",
+    )) {
+      await admin.from("zapi_connections")
+        .update({ status: "connected", updated_at: new Date().toISOString() })
+        .eq("id", conn.id);
+      conn.status = "connected";
+      console.log("[whatsapp-webhook] status_auto_healed", {
+        connection_id: conn.id, tenant_id: conn.tenant_id, event,
+      });
+    }
+
+
     // Contacts update -> pushName + profile pic + automatic (@lid, phone) alias learning.
     // The Evolution/Baileys `contacts.*` events are AUTHORITATIVE: when a single
     // contact object exposes BOTH a @lid identifier and a phone JID, the pairing
