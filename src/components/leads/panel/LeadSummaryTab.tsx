@@ -9,7 +9,7 @@ import { Loader2, Save } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { UnifiedLeadView } from "@/hooks/useUnifiedLead";
-import { PIPELINE_STAGES } from "@/types/admin";
+import { PIPELINE_STAGES, CLIENT_PIPELINE_STAGES } from "@/types/admin";
 import LeadAppointmentsSection from "@/components/tenant/LeadAppointmentsSection";
 import { FIELDS_BY_KIND, resolveEntityKindLegacy, type EntityKind } from "@/lib/entity-fields";
 
