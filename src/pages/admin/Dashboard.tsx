@@ -88,7 +88,7 @@ export default function Dashboard() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [{ data: rules }, sc, t] = await Promise.all([
+      const [{ data: rules }, sc, t, ac] = await Promise.all([
         (supabase as any)
           .from("lead_routing_rules")
           .select("match_value")
@@ -97,6 +97,10 @@ export default function Dashboard() {
           .eq("active", true),
         supabase.from("saas_contracts").select("id,tenant_id,mrr,status,started_at"),
         supabase.from("tenants").select("id,name,status,created_at"),
+        supabase
+          .from("agency_contracts")
+          .select("id,agency_lead_id,tenant_id,cliente_nome,valor_total,data_assinatura,status")
+          .order("data_assinatura", { ascending: false }),
       ]);
       const masterFormIds = (rules ?? []).map((r: any) => String(r.match_value)).filter(Boolean);
       let masterSourceIds: string[] = [];
@@ -110,16 +114,21 @@ export default function Dashboard() {
           .limit(10000);
         masterSourceIds = (srcLeads ?? []).map((l: any) => l.id).filter(Boolean);
       }
-      const l = masterSourceIds.length > 0 ? await supabase
-        .from("agency_leads")
-        .select("id,source_lead_id,stage,valor_proposta,created_at,updated_at,nome_clinica,plano_interesse,origem,ganho_at,perdido_motivo,tenant_id_criado")
-        .in("source_lead_id", masterSourceIds) : { data: [] };
-      const agencyLeadIds = ((l.data ?? []) as any[]).map((lead) => lead.id).filter(Boolean);
-      const ac = agencyLeadIds.length > 0 ? await supabase
-        .from("agency_contracts")
-        .select("id,agency_lead_id,tenant_id,cliente_nome,valor_total,data_assinatura,status")
-        .in("agency_lead_id", agencyLeadIds)
-        .order("data_assinatura", { ascending: false }) : { data: [] };
+      // Coleta agency_leads:
+      //  - vindos dos formulários master (source_lead_id), OU
+      //  - já referenciados por algum contrato (para não perder ganhos manuais)
+      const contractLeadIds = ((ac.data ?? []) as any[])
+        .map((c) => c.agency_lead_id)
+        .filter(Boolean) as string[];
+      const filters: string[] = [];
+      if (masterSourceIds.length > 0) filters.push(`source_lead_id.in.(${masterSourceIds.join(",")})`);
+      if (contractLeadIds.length > 0) filters.push(`id.in.(${contractLeadIds.join(",")})`);
+      const l = filters.length > 0
+        ? await supabase
+            .from("agency_leads")
+            .select("id,source_lead_id,stage,valor_proposta,created_at,updated_at,nome_clinica,plano_interesse,origem,ganho_at,perdido_motivo,tenant_id_criado")
+            .or(filters.join(","))
+        : { data: [] as any[] };
       setLeads((l.data || []) as AgencyLead[]);
       setAgencyContracts((ac.data || []) as AgencyContract[]);
       setSaasContracts((sc.data || []) as SaasContract[]);
