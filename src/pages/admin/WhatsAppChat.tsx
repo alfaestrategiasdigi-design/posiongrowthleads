@@ -874,6 +874,21 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
           </div>
         </div>
         <div className="wa-panel-2 p-3 space-y-2">
+          {showStaleBanner && (
+            <button
+              onClick={handleResubscribe}
+              disabled={resubscribing}
+              className="w-full text-[11px] flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 transition"
+              style={{ borderColor: "rgba(250,204,21,0.45)", background: "rgba(250,204,21,0.10)", color: "#facc15" }}
+              title="A conexão está conectada, mas o webhook não recebe mensagens novas há horas. Clique para reassinar."
+            >
+              <span className="flex items-center gap-1.5">
+                <AlertTriangle className="w-3 h-3" />
+                Sem mensagens há {Math.floor(hoursSinceLastInbound ?? 0)}h — reassinar webhook
+              </span>
+              {resubscribing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+            </button>
+          )}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "hsl(var(--wa-gold-soft))" }} />
             <Input placeholder="Pesquisar conversas..." value={searchQuery}
@@ -885,9 +900,9 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             data-active={onlyWithLead ? "true" : undefined}
             className="wa-tag-chip w-full !justify-between !py-1.5 !text-[11px]"
             style={onlyWithLead ? { "--wa-tag-color": "hsl(44 55% 47%)" } as React.CSSProperties : undefined}
-            title="Filtrar conversas vinculadas a um lead do formulário"
+            title="Filtro local: oculta conversas de números que ainda não viraram lead. Não altera o que o sistema recebe."
           >
-            <span className="flex items-center gap-1.5"><Target className="w-3 h-3" /> Somente com lead</span>
+            <span className="flex items-center gap-1.5"><Target className="w-3 h-3" /> Filtrar: somente com lead vinculado</span>
             <span className="wa-mono">{linkedCount}/{conversations.length}</span>
           </button>
           {lidPendingCount > 0 && (
