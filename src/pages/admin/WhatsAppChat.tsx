@@ -846,6 +846,9 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             <Button variant="ghost" size="icon" className="h-8 w-8" title="Sincronizar conversas" onClick={handleSyncChats} disabled={syncing}>
               <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
             </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" title="Reassinar webhook (recuperar recebimento)" onClick={handleResubscribe} disabled={resubscribing}>
+              <Wifi className={`w-4 h-4 ${resubscribing ? "animate-pulse" : ""}`} />
+            </Button>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8" title="Filtrar por tag">
