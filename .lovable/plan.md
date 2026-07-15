@@ -1,57 +1,71 @@
-## Bloco 1 — WhatsApp Roar + Gatilhos de automação
+## Diagnóstico
 
-Escopo desta entrega: fazer o WhatsApp do tenant **Dr Instituto Roar** (`f259af97-…`) sair de "Pareando" e receber/enviar mensagens de verdade, e fazer os **gatilhos de automação** do tenant realmente dispararem. Os outros itens (pipeline na ficha, roteamento de formulários, refactor de Fechamentos) ficam para blocos seguintes.
+**Causa raiz das mensagens que não chegam no WhatsApp do Instituto Roar (Dr Matheus Azevedo):**
 
----
+Os logs do `whatsapp-webhook` mostram, exatamente durante os testes que você está fazendo agora (07-15 14:2x UTC), rejeição por segredo inválido:
 
-### O que eu encontrei
+```
+WARNING [whatsapp-webhook] invalid_secret {
+  instanceName: "Dr Matheus Azevedo",
+  tenant: "f259af97-8ddc-4a07-99ed-19fcb3ba631b"
+}
+```
 
-**WhatsApp Roar**
-- Existe uma conexão Z-API para o Roar (`Dr Matheus Azevedo`) mas o `status` está travado em `connecting` — por isso o cabeçalho mostra "Pareando".
-- Ao mesmo tempo, mensagens ESTÃO chegando na tabela `messages` para esse tenant (última: hoje 14:40). Ou seja: o webhook funciona, mas ninguém atualiza o `status` para `connected`, e a UI trata a conexão como não pareada (bloqueando envios, banner de aviso, etc.).
-- A conexão Cloud API (Meta) global também está com token expirado desde 19/jun — está sujando o diagnóstico da tela de admin mas não afeta o Roar (que usa Z-API).
+O que aconteceu: o `webhook_secret` salvo em `zapi_connections` foi renovado, mas a Evolution API ainda está enviando eventos com o segredo antigo na URL. Resultado: a função devolve 401 e nenhuma mensagem entra no banco. É por isso que a "última interação" desse tenant travou em 14/07 e seus testes de hoje não aparecem — o Evolution está chamando, o webhook está recusando.
 
-**Automações do Roar**
-- Todos os fluxos do tenant Roar estão em `paused` ou `draft` (só `message_received` está `active`).
-- O trigger `trg_fire_automation_lead` dispara `automation-dispatch` corretamente — a prova é que os fluxos do MASTER (`is_admin_master=true`) estão executando (várias `completed` hoje).
-- Ou seja: o dispatcher funciona, mas a função `automation-dispatch` provavelmente só está pegando fluxos `status='active'` e/ou não está considerando `tenant_id` do lead ao buscar fluxos do tenant. Preciso confirmar (leitura rápida da função) e garantir que:
-  1. Fluxos com `status='paused'` fiquem visíveis na UI para o usuário ativar (hoje aparentemente estão sendo criados como `paused` sem o usuário perceber).
-  2. Quando um lead entra com `tenant_id = X`, o dispatcher busque fluxos onde `tenant_id = X AND status = 'active'` (e não misture com Master).
+Confirmações complementares:
+- Nas últimas 48h: 335 mensagens ingressaram para `tenant_id NULL` (instância master `POSIONGROWTHLEADS`) — ela está funcional; só o `Dr Matheus Azevedo` está bloqueado. Os outros tenants (donnaface, drgabriel) também sofrem do mesmo risco silencioso.
+- Não existe filtro de servidor "somente lead de formulário". As 412 conversas mostradas são as antigas; o chip "Somente com lead (396/412)" na sua tela está **ligado** (você clicou), então esconde 16. Ao desligar, elas voltam a aparecer. Isso é ortogonal ao problema real das mensagens novas.
 
----
+## O que vou implementar
 
-### Plano de execução
+### 1. Recuperar o Instituto Roar agora e para sempre
 
-**1. WhatsApp Roar — destravar "Pareando"**
-- Ler `supabase/functions/evolution-status/index.ts` e `evolution-connect/index.ts` para entender a máquina de estados.
-- Ler `supabase/functions/whatsapp-webhook/index.ts` (Z-API) e, quando chegar qualquer evento (mensagem, ack, conexão), sincronizar `zapi_connections.status = 'connected'` para o `tenant_id` correspondente.
-- Adicionar botão "Reparear/Sincronizar status" na tela `TenantWhatsApp` que chama `evolution-status` e força a atualização do status a partir do estado real da instância na Z-API.
-- Corrigir a UI (`TenantWhatsApp` / header do chat) para: se houve mensagem nas últimas 24h daquele `tenant_id`, considerar como "Conectado" mesmo que o campo `status` esteja atrasado (fallback defensivo).
+- Executar `evolution-resubscribe` para o tenant `Dr Matheus Azevedo` (via botão exposto — sem SQL manual), o que faz Evolution regravar a URL de webhook com o `webhook_secret` **atual**. Isso destrava o ingest imediatamente.
+- Em seguida, `evolution-sync-chats` (já existe) puxa os chats/últimas mensagens que ficaram perdidos durante a janela em que o webhook estava 401.
 
-**2. Automações do tenant — fazer os gatilhos dispararem**
-- Ler `supabase/functions/automation-dispatch/index.ts` e confirmar o filtro por `tenant_id` + `status='active'`.
-- Corrigir o dispatcher para:
-  - Buscar fluxos **do próprio tenant** do lead/appointment (nunca cruzar tenants).
-  - Buscar fluxos `is_admin_master=true` apenas quando o evento não tem tenant (funil Master).
-  - Logar em `automation_executions` (com `last_error`) sempre que um trigger dispara mas nenhum fluxo bate — hoje não há rastro disso.
-- Na página de Automações do tenant (`TenantRecall`/`AutomationsPage`), garantir que fluxos criados via seed (`trg_seed_form_greeting_flow`) sejam criados com `status='active'` (hoje o do Roar está `paused`) e mostrar um alerta "X fluxos pausados — ativar" no topo.
-- Adicionar botão "Testar disparo" por fluxo (dispara um `automation-dispatch` com um contexto fake do próprio tenant e mostra o resultado).
+### 2. Botão "Reassinar webhook" na página WhatsApp de cada tenant
 
-**3. Verificação**
-- Reprocessar o status da conexão Z-API do Roar e confirmar UI = "Conectado".
-- Ativar o fluxo "Boas-vindas após formulário" do Roar, inserir um lead de teste com `tenant_id` do Roar e conferir `automation_executions` gerando execução `completed` do fluxo do Roar (não do Master).
-- Consultar `messages` e `automation_executions` para confirmar isolamento por `tenant_id` (nada com `tenant_id NULL` deve entrar aqui).
+Adicionar, ao lado do "Sincronizar chats" já existente em `WhatsAppChat.tsx` (que serve tanto master quanto tenant), um botão **"Reassinar webhook"** que:
+1. chama `evolution-resubscribe` com o `tenant_id` corrente,
+2. mostra o resultado (sucesso/erro) em toast,
+3. em caso de sucesso, dispara automaticamente `evolution-sync-chats` para recuperar mensagens perdidas,
+4. recarrega a lista.
 
----
+Isso deixa o operador da clínica autossuficiente para o próximo dia em que a Evolution "esquecer" o segredo (reinicialização de container, restauração de backup, etc.).
 
-### Isolamento por tenant (regra que atravessa tudo)
-Toda query nova (dispatcher, status, UI) filtra estritamente por `tenant_id` do contexto. Nenhum fallback silencioso para `tenant_id IS NULL` (funil Master) em telas de clínica. Isso vale também para os blocos seguintes.
+### 3. Detecção automática + alerta
 
----
+- Em `WhatsAppChat.tsx`, quando a última mensagem inbound do tenant for maior que **6h** e o status da conexão estiver `connected`, mostrar um banner amarelo no topo da lista:  
+  *"Conexão conectada, mas sem mensagens há X horas. Clique em Reassinar webhook."*
+- Um segundo indicador vermelho aparece se, ao consultar o status, detectarmos qualquer `invalid_secret` recente (via contagem simples de `messages` recebidas na janela). Assim o problema não fica invisível por dias.
 
-### Próximos blocos (não incluídos aqui — confirmo antes de começar cada um)
-- **Bloco 2**: pipeline correto na ficha do paciente das clínicas (`Lead Novo → Início Atend. → Agendar Consulta → Proposta → Negociação → Ganho → Paciente Ativo → Perdido`) — hoje aparece o do Master.
-- **Bloco 3**: refactor de "Registrar Fechamento" — Procedimento vindo de `tenant_products` (por tenant), Canal como combobox criável persistido em `tenant_custom_options` com `tenant_id`, edição de fechamento existente na listagem, histórico preservado.
-- Sobre "formulários do Roar não marcam em Leads": as 9 regras de roteamento já estão corretas no banco. Os leads recentes que chegaram nas últimas 72h vieram do form `1732941891349945` (Master), não dos 9 do Roar — vou investigar isso junto do Bloco 2 (é sync do Facebook, não roteamento).
+### 4. Endurecer o webhook para se auto-curar quando seguro
 
-Posso implementar o Bloco 1 agora?
+No `whatsapp-webhook/index.ts`, quando:
+- o `instanceName` do payload bater com uma conexão registrada,
+- o `tenantSlug`/`tenant_id` da URL também bater com essa conexão,
+- e o `webhook_secret` **estiver vazio** no banco (nunca foi setado),
+
+então gravar o segredo recebido em vez de recusar. Isso resolve o caso "instância nova sem secret ainda". **Não** vamos aceitar segredo diferente do gravado — a proteção anti-spoofing continua.
+
+### 5. Correção secundária no chip "Somente com lead"
+
+- Manter o default **off** (já está), mas persistir a escolha em `localStorage` por tenant para não confundir (hoje ele volta a `false` a cada reload, o que faz o operador clicar sem saber, e depois estranha o filtro).
+- Ajustar o rótulo para deixar claro que é um filtro do lado do cliente: **"Filtrar: somente com lead vinculado"**, e mudar o tooltip para *"Oculta conversas de números que ainda não viraram lead. Não altera o que chega no sistema."*
+
+### Detalhes técnicos
+
+Arquivos tocados:
+- `src/pages/admin/WhatsAppChat.tsx` — novo botão "Reassinar webhook", banner de detecção, persistência do chip, chamada dupla `evolution-resubscribe` → `evolution-sync-chats`.
+- `supabase/functions/whatsapp-webhook/index.ts` — bloco de auto-cura só quando `webhook_secret IS NULL`, sem mudar a lógica atual de rejeição para segredos divergentes.
+
+Nada é alterado em:
+- `evolution-resubscribe` (já grava o segredo atual na Evolution — é exatamente o que precisamos).
+- Regras de roteamento por `instance_name`/`tenant_id` no webhook (estão corretas).
+- Realtime das conversas (já funciona; ele só parece parado porque nada estava sendo gravado).
+
+### Fora do escopo desta iteração
+
+- Não vou mexer no pipeline da ficha do paciente, no modal de fechamento nem no dashboard — essas correções já foram entregues nos blocos anteriores.
+- Não vou trocar o provedor Evolution nem mexer no host/porta da instância.

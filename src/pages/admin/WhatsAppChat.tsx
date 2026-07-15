@@ -95,7 +95,13 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const [convTags, setConvTags] = useState<Record<string, TagRow[]>>({});
   const [allTags, setAllTags] = useState<TagRow[]>([]);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
-  const [onlyWithLead, setOnlyWithLead] = useState(false);
+  const onlyWithLeadKey = `wa-only-with-lead-${tenantId ?? "master"}`;
+  const [onlyWithLead, setOnlyWithLead] = useState<boolean>(() => {
+    try { return localStorage.getItem(onlyWithLeadKey) === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(onlyWithLeadKey, onlyWithLead ? "1" : "0"); } catch { /* ignore */ }
+  }, [onlyWithLead, onlyWithLeadKey]);
   const [lidReviewOpen, setLidReviewOpen] = useState(false);
   const [lidPendingCount, setLidPendingCount] = useState(0);
   const [leadPanelId, setLeadPanelId] = useState<string | null>(null);
@@ -403,6 +409,57 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       }
     } finally { setSyncing(false); }
   };
+
+  const [resubscribing, setResubscribing] = useState(false);
+  const handleResubscribe = async () => {
+    if (resubscribing) return;
+    setResubscribing(true);
+    try {
+      const body: any = {};
+      if (tenantId) body.tenant_id = tenantId;
+      const { data, error } = await supabase.functions.invoke("evolution-resubscribe", { body });
+      if (error) {
+        toast.error("Falha ao reassinar webhook", { description: error.message });
+        return;
+      }
+      const results = (data as any)?.results ?? [];
+      const ok = results.some((r: any) => r.ok);
+      if (!ok) {
+        toast.error("Evolution rejeitou a reassinatura", { description: JSON.stringify(results?.[0]?.debug ?? results).slice(0, 200) });
+        return;
+      }
+      toast.success("Webhook reassinado — puxando mensagens perdidas…");
+      // Backfill after resubscribing so missed messages appear.
+      try {
+        const { data: syncData } = await supabase.functions.invoke("evolution-sync-chats", {
+          body: { tenant_id: tenantId, with_pictures: true },
+        });
+        toast.success(`Sincronizado: ${(syncData as any)?.upserted ?? 0} conversa(s)`);
+      } catch (e: any) {
+        toast.error("Reassinado, mas falhou o sync", { description: e?.message ?? String(e) });
+      }
+      loadConversations();
+    } finally {
+      setResubscribing(false);
+    }
+  };
+
+  // Detect stale ingest: if connection is "connected" but no inbound message
+  // arrived in the last 6h, the Evolution instance is probably calling the
+  // webhook with a stale/invalid secret (401) and needs a resubscribe.
+  const hoursSinceLastInbound = useMemo(() => {
+    let latest = 0;
+    for (const c of conversations) {
+      const t = c.ultima_interacao ? new Date(c.ultima_interacao).getTime() : 0;
+      if (t > latest) latest = t;
+    }
+    if (!latest) return null;
+    return (Date.now() - latest) / 3600000;
+  }, [conversations]);
+  const showStaleBanner = conn.status === "connected"
+    && conversations.length > 0
+    && (hoursSinceLastInbound ?? 0) >= 6;
+
 
 
   // ============ Send ============
@@ -789,6 +846,9 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             <Button variant="ghost" size="icon" className="h-8 w-8" title="Sincronizar conversas" onClick={handleSyncChats} disabled={syncing}>
               <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
             </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" title="Reassinar webhook (recuperar recebimento)" onClick={handleResubscribe} disabled={resubscribing}>
+              <Wifi className={`w-4 h-4 ${resubscribing ? "animate-pulse" : ""}`} />
+            </Button>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8" title="Filtrar por tag">
@@ -814,6 +874,21 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
           </div>
         </div>
         <div className="wa-panel-2 p-3 space-y-2">
+          {showStaleBanner && (
+            <button
+              onClick={handleResubscribe}
+              disabled={resubscribing}
+              className="w-full text-[11px] flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 transition"
+              style={{ borderColor: "rgba(250,204,21,0.45)", background: "rgba(250,204,21,0.10)", color: "#facc15" }}
+              title="A conexão está conectada, mas o webhook não recebe mensagens novas há horas. Clique para reassinar."
+            >
+              <span className="flex items-center gap-1.5">
+                <AlertTriangle className="w-3 h-3" />
+                Sem mensagens há {Math.floor(hoursSinceLastInbound ?? 0)}h — reassinar webhook
+              </span>
+              {resubscribing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+            </button>
+          )}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "hsl(var(--wa-gold-soft))" }} />
             <Input placeholder="Pesquisar conversas..." value={searchQuery}
@@ -825,9 +900,9 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             data-active={onlyWithLead ? "true" : undefined}
             className="wa-tag-chip w-full !justify-between !py-1.5 !text-[11px]"
             style={onlyWithLead ? { "--wa-tag-color": "hsl(44 55% 47%)" } as React.CSSProperties : undefined}
-            title="Filtrar conversas vinculadas a um lead do formulário"
+            title="Filtro local: oculta conversas de números que ainda não viraram lead. Não altera o que o sistema recebe."
           >
-            <span className="flex items-center gap-1.5"><Target className="w-3 h-3" /> Somente com lead</span>
+            <span className="flex items-center gap-1.5"><Target className="w-3 h-3" /> Filtrar: somente com lead vinculado</span>
             <span className="wa-mono">{linkedCount}/{conversations.length}</span>
           </button>
           {lidPendingCount > 0 && (
