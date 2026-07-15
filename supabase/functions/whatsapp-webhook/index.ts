@@ -665,8 +665,19 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    // Verify the per-connection webhook secret (protects against spoofed events)
-    if (conn.webhook_secret && requestSecret !== conn.webhook_secret) {
+    // Verify the per-connection webhook secret (protects against spoofed events).
+    // Auto-heal when the stored secret is empty AND the URL identifies the tenant
+    // (slug or id) — this covers freshly-created connections that never had a
+    // secret written to the DB yet.
+    if (!conn.webhook_secret) {
+      if (requestSecret && (tenantSlug || tenantIdParam)) {
+        await admin.from("zapi_connections")
+          .update({ webhook_secret: requestSecret, updated_at: new Date().toISOString() })
+          .eq("id", conn.id);
+        conn.webhook_secret = requestSecret;
+        console.log("[whatsapp-webhook] webhook_secret_auto_heal", { instanceName, tenant: conn.tenant_id });
+      }
+    } else if (requestSecret !== conn.webhook_secret) {
       console.warn("[whatsapp-webhook] invalid_secret", { instanceName, tenant: conn.tenant_id });
       return new Response(JSON.stringify({ ok: false, error: "invalid_secret" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
