@@ -410,6 +410,57 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
     } finally { setSyncing(false); }
   };
 
+  const [resubscribing, setResubscribing] = useState(false);
+  const handleResubscribe = async () => {
+    if (resubscribing) return;
+    setResubscribing(true);
+    try {
+      const body: any = {};
+      if (tenantId) body.tenant_id = tenantId;
+      const { data, error } = await supabase.functions.invoke("evolution-resubscribe", { body });
+      if (error) {
+        toast.error("Falha ao reassinar webhook", { description: error.message });
+        return;
+      }
+      const results = (data as any)?.results ?? [];
+      const ok = results.some((r: any) => r.ok);
+      if (!ok) {
+        toast.error("Evolution rejeitou a reassinatura", { description: JSON.stringify(results?.[0]?.debug ?? results).slice(0, 200) });
+        return;
+      }
+      toast.success("Webhook reassinado — puxando mensagens perdidas…");
+      // Backfill after resubscribing so missed messages appear.
+      try {
+        const { data: syncData } = await supabase.functions.invoke("evolution-sync-chats", {
+          body: { tenant_id: tenantId, with_pictures: true },
+        });
+        toast.success(`Sincronizado: ${(syncData as any)?.upserted ?? 0} conversa(s)`);
+      } catch (e: any) {
+        toast.error("Reassinado, mas falhou o sync", { description: e?.message ?? String(e) });
+      }
+      loadConversations();
+    } finally {
+      setResubscribing(false);
+    }
+  };
+
+  // Detect stale ingest: if connection is "connected" but no inbound message
+  // arrived in the last 6h, the Evolution instance is probably calling the
+  // webhook with a stale/invalid secret (401) and needs a resubscribe.
+  const hoursSinceLastInbound = useMemo(() => {
+    let latest = 0;
+    for (const c of conversations) {
+      const t = c.ultima_interacao ? new Date(c.ultima_interacao).getTime() : 0;
+      if (t > latest) latest = t;
+    }
+    if (!latest) return null;
+    return (Date.now() - latest) / 3600000;
+  }, [conversations]);
+  const showStaleBanner = conn.status === "connected"
+    && conversations.length > 0
+    && (hoursSinceLastInbound ?? 0) >= 6;
+
+
 
   // ============ Send ============
   const handleSendMessage = async () => {
