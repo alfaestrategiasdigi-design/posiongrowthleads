@@ -95,7 +95,13 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const [convTags, setConvTags] = useState<Record<string, TagRow[]>>({});
   const [allTags, setAllTags] = useState<TagRow[]>([]);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
-  const [onlyWithLead, setOnlyWithLead] = useState(false);
+  const onlyWithLeadKey = `wa-only-with-lead-${tenantId ?? "master"}`;
+  const [onlyWithLead, setOnlyWithLead] = useState<boolean>(() => {
+    try { return localStorage.getItem(onlyWithLeadKey) === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(onlyWithLeadKey, onlyWithLead ? "1" : "0"); } catch { /* ignore */ }
+  }, [onlyWithLead, onlyWithLeadKey]);
   const [lidReviewOpen, setLidReviewOpen] = useState(false);
   const [lidPendingCount, setLidPendingCount] = useState(0);
   const [leadPanelId, setLeadPanelId] = useState<string | null>(null);
