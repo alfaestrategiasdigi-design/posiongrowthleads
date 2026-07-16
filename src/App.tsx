@@ -14,6 +14,7 @@ import LeadsPage from "./pages/admin/LeadsPage";
 
 import ConexaoWhatsappPage from "./pages/admin/ConexaoWhatsappPage";
 import WhatsAppStatusPage from "./pages/admin/WhatsAppStatusPage";
+import WhatsAppAuditPage from "./pages/admin/WhatsAppAuditPage";
 import CreateUserPage from "./pages/admin/CreateUserPage";
 import AutomacoesPage from "./pages/admin/AutomacoesPage";
 import FacebookConfigPage from "./pages/admin/FacebookConfigPage";
