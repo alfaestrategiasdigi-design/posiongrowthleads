@@ -403,6 +403,22 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
+  // Deep-link: /whatsapp?phone=<digits> abre a conversa correspondente automaticamente.
+  useEffect(() => {
+    const phone = searchParams.get("phone");
+    if (!phone || conversations.length === 0) return;
+    const digits = phone.replace(/\D/g, "");
+    if (!digits || autoOpenedPhoneRef.current === digits) return;
+    const match = conversations.find(c => (c.telefone || "").replace(/\D/g, "").endsWith(digits.slice(-10)));
+    if (match) {
+      autoOpenedPhoneRef.current = digits;
+      setSelectedConversation(match);
+      const next = new URLSearchParams(searchParams);
+      next.delete("phone");
+      setSearchParams(next, { replace: true });
+    }
+  }, [conversations, searchParams, setSearchParams]);
+
   // 15s polling fallback (refresh list + selected thread)
   useEffect(() => {
     const t = setInterval(() => {
