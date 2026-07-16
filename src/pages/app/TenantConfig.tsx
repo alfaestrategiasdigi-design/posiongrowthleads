@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import AgendaConfigCard from "@/components/tenant/AgendaConfigCard";
 import KommoIntegrationCard from "@/components/tenant/KommoIntegrationCard";
 import ReconnectSessionCard from "@/components/tenant/ReconnectSessionCard";
+import TenantWhatsAppNumbersCard from "@/components/tenant/TenantWhatsAppNumbersCard";
 import { useUserRole } from "@/hooks/useUserRole";
 
 const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
