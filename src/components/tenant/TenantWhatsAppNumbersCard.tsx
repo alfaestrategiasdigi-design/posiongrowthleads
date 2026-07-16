@@ -35,7 +35,7 @@ function formatBr(digits: string) {
   return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9, 13)}`;
 }
 
-interface Props { tenantId: string }
+interface Props { tenantId: string | null }
 
 export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
   const [rows, setRows] = useState<NumberRow[]>([]);
