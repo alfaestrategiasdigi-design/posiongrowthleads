@@ -58,10 +58,26 @@ export default function ReconnectSessionCard({ tenantId, connectionId, instanceN
       if (Date.now() - startTsRef.current > POLL_TIMEOUT_MS) {
         stopPolling();
         setPhase("error");
-        setError("Tempo esgotado — nenhuma mensagem chegou em 5 min. Verifique se o celular está online e escaneou o QR.");
+        setError("Tempo esgotado — a sessão não confirmou conexão em 5 min. Verifique se o celular escaneou o QR.");
         return;
       }
-      const { data, error: qErr } = await supabase
+      // 1) Sinal primário: status da conexão flipou para 'connected' após o reconnect.
+      if (connectionId) {
+        const { data: conn } = await supabase
+          .from("zapi_connections")
+          .select("status, updated_at")
+          .eq("id", connectionId)
+          .maybeSingle();
+        if (conn && (conn.status === "connected" || conn.status === "open") && conn.updated_at && conn.updated_at > sinceIso) {
+          stopPolling();
+          setPhase("healthy");
+          toast.success("Sessão reconectada com sucesso");
+          onHealthy?.();
+          return;
+        }
+      }
+      // 2) Sinal secundário (opcional): se já chegou mensagem inbound nova, também confirma.
+      const { data } = await supabase
         .from("messages")
         .select("id, conteudo, created_at, direction")
         .eq("tenant_id", tenantId)
@@ -70,7 +86,6 @@ export default function ReconnectSessionCard({ tenantId, connectionId, instanceN
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (qErr) return;
       if (data) {
         stopPolling();
         setLastMessage({ content: (data.conteudo || "(mídia)").slice(0, 120), created_at: data.created_at });
