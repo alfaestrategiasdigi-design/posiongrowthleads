@@ -157,6 +157,22 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
     setConversations(list);
     setLidPendingCount(list.filter((c: any) => (c as any).needs_lid_review === true).length);
     setLoading(false);
+    // Carrega nomes dos leads vinculados às conversas (usado como fallback de exibição
+    // quando a conversa está com @lid não resolvido ou sem pushName).
+    const leadIds = Array.from(new Set(list.map(c => c.lead_id).filter((x): x is string => !!x)));
+    if (leadIds.length > 0) {
+      const { data: leadsData } = await supabase
+        .from("leads")
+        .select("id, nome_completo")
+        .in("id", leadIds);
+      const map: Record<string, string> = {};
+      (leadsData || []).forEach((l: any) => {
+        if (l?.id && l?.nome_completo) map[l.id] = l.nome_completo;
+      });
+      setLeadNamesById(map);
+    } else {
+      setLeadNamesById({});
+    }
   }, [tenantId, masterMode]);
 
   const loadTenantsMap = useCallback(async () => {
