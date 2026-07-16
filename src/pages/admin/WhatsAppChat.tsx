@@ -340,11 +340,9 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
     let query = supabase.from("zapi_connections")
       .select("id, instance_url, instance_name, api_key, status")
       .eq("provider", "evolution");
-    if (masterMode) {
-      // master view: show first available connection (read-only context for inbox)
-    } else {
-      query = tenantId ? query.eq("tenant_id", tenantId) : query.is("tenant_id", null);
-    }
+    // Sempre isolar por ambiente: master = tenant_id NULL, tenant = seu próprio id.
+    // Nunca ler conexão de outro tenant no modo master (evita mostrar instância de outro cliente).
+    query = tenantId ? query.eq("tenant_id", tenantId) : query.is("tenant_id", null);
     const { data, error } = await query.order("updated_at", { ascending: false }).limit(1).maybeSingle();
     if (error) toast.error("Falha ao carregar conexão", { description: error.message });
     if (data) setConn({
