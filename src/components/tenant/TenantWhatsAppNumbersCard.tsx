@@ -121,7 +121,9 @@ export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
   }
 
   async function setPrimary(id: string) {
-    await supabase.from("tenant_whatsapp_numbers" as any).update({ is_primary: false }).eq("tenant_id", tenantId);
+    let clearQ = supabase.from("tenant_whatsapp_numbers" as any).update({ is_primary: false });
+    clearQ = tenantId ? clearQ.eq("tenant_id", tenantId) : clearQ.is("tenant_id", null);
+    await clearQ;
     const { error } = await supabase.from("tenant_whatsapp_numbers" as any).update({ is_primary: true }).eq("id", id);
     if (error) toast.error(error.message);
     else void reload();
