@@ -693,8 +693,43 @@ Deno.serve(async (req) => {
         .eq("tenant_id", conn.tenant_id);
       conn.instance_name = instanceName;
     }
-    const tenantId = conn?.tenant_id ?? null;
+    let tenantId: string | null = conn?.tenant_id ?? null;
     const ownJids = extractRootOwnJids(body, instanceName);
+
+    // ── Trava de roteamento por número (tenant_whatsapp_numbers) ──
+    // Se conhecemos o ownerJid dessa instância, cruzamos com os números
+    // verificados dos tenants. Isso impede que mensagens caiam no admin master
+    // por engano quando URL/instance_name apontam para o tenant errado.
+    try {
+      const ownerDigitsSet = new Set<string>();
+      for (const jid of ownJids) {
+        const digits = onlyDigits(jid);
+        if (digits.length >= 10) ownerDigitsSet.add(digits);
+      }
+      if (ownerDigitsSet.size > 0) {
+        const digitsList = Array.from(ownerDigitsSet);
+        const { data: numRows } = await admin
+          .from("tenant_whatsapp_numbers")
+          .select("tenant_id, phone_e164, status")
+          .in("phone_e164", digitsList);
+        const verified = (numRows || []).find((r: any) => r.status === "verified");
+        const any = verified || (numRows || [])[0];
+        if (any?.tenant_id && any.tenant_id !== tenantId) {
+          console.log("[whatsapp-webhook] tenant_reroute_by_owner", {
+            from: tenantId, to: any.tenant_id, owner: any.phone_e164, instanceName,
+          });
+          tenantId = any.tenant_id;
+          if (conn) conn.tenant_id = any.tenant_id;
+        } else if (!any?.tenant_id && tenantId === null) {
+          console.warn("[whatsapp-webhook] unknown_owner_jid", {
+            instanceName, owners: digitsList,
+          });
+        }
+      }
+    } catch (e) {
+      console.error("[whatsapp-webhook] owner_route_error", e);
+    }
+
 
     // Connection state
     if (eventMatches(event, "connection.update") || body?.data?.state) {
