@@ -165,7 +165,38 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 2) Match por nome_contato (case-insensitive) no mesmo tenant.
+    // 2) Correlação por wamid: se qualquer mensagem da conversa @lid tem o
+    //    mesmo wamid de uma mensagem em outra conversa (canônica) do mesmo
+    //    tenant, é a mesma conversa vista por dois caminhos → mesclar.
+    if (!target) {
+      const { data: lidMsgs } = await admin.from("messages")
+        .select("wamid")
+        .eq("conversation_id", lid.id)
+        .not("wamid", "is", null)
+        .limit(50);
+      const wamids = Array.from(new Set((lidMsgs ?? []).map((m: any) => m.wamid).filter(Boolean)));
+      if (wamids.length > 0) {
+        let mq = admin.from("messages")
+          .select("conversation_id")
+          .in("wamid", wamids)
+          .neq("conversation_id", lid.id);
+        mq = lid.tenant_id ? mq.eq("tenant_id", lid.tenant_id) : mq.is("tenant_id", null);
+        const { data: hits } = await mq.limit(50);
+        const otherConvIds = Array.from(new Set((hits ?? []).map((h: any) => h.conversation_id).filter(Boolean)));
+        if (otherConvIds.length === 1) {
+          const { data: cand } = await admin.from("conversations")
+            .select("id, tenant_id, nao_lidas, remote_jid")
+            .eq("id", otherConvIds[0])
+            .maybeSingle();
+          if (cand && !cand.remote_jid?.includes("@lid")) {
+            target = await adoptLegacyGlobalConversation(admin, cand, lid.tenant_id);
+            reason = "wamid_correlation";
+          }
+        }
+      }
+    }
+
+    // 3) Match por nome_contato (case-insensitive) no mesmo tenant.
     if (!target && lid.nome_contato && lid.nome_contato.length >= 2) {
       let nq = admin.from("conversations")
         .select("id, tenant_id, nao_lidas, remote_jid")
