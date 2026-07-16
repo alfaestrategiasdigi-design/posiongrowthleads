@@ -1038,10 +1038,19 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
         <div className="flex-1 flex flex-col">
           <div className="wa-header-bar h-16 flex items-center justify-between px-4 shrink-0">
             <div className="flex items-center gap-3">
-              <ContactAvatar name={selectedConversation.nome_contato || selectedConversation.telefone} photoUrl={selectedConversation.foto_url} size={40} />
+              <ContactAvatar name={getDisplayName(selectedConversation)} photoUrl={selectedConversation.foto_url} size={40} />
               <div>
                 <h3 className="wa-name text-[16px] font-semibold flex items-center gap-2" style={{ color: "#e9edef" }}>
-                  {selectedConversation.nome_contato || selectedConversation.telefone}
+                  {getDisplayName(selectedConversation)}
+                  {isUnresolvedLid(selectedConversation) && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium"
+                      style={{ background: "rgba(240,180,41,0.10)", border: "1px solid rgba(240,180,41,0.28)", color: "#f0b429" }}
+                      title="Número real ainda não resolvido pela Evolution."
+                    >
+                      <AlertTriangle className="w-3 h-3" /> não identificado
+                    </span>
+                  )}
                   {selectedConversation.lead_id && (
                     <button
                       onClick={() => setLeadPanelId(selectedConversation.lead_id!)}
