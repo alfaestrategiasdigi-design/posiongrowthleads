@@ -84,16 +84,18 @@ const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated, entityKind
               </div>
 
 
-              {whatsappLink && (
+              {(canOpenChat || lead.email) && (
                 <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-2 bg-green-600/10 border-green-600/30 hover:bg-green-600/20"
-                    onClick={() => window.open(whatsappLink, "_blank")}
-                  >
-                    <MessageCircle className="w-3.5 h-3.5 text-green-500" /> Conversar
-                  </Button>
+                  {canOpenChat && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-2 bg-green-600/10 border-green-600/30 hover:bg-green-600/20"
+                      onClick={openInternalChat}
+                    >
+                      <MessageCircle className="w-3.5 h-3.5 text-green-500" /> Conversar
+                    </Button>
+                  )}
                   {lead.email && (
                     <Button size="sm" variant="outline" className="gap-2" onClick={() => window.open(`mailto:${lead.email}`)}>
                       <Mail className="w-3.5 h-3.5" /> {lead.email}
