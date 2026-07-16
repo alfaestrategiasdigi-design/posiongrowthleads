@@ -1175,6 +1175,14 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                   {(selectedConversation as any)?.lid_review_notes || "Revise as mensagens deste intervalo manualmente antes de responder. Use o botão \u201cMover\u201d na mensagem para reatribuí-la à conversa correta."}
                 </div>
               </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px] border-amber-400/60 bg-amber-500/20 text-amber-100 hover:bg-amber-500/30 shrink-0"
+                onClick={() => setLidReviewOpen(true)}
+              >
+                Mesclar com contato…
+              </Button>
             </div>
           )}
 
