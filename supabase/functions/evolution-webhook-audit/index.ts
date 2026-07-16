@@ -2,7 +2,7 @@
 // MESSAGES_UPSERT e SEND_MESSAGE estão inscritos e reinscreve se faltar.
 // POST body: { connection_id?, tenant_id?, dry_run?: boolean }
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { configureWebhook, findWebhookEvents, missingRequiredEvents, normalizeBase } from "../_shared/evolution-webhook.ts";
+import { buildWebhookUrl, configureWebhook, ensureWebhookSecret, findWebhookEvents, missingRequiredEvents, normalizeBase, validateWebhookUrl } from "../_shared/evolution-webhook.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
