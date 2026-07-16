@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
   const body = await req.json().catch(() => ({}));
   const tenantId: string | null = body.tenant_id ?? null;
-  const withPictures: boolean = body.with_pictures !== false;
+  const withPictures: boolean = body.with_pictures === true;
 
   // Permission check
   const { data: isAdmin } = await admin.rpc("has_role", { _user_id: userId, _role: "admin" });
