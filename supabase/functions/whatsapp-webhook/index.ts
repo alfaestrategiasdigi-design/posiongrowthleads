@@ -1033,8 +1033,13 @@ Deno.serve(async (req) => {
           : locationMsg ? "location"
           : contactMsg ? "contact"
           : "text";
-
-        if (!text && tipo === "text") continue;
+        // Do not discard a first-contact conversation just because Evolution sent
+        // a message shape we do not render yet. Previously, an empty text fallback
+        // returned here before the conversation was created, making legitimate
+        // non-form contacts disappear completely from the inbox.
+        const unsupportedMessageType = !text && tipo === "text"
+          ? Object.keys(msgObj ?? {}).find((key) => key.endsWith("Message")) ?? "unknown"
+          : null;
 
         // Exact dedup must happen BEFORE mutating conversations. Evolution may
         // deliver the same phone-originated wamid twice: once as a canonical JID
@@ -1110,6 +1115,7 @@ Deno.serve(async (req) => {
             : tipo === "sticker" ? "😊 Figurinha"
             : tipo === "location" ? "📍 Localização"
             : tipo === "contact" ? "👤 Contato"
+            : unsupportedMessageType ? "Mensagem não suportada"
             : `[${tipo}]`);
         const messageCreatedAt = extractMessageCreatedAt(m);
         const shouldUpdateConversationPreview = !conv?.ultima_interacao
@@ -1227,6 +1233,7 @@ Deno.serve(async (req) => {
           metadata: {
             raw_key: extractRawKeySnapshot(key, m, fromMe),
             own_jids: Array.from(ownJids),
+             ...(unsupportedMessageType ? { unsupported_message_type: unsupportedMessageType } : {}),
             ...(isPendingLid ? { pending_lid_resolution: true, raw_lid: rawRemoteJid } : {}),
           },
 

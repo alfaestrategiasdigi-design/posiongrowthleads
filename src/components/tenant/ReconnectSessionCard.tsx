@@ -24,8 +24,8 @@ const POLL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos
  * Fluxo:
  * 1. Chama edge function `evolution-reconnect` (logout + connect).
  * 2. Exibe QR code para o dono do número escanear no celular.
- * 3. Faz polling na tabela `messages` procurando mensagens novas com
- *    `created_at > reconnect_started_at`. Quando aparecem, a sessão está sadia.
+ * 3. Faz polling na tabela `messages` procurando uma mensagem inbound nova com
+ *    `created_at > reconnect_started_at`. Só então a sessão está sadia.
  */
 export default function ReconnectSessionCard({ tenantId, connectionId, instanceName, onHealthy }: Props) {
   const [phase, setPhase] = useState<Phase>("idle");
@@ -65,6 +65,7 @@ export default function ReconnectSessionCard({ tenantId, connectionId, instanceN
         .from("messages")
         .select("id, conteudo, created_at, direction")
         .eq("tenant_id", tenantId)
+        .eq("direction", "inbound")
         .gt("created_at", sinceIso)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -199,10 +200,10 @@ export default function ReconnectSessionCard({ tenantId, connectionId, instanceN
             <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm space-y-1">
               <p className="flex items-center gap-2 font-medium">
                 <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                Aguardando primeira mensagem nova… ({formatElapsed(elapsed)})
+                 Conectada, aguardando mensagem de teste… ({formatElapsed(elapsed)})
               </p>
               <p className="text-xs text-muted-foreground">
-                Peça a alguém para te enviar uma mensagem, ou envie você mesmo para o número. Assim que uma mensagem chegar ao banco, marcamos como saudável.
+                 Envie uma mensagem de outro WhatsApp para este número. Somente uma nova mensagem recebida confirma que a sessão está saudável.
               </p>
             </div>
             <div className="flex gap-2">
