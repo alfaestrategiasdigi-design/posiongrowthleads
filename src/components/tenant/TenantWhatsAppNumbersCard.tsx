@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { CheckCircle2, AlertCircle, RefreshCw, Trash2, Plus, ShieldCheck, Loader2, Star } from "lucide-react";
+import { CheckCircle2, AlertCircle, RefreshCw, Trash2, Plus, ShieldCheck, Loader2, Star, ArrowRightLeft } from "lucide-react";
 
 const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 
@@ -133,6 +133,44 @@ export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
 
   const verifiedCount = rows.filter((r) => r.status === "verified").length;
   const mismatchCount = rows.filter((r) => r.status === "mismatch").length;
+  const [reassigning, setReassigning] = useState(false);
+
+  async function runReassign() {
+    setReassigning(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      // 1) Dry run
+      const preview = await fetch(
+        `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-reassign-by-owner`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ tenant_id: tenantId, dry_run: true }),
+        },
+      ).then((r) => r.json());
+      if (preview.error) { toast.error(preview.message || preview.error); return; }
+      const convs = preview.conversations_found ?? 0;
+      const msgs = preview.messages_found ?? 0;
+      if (convs === 0) { toast.info("Nenhuma conversa em outro tenant precisa ser migrada."); return; }
+      if (!confirm(`Foram encontradas ${convs} conversa(s) e ${msgs} mensagem(ns) em outros tenants pertencentes a este número.\n\nConfirmar migração para este tenant?`)) return;
+      // 2) Apply
+      const applied = await fetch(
+        `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-reassign-by-owner`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ tenant_id: tenantId, dry_run: false }),
+        },
+      ).then((r) => r.json());
+      if (applied.error) toast.error(applied.message || applied.error);
+      else toast.success(`Migradas ${applied.conversations_moved} conversa(s) e ${applied.messages_moved} mensagem(ns).`);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setReassigning(false);
+    }
+  }
 
   return (
     <Card>
@@ -154,6 +192,23 @@ export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
         )}
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Backfill: reatribuir conversas antigas */}
+        {verifiedCount > 0 && (
+          <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-dashed bg-muted/20">
+            <div className="text-sm">
+              <div className="font-medium">Migrar conversas antigas para este tenant</div>
+              <div className="text-muted-foreground text-xs">
+                Procura conversas salvas em outros tenants (ou no admin master) cujo número
+                destinatário corresponde a um número verificado acima e move para cá.
+              </div>
+            </div>
+            <Button size="sm" variant="secondary" onClick={runReassign} disabled={reassigning}>
+              {reassigning ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
+              Migrar agora
+            </Button>
+          </div>
+        )}
+
         {/* Add form */}
         <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] items-end p-3 rounded-lg border bg-muted/30">
           <div>
