@@ -970,11 +970,37 @@ Deno.serve(async (req) => {
     if (trigger === "message_received") {
       if (!keywordsMatch(cfg, String(ctx.text || ""))) continue;
     }
-    if ((trigger === "form_submitted" || trigger === "lead_entered") && cfg.form_name) {
-      if (!String(ctx.form_name || "").toLowerCase().includes(String(cfg.form_name).toLowerCase())) continue;
+    // Guard #3a: form_submitted / lead_entered REQUIRE an explicit form filter
+    // (form_name OR form_id). Sem filtro, o fluxo é ignorado para não disparar em massa.
+    if (trigger === "form_submitted" || trigger === "lead_entered") {
+      const cfgName = String(cfg.form_name || "").trim().toLowerCase();
+      const cfgId = String(cfg.form_id || "").trim();
+      if (!cfgName && !cfgId) {
+        console.log("[automation-dispatch] skip_flow_no_form_filter", { flow_id: flow.id });
+        continue;
+      }
+      if (cfgName && !String(ctx.form_name || "").toLowerCase().includes(cfgName)) continue;
+      if (cfgId && String((ctx as any).form_id || "") !== cfgId) continue;
     }
     if (trigger === "kanban_moved" && cfg.column) {
       if (String(ctx.to_status || "").toLowerCase() !== String(cfg.column).toLowerCase()) continue;
+    }
+
+    // Guard #3b: idempotência — não reprocessa o mesmo fluxo para o mesmo lead
+    // em gatilhos de "primeira mensagem" (form_submitted / lead_entered).
+    if (!dryRun && ctx.lead_id && (trigger === "form_submitted" || trigger === "lead_entered")) {
+      const { data: prior } = await admin
+        .from("automation_executions")
+        .select("id")
+        .eq("flow_id", flow.id)
+        .eq("lead_id", ctx.lead_id)
+        .in("status", ["running", "waiting_delay", "completed"])
+        .limit(1)
+        .maybeSingle();
+      if (prior) {
+        console.log("[automation-dispatch] skip_flow_already_ran", { flow_id: flow.id, lead_id: ctx.lead_id });
+        continue;
+      }
     }
 
     let execId: string | null = null;
