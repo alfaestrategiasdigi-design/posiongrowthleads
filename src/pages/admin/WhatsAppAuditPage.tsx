@@ -23,7 +23,27 @@ export default function WhatsAppAuditPage() {
   const [selected, setSelected] = useState<string>("master");
   const [loading, setLoading] = useState(false);
   const [fixing, setFixing] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
   const [result, setResult] = useState<AuditResult | null>(null);
+
+  const runWamidReconcile = async (dryRun: boolean) => {
+    setReconciling(true);
+    try {
+      const tenant_id = selected === "master" ? null : selected;
+      const { data, error } = await supabase.functions.invoke("whatsapp-wamid-reconcile", {
+        body: { tenant_id, dry_run: dryRun, window_minutes: 5, limit: 500 },
+      });
+      if (error) throw error;
+      const s = (data as any)?.stats ?? {};
+      toast.success(
+        `${dryRun ? "Simulação" : "Reconciliação"}: ${s.scanned} escaneadas · ${s.updated} preenchidas · ${s.duplicates_deleted} duplicatas · ${s.unmatched} sem par`,
+      );
+    } catch (e: any) {
+      toast.error("Falha ao reconciliar wamid: " + (e?.message ?? e));
+    } finally {
+      setReconciling(false);
+    }
+  };
 
   useEffect(() => {
     supabase.from("tenants").select("id, name, slug").order("name").then(({ data }) => {
