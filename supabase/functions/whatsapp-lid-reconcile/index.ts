@@ -1,11 +1,12 @@
-// Reconcilia conversas provisórias @lid em lote, sem depender de CONTACTS_UPDATE.
-// Estratégia:
-//   1) Se já existe alias em whatsapp_jid_aliases -> merge automático.
-//   2) Se existe EXATAMENTE UMA conversa canônica no mesmo tenant com o mesmo
-//      nome_contato (case-insensitive, trimado) -> merge automático.
-//   3) Caso 0 ou mais de 1 candidata canônica -> marca needs_lid_review=true
-//      com nota explicando o motivo. Não decide nada sozinho.
-// POST body: { tenant_id?: uuid, dry_run?: boolean }
+// Reconcilia conversas provisórias @lid de forma 100% automática.
+// Estratégia (nenhuma decisão manual, nenhuma correlação por nome de lead):
+//   0) Consulta a Evolution API (/chat/findContacts/{instance}) de cada conexão
+//      ativa e importa o mapeamento (lid, phone) autoritativo do Baileys.
+//      Cada par vira alias em whatsapp_jid_aliases e dispara merge automático.
+//   1) Alias já conhecido em whatsapp_jid_aliases -> merge automático.
+//   2) Correlação por wamid: mesma mensagem em duas conversas -> merge automático.
+//   3) Conversa @lid sem candidato há mais de 48h -> removida silenciosamente.
+// Aceita chamadas internas (Bearer SERVICE_KEY) e chamadas de admin autenticado.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -23,6 +24,30 @@ function json(b: unknown, status = 200) {
 }
 
 function onlyDigits(v: unknown) { return String(v ?? "").replace(/\D/g, ""); }
+
+function normalizeBase(u: string) { return u.replace(/\/+$/, ""); }
+
+function firstLidJid(list: unknown[]): string | null {
+  for (const raw of list) {
+    const s = String(raw ?? "").trim();
+    if (!s) continue;
+    if (s.includes("@lid")) {
+      const digits = onlyDigits(s.split("@")[0]);
+      if (digits) return `${digits}@lid`;
+    }
+  }
+  return null;
+}
+
+function firstPhoneJid(list: unknown[]): string | null {
+  for (const raw of list) {
+    const s = String(raw ?? "").trim();
+    if (!s || s.includes("@lid") || s.includes("@g.us") || s.includes("@broadcast")) continue;
+    const digits = onlyDigits(s.split("@")[0]);
+    if (digits && digits.length >= 8) return `${digits}@s.whatsapp.net`;
+  }
+  return null;
+}
 
 async function mergeInto(admin: any, sourceId: string, target: any) {
   await admin.from("messages")
@@ -58,60 +83,243 @@ async function adoptLegacyGlobalConversation(admin: any, target: any, tenantId: 
   return { ...target, tenant_id: tenantId };
 }
 
+// Persiste alias autoritativo (par lid+phone do MESMO objeto de contato Baileys)
+// e mescla imediatamente qualquer conversa @lid provisória na canônica.
+async function upsertAliasAndMerge(
+  admin: any,
+  tenantId: string | null,
+  instanceName: string | null,
+  lidJid: string,
+  phoneJid: string,
+) {
+  await admin.from("whatsapp_jid_aliases").upsert({
+    tenant_id: tenantId,
+    instance_name: instanceName,
+    lid_jid: lidJid,
+    phone_jid: phoneJid,
+    updated_at: new Date().toISOString(),
+    last_seen_at: new Date().toISOString(),
+  }, { onConflict: "tenant_scope,lid_jid" });
+
+  // Encontra a conversa @lid provisória e a canônica (por phoneJid ou telefone).
+  const phone = onlyDigits(phoneJid.split("@")[0]);
+
+  let provQ = admin.from("conversations")
+    .select("id, tenant_id, nao_lidas, ultima_interacao, ultima_mensagem, nome_contato")
+    .eq("remote_jid", lidJid);
+  provQ = tenantId ? provQ.eq("tenant_id", tenantId) : provQ.is("tenant_id", null);
+  const { data: provList } = await provQ;
+  if (!provList || provList.length === 0) return { merged: 0, renamed: 0 };
+
+  let canonQ = admin.from("conversations")
+    .select("id, tenant_id, nao_lidas, remote_jid")
+    .eq("remote_jid", phoneJid);
+  canonQ = tenantId ? canonQ.eq("tenant_id", tenantId) : canonQ.is("tenant_id", null);
+  let { data: canonical } = await canonQ.maybeSingle();
+  if (!canonical && phone) {
+    let pq = admin.from("conversations")
+      .select("id, tenant_id, nao_lidas, remote_jid")
+      .eq("telefone", phone);
+    pq = tenantId ? pq.eq("tenant_id", tenantId) : pq.is("tenant_id", null);
+    const { data } = await pq.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
+    canonical = data;
+  }
+
+  let merged = 0;
+  let renamed = 0;
+  for (const prov of provList) {
+    if (!canonical) {
+      await admin.from("conversations")
+        .update({ remote_jid: phoneJid, telefone: phone, needs_lid_review: false, lid_review_notes: null })
+        .eq("id", prov.id);
+      await admin.from("messages").update({ metadata: {} })
+        .eq("conversation_id", prov.id)
+        .filter("metadata->>pending_lid_resolution", "eq", "true");
+      canonical = { id: prov.id, tenant_id: prov.tenant_id, nao_lidas: prov.nao_lidas ?? 0, remote_jid: phoneJid };
+      renamed++;
+      continue;
+    }
+    if (canonical.id === prov.id) continue;
+    const adopted = await adoptLegacyGlobalConversation(admin, canonical, tenantId);
+    await mergeInto(admin, prov.id, adopted);
+    canonical = adopted;
+    merged++;
+  }
+  return { merged, renamed };
+}
+
+// Consulta ativamente a Evolution API para importar o mapeamento (lid, phone)
+// mantido pelo Baileys, dispensando qualquer heurística por nome ou revisão manual.
+async function resolveViaEvolutionApi(admin: any, tenantFilter: string | null) {
+  const stats = { instances_scanned: 0, contacts_seen: 0, pairs_imported: 0, merged: 0, renamed: 0, errors: 0 };
+
+  // Só consulta Evolution para tenants que TÊM conversas @lid pendentes,
+  // evitando varreduras caras em instâncias que não precisam de reconciliação.
+  let pendingQ = admin.from("conversations")
+    .select("tenant_id")
+    .like("remote_jid", "%@lid")
+    .limit(500);
+  if (tenantFilter) pendingQ = pendingQ.eq("tenant_id", tenantFilter);
+  const { data: pendingRows } = await pendingQ;
+  const tenantsWithPending = new Set((pendingRows ?? []).map((r: any) => r.tenant_id).filter(Boolean));
+  if (tenantsWithPending.size === 0) return stats;
+
+  let connQ = admin.from("zapi_connections")
+    .select("tenant_id, instance_url, api_key, instance_name, status, provider")
+    .eq("provider", "evolution")
+    .eq("status", "connected")
+    .in("tenant_id", Array.from(tenantsWithPending));
+  const { data: conns } = await connQ;
+
+  for (const conn of conns ?? []) {
+    if (!conn?.instance_url || !conn?.api_key || !conn?.instance_name) continue;
+    stats.instances_scanned++;
+    const base = normalizeBase(conn.instance_url);
+    const endpoints: Array<{ method: string; url: string; body?: any }> = [
+      { method: "GET",  url: `${base}/chat/findContacts/${encodeURIComponent(conn.instance_name)}` },
+      { method: "POST", url: `${base}/chat/findContacts/${encodeURIComponent(conn.instance_name)}`, body: { where: {} } },
+    ];
+
+    let contacts: any[] = [];
+    let ok = false;
+    for (const ep of endpoints) {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 15000);
+        const res = await fetch(ep.url, {
+          method: ep.method,
+          headers: { "Content-Type": "application/json", apikey: conn.api_key },
+          body: ep.body ? JSON.stringify(ep.body) : undefined,
+          signal: ctrl.signal,
+        }).finally(() => clearTimeout(timer));
+        if (!res.ok) continue;
+        const parsed = await res.json().catch(() => null);
+        if (Array.isArray(parsed)) contacts = parsed;
+        else if (Array.isArray(parsed?.contacts)) contacts = parsed.contacts;
+        else if (Array.isArray(parsed?.data)) contacts = parsed.data;
+        else if (Array.isArray(parsed?.response?.contacts)) contacts = parsed.response.contacts;
+        if (contacts.length > 0) { ok = true; break; }
+      } catch (e) {
+        stats.errors++;
+        console.warn("[whatsapp-lid-reconcile] evolution_fetch_failed", String(e).slice(0, 200));
+      }
+    }
+    if (!ok) continue;
+    // Filtra localmente: só nos interessam contatos com AMBOS lid e phone.
+    contacts = contacts.filter((c: any) => {
+      const cands = [c?.id, c?.remoteJid, c?.jid, c?.lid, c?.lidJid, c?.pn, c?.phoneNumber, c?.wa_id];
+      return firstLidJid(cands) && firstPhoneJid(cands);
+    });
+    if (contacts.length > 500) contacts = contacts.slice(0, 500);
+    stats.contacts_seen += contacts.length;
+
+    for (const c of contacts) {
+      const candidates = [
+        c?.id, c?.remoteJid, c?.remoteJidAlt, c?.jid, c?.jidAlt,
+        c?.lid, c?.lidJid, c?.lid_jid,
+        c?.pn, c?.phoneNumber, c?.wa_id, c?.senderPn, c?.participantPn,
+      ];
+      const lidJid = firstLidJid(candidates);
+      const phoneJid = firstPhoneJid(candidates);
+      if (!lidJid || !phoneJid) continue;
+      try {
+        const r = await upsertAliasAndMerge(admin, conn.tenant_id, conn.instance_name, lidJid, phoneJid);
+        stats.pairs_imported++;
+        stats.merged += r.merged;
+        stats.renamed += r.renamed;
+      } catch (e) {
+        stats.errors++;
+        console.warn("[whatsapp-lid-reconcile] evolution_pair_failed", String(e).slice(0, 200));
+      }
+    }
+  }
+  return stats;
+}
+
+// Remove silenciosamente conversas @lid órfãs há muito tempo (sem candidato
+// canônico após consulta à Evolution API e correlação por wamid). Cascata
+// remove mensagens associadas — mas mensagens úteis já foram mescladas antes.
+async function archiveStaleLidConversations(admin: any, tenantFilter: string | null) {
+  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  let sel = admin.from("conversations")
+    .select("id")
+    .like("remote_jid", "%@lid")
+    .lt("ultima_interacao", cutoff);
+  if (tenantFilter) sel = sel.eq("tenant_id", tenantFilter);
+  const { data: stale } = await sel;
+  const ids = (stale ?? []).map((r: any) => r.id);
+  if (ids.length === 0) return { archived: 0 };
+  const { error } = await admin.from("conversations").delete().in("id", ids);
+  if (error) return { archived: 0, error: error.message };
+  return { archived: ids.length };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   const authHeader = req.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
-  const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-    global: { headers: { Authorization: authHeader } },
-  });
   const token = authHeader.replace("Bearer ", "");
-  const { data: userRes } = await userClient.auth.getUser(token);
-  const userId = userRes?.user?.id;
-  if (!userId) return json({ error: "Unauthorized" }, 401);
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
-  const { data: isAdmin } = await admin.rpc("has_role", { _user_id: userId, _role: "admin" });
+
+  // Chamada interna (scheduler / cron / webhook) usa a service-role key direta.
+  const isInternal = token === SERVICE_KEY;
+
+  let isAdmin = false;
+  let userId: string | null = null;
+  if (!isInternal) {
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userRes } = await userClient.auth.getUser(token);
+    userId = userRes?.user?.id ?? null;
+    if (!userId) return json({ error: "Unauthorized" }, 401);
+    const { data: adm } = await admin.rpc("has_role", { _user_id: userId, _role: "admin" });
+    isAdmin = Boolean(adm);
+  }
 
   let body: any = {};
   try { body = await req.json(); } catch {}
   const tenantFilter: string | null = body?.tenant_id ?? null;
   const dryRun: boolean = Boolean(body?.dry_run);
   const rawLimit = Number(body?.limit);
-  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 100) : 20;
-  const rawOffset = Number(body?.offset);
-  const offset = Number.isFinite(rawOffset) && rawOffset >= 0 ? Math.floor(rawOffset) : 0;
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 200) : 100;
 
-  if (tenantFilter && !isAdmin) {
+  if (!isInternal && tenantFilter && !isAdmin) {
     const { data: allowed } = await admin.rpc("has_tenant_access", { _user_id: userId, _tenant_id: tenantFilter });
     if (!allowed) return json({ error: "Sem acesso a este tenant" }, 403);
   }
-  if (!tenantFilter && !isAdmin) return json({ error: "Somente admin master pode rodar em todos os tenants" }, 403);
+  if (!isInternal && !tenantFilter && !isAdmin) {
+    return json({ error: "Somente admin master pode rodar em todos os tenants" }, 403);
+  }
 
+  // Etapa 0: importa mapeamento autoritativo lid<->phone via Evolution API.
+  const evolutionStats = dryRun ? { skipped: true } : await resolveViaEvolutionApi(admin, tenantFilter);
+
+  // Etapa 1/2: percorre @lid remanescentes tentando alias já persistido e wamid.
   let q = admin.from("conversations")
     .select("id, tenant_id, remote_jid, telefone, nome_contato, ultima_interacao, nao_lidas")
     .like("remote_jid", "%@lid")
     .order("ultima_interacao", { ascending: false, nullsFirst: false })
-    .range(offset, offset + limit - 1);
+    .limit(limit);
   if (tenantFilter) q = q.eq("tenant_id", tenantFilter);
   const { data: lidConvs, error } = await q;
   if (error) return json({ error: error.message }, 500);
 
-  const perTenant: Record<string, { found: number; auto_merged: number; renamed: number; manual_review: number }> = {};
+  const perTenant: Record<string, { found: number; auto_merged: number; renamed: number }> = {};
   const bumpT = (t: string | null, k: keyof typeof perTenant[string]) => {
     const key = t ?? "__global__";
-    perTenant[key] ??= { found: 0, auto_merged: 0, renamed: 0, manual_review: 0 };
+    perTenant[key] ??= { found: 0, auto_merged: 0, renamed: 0 };
     perTenant[key][k] += 1;
   };
-
   const details: any[] = [];
 
   for (const lid of lidConvs ?? []) {
     bumpT(lid.tenant_id, "found");
 
-    // 1) Alias já conhecido? (quarentena é ignorada)
+    // 1) Alias já conhecido.
     let aliasQ = admin.from("whatsapp_jid_aliases")
       .select("phone_jid").eq("lid_jid", lid.remote_jid)
       .is("quarantined_at", null);
@@ -129,28 +337,25 @@ Deno.serve(async (req) => {
       alias = globalAlias;
     }
 
-
     let target: any = null;
-    let reason = "";
 
     if (alias?.phone_jid) {
       const phone = onlyDigits(alias.phone_jid.split("@")[0]);
       let cq = admin.from("conversations")
-        .select("id, tenant_id, nao_lidas")
+        .select("id, tenant_id, nao_lidas, remote_jid")
         .eq("remote_jid", alias.phone_jid);
       cq = lid.tenant_id ? cq.or(`tenant_id.eq.${lid.tenant_id},tenant_id.is.null`) : cq.is("tenant_id", null);
       const { data: byJid } = await cq.order("tenant_id", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
-      if (byJid) { target = await adoptLegacyGlobalConversation(admin, byJid, lid.tenant_id); reason = "alias_hit_by_jid"; }
+      if (byJid) target = await adoptLegacyGlobalConversation(admin, byJid, lid.tenant_id);
       else if (phone) {
         let pq = admin.from("conversations")
-          .select("id, tenant_id, nao_lidas")
+          .select("id, tenant_id, nao_lidas, remote_jid")
           .eq("telefone", phone);
         pq = lid.tenant_id ? pq.or(`tenant_id.eq.${lid.tenant_id},tenant_id.is.null`) : pq.is("tenant_id", null);
         const { data: byPhone } = await pq.order("tenant_id", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
-        if (byPhone) { target = await adoptLegacyGlobalConversation(admin, byPhone, lid.tenant_id); reason = "alias_hit_by_phone"; }
+        if (byPhone) target = await adoptLegacyGlobalConversation(admin, byPhone, lid.tenant_id);
       }
       if (!target) {
-        // Rename in place using alias.
         if (!dryRun) {
           await admin.from("conversations")
             .update({ remote_jid: alias.phone_jid, telefone: phone, needs_lid_review: false, lid_review_notes: null })
@@ -160,14 +365,12 @@ Deno.serve(async (req) => {
             .filter("metadata->>pending_lid_resolution", "eq", "true");
         }
         bumpT(lid.tenant_id, "renamed");
-        details.push({ id: lid.id, tenant_id: lid.tenant_id, action: "renamed_by_alias", target: alias.phone_jid });
+        details.push({ id: lid.id, action: "renamed_by_alias", target: alias.phone_jid });
         continue;
       }
     }
 
-    // 2) Correlação por wamid: se qualquer mensagem da conversa @lid tem o
-    //    mesmo wamid de uma mensagem em outra conversa (canônica) do mesmo
-    //    tenant, é a mesma conversa vista por dois caminhos → mesclar.
+    // 2) Correlação por wamid.
     if (!target) {
       const { data: lidMsgs } = await admin.from("messages")
         .select("wamid")
@@ -190,33 +393,8 @@ Deno.serve(async (req) => {
             .maybeSingle();
           if (cand && !cand.remote_jid?.includes("@lid")) {
             target = await adoptLegacyGlobalConversation(admin, cand, lid.tenant_id);
-            reason = "wamid_correlation";
           }
         }
-      }
-    }
-
-    // 3) Match por nome_contato (case-insensitive) no mesmo tenant.
-    if (!target && lid.nome_contato && lid.nome_contato.length >= 2) {
-      let nq = admin.from("conversations")
-        .select("id, tenant_id, nao_lidas, remote_jid")
-        .ilike("nome_contato", lid.nome_contato.trim())
-        .neq("id", lid.id);
-      nq = lid.tenant_id ? nq.or(`tenant_id.eq.${lid.tenant_id},tenant_id.is.null`) : nq.is("tenant_id", null);
-      const { data: candidates } = await nq;
-      const canonicals = (candidates ?? []).filter((c: any) => !c.remote_jid?.includes("@lid"));
-      if (canonicals.length === 1) {
-        target = await adoptLegacyGlobalConversation(admin, canonicals[0], lid.tenant_id);
-        reason = "pushname_unique_canonical";
-      } else if (canonicals.length > 1) {
-        if (!dryRun) {
-          await admin.from("conversations")
-            .update({ needs_lid_review: true, lid_review_notes: `pushName '${lid.nome_contato}' bate com ${canonicals.length} conversas canônicas — revisar manualmente.` })
-            .eq("id", lid.id);
-        }
-        bumpT(lid.tenant_id, "manual_review");
-        details.push({ id: lid.id, tenant_id: lid.tenant_id, action: "manual_multiple_canonical", count: canonicals.length });
-        continue;
       }
     }
 
@@ -232,28 +410,29 @@ Deno.serve(async (req) => {
       }
       if (!dryRun) await mergeInto(admin, lid.id, target);
       bumpT(lid.tenant_id, "auto_merged");
-      details.push({ id: lid.id, tenant_id: lid.tenant_id, action: "auto_merged", target_id: target.id, reason });
+      details.push({ id: lid.id, action: "auto_merged", target_id: target.id });
       continue;
     }
 
-    // 3) Sem candidato -> revisão manual.
+    // Nenhum candidato agora. NÃO marcar needs_lid_review — fluxo é automático.
+    // O arquivamento silencioso cuida das que ficarem órfãs por muito tempo.
     if (!dryRun) {
       await admin.from("conversations")
-        .update({ needs_lid_review: true, lid_review_notes: "Sem candidato canônico automático — revisar manualmente." })
+        .update({ needs_lid_review: false, lid_review_notes: null })
         .eq("id", lid.id);
     }
-    bumpT(lid.tenant_id, "manual_review");
-    details.push({ id: lid.id, tenant_id: lid.tenant_id, action: "manual_no_candidate" });
+    details.push({ id: lid.id, action: "pending_evolution_sync" });
   }
 
-  // Contagem de @lid restantes (para permitir loop do cliente).
-  let remCountQ = admin.from("conversations")
-    .select("id", { count: "exact", head: true })
-    .like("remote_jid", "%@lid");
-  if (tenantFilter) remCountQ = remCountQ.eq("tenant_id", tenantFilter);
-  const { count: remaining } = await remCountQ;
-  const processed = (lidConvs ?? []).length;
-  const nextOffset = (remaining ?? 0) > 0 ? offset + processed : null;
+  const archiveStats = dryRun ? { skipped: true } : await archiveStaleLidConversations(admin, tenantFilter);
 
-  return json({ ok: true, dry_run: dryRun, per_tenant: perTenant, details, processed, remaining: remaining ?? 0, next_offset: nextOffset, limit, offset });
+  return json({
+    ok: true,
+    dry_run: dryRun,
+    evolution: evolutionStats,
+    per_tenant: perTenant,
+    archived: archiveStats,
+    processed: (lidConvs ?? []).length,
+    details,
+  });
 });

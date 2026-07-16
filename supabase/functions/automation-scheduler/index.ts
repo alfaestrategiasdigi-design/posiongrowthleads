@@ -57,6 +57,21 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Reconciliação automática de conversas @lid: roda a cada ~15 min (a cada 15 ticks).
+  // Chama a função com a service-role key para autorização interna.
+  const shouldRunLidReconcile = new Date().getUTCMinutes() % 15 === 0;
+  if (shouldRunLidReconcile) {
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-lid-reconcile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
+        body: JSON.stringify({}),
+      });
+    } catch (e) {
+      console.warn("[automation-scheduler] lid_reconcile_failed", String(e).slice(0, 200));
+    }
+  }
+
   return new Response(JSON.stringify({ ok: true, processed: results.length, results }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
