@@ -85,11 +85,18 @@ export function collectInboundPeerCandidates(row: any, key: any): unknown[] {
   const envelope = row?.message ?? {};
   const nested = row?.message?.message ?? {};
   const nestedKey = row?.message?.key ?? row?.message?.message?.key ?? {};
+  // Baileys ≥ 6.7 now delivers the real phone in *Pn fields alongside the
+  // opaque @lid remoteJid. Reading them here lets firstStandardJid resolve
+  // the canonical conversation on the very first inbound webhook.
+  const pnKeys = [
+    "remoteJidAlt", "remoteJid_alt", "participantAlt", "participant_alt",
+    "senderPn", "sender_pn", "participantPn", "participant_pn",
+  ];
   return uniqueCandidates([
-    key?.remoteJidAlt, key?.remoteJid_alt, key?.participantAlt, key?.participant_alt,
-    envelope?.remoteJidAlt, envelope?.remoteJid_alt,
-    nested?.remoteJidAlt, nested?.remoteJid_alt,
-    nestedKey?.remoteJidAlt, nestedKey?.remoteJid_alt,
+    ...collectFromKeys(key, pnKeys),
+    ...collectFromKeys(envelope, pnKeys),
+    ...collectFromKeys(nested, pnKeys),
+    ...collectFromKeys(nestedKey, pnKeys),
     key?.remoteJid, row?.remoteJid,
   ]);
 }
