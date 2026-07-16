@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import AgendaConfigCard from "@/components/tenant/AgendaConfigCard";
 import KommoIntegrationCard from "@/components/tenant/KommoIntegrationCard";
+import ReconnectSessionCard from "@/components/tenant/ReconnectSessionCard";
 import { useUserRole } from "@/hooks/useUserRole";
 
 const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
@@ -380,6 +381,17 @@ export default function TenantConfig() {
           )}
         </CardContent>
       </Card>
+
+      {/* Reconexão de sessão travada — só aparece quando já existe conexão Evolution */}
+      {tenant && connectionId && provider === "evolution" && (
+        <ReconnectSessionCard
+          tenantId={tenant.id}
+          connectionId={connectionId}
+          instanceName={instanceName}
+          onHealthy={() => setStatus("connected")}
+        />
+      )}
+
 
       {/* Agenda config */}
       {tenant && <AgendaConfigCard tenantId={tenant.id} />}
