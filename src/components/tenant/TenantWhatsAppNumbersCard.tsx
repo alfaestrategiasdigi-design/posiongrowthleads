@@ -35,7 +35,7 @@ function formatBr(digits: string) {
   return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9, 13)}`;
 }
 
-interface Props { tenantId: string }
+interface Props { tenantId: string | null }
 
 export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
   const [rows, setRows] = useState<NumberRow[]>([]);
@@ -45,14 +45,17 @@ export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState<Record<string, boolean>>({});
 
+  const isMaster = tenantId === null;
+
   async function reload() {
     setLoading(true);
-    const { data, error } = await supabase
+    let q = supabase
       .from("tenant_whatsapp_numbers" as any)
       .select("*")
-      .eq("tenant_id", tenantId)
       .order("is_primary", { ascending: false })
       .order("created_at", { ascending: true });
+    q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
+    const { data, error } = await q;
     if (error) {
       console.error(error);
       toast.error("Falha ao carregar números");
@@ -62,7 +65,7 @@ export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
     setLoading(false);
   }
 
-  useEffect(() => { if (tenantId) void reload(); }, [tenantId]);
+  useEffect(() => { void reload(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [tenantId]);
 
   async function addNumber() {
     const digits = onlyDigits(phone);
@@ -81,7 +84,7 @@ export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
     setSaving(false);
     if (error) {
       if ((error as any).code === "23505") {
-        toast.error("Este número já está cadastrado em outro tenant");
+        toast.error("Este número já está cadastrado em outro ambiente (tenant ou admin master).");
       } else {
         toast.error(error.message);
       }
@@ -118,7 +121,9 @@ export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
   }
 
   async function setPrimary(id: string) {
-    await supabase.from("tenant_whatsapp_numbers" as any).update({ is_primary: false }).eq("tenant_id", tenantId);
+    let clearQ = supabase.from("tenant_whatsapp_numbers" as any).update({ is_primary: false });
+    clearQ = tenantId ? clearQ.eq("tenant_id", tenantId) : clearQ.is("tenant_id", null);
+    await clearQ;
     const { error } = await supabase.from("tenant_whatsapp_numbers" as any).update({ is_primary: true }).eq("id", id);
     if (error) toast.error(error.message);
     else void reload();
@@ -137,30 +142,30 @@ export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
 
   async function runReassign() {
     setReassigning(true);
+    const payloadBase = isMaster ? { target: "master" } : { tenant_id: tenantId };
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
-      // 1) Dry run
       const preview = await fetch(
         `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-reassign-by-owner`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ tenant_id: tenantId, dry_run: true }),
+          body: JSON.stringify({ ...payloadBase, dry_run: true }),
         },
       ).then((r) => r.json());
       if (preview.error) { toast.error(preview.message || preview.error); return; }
       const convs = preview.conversations_found ?? 0;
       const msgs = preview.messages_found ?? 0;
-      if (convs === 0) { toast.info("Nenhuma conversa em outro tenant precisa ser migrada."); return; }
-      if (!confirm(`Foram encontradas ${convs} conversa(s) e ${msgs} mensagem(ns) em outros tenants pertencentes a este número.\n\nConfirmar migração para este tenant?`)) return;
-      // 2) Apply
+      const envLabel = isMaster ? "o Admin Master" : "este tenant";
+      if (convs === 0) { toast.info(`Nenhuma conversa fora de ${envLabel} precisa ser migrada.`); return; }
+      if (!confirm(`Foram encontradas ${convs} conversa(s) e ${msgs} mensagem(ns) em outros ambientes pertencentes a estes números.\n\nConfirmar migração para ${envLabel}?`)) return;
       const applied = await fetch(
         `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-reassign-by-owner`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ tenant_id: tenantId, dry_run: false }),
+          body: JSON.stringify({ ...payloadBase, dry_run: false }),
         },
       ).then((r) => r.json());
       if (applied.error) toast.error(applied.message || applied.error);
@@ -177,7 +182,7 @@ export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5" />
-          Números de WhatsApp do tenant
+          Números de WhatsApp {isMaster ? "do Admin Master" : "do tenant"}
         </CardTitle>
         <CardDescription>
           Cadastre e valide os números conectados a este tenant. O sistema usa esta lista para garantir

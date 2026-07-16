@@ -20,23 +20,31 @@ Deno.serve(async (req) => {
     const userId = userData.user.id;
 
     const body = await req.json().catch(() => ({}));
-    const tenantId = String(body?.tenant_id ?? "").trim();
+    // Accept either `tenant_id` (uuid) or `target: "master"` to migrate into the
+    // admin master (tenant_id NULL). This keeps environments strictly isolated.
+    const rawTenant = body?.tenant_id;
+    const targetFlag = String(body?.target ?? "").toLowerCase();
+    const isMasterTarget = targetFlag === "master" || rawTenant === null;
+    const tenantId: string | null = isMasterTarget ? null : String(rawTenant ?? "").trim() || null;
     const dryRun: boolean = body?.dry_run !== false;
-    if (!tenantId) return json({ error: "missing_tenant_id" }, 400);
+    if (!isMasterTarget && !tenantId) return json({ error: "missing_tenant_id" }, 400);
 
     const { data: isSuper } = await admin.rpc("has_role", { _user_id: userId, _role: "admin" });
     let authorized = Boolean(isSuper);
-    if (!authorized) {
+    if (!authorized && tenantId) {
       const { data: isTenantAdmin } = await admin.rpc("is_tenant_admin", { _user_id: userId, _tenant_id: tenantId });
       authorized = Boolean(isTenantAdmin);
     }
+    // Master target always requires super admin.
+    if (isMasterTarget && !isSuper) authorized = false;
     if (!authorized) return json({ error: "forbidden" }, 403);
 
-    // Load verified numbers for this tenant
-    const { data: nums } = await admin
+    // Load verified numbers scoped to the SAME environment.
+    let numQ = admin
       .from("tenant_whatsapp_numbers")
-      .select("phone_e164, status")
-      .eq("tenant_id", tenantId);
+      .select("phone_e164, status");
+    numQ = tenantId ? numQ.eq("tenant_id", tenantId) : numQ.is("tenant_id", null);
+    const { data: nums } = await numQ;
     const digitsList = (nums || [])
       .filter((n: any) => n.status === "verified")
       .map((n: any) => String(n.phone_e164));
@@ -44,42 +52,30 @@ Deno.serve(async (req) => {
       return json({
         dry_run: dryRun,
         error: "no_verified_numbers",
-        message: "Cadastre e valide ao menos um número antes de migrar.",
+        message: "Cadastre e valide ao menos um número neste ambiente antes de migrar.",
       }, 200);
     }
 
-    // Find messages whose own_jids matches ANY of the verified numbers AND
-    // whose tenant_id is different (or null). We scan in batches to avoid
-    // huge results — jsonb contains operator uses GIN if available.
     const jidVariants = digitsList.map((d) => `${d}@s.whatsapp.net`);
 
-    // Build OR filter across own_jids array (jsonb ?| operator via .contains fallback).
-    // Since supabase-js doesn't expose ?|, we run one query per jid and union.
+    // Find messages whose own_jids matches ANY of the verified numbers AND
+    // whose tenant_id is DIFFERENT from the target environment.
     const conversationIds = new Set<string>();
     let messagesFound = 0;
     for (const jid of jidVariants) {
-      const { data: msgs, error } = await admin
+      // Case A: rows in some other tenant
+      let q = admin
         .from("messages")
         .select("id, conversation_id, tenant_id")
         .contains("metadata", { own_jids: [jid] })
-        .neq("tenant_id", tenantId)
         .limit(5000);
-      if (error) {
-        console.error("[reassign] messages query", error);
-        continue;
-      }
+      q = tenantId ? q.or(`tenant_id.neq.${tenantId},tenant_id.is.null`) : q.not("tenant_id", "is", null);
+      const { data: msgs, error } = await q;
+      if (error) { console.error("[reassign] messages query", error); continue; }
       for (const m of msgs || []) {
-        messagesFound++;
-        if (m.conversation_id) conversationIds.add(m.conversation_id);
-      }
-      // Also catch rows with tenant_id IS NULL (neq doesn't include NULL)
-      const { data: msgsNull } = await admin
-        .from("messages")
-        .select("id, conversation_id")
-        .contains("metadata", { own_jids: [jid] })
-        .is("tenant_id", null)
-        .limit(5000);
-      for (const m of msgsNull || []) {
+        // Guard: same-env rows must be skipped even if the OR pattern was too broad
+        const sameEnv = tenantId ? m.tenant_id === tenantId : m.tenant_id === null;
+        if (sameEnv) continue;
         messagesFound++;
         if (m.conversation_id) conversationIds.add(m.conversation_id);
       }
@@ -88,6 +84,7 @@ Deno.serve(async (req) => {
     const convIds = Array.from(conversationIds);
     const preview = {
       dry_run: dryRun,
+      target: tenantId ?? "master",
       target_tenant_id: tenantId,
       matched_numbers: digitsList,
       messages_found: messagesFound,
@@ -98,8 +95,6 @@ Deno.serve(async (req) => {
       return json(preview, 200);
     }
 
-    // Apply: move conversations and their messages to target tenant.
-    // Batch in groups of 200 to stay under URL limits.
     let convMoved = 0;
     let msgMoved = 0;
     for (let i = 0; i < convIds.length; i += 200) {
@@ -108,19 +103,13 @@ Deno.serve(async (req) => {
         .from("conversations")
         .update({ tenant_id: tenantId }, { count: "exact" })
         .in("id", chunk);
-      if (convErr) {
-        console.error("[reassign] conv update", convErr);
-        continue;
-      }
+      if (convErr) { console.error("[reassign] conv update", convErr); continue; }
       convMoved += cc || 0;
       const { error: msgErr, count: mc } = await admin
         .from("messages")
         .update({ tenant_id: tenantId }, { count: "exact" })
         .in("conversation_id", chunk);
-      if (msgErr) {
-        console.error("[reassign] msg update", msgErr);
-        continue;
-      }
+      if (msgErr) { console.error("[reassign] msg update", msgErr); continue; }
       msgMoved += mc || 0;
     }
 

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import TenantWhatsAppNumbersCard from "@/components/tenant/TenantWhatsAppNumbersCard";
 import {
   MessageCircle, CheckCircle2, XCircle, AlertCircle, Loader2, Copy, Webhook,
   ShieldCheck, Smartphone, KeyRound, Building2, Save, PlayCircle, QrCode,
@@ -215,6 +216,9 @@ export default function ConexaoWhatsappPage() {
         </div>
         <StatusBadge />
       </div>
+
+      {/* Números do Admin Master (isolados dos tenants) */}
+      <TenantWhatsAppNumbersCard tenantId={null} />
 
       <Tabs defaultValue="cloud" className="w-full">
         <TabsList>
