@@ -2,6 +2,7 @@
 // Necessário para instâncias antigas que ficaram sem SEND_MESSAGE / MESSAGES_UPSERT.
 // POST body: { connection_id?: string, tenant_id?: string } — vazio = todas as instâncias ativas
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { buildWebhookUrl, ensureWebhookSecret, normalizeBase as sharedNormalizeBase } from "../_shared/evolution-webhook.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
