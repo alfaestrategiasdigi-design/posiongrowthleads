@@ -45,14 +45,17 @@ export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState<Record<string, boolean>>({});
 
+  const isMaster = tenantId === null;
+
   async function reload() {
     setLoading(true);
-    const { data, error } = await supabase
+    let q = supabase
       .from("tenant_whatsapp_numbers" as any)
       .select("*")
-      .eq("tenant_id", tenantId)
       .order("is_primary", { ascending: false })
       .order("created_at", { ascending: true });
+    q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
+    const { data, error } = await q;
     if (error) {
       console.error(error);
       toast.error("Falha ao carregar números");
@@ -62,7 +65,7 @@ export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
     setLoading(false);
   }
 
-  useEffect(() => { if (tenantId) void reload(); }, [tenantId]);
+  useEffect(() => { void reload(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [tenantId]);
 
   async function addNumber() {
     const digits = onlyDigits(phone);
