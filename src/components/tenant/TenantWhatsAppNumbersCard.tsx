@@ -142,30 +142,30 @@ export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
 
   async function runReassign() {
     setReassigning(true);
+    const payloadBase = isMaster ? { target: "master" } : { tenant_id: tenantId };
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
-      // 1) Dry run
       const preview = await fetch(
         `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-reassign-by-owner`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ tenant_id: tenantId, dry_run: true }),
+          body: JSON.stringify({ ...payloadBase, dry_run: true }),
         },
       ).then((r) => r.json());
       if (preview.error) { toast.error(preview.message || preview.error); return; }
       const convs = preview.conversations_found ?? 0;
       const msgs = preview.messages_found ?? 0;
-      if (convs === 0) { toast.info("Nenhuma conversa em outro tenant precisa ser migrada."); return; }
-      if (!confirm(`Foram encontradas ${convs} conversa(s) e ${msgs} mensagem(ns) em outros tenants pertencentes a este número.\n\nConfirmar migração para este tenant?`)) return;
-      // 2) Apply
+      const envLabel = isMaster ? "o Admin Master" : "este tenant";
+      if (convs === 0) { toast.info(`Nenhuma conversa fora de ${envLabel} precisa ser migrada.`); return; }
+      if (!confirm(`Foram encontradas ${convs} conversa(s) e ${msgs} mensagem(ns) em outros ambientes pertencentes a estes números.\n\nConfirmar migração para ${envLabel}?`)) return;
       const applied = await fetch(
         `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-reassign-by-owner`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ tenant_id: tenantId, dry_run: false }),
+          body: JSON.stringify({ ...payloadBase, dry_run: false }),
         },
       ).then((r) => r.json());
       if (applied.error) toast.error(applied.message || applied.error);
