@@ -270,13 +270,40 @@ export default function FlowEditor({ flowId, onBack }: Props) {
 function TriggerConfig({
   trigger,
   config,
+  tenantId,
   onChange,
 }: {
   trigger: TriggerKind;
   config: Record<string, any>;
+  tenantId: string | null;
   onChange: (cfg: Record<string, any>) => void;
 }) {
   const patch = (p: Record<string, any>) => onChange({ ...config, ...p });
+  const [availableForms, setAvailableForms] = useState<Array<{ name: string; id: string | null; count: number }>>([]);
+
+  useEffect(() => {
+    if (trigger !== "form_submitted" && trigger !== "lead_entered") return;
+    (async () => {
+      let q = supabase
+        .from("leads")
+        .select("facebook_form_name, facebook_form_id")
+        .not("facebook_form_name", "is", null)
+        .limit(500);
+      if (tenantId) q = q.eq("tenant_id", tenantId);
+      else q = q.is("tenant_id", null);
+      const { data } = await q;
+      const map = new Map<string, { name: string; id: string | null; count: number }>();
+      for (const row of (data as any[]) || []) {
+        const name = String(row.facebook_form_name || "").trim();
+        if (!name) continue;
+        const key = name.toLowerCase();
+        const prev = map.get(key);
+        if (prev) prev.count += 1;
+        else map.set(key, { name, id: row.facebook_form_id || null, count: 1 });
+      }
+      setAvailableForms(Array.from(map.values()).sort((a, b) => b.count - a.count));
+    })();
+  }, [trigger, tenantId]);
 
   const renderBody = () => {
     if (trigger === "message_received") {
@@ -313,17 +340,54 @@ function TriggerConfig({
       );
     }
     if (trigger === "form_submitted" || trigger === "lead_entered") {
+      const currentName = (config.form_name as string) || "";
+      const currentId = (config.form_id as string) || "";
+      const selectValue = currentId ? `id:${currentId}` : currentName ? `name:${currentName}` : "";
       return (
-        <div>
-          <Label className="text-xs">Nome do formulário (opcional)</Label>
-          <Input
-            value={(config.form_name as string) || ""}
-            onChange={(e) => patch({ form_name: e.target.value })}
-            placeholder="Ex.: Formulário Botox — Instagram"
-          />
-          <p className="text-[11px] text-muted-foreground mt-1">
-            Deixe vazio para disparar em qualquer formulário preenchido.
-          </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <Label className="text-xs">Formulário (obrigatório)</Label>
+            <Select
+              value={selectValue}
+              onValueChange={(v) => {
+                if (!v) return;
+                if (v.startsWith("id:")) {
+                  const id = v.slice(3);
+                  const f = availableForms.find((x) => x.id === id);
+                  patch({ form_id: id, form_name: f?.name || "" });
+                } else if (v.startsWith("name:")) {
+                  patch({ form_name: v.slice(5), form_id: "" });
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={availableForms.length ? "Selecione um formulário…" : "Nenhum formulário detectado ainda"} />
+              </SelectTrigger>
+              <SelectContent>
+                {availableForms.map((f) => (
+                  <SelectItem key={(f.id || f.name)} value={f.id ? `id:${f.id}` : `name:${f.name}`}>
+                    {f.name} {f.id ? `(#${f.id.slice(-6)})` : ""} · {f.count}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Escolha o formulário específico. Fluxos sem formulário selecionado <b>não disparam</b> (evita spam em massa).
+            </p>
+          </div>
+          <div>
+            <Label className="text-xs">Ou digite o nome manualmente</Label>
+            <Input
+              value={currentName}
+              onChange={(e) => patch({ form_name: e.target.value, form_id: "" })}
+              placeholder="Ex.: Formulário Botox — Instagram"
+            />
+            {currentId && (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                form_id vinculado: <code>{currentId}</code>
+              </p>
+            )}
+          </div>
         </div>
       );
     }
