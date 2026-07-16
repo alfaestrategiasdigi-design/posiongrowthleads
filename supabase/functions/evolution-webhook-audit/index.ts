@@ -2,7 +2,7 @@
 // MESSAGES_UPSERT e SEND_MESSAGE estão inscritos e reinscreve se faltar.
 // POST body: { connection_id?, tenant_id?, dry_run?: boolean }
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { configureWebhook, findWebhookEvents, missingRequiredEvents, normalizeBase } from "../_shared/evolution-webhook.ts";
+import { buildWebhookUrl, configureWebhook, ensureWebhookSecret, findWebhookEvents, missingRequiredEvents, normalizeBase, validateWebhookUrl } from "../_shared/evolution-webhook.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
   const dryRun: boolean = Boolean(body?.dry_run);
 
   let q = admin.from("zapi_connections")
-    .select("id, tenant_id, instance_url, api_key, instance_name")
+    .select("id, tenant_id, instance_url, api_key, instance_name, webhook_secret, webhook_url")
     .eq("provider", "evolution");
   if (connectionId) q = q.eq("id", connectionId);
   else if (tenantIdFilter) q = q.eq("tenant_id", tenantIdFilter);
@@ -66,16 +66,22 @@ Deno.serve(async (req) => {
     const info = await findWebhookEvents(base, conn.api_key, conn.instance_name);
     const missing = missingRequiredEvents(info.found);
 
+    // Resolve tenant slug + secret (guarantee a secret exists) so we can
+    // validate the currently-registered webhook URL carries ?secret=<expected>.
+    const slugPart = conn.tenant_id
+      ? (await admin.from("tenants").select("slug").eq("id", conn.tenant_id).maybeSingle()).data?.slug
+      : null;
+    const expectedSecret = await ensureWebhookSecret(admin, conn.id, conn.webhook_secret);
+    const expected = { supabaseUrl: SUPABASE_URL, tenantSlug: slugPart, tenantId: conn.tenant_id, secret: expectedSecret };
+    const liveCheck = validateWebhookUrl(info.url, expected);
+    const dbCheck = validateWebhookUrl(conn.webhook_url, expected);
+    const urlInvalid = !liveCheck.ok || !dbCheck.ok;
+    const needsFix = missing.length > 0 || urlInvalid;
+
     let fixed = false;
     let fixDebug: unknown = null;
-    if (missing.length > 0 && !dryRun) {
-      const slugPart = conn.tenant_id
-        ? (await admin.from("tenants").select("slug").eq("id", conn.tenant_id).maybeSingle()).data?.slug
-        : null;
-      const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook${
-        slugPart ? `?tenant=${encodeURIComponent(slugPart)}`
-          : conn.tenant_id ? `?tenant_id=${encodeURIComponent(conn.tenant_id)}` : ""
-      }`;
+    if (needsFix && !dryRun) {
+      const webhookUrl = buildWebhookUrl(expected);
       const res = await configureWebhook(base, conn.api_key, conn.instance_name, webhookUrl);
       fixed = res.ok;
       fixDebug = res.debug;
@@ -94,7 +100,11 @@ Deno.serve(async (req) => {
       enabled: info.enabled,
       found_events: info.found,
       missing_required: missing,
-      needs_fix: missing.length > 0,
+      url_valid_live: liveCheck.ok,
+      url_reason_live: liveCheck.ok ? null : liveCheck.reason,
+      url_valid_db: dbCheck.ok,
+      url_reason_db: dbCheck.ok ? null : dbCheck.reason,
+      needs_fix: needsFix,
       fixed,
       fix_debug: fixDebug,
     });
@@ -105,6 +115,7 @@ Deno.serve(async (req) => {
     healthy: results.filter((r) => r.needs_fix === false).length,
     needed_fix: results.filter((r) => r.needs_fix === true).length,
     fixed: results.filter((r) => r.fixed === true).length,
+    url_invalid: results.filter((r) => r.url_valid_live === false || r.url_valid_db === false).length,
   };
   return json({ ok: true, summary, results });
 });

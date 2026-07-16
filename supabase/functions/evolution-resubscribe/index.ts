@@ -2,6 +2,7 @@
 // Necessário para instâncias antigas que ficaram sem SEND_MESSAGE / MESSAGES_UPSERT.
 // POST body: { connection_id?: string, tenant_id?: string } — vazio = todas as instâncias ativas
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { buildWebhookUrl, ensureWebhookSecret, normalizeBase as sharedNormalizeBase } from "../_shared/evolution-webhook.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -78,21 +79,20 @@ Deno.serve(async (req) => {
       results.push({ id: conn.id, ok: false, skipped: "incomplete_config" }); continue;
     }
 
-    const base = normalizeBase(conn.instance_url);
+    const base = sharedNormalizeBase(conn.instance_url);
     const slugPart = conn.tenant_id
       ? (await admin.from("tenants").select("slug").eq("id", conn.tenant_id).maybeSingle()).data?.slug
       : null;
-    // Ensure the connection has a webhook secret so the whatsapp-webhook function
-    // can reject spoofed events (finding open_evo_webhook_inject).
-    let secret: string = conn.webhook_secret ?? "";
-    if (!secret) {
-      secret = crypto.randomUUID().replace(/-/g, "");
-      await admin.from("zapi_connections").update({ webhook_secret: secret, updated_at: new Date().toISOString() }).eq("id", conn.id);
-    }
-    const tenantPart = slugPart
-      ? `tenant=${encodeURIComponent(slugPart)}`
-      : conn.tenant_id ? `tenant_id=${encodeURIComponent(conn.tenant_id)}` : "";
-    const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook?${tenantPart ? tenantPart + "&" : ""}secret=${encodeURIComponent(secret)}`;
+    // Guarantee a per-tenant webhook_secret exists in the DB, then always
+    // build the URL as `?tenant=<slug>&secret=<secret>` — this is the shape
+    // whatsapp-webhook validates on every incoming event.
+    const secret = await ensureWebhookSecret(admin, conn.id, conn.webhook_secret);
+    const webhookUrl = buildWebhookUrl({
+      supabaseUrl: SUPABASE_URL,
+      tenantSlug: slugPart,
+      tenantId: conn.tenant_id,
+      secret,
+    });
 
     // Try multiple payload variants (Evolution v1 flat, v2 wrapped, v2 minimal)
     const attempts = [

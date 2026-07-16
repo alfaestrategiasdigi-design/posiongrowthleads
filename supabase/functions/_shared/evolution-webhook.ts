@@ -34,6 +34,77 @@ export function normalizeBase(raw: string): string {
   }
 }
 
+/**
+ * Builds the canonical webhook URL for a tenant, always including
+ * `?tenant=<slug>&secret=<webhook_secret>` (or `tenant_id=` when no slug).
+ * The secret MUST come from `zapi_connections.webhook_secret` — the
+ * `whatsapp-webhook` function rejects events whose `?secret=` does not
+ * match this per-tenant value.
+ */
+export function buildWebhookUrl(opts: {
+  supabaseUrl: string;
+  tenantSlug?: string | null;
+  tenantId?: string | null;
+  secret: string;
+}): string {
+  const base = `${opts.supabaseUrl.replace(/\/+$/, "")}/functions/v1/whatsapp-webhook`;
+  const parts: string[] = [];
+  if (opts.tenantSlug) parts.push(`tenant=${encodeURIComponent(opts.tenantSlug)}`);
+  else if (opts.tenantId) parts.push(`tenant_id=${encodeURIComponent(opts.tenantId)}`);
+  if (!opts.secret) throw new Error("buildWebhookUrl: missing webhook secret");
+  parts.push(`secret=${encodeURIComponent(opts.secret)}`);
+  return `${base}?${parts.join("&")}`;
+}
+
+/**
+ * Validates that a webhook URL (as currently registered in Evolution or in
+ * `zapi_connections.webhook_url`) points at `whatsapp-webhook` and carries
+ * the correct tenant identifier + `?secret=` for this connection.
+ * Returns `{ ok: true }` when valid, otherwise a structured reason so the
+ * caller can decide to auto-heal (re-subscribe) instead of trusting the URL.
+ */
+export function validateWebhookUrl(
+  actual: string | null | undefined,
+  expected: { supabaseUrl: string; tenantSlug?: string | null; tenantId?: string | null; secret: string },
+): { ok: true } | { ok: false; reason: string } {
+  if (!actual) return { ok: false, reason: "missing_url" };
+  let u: URL;
+  try { u = new URL(actual); } catch { return { ok: false, reason: "invalid_url" }; }
+
+  const expectedOrigin = new URL(expected.supabaseUrl).origin;
+  if (u.origin !== expectedOrigin) return { ok: false, reason: "wrong_origin" };
+  if (!u.pathname.endsWith("/functions/v1/whatsapp-webhook")) return { ok: false, reason: "wrong_path" };
+
+  const secret = u.searchParams.get("secret");
+  if (!secret) return { ok: false, reason: "missing_secret" };
+  if (secret !== expected.secret) return { ok: false, reason: "secret_mismatch" };
+
+  if (expected.tenantSlug) {
+    if (u.searchParams.get("tenant") !== expected.tenantSlug) return { ok: false, reason: "tenant_slug_mismatch" };
+  } else if (expected.tenantId) {
+    const t = u.searchParams.get("tenant") || u.searchParams.get("tenant_id");
+    if (t !== expected.tenantId) return { ok: false, reason: "tenant_id_mismatch" };
+  }
+  return { ok: true };
+}
+
+/**
+ * Ensures a connection has a `webhook_secret` in the DB; generates one if
+ * missing. Returns the secret to use.
+ */
+export async function ensureWebhookSecret(
+  admin: { from: (t: string) => any },
+  connectionId: string,
+  current: string | null | undefined,
+): Promise<string> {
+  if (current && current.length > 0) return current;
+  const secret = crypto.randomUUID().replace(/-/g, "");
+  await admin.from("zapi_connections")
+    .update({ webhook_secret: secret, updated_at: new Date().toISOString() })
+    .eq("id", connectionId);
+  return secret;
+}
+
 export async function configureWebhook(
   base: string,
   apiKey: string,
