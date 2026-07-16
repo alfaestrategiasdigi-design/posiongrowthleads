@@ -198,6 +198,7 @@ export default function FlowEditor({ flowId, onBack }: Props) {
       <TriggerConfig
         trigger={flow.trigger_type}
         config={flow.trigger_config || {}}
+        tenantId={flow.tenant_id ?? null}
         onChange={(cfg) => setFlow({ ...flow, trigger_config: cfg })}
       />
 
