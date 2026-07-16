@@ -58,10 +58,26 @@ export default function ReconnectSessionCard({ tenantId, connectionId, instanceN
       if (Date.now() - startTsRef.current > POLL_TIMEOUT_MS) {
         stopPolling();
         setPhase("error");
-        setError("Tempo esgotado — nenhuma mensagem chegou em 5 min. Verifique se o celular está online e escaneou o QR.");
+        setError("Tempo esgotado — a sessão não confirmou conexão em 5 min. Verifique se o celular escaneou o QR.");
         return;
       }
-      const { data, error: qErr } = await supabase
+      // 1) Sinal primário: status da conexão flipou para 'connected' após o reconnect.
+      if (connectionId) {
+        const { data: conn } = await supabase
+          .from("zapi_connections")
+          .select("status, updated_at")
+          .eq("id", connectionId)
+          .maybeSingle();
+        if (conn && (conn.status === "connected" || conn.status === "open") && conn.updated_at && conn.updated_at > sinceIso) {
+          stopPolling();
+          setPhase("healthy");
+          toast.success("Sessão reconectada com sucesso");
+          onHealthy?.();
+          return;
+        }
+      }
+      // 2) Sinal secundário (opcional): se já chegou mensagem inbound nova, também confirma.
+      const { data } = await supabase
         .from("messages")
         .select("id, conteudo, created_at, direction")
         .eq("tenant_id", tenantId)
@@ -70,7 +86,6 @@ export default function ReconnectSessionCard({ tenantId, connectionId, instanceN
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (qErr) return;
       if (data) {
         stopPolling();
         setLastMessage({ content: (data.conteudo || "(mídia)").slice(0, 120), created_at: data.created_at });
@@ -200,10 +215,10 @@ export default function ReconnectSessionCard({ tenantId, connectionId, instanceN
             <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm space-y-1">
               <p className="flex items-center gap-2 font-medium">
                 <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                 Conectada, aguardando mensagem de teste… ({formatElapsed(elapsed)})
+                 Aguardando confirmação de conexão… ({formatElapsed(elapsed)})
               </p>
               <p className="text-xs text-muted-foreground">
-                 Envie uma mensagem de outro WhatsApp para este número. Somente uma nova mensagem recebida confirma que a sessão está saudável.
+                 Assim que o celular concluir o pareamento, a sessão é confirmada automaticamente. Não é preciso enviar mensagem de teste.
               </p>
             </div>
             <div className="flex gap-2">
@@ -218,7 +233,7 @@ export default function ReconnectSessionCard({ tenantId, connectionId, instanceN
         {phase === "healthy" && (
           <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 space-y-2">
             <p className="flex items-center gap-2 text-sm font-medium text-emerald-500">
-              <CheckCircle2 className="w-4 h-4" /> Sessão saudável — mensagens sendo recebidas
+              <CheckCircle2 className="w-4 h-4" /> Sessão saudável — WhatsApp reconectado
             </p>
             {lastMessage && (
               <div className="text-xs text-muted-foreground">
