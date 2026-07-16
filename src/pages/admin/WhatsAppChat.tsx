@@ -1131,7 +1131,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                   <div key={msg.id} className={`group flex ${isOut ? "justify-end" : "justify-start"} gap-2`}>
                     {!isOut && (
                       <ContactAvatar
-                        name={selectedConversation.nome_contato || selectedConversation.telefone}
+                        name={getDisplayName(selectedConversation)}
                         photoUrl={selectedConversation.foto_url}
                         size={28}
                         className="mt-1 self-end"
