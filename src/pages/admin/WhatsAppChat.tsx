@@ -1567,6 +1567,31 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
         onMoved={() => { if (selectedConversation) loadMessages(selectedConversation.id); }}
       />
 
+      <Dialog open={newContactOpen} onOpenChange={setNewContactOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Novo contato</DialogTitle>
+            <DialogDescription>Abre uma conversa nova no WhatsApp. Use DDI+DDD+número (ex.: 5511999999999).</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nome</Label>
+              <Input value={newContactName} onChange={(e) => setNewContactName(e.target.value)} placeholder="Nome do contato" />
+            </div>
+            <div>
+              <Label>WhatsApp</Label>
+              <Input value={newContactPhone} onChange={(e) => setNewContactPhone(e.target.value)} placeholder="5511999999999" inputMode="tel" />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => setNewContactOpen(false)}>Cancelar</Button>
+              <Button onClick={handleCreateContact} disabled={newContactSaving}>
+                {newContactSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Criar e abrir"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 
