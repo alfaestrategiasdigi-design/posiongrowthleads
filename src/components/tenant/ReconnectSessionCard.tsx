@@ -233,9 +233,8 @@ export default function ReconnectSessionCard({ tenantId, connectionId, instanceN
         {phase === "healthy" && (
           <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 space-y-2">
             <p className="flex items-center gap-2 text-sm font-medium text-emerald-500">
-              <CheckCircle2 className="w-4 h-4" /> Sessão saudável — mensagens sendo recebidas
+              <CheckCircle2 className="w-4 h-4" /> Sessão saudável — WhatsApp reconectado
             </p>
-            {lastMessage && (
               <div className="text-xs text-muted-foreground">
                 Primeira mensagem confirmada em{" "}
                 <span className="text-foreground">
