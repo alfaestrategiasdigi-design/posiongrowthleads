@@ -84,7 +84,7 @@ export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
     setSaving(false);
     if (error) {
       if ((error as any).code === "23505") {
-        toast.error("Este número já está cadastrado em outro tenant");
+        toast.error("Este número já está cadastrado em outro ambiente (tenant ou admin master).");
       } else {
         toast.error(error.message);
       }
