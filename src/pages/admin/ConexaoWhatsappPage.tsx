@@ -216,6 +216,9 @@ export default function ConexaoWhatsappPage() {
         <StatusBadge />
       </div>
 
+      {/* Números do Admin Master (isolados dos tenants) */}
+      <TenantWhatsAppNumbersCard tenantId={null} />
+
       <Tabs defaultValue="cloud" className="w-full">
         <TabsList>
           <TabsTrigger value="cloud" className="gap-2"><ShieldCheck className="w-4 h-4" />Cloud API (Oficial)</TabsTrigger>
