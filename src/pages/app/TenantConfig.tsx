@@ -394,6 +394,9 @@ export default function TenantConfig() {
       )}
 
 
+      {/* Números de WhatsApp do tenant (trava de roteamento por número) */}
+      {tenant && <TenantWhatsAppNumbersCard tenantId={tenant.id} />}
+
       {/* Agenda config */}
       {tenant && <AgendaConfigCard tenantId={tenant.id} />}
 
