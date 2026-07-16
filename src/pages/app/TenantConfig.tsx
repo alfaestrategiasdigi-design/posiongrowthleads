@@ -382,6 +382,17 @@ export default function TenantConfig() {
         </CardContent>
       </Card>
 
+      {/* Reconexão de sessão travada — só aparece quando já existe conexão Evolution */}
+      {tenant && connectionId && provider === "evolution" && (
+        <ReconnectSessionCard
+          tenantId={tenant.id}
+          connectionId={connectionId}
+          instanceName={instanceName}
+          onHealthy={() => setStatus("connected")}
+        />
+      )}
+
+
       {/* Agenda config */}
       {tenant && <AgendaConfigCard tenantId={tenant.id} />}
 
