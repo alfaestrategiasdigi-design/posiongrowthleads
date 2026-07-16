@@ -31,14 +31,20 @@ const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated, entityKind
   const { data: lead, loading, reload, saveSDR, savePatch } = useUnifiedLead(open ? source : null, open ? leadId : null);
   const [tab, setTab] = useState("summary");
   const location = useLocation();
+  const navigate = useNavigate();
+  const { tenantSlug } = useParams();
   const isTenantContext = location.pathname.startsWith("/app/");
   const kind: EntityKind = entityKind ?? resolveEntityKindLegacy(source, isTenantContext);
   const cfg = FIELDS_BY_KIND[kind];
 
-
-  const whatsappLink = lead?.whatsapp
-    ? `https://wa.me/55${lead.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${lead.contactName?.split(" ")[0] || ""}`)}`
-    : null;
+  const whatsappDigits = lead?.whatsapp ? lead.whatsapp.replace(/\D/g, "") : "";
+  const canOpenChat = whatsappDigits.length >= 10;
+  const openInternalChat = () => {
+    if (!canOpenChat) return;
+    const base = isTenantContext && tenantSlug ? `/app/${tenantSlug}/whatsapp` : "/admin/whatsapp";
+    onClose();
+    navigate(`${base}?phone=${encodeURIComponent(whatsappDigits)}`);
+  };
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
