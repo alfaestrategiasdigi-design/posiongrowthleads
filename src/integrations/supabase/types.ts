@@ -414,6 +414,9 @@ export type Database = {
           is_admin_master: boolean
           name: string
           nodes: Json
+          paused_at: string | null
+          paused_reason: string | null
+          previous_status: string | null
           status: string
           tenant_id: string | null
           trigger_config: Json
@@ -429,6 +432,9 @@ export type Database = {
           is_admin_master?: boolean
           name: string
           nodes?: Json
+          paused_at?: string | null
+          paused_reason?: string | null
+          previous_status?: string | null
           status?: string
           tenant_id?: string | null
           trigger_config?: Json
@@ -444,6 +450,9 @@ export type Database = {
           is_admin_master?: boolean
           name?: string
           nodes?: Json
+          paused_at?: string | null
+          paused_reason?: string | null
+          previous_status?: string | null
           status?: string
           tenant_id?: string | null
           trigger_config?: Json
