@@ -89,6 +89,7 @@ type WhatsAppChatProps = {
 const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, masterMode = false }: WhatsAppChatProps) => {
   const webhookUrl = tenantSlug ? `${BASE_WEBHOOK_URL}?tenant=${encodeURIComponent(tenantSlug)}` : BASE_WEBHOOK_URL;
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [leadNamesById, setLeadNamesById] = useState<Record<string, string>>({});
   const [tenantsMap, setTenantsMap] = useState<Record<string, { nome: string; slug: string }>>({});
   const [confirmDelete, setConfirmDelete] = useState<Conversation | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -156,6 +157,22 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
     setConversations(list);
     setLidPendingCount(list.filter((c: any) => (c as any).needs_lid_review === true).length);
     setLoading(false);
+    // Carrega nomes dos leads vinculados às conversas (usado como fallback de exibição
+    // quando a conversa está com @lid não resolvido ou sem pushName).
+    const leadIds = Array.from(new Set(list.map(c => c.lead_id).filter((x): x is string => !!x)));
+    if (leadIds.length > 0) {
+      const { data: leadsData } = await supabase
+        .from("leads")
+        .select("id, nome_completo")
+        .in("id", leadIds);
+      const map: Record<string, string> = {};
+      (leadsData || []).forEach((l: any) => {
+        if (l?.id && l?.nome_completo) map[l.id] = l.nome_completo;
+      });
+      setLeadNamesById(map);
+    } else {
+      setLeadNamesById({});
+    }
   }, [tenantId, masterMode]);
 
   const loadTenantsMap = useCallback(async () => {
@@ -680,19 +697,42 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
 
   // ============ Render helpers ============
   const q = searchQuery.trim().toLowerCase();
+  // Uma conversa @lid é um contato cujo número real ainda não foi resolvido pela Evolution.
+  // Antes escondíamos essas conversas — agora elas aparecem normalmente na lista com um
+  // selo "não identificado", e o LidReviewDialog continua disponível para revisão manual.
+  const isUnresolvedLid = useCallback((c: Conversation): boolean => {
+    const anyC = c as any;
+    const jid: string = anyC.remote_jid || "";
+    return anyC.needs_lid_review === true || jid.endsWith("@lid");
+  }, []);
+
+  const getDisplayName = useCallback((c: Conversation): string => {
+    const anyC = c as any;
+    const jid: string = anyC.remote_jid || "";
+    const lidDigits = jid.endsWith("@lid") ? jid.replace(/@lid$/, "") : "";
+    const rawName = (c.nome_contato || "").trim();
+    // Nome válido = não vazio, não é o próprio lid, e não são só dígitos idênticos ao telefone.
+    const isNameJustDigits = rawName.length > 0 && /^\d+$/.test(rawName);
+    const nameLooksLikeLid = rawName === lidDigits || rawName === c.telefone;
+    if (rawName && !isNameJustDigits && !nameLooksLikeLid) return rawName;
+    if (c.lead_id && leadNamesById[c.lead_id]) return leadNamesById[c.lead_id];
+    if (isUnresolvedLid(c)) {
+      const digits = lidDigits || c.telefone || "";
+      const tail = digits.slice(-4);
+      return tail ? `Contato não identificado ·${tail}` : "Contato não identificado";
+    }
+    return rawName || c.telefone || "Sem número";
+  }, [leadNamesById, isUnresolvedLid]);
+
   const filteredConversations = useMemo(() => conversations.filter(c => {
-    // Oculta conversas com identificador provisório (@lid) que aguardam revisão manual.
-    // Elas ficam acessíveis apenas via LidReviewDialog para evitar aparecerem
-    // duplicadas ao lado da conversa canônica do mesmo contato.
-    if ((c as any).needs_lid_review === true) return false;
     if (q) {
-      const hay = `${c.nome_contato || ""} ${c.telefone} ${c.ultima_mensagem || ""}`.toLowerCase();
+      const hay = `${getDisplayName(c)} ${c.nome_contato || ""} ${c.telefone} ${c.ultima_mensagem || ""}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     if (tagFilter && !(convTags[c.id] || []).some(t => t.id === tagFilter)) return false;
     if (onlyWithLead && !c.lead_id) return false;
     return true;
-  }), [conversations, q, tagFilter, convTags, onlyWithLead]);
+  }), [conversations, q, tagFilter, convTags, onlyWithLead, getDisplayName]);
 
   const linkedCount = useMemo(() => conversations.filter(c => c.lead_id).length, [conversations]);
 
@@ -932,17 +972,19 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             </div>
           ) : (
             filteredConversations.map(conv => {
+              const displayName = getDisplayName(conv);
+              const unresolvedLid = isUnresolvedLid(conv);
               const tags = convTags[conv.id] || [];
               const selected = selectedConversation?.id === conv.id;
               return (
                 <div key={conv.id} onClick={() => setSelectedConversation(conv)}
                   data-selected={selected ? "true" : undefined}
                   className="wa-card group relative flex items-start gap-3 px-3 py-3 cursor-pointer">
-                  <ContactAvatar name={conv.nome_contato || conv.telefone} photoUrl={conv.foto_url} size={44} />
+                  <ContactAvatar name={displayName} photoUrl={conv.foto_url} size={44} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <h4 className="wa-name text-[15px] font-semibold truncate" style={{ color: "#e9edef" }}>
-                        {highlight(conv.nome_contato || conv.telefone)}
+                        {highlight(displayName)}
                       </h4>
                       <span className="wa-mono text-[10px] shrink-0 ml-2" style={{ color: "#8696a0" }}>{formatListTime(conv.ultima_interacao)}</span>
                     </div>
@@ -960,6 +1002,15 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                       {conv.lead_id && (
                         <span className="wa-badge-lead">
                           <Target className="w-2.5 h-2.5" /> Lead
+                        </span>
+                      )}
+                      {unresolvedLid && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium"
+                          style={{ background: "rgba(240,180,41,0.10)", border: "1px solid rgba(240,180,41,0.28)", color: "#f0b429" }}
+                          title="Número real ainda não resolvido pela Evolution. Você pode ler e responder normalmente."
+                        >
+                          <AlertTriangle className="w-2.5 h-2.5" /> não identificado
                         </span>
                       )}
                       {tags.slice(0, 3).map(t => (
@@ -987,10 +1038,19 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
         <div className="flex-1 flex flex-col">
           <div className="wa-header-bar h-16 flex items-center justify-between px-4 shrink-0">
             <div className="flex items-center gap-3">
-              <ContactAvatar name={selectedConversation.nome_contato || selectedConversation.telefone} photoUrl={selectedConversation.foto_url} size={40} />
+              <ContactAvatar name={getDisplayName(selectedConversation)} photoUrl={selectedConversation.foto_url} size={40} />
               <div>
                 <h3 className="wa-name text-[16px] font-semibold flex items-center gap-2" style={{ color: "#e9edef" }}>
-                  {selectedConversation.nome_contato || selectedConversation.telefone}
+                  {getDisplayName(selectedConversation)}
+                  {isUnresolvedLid(selectedConversation) && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium"
+                      style={{ background: "rgba(240,180,41,0.10)", border: "1px solid rgba(240,180,41,0.28)", color: "#f0b429" }}
+                      title="Número real ainda não resolvido pela Evolution."
+                    >
+                      <AlertTriangle className="w-3 h-3" /> não identificado
+                    </span>
+                  )}
                   {selectedConversation.lead_id && (
                     <button
                       onClick={() => setLeadPanelId(selectedConversation.lead_id!)}
@@ -1071,7 +1131,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                   <div key={msg.id} className={`group flex ${isOut ? "justify-end" : "justify-start"} gap-2`}>
                     {!isOut && (
                       <ContactAvatar
-                        name={selectedConversation.nome_contato || selectedConversation.telefone}
+                        name={getDisplayName(selectedConversation)}
                         photoUrl={selectedConversation.foto_url}
                         size={28}
                         className="mt-1 self-end"
