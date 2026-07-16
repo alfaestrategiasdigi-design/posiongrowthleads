@@ -3796,6 +3796,72 @@ export type Database = {
           },
         ]
       }
+      tenant_whatsapp_numbers: {
+        Row: {
+          created_at: string
+          id: string
+          is_primary: boolean
+          label: string | null
+          last_check_at: string | null
+          last_check_result: Json | null
+          phone_e164: string
+          phone_jid: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          verified_at: string | null
+          verified_owner_jid: string | null
+          zapi_connection_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          label?: string | null
+          last_check_at?: string | null
+          last_check_result?: Json | null
+          phone_e164: string
+          phone_jid?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          verified_at?: string | null
+          verified_owner_jid?: string | null
+          zapi_connection_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          label?: string | null
+          last_check_at?: string | null
+          last_check_result?: Json | null
+          phone_e164?: string
+          phone_jid?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          verified_at?: string | null
+          verified_owner_jid?: string | null
+          zapi_connection_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_whatsapp_numbers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_whatsapp_numbers_zapi_connection_id_fkey"
+            columns: ["zapi_connection_id"]
+            isOneToOne: false
+            referencedRelation: "zapi_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           created_at: string
