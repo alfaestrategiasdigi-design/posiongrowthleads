@@ -119,6 +119,14 @@ export default function WhatsAppAuditPage() {
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Rodar auditoria
           </Button>
+          <Button variant="outline" onClick={() => runWamidReconcile(true)} disabled={reconciling}>
+            {reconciling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Simular reconciliação
+          </Button>
+          <Button variant="secondary" onClick={() => runWamidReconcile(false)} disabled={reconciling}>
+            {reconciling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Wrench className="h-4 w-4 mr-2" />}
+            Reconciliar wamid
+          </Button>
         </CardContent>
       </Card>
 
