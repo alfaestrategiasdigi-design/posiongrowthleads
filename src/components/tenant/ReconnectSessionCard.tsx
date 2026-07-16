@@ -215,10 +215,10 @@ export default function ReconnectSessionCard({ tenantId, connectionId, instanceN
             <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm space-y-1">
               <p className="flex items-center gap-2 font-medium">
                 <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                 Conectada, aguardando mensagem de teste… ({formatElapsed(elapsed)})
+                 Aguardando confirmação de conexão… ({formatElapsed(elapsed)})
               </p>
               <p className="text-xs text-muted-foreground">
-                 Envie uma mensagem de outro WhatsApp para este número. Somente uma nova mensagem recebida confirma que a sessão está saudável.
+                 Assim que o celular concluir o pareamento, a sessão é confirmada automaticamente. Não é preciso enviar mensagem de teste.
               </p>
             </div>
             <div className="flex gap-2">
