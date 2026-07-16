@@ -972,6 +972,8 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             </div>
           ) : (
             filteredConversations.map(conv => {
+              const displayName = getDisplayName(conv);
+              const unresolvedLid = isUnresolvedLid(conv);
               const tags = convTags[conv.id] || [];
               const selected = selectedConversation?.id === conv.id;
               return (
