@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -31,14 +31,20 @@ const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated, entityKind
   const { data: lead, loading, reload, saveSDR, savePatch } = useUnifiedLead(open ? source : null, open ? leadId : null);
   const [tab, setTab] = useState("summary");
   const location = useLocation();
+  const navigate = useNavigate();
+  const { tenantSlug } = useParams();
   const isTenantContext = location.pathname.startsWith("/app/");
   const kind: EntityKind = entityKind ?? resolveEntityKindLegacy(source, isTenantContext);
   const cfg = FIELDS_BY_KIND[kind];
 
-
-  const whatsappLink = lead?.whatsapp
-    ? `https://wa.me/55${lead.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${lead.contactName?.split(" ")[0] || ""}`)}`
-    : null;
+  const whatsappDigits = lead?.whatsapp ? lead.whatsapp.replace(/\D/g, "") : "";
+  const canOpenChat = whatsappDigits.length >= 10;
+  const openInternalChat = () => {
+    if (!canOpenChat) return;
+    const base = isTenantContext && tenantSlug ? `/app/${tenantSlug}/whatsapp` : "/admin/whatsapp";
+    onClose();
+    navigate(`${base}?phone=${encodeURIComponent(whatsappDigits)}`);
+  };
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
@@ -78,16 +84,18 @@ const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated, entityKind
               </div>
 
 
-              {whatsappLink && (
+              {(canOpenChat || lead.email) && (
                 <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-2 bg-green-600/10 border-green-600/30 hover:bg-green-600/20"
-                    onClick={() => window.open(whatsappLink, "_blank")}
-                  >
-                    <MessageCircle className="w-3.5 h-3.5 text-green-500" /> Conversar
-                  </Button>
+                  {canOpenChat && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-2 bg-green-600/10 border-green-600/30 hover:bg-green-600/20"
+                      onClick={openInternalChat}
+                    >
+                      <MessageCircle className="w-3.5 h-3.5 text-green-500" /> Conversar
+                    </Button>
+                  )}
                   {lead.email && (
                     <Button size="sm" variant="outline" className="gap-2" onClick={() => window.open(`mailto:${lead.email}`)}>
                       <Mail className="w-3.5 h-3.5" /> {lead.email}

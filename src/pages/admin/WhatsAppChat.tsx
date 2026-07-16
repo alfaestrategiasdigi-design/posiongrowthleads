@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Search, Send, Paperclip, Phone, MoreVertical, MessageCircle, Smile,
@@ -108,6 +109,8 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const [leadPanelId, setLeadPanelId] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [reassignMessage, setReassignMessage] = useState<Message | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoOpenedPhoneRef = useRef<string | null>(null);
 
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -399,6 +402,22 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   }, [selectedConversation, loadMessages]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  // Deep-link: /whatsapp?phone=<digits> abre a conversa correspondente automaticamente.
+  useEffect(() => {
+    const phone = searchParams.get("phone");
+    if (!phone || conversations.length === 0) return;
+    const digits = phone.replace(/\D/g, "");
+    if (!digits || autoOpenedPhoneRef.current === digits) return;
+    const match = conversations.find(c => (c.telefone || "").replace(/\D/g, "").endsWith(digits.slice(-10)));
+    if (match) {
+      autoOpenedPhoneRef.current = digits;
+      setSelectedConversation(match);
+      const next = new URLSearchParams(searchParams);
+      next.delete("phone");
+      setSearchParams(next, { replace: true });
+    }
+  }, [conversations, searchParams, setSearchParams]);
 
   // 15s polling fallback (refresh list + selected thread)
   useEffect(() => {
