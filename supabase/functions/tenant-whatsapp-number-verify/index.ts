@@ -72,10 +72,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Authorization: super admin OR tenant admin
+    // Authorization: super admin (required for master row) OR tenant admin
     const { data: isSuper } = await admin.rpc("has_role", { _user_id: userId, _role: "admin" });
     let authorized = Boolean(isSuper);
-    if (!authorized) {
+    if (!authorized && row.tenant_id) {
       const { data: isTenantAdmin } = await admin.rpc("is_tenant_admin", { _user_id: userId, _tenant_id: row.tenant_id });
       authorized = Boolean(isTenantAdmin);
     }
@@ -85,15 +85,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Load Evolution connection for the tenant
-    const { data: conn } = await admin
+    // Load Evolution connection scoped to the SAME environment (tenant OR master).
+    // Master rows (tenant_id NULL) MUST match a master zapi_connection (tenant_id IS NULL),
+    // never a tenant one — that's how we keep validation isolated by environment.
+    let connQuery = admin
       .from("zapi_connections")
-      .select("id, instance_url, api_key, instance_name")
-      .eq("tenant_id", row.tenant_id)
+      .select("id, instance_url, api_key, instance_name, tenant_id")
       .eq("provider", "evolution")
       .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+    connQuery = row.tenant_id ? connQuery.eq("tenant_id", row.tenant_id) : connQuery.is("tenant_id", null);
+    const { data: conn } = await connQuery.maybeSingle();
     if (!conn?.instance_url || !conn?.api_key || !conn?.instance_name) {
       const result = { verified: false, reason: "no_evolution_connection" };
       await admin.from("tenant_whatsapp_numbers").update({
