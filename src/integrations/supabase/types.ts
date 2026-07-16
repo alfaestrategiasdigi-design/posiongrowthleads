@@ -3807,7 +3807,7 @@ export type Database = {
           phone_e164: string
           phone_jid: string | null
           status: string
-          tenant_id: string
+          tenant_id: string | null
           updated_at: string
           verified_at: string | null
           verified_owner_jid: string | null
@@ -3823,7 +3823,7 @@ export type Database = {
           phone_e164: string
           phone_jid?: string | null
           status?: string
-          tenant_id: string
+          tenant_id?: string | null
           updated_at?: string
           verified_at?: string | null
           verified_owner_jid?: string | null
@@ -3839,7 +3839,7 @@ export type Database = {
           phone_e164?: string
           phone_jid?: string | null
           status?: string
-          tenant_id?: string
+          tenant_id?: string | null
           updated_at?: string
           verified_at?: string | null
           verified_owner_jid?: string | null
