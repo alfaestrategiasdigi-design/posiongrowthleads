@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { CheckCircle2, AlertCircle, RefreshCw, Trash2, Plus, ShieldCheck, Loader2, Star } from "lucide-react";
+import { CheckCircle2, AlertCircle, RefreshCw, Trash2, Plus, ShieldCheck, Loader2, Star, ArrowRightLeft } from "lucide-react";
 
 const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 
