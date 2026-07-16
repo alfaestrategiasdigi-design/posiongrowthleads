@@ -1,71 +1,62 @@
-## Diagnóstico
 
-**Causa raiz das mensagens que não chegam no WhatsApp do Instituto Roar (Dr Matheus Azevedo):**
+## Parte A — Estado atual das 4 conexões Evolution
 
-Os logs do `whatsapp-webhook` mostram, exatamente durante os testes que você está fazendo agora (07-15 14:2x UTC), rejeição por segredo inválido:
+| # | Instância | Tenant | `webhook_url` registrada tem `?secret=` correto? | Formato do `webhook_secret` no DB | Diagnóstico |
+|---|---|---|---|---|---|
+| 1 | POSIONGROWTHLEADS | — (master) | ✅ sim (`?secret=ea5c…347b0`) | UUID 36 chars | **OK** |
+| 2 | DRMATHEUS | Dr Instituto Roar | ✅ sim (`?tenant=clinica-matheus-azevedo&secret=b457…ec78`) | UUID 36 chars | **OK** |
+| 3 | donnaface | Clínica Donna Face | ❌ **falta `?secret=`** (só `?tenant=donna-face`) | UUID 36 chars (`28eda183-…`) | **precisa resubscribe** |
+| 4 | drgabriel | Clínica Dr Gabriel Lourenço | ❌ **falta `?secret=`** (só `?tenant=gabriel-lourenco`) | **48 chars, NÃO UUID** (`895ddcd4ca0daddba7823deb20987d96f401e9af1d62cf71`) — formato hex de 24 bytes, provavelmente gerado por um `randomBytes(24).toString('hex')` de uma versão antiga do `evolution-connect` | **precisa resubscribe — mas ver §Ambiguidade** |
+
+### Ambiguidade a esclarecer antes de mexer no drgabriel
+
+O `webhook_secret` do `drgabriel` **não é UUID** — é um hex de 48 chars. Isso é diferente das outras três. Duas hipóteses:
+
+1. **Foi gerado assim mesmo por uma versão antiga do `evolution-connect`**, é o segredo real, e o único problema é que a `webhook_url` na Evolution nunca foi reescrita com esse valor. Nesse caso, o resubscribe usando o secret atual (`895d…cf71`) resolve.
+2. **É lixo de uma migração antiga** e a Evolution nunca conheceu esse secret. Nesse caso, resubscribing com ele funciona também (o `evolution-resubscribe` regrava a URL na Evolution, então a Evolution passa a enviar exatamente esse secret a partir daí).
+
+Nas duas hipóteses o resubscribe é seguro — o `evolution-resubscribe` reescreve a URL na Evolution com o secret que está no DB, então após a chamada o webhook e a Evolution ficam sincronizados. **Vou usar o secret atual do DB** para as duas (`895d…cf71` para drgabriel, `28eda183…` para donnaface). Se você preferir rotacionar para UUID novo antes, me avise — mas não é necessário.
+
+## Parte A — Plano de ação
+
+1. Chamar `supabase.functions.invoke('evolution-resubscribe', { body: { connection_id: 'baaa940b-aa10-45f0-a53f-990c80c9eda9' } })` (drgabriel) — a função vai construir a URL correta (`…?tenant=gabriel-lourenco&secret=895d…cf71`), gravar na Evolution e atualizar `zapi_connections.webhook_url`.
+2. Idem para `b00041e5-9235-4f1f-b4ed-90f28458e6d2` (donnaface) — URL final: `…?tenant=donna-face&secret=28eda183-…`.
+3. Após cada chamada, ler `zapi_connections.webhook_url` para confirmar que a URL agora contém `?secret=`.
+4. Consultar os logs do `whatsapp-webhook` dos ~2 minutos seguintes e confirmar que:
+   - **param** os `invalid_secret { instanceName: "drgabriel" }` (que hoje aparecem várias vezes por segundo).
+   - passam a existir logs de `messages.upsert` / `chats.upsert` para essas instâncias.
+5. **Não** rodar `evolution-sync-chats` como parte deste bloco — você pediu só corrigir o webhook. Se quiser recuperar mensagens perdidas nas últimas 24-36h, é uma segunda ação separada.
+
+Não vou tocar em POSIONGROWTHLEADS nem em DRMATHEUS (já estão OK — reassinar por reassinar só gera risco).
+
+## Parte A — Proposta de prevenção (só proposta, não implemento agora)
+
+Duas camadas complementares:
+
+- **A1. Guard-rail no webhook**: quando o webhook recebe evento cujo `instanceName` bate com uma conexão registrada mas o `?secret=` não vem OU está divergente, além de retornar 401, gravar em uma tabela `whatsapp_webhook_health` (novo) uma linha com `{connection_id, event_at, reason}`. Assim o problema fica visível sem depender de leitura manual de logs.
+- **A2. Cron diário chamando `evolution-webhook-audit`** com `dry_run:false` para cada conexão `evolution` ativa. A função já sabe verificar a URL registrada, os eventos inscritos, e reescrever se faltar — atualmente ela só roda quando alguém aperta o botão. Um pg_cron de 1x/dia às 03:00 BRT resolveria silenciosamente 100% desse tipo de regressão.
+- **A3. (opcional, mais agressivo)** o próprio webhook, ao detectar `invalid_secret` mais de N vezes em X minutos para uma mesma conexão, dispara internamente o `evolution-resubscribe`. Mais complexo, mais risco de loop — só recomendo se A1+A2 não bastarem.
+
+Preferência default se você aprovar depois: **A1 + A2**.
+
+## Parte B — Esclarecimento sobre `zapi_connections`
+
+**Q4.** Distintos em `provider` hoje:
 
 ```
-WARNING [whatsapp-webhook] invalid_secret {
-  instanceName: "Dr Matheus Azevedo",
-  tenant: "f259af97-8ddc-4a07-99ed-19fcb3ba631b"
-}
+provider   | count
+-----------+------
+evolution  |  4
 ```
 
-O que aconteceu: o `webhook_secret` salvo em `zapi_connections` foi renovado, mas a Evolution API ainda está enviando eventos com o segredo antigo na URL. Resultado: a função devolve 401 e nenhuma mensagem entra no banco. É por isso que a "última interação" desse tenant travou em 14/07 e seus testes de hoje não aparecem — o Evolution está chamando, o webhook está recusando.
+**Todas** as 4 conexões WhatsApp ativas usam `provider='evolution'`. Não existe nenhuma linha com `provider='zapi'` (nem qualquer outro valor). O default da coluna ainda é `'zapi'` por herança histórica, mas nenhuma linha o usa.
 
-Confirmações complementares:
-- Nas últimas 48h: 335 mensagens ingressaram para `tenant_id NULL` (instância master `POSIONGROWTHLEADS`) — ela está funcional; só o `Dr Matheus Azevedo` está bloqueado. Os outros tenants (donnaface, drgabriel) também sofrem do mesmo risco silencioso.
-- Não existe filtro de servidor "somente lead de formulário". As 412 conversas mostradas são as antigas; o chip "Somente com lead (396/412)" na sua tela está **ligado** (você clicou), então esconde 16. Ao desligar, elas voltam a aparecer. Isso é ortogonal ao problema real das mensagens novas.
+**Q5.** Sobre "dados obsoletos de Z-API":
 
-## O que vou implementar
+- **Zero linhas** em `zapi_connections` com `provider='zapi'`. Nada a limpar aqui.
+- A **tabela** `zapi_connections` continua sendo a fonte de verdade para Evolution — o nome é herança histórica (o projeto começou com Z-API, migrou para Evolution reaproveitando a mesma tabela). Renomear a tabela seria trabalhoso (todas as edge functions `evolution-*`, `whatsapp-webhook`, `whatsapp-lid-*` referenciam esse nome) e sem ganho funcional. **Recomendo manter o nome**.
+- Existe também a tabela `whatsapp_connections` (20 colunas) — essa parece ser uma tabela paralela mais antiga. Vou inspecioná-la em uma etapa separada se você pedir; não é do escopo desta ação.
 
-### 1. Recuperar o Instituto Roar agora e para sempre
+## O que quero autorização para fazer agora
 
-- Executar `evolution-resubscribe` para o tenant `Dr Matheus Azevedo` (via botão exposto — sem SQL manual), o que faz Evolution regravar a URL de webhook com o `webhook_secret` **atual**. Isso destrava o ingest imediatamente.
-- Em seguida, `evolution-sync-chats` (já existe) puxa os chats/últimas mensagens que ficaram perdidos durante a janela em que o webhook estava 401.
-
-### 2. Botão "Reassinar webhook" na página WhatsApp de cada tenant
-
-Adicionar, ao lado do "Sincronizar chats" já existente em `WhatsAppChat.tsx` (que serve tanto master quanto tenant), um botão **"Reassinar webhook"** que:
-1. chama `evolution-resubscribe` com o `tenant_id` corrente,
-2. mostra o resultado (sucesso/erro) em toast,
-3. em caso de sucesso, dispara automaticamente `evolution-sync-chats` para recuperar mensagens perdidas,
-4. recarrega a lista.
-
-Isso deixa o operador da clínica autossuficiente para o próximo dia em que a Evolution "esquecer" o segredo (reinicialização de container, restauração de backup, etc.).
-
-### 3. Detecção automática + alerta
-
-- Em `WhatsAppChat.tsx`, quando a última mensagem inbound do tenant for maior que **6h** e o status da conexão estiver `connected`, mostrar um banner amarelo no topo da lista:  
-  *"Conexão conectada, mas sem mensagens há X horas. Clique em Reassinar webhook."*
-- Um segundo indicador vermelho aparece se, ao consultar o status, detectarmos qualquer `invalid_secret` recente (via contagem simples de `messages` recebidas na janela). Assim o problema não fica invisível por dias.
-
-### 4. Endurecer o webhook para se auto-curar quando seguro
-
-No `whatsapp-webhook/index.ts`, quando:
-- o `instanceName` do payload bater com uma conexão registrada,
-- o `tenantSlug`/`tenant_id` da URL também bater com essa conexão,
-- e o `webhook_secret` **estiver vazio** no banco (nunca foi setado),
-
-então gravar o segredo recebido em vez de recusar. Isso resolve o caso "instância nova sem secret ainda". **Não** vamos aceitar segredo diferente do gravado — a proteção anti-spoofing continua.
-
-### 5. Correção secundária no chip "Somente com lead"
-
-- Manter o default **off** (já está), mas persistir a escolha em `localStorage` por tenant para não confundir (hoje ele volta a `false` a cada reload, o que faz o operador clicar sem saber, e depois estranha o filtro).
-- Ajustar o rótulo para deixar claro que é um filtro do lado do cliente: **"Filtrar: somente com lead vinculado"**, e mudar o tooltip para *"Oculta conversas de números que ainda não viraram lead. Não altera o que chega no sistema."*
-
-### Detalhes técnicos
-
-Arquivos tocados:
-- `src/pages/admin/WhatsAppChat.tsx` — novo botão "Reassinar webhook", banner de detecção, persistência do chip, chamada dupla `evolution-resubscribe` → `evolution-sync-chats`.
-- `supabase/functions/whatsapp-webhook/index.ts` — bloco de auto-cura só quando `webhook_secret IS NULL`, sem mudar a lógica atual de rejeição para segredos divergentes.
-
-Nada é alterado em:
-- `evolution-resubscribe` (já grava o segredo atual na Evolution — é exatamente o que precisamos).
-- Regras de roteamento por `instance_name`/`tenant_id` no webhook (estão corretas).
-- Realtime das conversas (já funciona; ele só parece parado porque nada estava sendo gravado).
-
-### Fora do escopo desta iteração
-
-- Não vou mexer no pipeline da ficha do paciente, no modal de fechamento nem no dashboard — essas correções já foram entregues nos blocos anteriores.
-- Não vou trocar o provedor Evolution nem mexer no host/porta da instância.
+Somente os passos 1-4 da Parte A: rodar `evolution-resubscribe` para `donnaface` e `drgabriel`, ler as URLs finais e conferir nos logs que os 401 pararam. Aprova?
