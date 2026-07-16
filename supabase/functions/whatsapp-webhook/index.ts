@@ -512,6 +512,18 @@ async function resolveRemoteJid(
   const rawRemoteJid = String(key?.remoteJid ?? message?.remoteJid ?? "").trim() || null;
   const normalizedRaw = normalizePhoneJid(rawRemoteJid);
   const rawIsOwn = Boolean(normalizedRaw && ownJids.has(normalizedRaw));
+
+  // Same-key pairing takes priority: if the payload's KEY object carries both
+  // a @lid and a phone-JID (e.g. remoteJid=<lid>@lid + senderPn=<phone>), we
+  // persist the alias AND route the message to the canonical phone conversation.
+  // This prevents "Contato não identificado" from ever being created for
+  // contacts whose payload includes the phone.
+  const sameKey = decideAliasFromSameKey(key);
+  if (sameKey.ok && !(fromMe && ownJids.has(sameKey.phoneJid))) {
+    await upsertJidAlias(tenantId, instanceName, sameKey.lidJid, sameKey.phoneJid, "same_key");
+    return { remoteJid: sameKey.phoneJid, rawRemoteJid, unresolvedLid: false, blockedSelfJid: false };
+  }
+
   const candidateList = fromMe
     ? [
       ...collectOutboundPeerCandidates(message, key),
@@ -522,14 +534,7 @@ async function resolveRemoteJid(
   const standard = firstStandardJid(candidates, fromMe ? ownJids : new Set());
   const lid = firstLidJid(candidates, fromMe ? ownJids : new Set());
   if (standard) {
-    // HARDENED (2026-07-05): only alias if @lid and phone came from the SAME
-    // key object. Cross-field pairing (@lid from key, phone from participantAlt
-    // of a nested envelope) was the vector that glued 4 unrelated @lids onto
-    // one contact. See decideAliasFromSameKey in routing.ts.
-    const decision = decideAliasFromSameKey(key);
-    if (decision.ok) {
-      await upsertJidAlias(tenantId, instanceName, decision.lidJid, decision.phoneJid, "same_key");
-    }
+    // Also try same-key alias registration (already ran above but harmless).
     return { remoteJid: standard, rawRemoteJid, unresolvedLid: false, blockedSelfJid: false };
   }
 
