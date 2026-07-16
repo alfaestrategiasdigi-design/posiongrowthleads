@@ -1,91 +1,71 @@
-## Objetivo
+# Auditoria WhatsApp — corrigir "mensagens enviadas pelo celular não aparecem"
 
-Garantir que **toda mensagem** (formulário ou não, entrada ou saída, de qualquer dispositivo) seja vinculada ao **tenant correto** — nunca mais caindo na conta Admin Master por engano. Para isso: cada tenant cadastra e valida o(s) número(s) de WhatsApp da sua instância, e o webhook passa a rotear por número, não só por URL.
+Confirmação recebida: **caso A** — mensagens enviadas pelo celular físico não chegam no painel; só as recebidas do cliente aparecem.
 
-## Diagnóstico da causa raiz
+## Causas prováveis (identificadas na leitura do código)
 
-Hoje o webhook resolve o tenant apenas por `?tenant=<slug>` na URL + fallback por `instance_name`. Se a Evolution disparar um evento sem o slug esperado, ou se o `instance_name` bater com o da instância `POSIONGROWTHLEADS` (master, `tenant_id NULL`), a mensagem cai no admin master. Não existe hoje uma "trava" que diga: "o número dono desta mensagem é 5511965022801 → tenant DRMATHEUS, obrigatório".
+Em ordem de probabilidade, com base em `supabase/functions/whatsapp-webhook/index.ts` e `_shared/evolution-webhook.ts`:
 
-Também não temos nenhum lugar onde o cliente do tenant **veja e confirme** qual número de WhatsApp está ligado à conta dele.
+1. **Evento `SEND_MESSAGE` / `MESSAGES_UPSERT` não assinado na Evolution.** Se a instância foi criada antes do último ajuste em `EVOLUTION_EVENTS` ou o admin desligou, o Baileys captura o `fromMe=true` mas não posta no webhook.
+2. **`webhookByEvents=true`** na instância. A Evolution passa a postar em rotas separadas (`/whatsapp-webhook/send-message`), que o handler não reconhece. Nosso `configureWebhook` sempre envia `false`, mas instâncias legadas ficaram com `true`.
+3. **Outbound para NOVO contato dropa em `isPendingLid && fromMe`.** Regra em `index.ts:969-980`: se o outbound chega como `@lid` sem alias e não existe conversa prévia, é descartado com `outbound_unresolved_lid_dropped_no_conv`. É exatamente o cenário "mandei do celular pra um lead novo" — o inbound ainda não existiu, então o outbound some.
+4. **`ownJids` mal detectado.** Se o `ownerJid` capturado inclui por engano o JID do destinatário (bug conhecido em envelopes aninhados da Evolution), `rawIsOwn=true` → dropa em `no_jid_dropped`.
+5. **`?secret=` do webhook divergente do DB** ou `?tenant=` errado após a separação master/tenant que fizemos hoje → mensagem é rejeitada com 401.
+6. **Instância desconectada** (state ≠ `open`) durante o horário em que a mensagem foi enviada.
 
-## O que vai ser construído
+## O que vou entregar
 
-### 1. Banco: números oficiais do tenant
+### 1. Correção definitiva no webhook (`supabase/functions/whatsapp-webhook/index.ts`)
+- **Remover o drop cego para outbound `@lid` sem conversa prévia**. Passo a criar a conversa provisória mesmo quando `isPendingLid && fromMe`, marcando `needs_lid_review=true` e `lid_review_notes="outbound sem inbound prévio — resolver por CONTACTS_UPDATE"`. Assim a mensagem sempre aparece no painel; o merge posterior por `pushName`/`CONTACTS_UPDATE` reconcilia a conversa quando o número real for revelado.
+- **Log estruturado**: acrescentar `console.log("[wa-out]", { event, fromMe, rawRemoteJid, ownJids, wamid })` no início do laço de `messages.upsert` para diagnóstico direto via `edge_function_logs`.
+- **Fallback de resolução de JID**: quando `fromMe=true` e o único candidato standard é próprio JID, tentar o `participantAlt` / `senderPn` como recipient antes de dropar.
 
-Nova tabela `tenant_whatsapp_numbers`:
+### 2. Edge function `whatsapp-audit` (nova)
+Endpoint `POST` com `{ tenant_id | "master" }` que retorna JSON com checklist:
 
-- `tenant_id` (fk tenants)
-- `phone_e164` (ex: `5511965022801`) — normalizado
-- `phone_jid` (`5511965022801@s.whatsapp.net`)
-- `label` (ex.: "Recepção", "Comercial")
-- `zapi_connection_id` (fk opcional — vincula à instância Evolution)
-- `verified_at`, `verified_owner_jid` (o JID que a Evolution retornou no `fetchInstances`)
-- `status` (`pending` | `verified` | `mismatch`)
-- `is_primary` boolean
-- RLS: tenant admin gerencia os seus; admin master vê todos
+- Conexão Evolution: URL, `instance_name`, `state` via `/instance/connect`.
+- Webhook: URL registrada bate com a esperada, `?secret=` bate com `zapi_connections.webhook_secret`, `?tenant=` bate com o tenant.
+- Eventos assinados vs. `REQUIRED_EVENTS` (`MESSAGES_UPSERT`, `MESSAGES_SET`, `SEND_MESSAGE`). Lista os que faltam.
+- Flag `webhookByEvents` (deve ser `false`).
+- Settings da instância: `syncFullHistory`, `readMessages`, `alwaysOnline`, `readStatus`.
+- OwnerJid da instância vs. `tenant_whatsapp_numbers` verificados do tenant.
+- Tráfego 7d: `count(*)` inbound, outbound-via-painel (`sender=usuario AND metadata.raw_key.fromMe=true AND wamid NULL no momento do insert`), outbound-de-outro-device (`sender=usuario AND metadata.raw_key.fromMe=true`). Se o número de outbound-de-outro-device for 0 apesar de o cliente ter enviado do celular, a auditoria já aponta isso como sintoma-A.
+- Últimas 20 mensagens com `direction`, `status`, `wamid`, `sender` para inspeção.
+- Cloud API (quando ativa): `waba_id`, `phone_number_id`, `webhook_subscribed`, tokens.
 
-Índice único por `(phone_e164)` global — nenhum número pode pertencer a dois tenants ao mesmo tempo (evita o problema atual).
+Cada item devolve `{ok, hint, fix_action?}` onde `fix_action` é uma das ações da tela.
 
-### 2. Tela de configuração por tenant
+### 3. Tela `Auditoria WhatsApp`
+- Rota `/admin/whatsapp-audit` (Master) + botão "Auditar" dentro do card do tenant em `TenantWhatsAppNumbersCard`.
+- Renderiza o JSON como checklist verde/amarelo/vermelho.
+- Ações one-click:
+  - **Reassinar webhook** → chama `evolution-resubscribe` já existente (garante lista `EVOLUTION_EVENTS` + `webhookByEvents=false`).
+  - **Aplicar settings recomendados** → chama endpoint da Evolution `settings/set` com `syncFullHistory:true, readMessages:true, alwaysOnline:true, readStatus:true`.
+  - **Enviar mensagem de teste do celular** — instrução visual pedindo pro operador mandar uma mensagem do celular físico agora e clicar "Recarregar auditoria" 15s depois; o painel confirma se o `SEND_MESSAGE` chegou.
 
-Nova aba em `TenantConfig.tsx` → **"Números de WhatsApp"** com um card `TenantWhatsAppNumbersCard.tsx`:
-
-- Lista os números cadastrados (label, número, status: Verificado / Pendente / Divergente).
-- Botão **"Adicionar número"** → modal com label + número (com máscara `+55 (11) 99999-9999`).
-- Botão **"Validar agora"** em cada número → chama edge function que:
-  1. Consulta `GET /instance/fetchInstances` na Evolution do tenant.
-  2. Pega o `ownerJid` real da instância conectada.
-  3. Compara com o número cadastrado.
-  4. Se bater → marca `verified_at` + `status='verified'` e mostra ✅.
-  5. Se não bater → `status='mismatch'` + mostra o número real detectado e oferece "Usar o número detectado".
-- Botão **"Definir como principal"**.
-- Indicador global no topo do card: "3 números cadastrados · 2 verificados · 1 divergente".
-
-### 3. Edge function: `tenant-whatsapp-number-verify`
-
-- Input: `{ tenant_id, phone_number_id }`.
-- Autoriza: usuário deve ser `tenant_admin` do tenant ou super admin.
-- Busca `zapi_connections` do tenant, chama Evolution `/instance/fetchInstances/<instance_name>`, extrai o `ownerJid`, atualiza o registro.
-- Retorna `{ verified: boolean, owner_jid, mismatch_reason? }`.
-
-### 4. Webhook: roteamento por número (a trava definitiva)
-
-Em `supabase/functions/whatsapp-webhook/index.ts`:
-
-- Extrair `ownerJid` do payload da Evolution (código já sabe fazer isso — `body?.ownerJid`, `body?.data?.ownerJid`, etc., linhas 200–250).
-- **Antes** de aceitar o `resolvedTenantId` vindo da URL/`instance_name`:
-  1. Normalizar `ownerJid` → E.164.
-  2. `SELECT tenant_id FROM tenant_whatsapp_numbers WHERE phone_e164 = <owner> AND status='verified'`.
-  3. Se achou e é **diferente** do `resolvedTenantId` → sobrescreve com o do número, loga `tenant_reroute_by_owner` e usa o correto.
-  4. Se não achou nenhum tenant dono → **não** salvar como admin master; grava em `unrouted_leads` com `reason='unknown_owner_jid'` e sai com 200 (pra Evolution não reenfileirar).
-- Isso vale para inbound **e** outbound (mensagens enviadas de "outro dispositivo" também trazem `ownerJid`).
-
-### 5. Backfill (opcional, um clique)
-
-Botão "Reatribuir mensagens antigas para este tenant" na tela nova:
-- Roda uma função que procura em `conversations` / `messages` do admin master toda linha cujo `remote_jid` ou `metadata->>'owner_jid'` bate com um número verificado do tenant, e move `tenant_id` para o correto.
-- Mostra prévia do total de conversas/mensagens que vão ser movidas antes de confirmar.
-
-### 6. Pesquisa & boas práticas aplicadas
-
-- Evolution API expõe `ownerJid` em `/instance/fetchInstances` e em todo evento `messages.upsert` — é a fonte canônica para saber o dono da instância.
-- Padrão de "phone-number ownership table" é o mesmo usado por Twilio (`IncomingPhoneNumbers`) e Meta Cloud (`phone_number_id`): cada número pertence a exatamente uma conta, o webhook cruza por número antes de aceitar o payload.
-- Fallback obrigatório para `unrouted_leads` quando o número não é reconhecido — nunca "assumir" o master.
+### 4. Documento `docs/WHATSAPP_AUDIT.md`
+Explicação end-to-end em português:
+1. Como o WhatsApp funciona no sistema (Evolution vs. Cloud API, quem grava no banco).
+2. Fluxo de uma mensagem **recebida** (device do cliente → Baileys → webhook → `conversations` + `messages` → realtime → UI).
+3. Fluxo de uma mensagem **enviada pelo painel** (UI → `evolution-send` → API Evolution → webhook devolve `SEND_MESSAGE` → reconciliação por wamid).
+4. Fluxo de uma mensagem **enviada por outro dispositivo** (device → Baileys emite `SEND_MESSAGE`/`MESSAGES_UPSERT fromMe=true` → webhook grava `sender=usuario, direction=outbound`).
+5. Isolamento por tenant via `?tenant=<slug>&secret=<...>` (a correção master/tenant que fizemos hoje).
+6. ACKs `MESSAGES_UPDATE` e por que ✓✓ azul às vezes trava.
+7. `@lid` vs. JID canônico, regras de merge.
+8. **Troubleshooting**: cada uma das 6 causas prováveis acima, com sinal claro e comando de fix.
 
 ## Detalhes técnicos
 
-**Arquivos novos:**
-- `supabase/functions/tenant-whatsapp-number-verify/index.ts`
-- `src/components/tenant/TenantWhatsAppNumbersCard.tsx`
-- migration criando `tenant_whatsapp_numbers` + policies + índice único por `phone_e164`
+Arquivos alterados/criados:
 
-**Arquivos editados:**
-- `supabase/functions/whatsapp-webhook/index.ts` — bloco de roteamento por `ownerJid` antes de gravar
-- `src/pages/app/TenantConfig.tsx` — inclui o novo card
+```text
+docs/WHATSAPP_AUDIT.md                                (novo)
+supabase/functions/whatsapp-audit/index.ts            (novo)
+src/pages/admin/WhatsAppAuditPage.tsx                 (novo)
+src/components/tenant/TenantWhatsAppNumbersCard.tsx   (botão "Auditar")
+src/App.tsx                                           (rota nova)
+src/components/admin/AppSidebar.tsx                   (item "Auditoria WhatsApp")
+supabase/functions/whatsapp-webhook/index.ts          (2 correções descritas)
+```
 
-**Não muda:** tabelas `zapi_connections`, `whatsapp_connections`, `conversations`, `messages`, `leads` (a menos que o botão de backfill seja acionado pelo usuário).
-
-## Fora do escopo
-
-- Não altera provisionamento da instância Evolution (QR/reconexão continua no `ReconnectSessionCard`).
-- Não move mensagens antigas automaticamente — só via botão explícito de backfill.
+Sem migrations. Sem alteração de RLS. A edge function `whatsapp-audit` usa apenas leituras (`conversations`, `messages`, `zapi_connections`, `tenant_whatsapp_numbers`, `whatsapp_connections`) + chamadas HTTP à Evolution.
