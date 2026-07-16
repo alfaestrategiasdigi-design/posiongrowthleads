@@ -102,13 +102,30 @@ Deno.serve(async (req) => {
     return json({ error: "Erro de rede ao buscar chats", detail: String(e) }, 502);
   }
 
-  let upserted = 0, pictures = 0;
-  for (const c of chats) {
+  const deadline = Date.now() + 120_000; // hard budget within the 150s idle limit
+  let upserted = 0, pictures = 0, skippedByTime = 0;
+
+  async function fetchPicture(jid: string): Promise<string | null> {
+    try {
+      const picUrl = `${base}/chat/fetchProfilePictureUrl/${encodeURIComponent(conn.instance_name)}`;
+      const pr = await fetch(picUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: conn.api_key },
+        body: JSON.stringify({ number: jid }),
+        signal: AbortSignal.timeout(3500),
+      });
+      if (!pr.ok) return null;
+      const pj = await pr.json();
+      return pj?.profilePictureUrl || pj?.url || null;
+    } catch { return null; }
+  }
+
+  async function processChat(c: any) {
+    if (Date.now() > deadline) { skippedByTime++; return; }
     const jid = normalizePhoneJid(c.remoteJid || c.id || c.chatId || "");
-    if (!jid) continue;
-    // Skip groups, broadcast lists and @lid (multi-device alias IDs that duplicate the same contact)
+    if (!jid) return;
     const phone = onlyDigits(jid.split("@")[0]);
-    if (!phone || !/^\d+$/.test(phone)) continue;
+    if (!phone || !/^\d+$/.test(phone)) return;
     const name = c.pushName || c.name || c.contact?.name || c.subject || null;
     const lastTs = c.lastMessageTimestamp || c.updatedAt || c.lastMessage?.messageTimestamp;
     const lastInteraction = lastTs
@@ -119,26 +136,12 @@ Deno.serve(async (req) => {
       c.lastMessage?.message?.extendedTextMessage?.text ||
       (c.lastMessage?.messageType ? `[${c.lastMessage.messageType}]` : null);
 
-    // Upsert by normalized phone/JID so @c.us/@s.whatsapp.net variants reuse one conversation
     const existing = await findConversation(admin, tenantId, jid, phone);
-
-    let convId = existing?.id as string | undefined;
     let fotoUrl = existing?.foto_url as string | null | undefined;
 
-    if (withPictures && !fotoUrl) {
-      try {
-        const picUrl = `${base}/chat/fetchProfilePictureUrl/${encodeURIComponent(conn.instance_name)}`;
-        const pr = await fetch(picUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", apikey: conn.api_key },
-          body: JSON.stringify({ number: jid }),
-        });
-        if (pr.ok) {
-          const pj = await pr.json();
-          fotoUrl = pj?.profilePictureUrl || pj?.url || null;
-          if (fotoUrl) pictures++;
-        }
-      } catch { /* ignore */ }
+    if (withPictures && !fotoUrl && Date.now() < deadline) {
+      const p = await fetchPicture(jid);
+      if (p) { fotoUrl = p; pictures++; }
     }
 
     const payload: any = {
@@ -152,17 +155,23 @@ Deno.serve(async (req) => {
       ...(lastMessage ? { ultima_mensagem: String(lastMessage).slice(0, 200) } : {}),
     };
 
-    if (convId) {
-      await admin.from("conversations").update(payload).eq("id", convId);
+    if (existing?.id) {
+      await admin.from("conversations").update(payload).eq("id", existing.id);
     } else {
       const inserted = await admin.from("conversations").insert(payload);
       if (inserted.error) {
-        const existingAfterConflict = await findConversation(admin, tenantId, jid, phone);
-        if (existingAfterConflict?.id) await admin.from("conversations").update(payload).eq("id", existingAfterConflict.id);
+        const again = await findConversation(admin, tenantId, jid, phone);
+        if (again?.id) await admin.from("conversations").update(payload).eq("id", again.id);
       }
     }
     upserted++;
   }
 
-  return json({ ok: true, count: chats.length, upserted, pictures });
+  const CONCURRENCY = 8;
+  for (let i = 0; i < chats.length; i += CONCURRENCY) {
+    if (Date.now() > deadline) { skippedByTime += chats.length - i; break; }
+    await Promise.all(chats.slice(i, i + CONCURRENCY).map(processChat));
+  }
+
+  return json({ ok: true, count: chats.length, upserted, pictures, skipped_by_time: skippedByTime });
 });
