@@ -29,7 +29,7 @@ import { format, isToday, isThisWeek, differenceInCalendarDays } from "date-fns"
 import { ptBR } from "date-fns/locale";
 import type { Conversation, Message } from "@/types/admin";
 import ContactAvatar from "@/components/admin/whatsapp/ContactAvatar";
-import { LidReviewDialog } from "@/components/admin/whatsapp/LidReviewDialog";
+
 import { ReassignMessageDialog } from "@/components/admin/whatsapp/ReassignMessageDialog";
 import { Move } from "lucide-react";
 
@@ -104,8 +104,6 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   useEffect(() => {
     try { localStorage.setItem(onlyWithLeadKey, onlyWithLead ? "1" : "0"); } catch { /* ignore */ }
   }, [onlyWithLead, onlyWithLeadKey]);
-  const [lidReviewOpen, setLidReviewOpen] = useState(false);
-  const [lidPendingCount, setLidPendingCount] = useState(0);
   const [leadPanelId, setLeadPanelId] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [reassignMessage, setReassignMessage] = useState<Message | null>(null);
@@ -203,7 +201,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
     if (error) toast.error("Falha ao carregar conversas", { description: error.message });
     const list = (data as Conversation[]) || [];
     setConversations(list);
-    setLidPendingCount(list.filter((c: any) => (c as any).needs_lid_review === true).length);
+    
     setLoading(false);
     // Carrega nomes dos leads vinculados às conversas (usado como fallback de exibição
     // quando a conversa está com @lid não resolvido ou sem pushName).
@@ -761,7 +759,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const q = searchQuery.trim().toLowerCase();
   // Uma conversa @lid é um contato cujo número real ainda não foi resolvido pela Evolution.
   // Antes escondíamos essas conversas — agora elas aparecem normalmente na lista com um
-  // selo "não identificado", e o LidReviewDialog continua disponível para revisão manual.
+  // selo "não identificado" enquanto a reconciliação automática (whatsapp-lid-reconcile) roda.
   const isUnresolvedLid = useCallback((c: Conversation): boolean => {
     const anyC = c as any;
     const jid: string = anyC.remote_jid || "";
@@ -1010,17 +1008,6 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             <span className="flex items-center gap-1.5"><Target className="w-3 h-3" /> Filtrar: somente com lead vinculado</span>
             <span className="wa-mono">{linkedCount}/{conversations.length}</span>
           </button>
-          {lidPendingCount > 0 && (
-            <button
-              onClick={() => setLidReviewOpen(true)}
-              className="w-full text-[11px] flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 transition"
-              style={{ borderColor: "rgba(248,113,113,0.4)", background: "rgba(248,113,113,0.08)", color: "#F87171" }}
-              title="Conversas com identificador provisório (@lid) aguardando confirmação"
-            >
-              <span className="flex items-center gap-1.5"><AlertTriangle className="w-3 h-3" /> Revisar conversas @lid</span>
-              <span className="wa-mono">{lidPendingCount}</span>
-            </button>
-          )}
         </div>
 
 
@@ -1166,25 +1153,6 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             </div>
           </div>
 
-          {(selectedConversation as any)?.needs_lid_review && (
-            <div className="px-4 py-2 border-b border-amber-500/40 bg-amber-500/10 text-amber-200 text-[11px] flex items-start gap-2">
-              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-              <div className="flex-1">
-                <div className="font-semibold">Possível mistura de mensagens de outro contato</div>
-                <div className="text-amber-200/80">
-                  {(selectedConversation as any)?.lid_review_notes || "Revise as mensagens deste intervalo manualmente antes de responder. Use o botão \u201cMover\u201d na mensagem para reatribuí-la à conversa correta."}
-                </div>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-[11px] border-amber-400/60 bg-amber-500/20 text-amber-100 hover:bg-amber-500/30 shrink-0"
-                onClick={() => setLidReviewOpen(true)}
-              >
-                Mesclar com contato…
-              </Button>
-            </div>
-          )}
 
           <div className="wa-chat-bg flex-1 overflow-y-auto p-4 space-y-3">
             {messages.length === 0 ? (
@@ -1559,12 +1527,6 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
         onUpdated={loadConversations}
       />
 
-      <LidReviewDialog
-        open={lidReviewOpen}
-        onOpenChange={setLidReviewOpen}
-        tenantId={masterMode ? null : (tenantId ?? null)}
-        onDone={loadConversations}
-      />
 
       <ReassignMessageDialog
         open={!!reassignMessage}
