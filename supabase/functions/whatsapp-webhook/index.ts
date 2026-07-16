@@ -927,13 +927,34 @@ Deno.serve(async (req) => {
         const fromMe: boolean = Boolean(key?.fromMe ?? m?.fromMe);
         const resolved = await resolveRemoteJid(m, key, tenantId, instanceName || null, fromMe, ownJids);
         const rawRemoteJid = resolved.rawRemoteJid;
+        // Structured log for diagnosing "outbound from phone doesn't appear" (case A audit)
+        console.log("[wa-in]", {
+          event,
+          fromMe,
+          wamid,
+          rawRemoteJid,
+          resolvedJid: resolved.remoteJid,
+          unresolvedLid: resolved.unresolvedLid,
+          blockedSelfJid: resolved.blockedSelfJid,
+          ownJids: Array.from(ownJids),
+        });
         if (rawRemoteJid?.endsWith("@g.us") || rawRemoteJid?.endsWith("@broadcast")) continue;
-        // Never drop by unresolved @lid: if the alias is not yet known, keep the
-        // raw @lid as a provisional remote_jid and flag the message. When the
-        // alias arrives later (contacts.* event) mergeProvisionalLidConversations
-        // migrates the conversation/messages to the canonical phone JID.
-        const effectiveJid = resolved.remoteJid
+
+        // Fallback for outbound: if resolver blocked because it thinks recipient
+        // is our own JID, try senderPn / participantAlt on the key as the real
+        // recipient before dropping. This fixes echoes where Evolution nests the
+        // recipient in participantAlt while remoteJid comes as our ownerJid.
+        let effectiveJid = resolved.remoteJid
           ?? (resolved.blockedSelfJid && !rawRemoteJid?.includes("@lid") ? null : rawRemoteJid);
+        if (!effectiveJid && fromMe) {
+          const alt = normalizePhoneJid(
+            key?.senderPn ?? key?.participantAlt ?? key?.remoteJidAlt ?? null,
+          );
+          if (alt && !ownJids.has(alt)) {
+            effectiveJid = alt;
+            console.log("[wa-in] outbound_recovered_via_alt", { wamid, alt });
+          }
+        }
         if (!effectiveJid) {
           console.warn("[whatsapp-webhook] no_jid_dropped", { wamid, fromMe, blockedSelfJid: resolved.blockedSelfJid, ownJids: Array.from(ownJids) });
           continue;
@@ -960,23 +981,16 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Stop-the-bleeding rule for OUTBOUND @lid echoes without a resolved
-        // phone: only accept them when they can be attached to a conversation
-        // that ALREADY exists for that exact @lid (previous inbound created it
-        // or a merge mapped it). This prevents creating brand-new phantom
-        // conversations while still letting operators see their outbound
-        // messages inside legitimate LID-only threads.
+        // Previously we DROPPED outbound @lid messages when no conversation
+        // existed yet. That silently ate every "operator texted a new lead
+        // from the physical phone" case (audit case A). Now we keep them as
+        // provisional so they show up in the panel; when the phone JID alias
+        // arrives (CONTACTS_UPDATE / same-key alias), mergeProvisionalLid...
+        // migrates the conversation and messages to the canonical JID.
         if (isPendingLid && fromMe) {
-          let existsQ = admin.from("conversations")
-            .select("id").eq("remote_jid", remoteJid).limit(1);
-          existsQ = tenantId ? existsQ.eq("tenant_id", tenantId) : existsQ.is("tenant_id", null);
-          const { data: existingLidConv } = await existsQ.maybeSingle();
-          if (!existingLidConv) {
-            console.warn("[whatsapp-webhook] outbound_unresolved_lid_dropped_no_conv", {
-              wamid, rawRemoteJid, remoteJid, senderPushName: rawPushName,
-            });
-            continue;
-          }
+          console.log("[whatsapp-webhook] outbound_lid_kept_provisional", {
+            wamid, rawRemoteJid, remoteJid,
+          });
         }
 
         if (isPendingLid) {
