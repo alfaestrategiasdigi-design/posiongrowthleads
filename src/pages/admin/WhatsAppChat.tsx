@@ -111,6 +111,51 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const [reassignMessage, setReassignMessage] = useState<Message | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const autoOpenedPhoneRef = useRef<string | null>(null);
+  const [newContactOpen, setNewContactOpen] = useState(false);
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactPhone, setNewContactPhone] = useState("");
+  const [newContactSaving, setNewContactSaving] = useState(false);
+
+  const handleCreateContact = useCallback(async () => {
+    const digits = newContactPhone.replace(/\D/g, "");
+    if (digits.length < 8) { toast.error("Informe um número válido"); return; }
+    const phone = digits.startsWith("55") || digits.length <= 11 ? digits : `55${digits}`;
+    const jid = `${phone}@s.whatsapp.net`;
+    const nome = newContactName.trim() || phone;
+    setNewContactSaving(true);
+    try {
+      let q = supabase.from("conversations").select("*").eq("telefone", phone).limit(1);
+      q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
+      const { data: existing } = await q.maybeSingle();
+      let conv: any = existing;
+      if (!conv) {
+        const { data, error } = await supabase.from("conversations").insert({
+          telefone: phone,
+          remote_jid: jid,
+          provider: "evolution",
+          nome_contato: nome,
+          tenant_id: tenantId,
+          ultima_interacao: new Date().toISOString(),
+        }).select("*").single();
+        if (error) throw error;
+        conv = data;
+        setConversations(prev => [conv, ...prev]);
+      } else if (nome && nome !== existing?.nome_contato) {
+        await supabase.from("conversations").update({ nome_contato: nome }).eq("id", existing.id);
+        conv = { ...existing, nome_contato: nome };
+      }
+      setSelectedConversation(conv);
+      setNewContactOpen(false);
+      setNewContactName("");
+      setNewContactPhone("");
+      toast.success(existing ? "Conversa aberta" : "Contato criado");
+    } catch (e: any) {
+      toast.error("Falha ao criar contato", { description: e?.message });
+    } finally {
+      setNewContactSaving(false);
+    }
+  }, [newContactName, newContactPhone, tenantId]);
+
 
 
   const [messages, setMessages] = useState<Message[]>([]);
