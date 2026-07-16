@@ -109,6 +109,8 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const [leadPanelId, setLeadPanelId] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [reassignMessage, setReassignMessage] = useState<Message | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoOpenedPhoneRef = useRef<string | null>(null);
 
 
   const [messages, setMessages] = useState<Message[]>([]);
