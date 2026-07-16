@@ -182,7 +182,7 @@ export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5" />
-          Números de WhatsApp do tenant
+          Números de WhatsApp {isMaster ? "do Admin Master" : "do tenant"}
         </CardTitle>
         <CardDescription>
           Cadastre e valide os números conectados a este tenant. O sistema usa esta lista para garantir
