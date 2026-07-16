@@ -696,6 +696,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   };
 
   // ============ Render helpers ============
+  const q = searchQuery.trim().toLowerCase();
   // Uma conversa @lid é um contato cujo número real ainda não foi resolvido pela Evolution.
   // Antes escondíamos essas conversas — agora elas aparecem normalmente na lista com um
   // selo "não identificado", e o LidReviewDialog continua disponível para revisão manual.
