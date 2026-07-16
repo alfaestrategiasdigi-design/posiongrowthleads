@@ -696,20 +696,42 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   };
 
   // ============ Render helpers ============
-  const q = searchQuery.trim().toLowerCase();
+  // Uma conversa @lid é um contato cujo número real ainda não foi resolvido pela Evolution.
+  // Antes escondíamos essas conversas — agora elas aparecem normalmente na lista com um
+  // selo "não identificado", e o LidReviewDialog continua disponível para revisão manual.
+  const isUnresolvedLid = useCallback((c: Conversation): boolean => {
+    const anyC = c as any;
+    const jid: string = anyC.remote_jid || "";
+    return anyC.needs_lid_review === true || jid.endsWith("@lid");
+  }, []);
+
+  const getDisplayName = useCallback((c: Conversation): string => {
+    const anyC = c as any;
+    const jid: string = anyC.remote_jid || "";
+    const lidDigits = jid.endsWith("@lid") ? jid.replace(/@lid$/, "") : "";
+    const rawName = (c.nome_contato || "").trim();
+    // Nome válido = não vazio, não é o próprio lid, e não são só dígitos idênticos ao telefone.
+    const isNameJustDigits = rawName.length > 0 && /^\d+$/.test(rawName);
+    const nameLooksLikeLid = rawName === lidDigits || rawName === c.telefone;
+    if (rawName && !isNameJustDigits && !nameLooksLikeLid) return rawName;
+    if (c.lead_id && leadNamesById[c.lead_id]) return leadNamesById[c.lead_id];
+    if (isUnresolvedLid(c)) {
+      const digits = lidDigits || c.telefone || "";
+      const tail = digits.slice(-4);
+      return tail ? `Contato não identificado ·${tail}` : "Contato não identificado";
+    }
+    return rawName || c.telefone || "Sem número";
+  }, [leadNamesById, isUnresolvedLid]);
+
   const filteredConversations = useMemo(() => conversations.filter(c => {
-    // Oculta conversas com identificador provisório (@lid) que aguardam revisão manual.
-    // Elas ficam acessíveis apenas via LidReviewDialog para evitar aparecerem
-    // duplicadas ao lado da conversa canônica do mesmo contato.
-    if ((c as any).needs_lid_review === true) return false;
     if (q) {
-      const hay = `${c.nome_contato || ""} ${c.telefone} ${c.ultima_mensagem || ""}`.toLowerCase();
+      const hay = `${getDisplayName(c)} ${c.nome_contato || ""} ${c.telefone} ${c.ultima_mensagem || ""}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     if (tagFilter && !(convTags[c.id] || []).some(t => t.id === tagFilter)) return false;
     if (onlyWithLead && !c.lead_id) return false;
     return true;
-  }), [conversations, q, tagFilter, convTags, onlyWithLead]);
+  }), [conversations, q, tagFilter, convTags, onlyWithLead, getDisplayName]);
 
   const linkedCount = useMemo(() => conversations.filter(c => c.lead_id).length, [conversations]);
 
