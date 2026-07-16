@@ -192,6 +192,23 @@ export default function TenantWhatsAppNumbersCard({ tenantId }: Props) {
         )}
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Backfill: reatribuir conversas antigas */}
+        {verifiedCount > 0 && (
+          <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-dashed bg-muted/20">
+            <div className="text-sm">
+              <div className="font-medium">Migrar conversas antigas para este tenant</div>
+              <div className="text-muted-foreground text-xs">
+                Procura conversas salvas em outros tenants (ou no admin master) cujo número
+                destinatário corresponde a um número verificado acima e move para cá.
+              </div>
+            </div>
+            <Button size="sm" variant="secondary" onClick={runReassign} disabled={reassigning}>
+              {reassigning ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
+              Migrar agora
+            </Button>
+          </div>
+        )}
+
         {/* Add form */}
         <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] items-end p-3 rounded-lg border bg-muted/30">
           <div>
