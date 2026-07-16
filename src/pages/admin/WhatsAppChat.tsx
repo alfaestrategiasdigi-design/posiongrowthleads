@@ -980,11 +980,11 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                 <div key={conv.id} onClick={() => setSelectedConversation(conv)}
                   data-selected={selected ? "true" : undefined}
                   className="wa-card group relative flex items-start gap-3 px-3 py-3 cursor-pointer">
-                  <ContactAvatar name={conv.nome_contato || conv.telefone} photoUrl={conv.foto_url} size={44} />
+                  <ContactAvatar name={displayName} photoUrl={conv.foto_url} size={44} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <h4 className="wa-name text-[15px] font-semibold truncate" style={{ color: "#e9edef" }}>
-                        {highlight(conv.nome_contato || conv.telefone)}
+                        {highlight(displayName)}
                       </h4>
                       <span className="wa-mono text-[10px] shrink-0 ml-2" style={{ color: "#8696a0" }}>{formatListTime(conv.ultima_interacao)}</span>
                     </div>
@@ -1002,6 +1002,15 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                       {conv.lead_id && (
                         <span className="wa-badge-lead">
                           <Target className="w-2.5 h-2.5" /> Lead
+                        </span>
+                      )}
+                      {unresolvedLid && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium"
+                          style={{ background: "rgba(240,180,41,0.10)", border: "1px solid rgba(240,180,41,0.28)", color: "#f0b429" }}
+                          title="Número real ainda não resolvido pela Evolution. Você pode ler e responder normalmente."
+                        >
+                          <AlertTriangle className="w-2.5 h-2.5" /> não identificado
                         </span>
                       )}
                       {tags.slice(0, 3).map(t => (
