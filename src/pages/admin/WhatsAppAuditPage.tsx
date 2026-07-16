@@ -23,7 +23,27 @@ export default function WhatsAppAuditPage() {
   const [selected, setSelected] = useState<string>("master");
   const [loading, setLoading] = useState(false);
   const [fixing, setFixing] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
   const [result, setResult] = useState<AuditResult | null>(null);
+
+  const runWamidReconcile = async (dryRun: boolean) => {
+    setReconciling(true);
+    try {
+      const tenant_id = selected === "master" ? null : selected;
+      const { data, error } = await supabase.functions.invoke("whatsapp-wamid-reconcile", {
+        body: { tenant_id, dry_run: dryRun, window_minutes: 5, limit: 500 },
+      });
+      if (error) throw error;
+      const s = (data as any)?.stats ?? {};
+      toast.success(
+        `${dryRun ? "Simulação" : "Reconciliação"}: ${s.scanned} escaneadas · ${s.updated} preenchidas · ${s.duplicates_deleted} duplicatas · ${s.unmatched} sem par`,
+      );
+    } catch (e: any) {
+      toast.error("Falha ao reconciliar wamid: " + (e?.message ?? e));
+    } finally {
+      setReconciling(false);
+    }
+  };
 
   useEffect(() => {
     supabase.from("tenants").select("id, name, slug").order("name").then(({ data }) => {
@@ -98,6 +118,14 @@ export default function WhatsAppAuditPage() {
           <Button onClick={runAudit} disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Rodar auditoria
+          </Button>
+          <Button variant="outline" onClick={() => runWamidReconcile(true)} disabled={reconciling}>
+            {reconciling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Simular reconciliação
+          </Button>
+          <Button variant="secondary" onClick={() => runWamidReconcile(false)} disabled={reconciling}>
+            {reconciling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Wrench className="h-4 w-4 mr-2" />}
+            Reconciliar wamid
           </Button>
         </CardContent>
       </Card>
