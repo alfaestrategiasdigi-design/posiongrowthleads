@@ -111,6 +111,51 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const [reassignMessage, setReassignMessage] = useState<Message | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const autoOpenedPhoneRef = useRef<string | null>(null);
+  const [newContactOpen, setNewContactOpen] = useState(false);
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactPhone, setNewContactPhone] = useState("");
+  const [newContactSaving, setNewContactSaving] = useState(false);
+
+  const handleCreateContact = useCallback(async () => {
+    const digits = newContactPhone.replace(/\D/g, "");
+    if (digits.length < 8) { toast.error("Informe um número válido"); return; }
+    const phone = digits.startsWith("55") || digits.length <= 11 ? digits : `55${digits}`;
+    const jid = `${phone}@s.whatsapp.net`;
+    const nome = newContactName.trim() || phone;
+    setNewContactSaving(true);
+    try {
+      let q = supabase.from("conversations").select("*").eq("telefone", phone).limit(1);
+      q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
+      const { data: existing } = await q.maybeSingle();
+      let conv: any = existing;
+      if (!conv) {
+        const { data, error } = await supabase.from("conversations").insert({
+          telefone: phone,
+          remote_jid: jid,
+          provider: "evolution",
+          nome_contato: nome,
+          tenant_id: tenantId,
+          ultima_interacao: new Date().toISOString(),
+        }).select("*").single();
+        if (error) throw error;
+        conv = data;
+        setConversations(prev => [conv, ...prev]);
+      } else if (nome && nome !== existing?.nome_contato) {
+        await supabase.from("conversations").update({ nome_contato: nome }).eq("id", existing.id);
+        conv = { ...existing, nome_contato: nome };
+      }
+      setSelectedConversation(conv);
+      setNewContactOpen(false);
+      setNewContactName("");
+      setNewContactPhone("");
+      toast.success(existing ? "Conversa aberta" : "Contato criado");
+    } catch (e: any) {
+      toast.error("Falha ao criar contato", { description: e?.message });
+    } finally {
+      setNewContactSaving(false);
+    }
+  }, [newContactName, newContactPhone, tenantId]);
+
 
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -900,6 +945,9 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
         <div className="wa-header-bar px-3 py-2 flex items-center justify-between gap-2">
           {statusBadge()}
           <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8" title="Novo contato" onClick={() => setNewContactOpen(true)}>
+              <Plus className="w-4 h-4" />
+            </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8" title="Sincronizar conversas" onClick={handleSyncChats} disabled={syncing}>
               <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
             </Button>
@@ -1518,6 +1566,31 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
         tenantId={masterMode ? null : (tenantId ?? null)}
         onMoved={() => { if (selectedConversation) loadMessages(selectedConversation.id); }}
       />
+
+      <Dialog open={newContactOpen} onOpenChange={setNewContactOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Novo contato</DialogTitle>
+            <DialogDescription>Abre uma conversa nova no WhatsApp. Use DDI+DDD+número (ex.: 5511999999999).</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nome</Label>
+              <Input value={newContactName} onChange={(e) => setNewContactName(e.target.value)} placeholder="Nome do contato" />
+            </div>
+            <div>
+              <Label>WhatsApp</Label>
+              <Input value={newContactPhone} onChange={(e) => setNewContactPhone(e.target.value)} placeholder="5511999999999" inputMode="tel" />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => setNewContactOpen(false)}>Cancelar</Button>
+              <Button onClick={handleCreateContact} disabled={newContactSaving}>
+                {newContactSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Criar e abrir"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

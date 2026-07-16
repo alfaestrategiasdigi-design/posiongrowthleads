@@ -821,35 +821,69 @@ Deno.serve(async (req) => {
     // Message status updates (sent/delivered/read)
     if (eventMatches(event, "messages.update", "send.message.update")) {
       const arr: any[] = Array.isArray(body?.data) ? body.data : [body?.data].filter(Boolean);
+      const statusRank: Record<string, number> = { sent: 1, delivered: 2, read: 3, failed: 0 };
       for (const u of arr) {
-        // Evolution v2 may send `keyId` OR `key.id` OR nested `update.key.id`
         const wamid = u?.key?.id ?? u?.keyId ?? u?.update?.key?.id ?? u?.message?.key?.id ?? u?.id;
+        const rawRemoteJid: string | undefined = u?.key?.remoteJid ?? u?.update?.key?.remoteJid ?? u?.remoteJid;
         const rawStatus = u?.status ?? u?.update?.status ?? u?.messageStatus ?? "";
         const st = String(rawStatus).toLowerCase().replace(/[_-]/g, "_");
-        if (!wamid || !st) continue;
-        // Evolution/Baileys status vocabulary → our internal
+        if (!st) continue;
         const map: Record<string,string> = {
-          read: "read",
-          read_self: "read",
-          played: "read",
-          delivery_ack: "delivered",
-          delivered: "delivered",
-          server_ack: "sent",
-          sent: "sent",
-          pending: "sent",
-          error: "failed",
-          failed: "failed",
+          read: "read", read_self: "read", played: "read",
+          delivery_ack: "delivered", delivered: "delivered",
+          server_ack: "sent", sent: "sent", pending: "sent",
+          error: "failed", failed: "failed",
         };
         const status = map[st] ?? st;
-        const { data: updated, error: updErr } = await admin
-          .from("messages")
-          .update({ status })
-          .eq("wamid", wamid)
-          .select("id");
-        if (updErr) {
-          console.warn("[whatsapp-webhook] messages.update failed", { wamid, status, err: updErr.message });
-        } else if (!updated || updated.length === 0) {
-          console.warn("[whatsapp-webhook] messages.update no-match", { wamid, status, rawStatus });
+
+        let matchedId: string | null = null;
+        let matchedConvId: string | null = null;
+
+        if (wamid) {
+          const { data: updated } = await admin
+            .from("messages")
+            .update({ status })
+            .eq("wamid", wamid)
+            .select("id, conversation_id");
+          if (updated && updated.length > 0) {
+            matchedId = updated[0].id; matchedConvId = updated[0].conversation_id;
+          }
+        }
+
+        // Fallback: correlate by JID/phone → latest outbound msg without ACK yet.
+        if (!matchedId && rawRemoteJid) {
+          const phone = String(rawRemoteJid).split("@")[0].replace(/\D/g, "");
+          let convQ = admin.from("conversations").select("id, tenant_id").limit(1);
+          if (tenantId) convQ = convQ.eq("tenant_id", tenantId); else convQ = convQ.is("tenant_id", null);
+          const { data: conv } = await convQ.or(`remote_jid.eq.${rawRemoteJid},telefone.eq.${phone}`).maybeSingle();
+          if (conv?.id) {
+            const { data: candidate } = await admin.from("messages")
+              .select("id, status, wamid")
+              .eq("conversation_id", conv.id)
+              .eq("direction", "outbound")
+              .order("created_at", { ascending: false })
+              .limit(1).maybeSingle();
+            if (candidate) {
+              const curRank = statusRank[candidate.status ?? "sent"] ?? 1;
+              const newRank = statusRank[status] ?? 0;
+              if (newRank > curRank) {
+                const patch: any = { status };
+                if (!candidate.wamid && wamid) patch.wamid = wamid;
+                await admin.from("messages").update(patch).eq("id", candidate.id);
+              }
+              matchedId = candidate.id; matchedConvId = conv.id;
+            }
+          }
+        }
+
+        if (!matchedId) {
+          console.warn("[whatsapp-webhook] messages.update no-match", { wamid, rawRemoteJid, status, rawStatus });
+        } else if (status === "read" && matchedConvId) {
+          // When counterpart reads our messages we don't touch unread counter (that's inbound).
+          // But we do refresh conversation activity so the panel sorts correctly.
+          await admin.from("conversations")
+            .update({ ultima_interacao: new Date().toISOString() })
+            .eq("id", matchedConvId);
         }
       }
     }
