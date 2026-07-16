@@ -1,71 +1,69 @@
-# Auditoria WhatsApp — corrigir "mensagens enviadas pelo celular não aparecem"
+## Problema
 
-Confirmação recebida: **caso A** — mensagens enviadas pelo celular físico não chegam no painel; só as recebidas do cliente aparecem.
+As conversas marcadas como **"Contato não identificado"** têm `remote_jid = <id>@lid` — o novo identificador opaco (LID) do WhatsApp multi‑dispositivo. Quando o Evolution entrega um evento com esse formato, criamos uma conversa nova em vez de mesclar na canônica do contato (ex.: a do Dheimy). Isso não é específico do donna‑face: **acontece em todo tenant** que usa Evolution/Baileys — hoje há 12 conversas presas no donna‑face e 2 no escopo global do Master.
 
-## Causas prováveis (identificadas na leitura do código)
+O `whatsapp-lid-reconcile` atual só cruza por telefone/JID canônico; sem o telefone real, ele desiste e marca `needs_lid_review=true`.
 
-Em ordem de probabilidade, com base em `supabase/functions/whatsapp-webhook/index.ts` e `_shared/evolution-webhook.ts`:
+## Solução em 3 camadas
 
-1. **Evento `SEND_MESSAGE` / `MESSAGES_UPSERT` não assinado na Evolution.** Se a instância foi criada antes do último ajuste em `EVOLUTION_EVENTS` ou o admin desligou, o Baileys captura o `fromMe=true` mas não posta no webhook.
-2. **`webhookByEvents=true`** na instância. A Evolution passa a postar em rotas separadas (`/whatsapp-webhook/send-message`), que o handler não reconhece. Nosso `configureWebhook` sempre envia `false`, mas instâncias legadas ficaram com `true`.
-3. **Outbound para NOVO contato dropa em `isPendingLid && fromMe`.** Regra em `index.ts:969-980`: se o outbound chega como `@lid` sem alias e não existe conversa prévia, é descartado com `outbound_unresolved_lid_dropped_no_conv`. É exatamente o cenário "mandei do celular pra um lead novo" — o inbound ainda não existiu, então o outbound some.
-4. **`ownJids` mal detectado.** Se o `ownerJid` capturado inclui por engano o JID do destinatário (bug conhecido em envelopes aninhados da Evolution), `rawIsOwn=true` → dropa em `no_jid_dropped`.
-5. **`?secret=` do webhook divergente do DB** ou `?tenant=` errado após a separação master/tenant que fizemos hoje → mensagem é rejeitada com 401.
-6. **Instância desconectada** (state ≠ `open`) durante o horário em que a mensagem foi enviada.
+### 1. Extrair o telefone real do payload (webhook — prevenção)
 
-## O que vou entregar
+No `supabase/functions/whatsapp-webhook/index.ts` (e no helper `_shared/evolution-webhook.ts`), quando o `remoteJid` chegar como `@lid`, tentar resolver o telefone real ANTES de criar/atualizar a conversa, procurando nesta ordem:
 
-### 1. Correção definitiva no webhook (`supabase/functions/whatsapp-webhook/index.ts`)
-- **Remover o drop cego para outbound `@lid` sem conversa prévia**. Passo a criar a conversa provisória mesmo quando `isPendingLid && fromMe`, marcando `needs_lid_review=true` e `lid_review_notes="outbound sem inbound prévio — resolver por CONTACTS_UPDATE"`. Assim a mensagem sempre aparece no painel; o merge posterior por `pushName`/`CONTACTS_UPDATE` reconcilia a conversa quando o número real for revelado.
-- **Log estruturado**: acrescentar `console.log("[wa-out]", { event, fromMe, rawRemoteJid, ownJids, wamid })` no início do laço de `messages.upsert` para diagnóstico direto via `edge_function_logs`.
-- **Fallback de resolução de JID**: quando `fromMe=true` e o único candidato standard é próprio JID, tentar o `participantAlt` / `senderPn` como recipient antes de dropar.
+- `key.senderPn` / `key.participantPn` (Baileys ≥ 6.7)
+- `message.contextInfo.participantPn`
+- `participant` quando terminar em `@s.whatsapp.net`
+- payloads de `contacts.upsert` / `contacts.update` correlatos (JID → phone map em memória por instância)
+- consulta ao alias já existente em `whatsapp_jid_aliases` (`lid_jid = <id>@lid`)
 
-### 2. Edge function `whatsapp-audit` (nova)
-Endpoint `POST` com `{ tenant_id | "master" }` que retorna JSON com checklist:
+Se resolver:
 
-- Conexão Evolution: URL, `instance_name`, `state` via `/instance/connect`.
-- Webhook: URL registrada bate com a esperada, `?secret=` bate com `zapi_connections.webhook_secret`, `?tenant=` bate com o tenant.
-- Eventos assinados vs. `REQUIRED_EVENTS` (`MESSAGES_UPSERT`, `MESSAGES_SET`, `SEND_MESSAGE`). Lista os que faltam.
-- Flag `webhookByEvents` (deve ser `false`).
-- Settings da instância: `syncFullHistory`, `readMessages`, `alwaysOnline`, `readStatus`.
-- OwnerJid da instância vs. `tenant_whatsapp_numbers` verificados do tenant.
-- Tráfego 7d: `count(*)` inbound, outbound-via-painel (`sender=usuario AND metadata.raw_key.fromMe=true AND wamid NULL no momento do insert`), outbound-de-outro-device (`sender=usuario AND metadata.raw_key.fromMe=true`). Se o número de outbound-de-outro-device for 0 apesar de o cliente ter enviado do celular, a auditoria já aponta isso como sintoma-A.
-- Últimas 20 mensagens com `direction`, `status`, `wamid`, `sender` para inspeção.
-- Cloud API (quando ativa): `waba_id`, `phone_number_id`, `webhook_subscribed`, tokens.
+- Persistir o alias em `whatsapp_jid_aliases` (upsert).
+- Usar o JID canônico `<phone>@s.whatsapp.net` para achar/criar a `conversations` (mesma lógica atual do path por telefone).
+- Nunca criar a conversa `@lid`.
 
-Cada item devolve `{ok, hint, fix_action?}` onde `fix_action` é uma das ações da tela.
+Se não resolver: manter o comportamento atual (cria @lid + `needs_lid_review=true`), mas com um segundo aliado (item 2).
 
-### 3. Tela `Auditoria WhatsApp`
-- Rota `/admin/whatsapp-audit` (Master) + botão "Auditar" dentro do card do tenant em `TenantWhatsAppNumbersCard`.
-- Renderiza o JSON como checklist verde/amarelo/vermelho.
-- Ações one-click:
-  - **Reassinar webhook** → chama `evolution-resubscribe` já existente (garante lista `EVOLUTION_EVENTS` + `webhookByEvents=false`).
-  - **Aplicar settings recomendados** → chama endpoint da Evolution `settings/set` com `syncFullHistory:true, readMessages:true, alwaysOnline:true, readStatus:true`.
-  - **Enviar mensagem de teste do celular** — instrução visual pedindo pro operador mandar uma mensagem do celular físico agora e clicar "Recarregar auditoria" 15s depois; o painel confirma se o `SEND_MESSAGE` chegou.
+### 2. Job de reconciliação enriquecido (retroativo)
 
-### 4. Documento `docs/WHATSAPP_AUDIT.md`
-Explicação end-to-end em português:
-1. Como o WhatsApp funciona no sistema (Evolution vs. Cloud API, quem grava no banco).
-2. Fluxo de uma mensagem **recebida** (device do cliente → Baileys → webhook → `conversations` + `messages` → realtime → UI).
-3. Fluxo de uma mensagem **enviada pelo painel** (UI → `evolution-send` → API Evolution → webhook devolve `SEND_MESSAGE` → reconciliação por wamid).
-4. Fluxo de uma mensagem **enviada por outro dispositivo** (device → Baileys emite `SEND_MESSAGE`/`MESSAGES_UPSERT fromMe=true` → webhook grava `sender=usuario, direction=outbound`).
-5. Isolamento por tenant via `?tenant=<slug>&secret=<...>` (a correção master/tenant que fizemos hoje).
-6. ACKs `MESSAGES_UPDATE` e por que ✓✓ azul às vezes trava.
-7. `@lid` vs. JID canônico, regras de merge.
-8. **Troubleshooting**: cada uma das 6 causas prováveis acima, com sinal claro e comando de fix.
+Atualizar `supabase/functions/whatsapp-lid-reconcile/index.ts` para tentar resolver LIDs pendentes usando:
 
-## Detalhes técnicos
+- Alias já registrado (`whatsapp_jid_aliases`) — resolução barata.
+- **Correlação por conteúdo/tempo**: para cada conversa `@lid` com mensagens recentes, procurar em outras conversas do mesmo tenant, na mesma janela de ±2 min, uma mensagem com o mesmo `wamid` (chega em dois eventos com JIDs diferentes) ou mesmo texto/mídia. Score idêntico ao do `whatsapp-wamid-reconcile`. Se casar acima de um threshold, mesclar automaticamente (reaproveita `mergeInto` do `whatsapp-lid-merge`).
+- **Correlação por `pushName**`: se a `@lid` tem `nome_contato` e existe uma única conversa canônica no tenant com `nome_contato` igual/parecido (trigram > 0.8), mesclar.
 
-Arquivos alterados/criados:
+Rodar o job periodicamente (via `automation-scheduler` a cada 10 min) e também sob demanda no botão da página de Auditoria.
 
-```text
-docs/WHATSAPP_AUDIT.md                                (novo)
-supabase/functions/whatsapp-audit/index.ts            (novo)
-src/pages/admin/WhatsAppAuditPage.tsx                 (novo)
-src/components/tenant/TenantWhatsAppNumbersCard.tsx   (botão "Auditar")
-src/App.tsx                                           (rota nova)
-src/components/admin/AppSidebar.tsx                   (item "Auditoria WhatsApp")
-supabase/functions/whatsapp-webhook/index.ts          (2 correções descritas)
-```
+### 3. UI do WhatsApp — mesclar em 1 clique
 
-Sem migrations. Sem alteração de RLS. A edge function `whatsapp-audit` usa apenas leituras (`conversations`, `messages`, `zapi_connections`, `tenant_whatsapp_numbers`, `whatsapp_connections`) + chamadas HTTP à Evolution.
+Na página `src/pages/admin/WhatsAppChat.tsx`, no header da conversa com bandeira **"Possível mistura de mensagens"**, adicionar botão **"Mesclar com…"** que abre um seletor buscando conversas canônicas do tenant (por nome/telefone). Ao confirmar, chama `whatsapp-lid-merge` com `target_conversation_id`. Hoje isso já existe via `LidReviewDialog`, mas está pouco visível — vamos deixar a ação sempre acessível no header quando `needs_lid_review=true`.
+
+Adicionar também na `WhatsAppAuditPage` um card **"Conversas @lid pendentes"** listando todas com contagem por tenant e botão para rodar o reconcile em massa (dry‑run + aplicar).
+
+## Escopo e arquivos
+
+**Edge Functions:**
+
+- `supabase/functions/whatsapp-webhook/index.ts` — extrair phone do payload, gravar alias, rotear pré‑insert.
+- `supabase/functions/_shared/evolution-webhook.ts` — helper `resolveLidToPhone(payload, admin, tenantId)`.
+- `supabase/functions/whatsapp-lid-reconcile/index.ts` — estratégias por alias, wamid, conteúdo e nome.
+- `supabase/functions/automation-scheduler/index.ts` — cron a cada 10 min chamando o reconcile.
+
+**Frontend:**
+
+- `src/pages/admin/WhatsAppChat.tsx` — botão "Mesclar com…" no header LID.
+- `src/pages/admin/WhatsAppAuditPage.tsx` — card LID pendentes + ações em massa.
+- `src/components/admin/whatsapp/LidReviewDialog.tsx` — reuso do seletor.
+
+**Sem migrations novas** — `whatsapp_jid_aliases` já existe.
+
+## Verificação
+
+- Rodar reconcile em dry‑run e conferir quantas das 14 conversas @lid atuais casam.
+- Enviar uma mensagem do celular físico para um contato e confirmar que a mensagem cai na conversa canônica (sem criar `@lid`).
+- Recarregar `/app/donna-face/whatsapp` e ver que o "Contato não identificado ·1553" foi mesclado no Dheimy.
+
+## Pergunta rápida antes de eu implementar
+
+Quer que eu já **execute o reconcile agora** (após aplicar as melhorias) para limpar as 14 conversas presas, ou prefere revisar cada mesclagem manualmente pela nova UI de "Mesclar com…"?  
+  
