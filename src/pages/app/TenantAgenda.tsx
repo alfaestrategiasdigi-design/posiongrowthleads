@@ -61,6 +61,22 @@ export default function TenantAgenda() {
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [tenant?.id]);
 
+  // Realtime: reflect appointment + lead changes instantly
+  useEffect(() => {
+    if (!tenant?.id) return;
+    const ch = supabase
+      .channel(`agenda_sync_${tenant.id}`)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "appointments", filter: `tenant_id=eq.${tenant.id}` },
+        () => load())
+      .on("postgres_changes",
+        { event: "UPDATE", schema: "public", table: "leads", filter: `tenant_id=eq.${tenant.id}` },
+        () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+    // eslint-disable-next-line
+  }, [tenant?.id]);
+
   const byDay = useMemo(() => {
     const m = new Map<string, Appointment[]>();
     for (const a of appts) {
