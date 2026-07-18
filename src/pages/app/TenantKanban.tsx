@@ -59,11 +59,16 @@ export default function TenantKanban() {
   useEffect(() => {
     if (!tenant?.id) return;
     const ch = supabase
-      .channel(`kanban_leads_${tenant.id}`)
+      .channel(`kanban_sync_${tenant.id}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "leads", filter: `tenant_id=eq.${tenant.id}` },
         () => loadLeads()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "appointments", filter: `tenant_id=eq.${tenant.id}` },
+        () => { loadNextAppointments(); loadLeads(); }
       )
       .subscribe();
     return () => { supabase.removeChannel(ch); };
