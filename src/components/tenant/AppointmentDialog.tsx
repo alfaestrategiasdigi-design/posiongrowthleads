@@ -162,12 +162,18 @@ export default function AppointmentDialog({
   const clearLead = () => setF((p) => ({ ...p, lead_id: null, lead_label: "" }));
 
   async function submit() {
+    // VALIDATION: Require lead linkage (tenant mode requires lead_id)
+    if (!f.lead_id) {
+      toast.error("⚠️ Vincule um lead antes de criar o agendamento");
+      return;
+    }
+
     if (!tenantId || !f.client_name.trim()) { toast.error("Paciente é obrigatório"); return; }
     setSaving(true);
     const dt = new Date(`${f.date}T${f.time}:00`).toISOString();
     const payload = {
       tenant_id: tenantId,
-      lead_id: f.lead_id,
+      lead_id: f.lead_id, // REQUIRED for tenant flow
       client_name: f.client_name.trim(),
       client_phone: f.client_phone || "",
       date_time: dt,
@@ -218,6 +224,9 @@ export default function AppointmentDialog({
     onOpenChange(false);
   }
 
+  // Disable save button if no lead is linked
+  const canSave = !!f.lead_id && f.client_name.trim();
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -235,7 +244,9 @@ export default function AppointmentDialog({
             <div className="grid grid-cols-2 gap-3">
               {/* Lead link */}
               <div className="col-span-2">
-                <Label className="flex items-center gap-1.5"><Link2 className="w-3.5 h-3.5" /> Lead vinculado</Label>
+                <Label className="flex items-center gap-1.5">
+                  <Link2 className="w-3.5 h-3.5" /> Lead vinculado {!f.lead_id && <span className="text-destructive text-xs">(obrigatório)</span>}
+                </Label>
                 {f.lead_id ? (
                   <div className="flex items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2">
                     <div className="text-sm truncate">{f.lead_label || "Lead"}</div>
@@ -351,7 +362,11 @@ export default function AppointmentDialog({
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-              <Button onClick={submit} disabled={saving || loading}>
+              <Button 
+                onClick={submit} 
+                disabled={saving || loading || !canSave}
+                title={!canSave ? "Vincule um lead para continuar" : ""}
+              >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (isEdit ? "Salvar alterações" : "Criar")}
               </Button>
             </div>
