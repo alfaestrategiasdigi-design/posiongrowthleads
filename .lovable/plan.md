@@ -1,65 +1,83 @@
-# Objetivo
 
-Eliminar totalmente a UI de "Mesclar com contato…" / "Revisão de conversas @lid" e resolver o mapeamento `@lid → telefone real` de forma **100% automática**, sem depender de nome do lead ou revisão humana.
+## Objetivo
+Fazer com que **Agenda, Kanban e Leads** operem como uma coisa só dentro de cada tenant:
+- Toda ação numa dessas telas reflete automaticamente nas outras.
+- Leads são reaproveitados por telefone (ou nome, quando telefone não bate) — nunca duplicados.
+- Se criar um agendamento sem lead, o lead nasce junto. Se mover no Kanban, a data/etapa da agenda acompanha.
+- Corrigir cards do dashboard do tenant que estão com texto cortado / mal dimensionados.
 
-## Diagnóstico
+Escopo: **apenas o app do tenant** (rotas `/app/:slug/*`). Não muda master.
 
-Hoje, quando o WhatsApp entrega uma mensagem com `remoteJid=<id>@lid` e o payload **não** traz `senderPn`/`participantPn` no mesmo `key` (típico de campanhas em massa e broadcasts), o webhook cria uma conversa provisória `@lid` e marca `needs_lid_review=true`. A reconciliação por `pushName` foi propositalmente desabilitada (causou merges errados em 2026-07-05), então essas conversas ficam órfãs até alguém clicar "Mesclar com contato…". O usuário não quer mais esse fluxo manual.
+---
 
-A Evolution API (v2) já mantém internamente o mapeamento LID↔phone via `contacts.upsert` do Baileys. Podemos **consultar ativamente** esse cache em vez de esperar o evento chegar no webhook.
+## 1. Sincronização Agenda → Kanban (server-side, via trigger)
 
-## Solução
+Hoje existe `trg_link_appointment_to_lead` que só preenche `lead_id` por telefone. Vou:
 
-### 1. Resolver `@lid` via Evolution API (fonte autoritativa)
+**1.1. Estender esse trigger** para também casar por **nome normalizado** quando o telefone não encontra nada (ilike do primeiro+último nome dentro do tenant, mesma janela). Só faz match se resultado for único — evita colar em pessoa errada.
 
-Enriquecer `supabase/functions/whatsapp-lid-reconcile/index.ts` com uma nova etapa **antes** das heurísticas existentes:
+**1.2. Criar `lead` automaticamente se ainda assim não achar** (só quando `NEW.tenant_id` não é null): insere `leads(tenant_id, nome_completo=client_name, whatsapp=client_phone, origem='agenda', status='reuniao_agendada')` e amarra `NEW.lead_id`. Assim "lead criado dentro da agenda também vira lead no Kanban" — exatamente o pedido.
 
-- Para cada `whatsapp_connections` ativa (com `instance_url` + `api_key` + `instance_name`), chamar:
-  - `GET {instance_url}/chat/findContacts/{instance}` — retorna a lista completa de contatos que o Baileys já viu, incluindo campos `id` (JID canônico `<phone>@s.whatsapp.net`), `lid` (`<n>@lid`) e `pushName`.
-- Percorrer o resultado e, para cada par `(lid, phone)` presente no **mesmo objeto de contato**, gravar em `whatsapp_jid_aliases` via `upsertJidAlias(..., source="evolution_contacts_api")` — mesma rota segura já usada para eventos `contacts.upsert`.
-- Após popular aliases, executar `mergeProvisionalLidConversations(tenantId, lid, phone)` para cada par, dobrando as conversas `@lid` na conversa canônica automaticamente.
+**1.3. Novo trigger `trg_sync_lead_stage_from_appointment`** (AFTER INSERT/UPDATE OF status, date_time em appointments):
+- `agendado` / `reagendado` → se lead está em `lead|qualificado|agendar_reuniao`, promove para `reuniao_agendada` e grava `reuniao_agendada_em`.
+- `compareceu` (o "em consulta") → grava `reuniao_realizada_em` e, se etapa < `proposta`, move para `proposta`. Não regride ninguém que já está em `negociacao/ganho/ativo`.
+- `no_show` → grava evento em `lead_status_events` (sem mexer no status atual — a SDR decide se perde).
+- `cancelado` → limpa `reuniao_agendada_em` só se não houver outro appointment futuro do mesmo lead.
 
-Esse passo elimina a necessidade de correlação por `pushName` ou por nome do lead — usamos apenas o pareamento autoritativo que a própria WhatsApp Web entrega ao Baileys.
+Idempotente: só age quando `OLD IS DISTINCT FROM NEW` no campo relevante.
 
-### 2. Fallback: descartar conversas `@lid` órfãs sem ruído
+## 2. Sincronização Kanban → Agenda (client-side, `KanbanBoard.tsx`)
 
-Se, depois da consulta à Evolution API + heurística de `wamid`, a conversa `@lid` continuar sem candidato canônico **e** não tiver recebido nenhuma mensagem nas últimas 48 h, marcar automaticamente `arquivada=true` e limpar `needs_lid_review`. Elas somem da UI sem exigir ação — sem banner, sem diálogo. Se voltarem a receber mensagem, a reconciliação roda de novo.
+No `handleDrop`, ao mover para `reuniao_agendada`:
+- Verificar se já existe appointment futuro (`date_time >= now`, status ∉ cancelado/no_show) para o lead.
+- Se **não existir**, abrir modal rápido para escolher data/hora (reaproveita `AppointmentDialog` com `prefillLead`) — sem isso a etapa fica inconsistente. Usuário confirma ou cancela a movimentação.
 
-### 3. Agendamento automático
+Ao mover para `perdido` ou `cancelado`: perguntar se deseja cancelar appointments futuros daquele lead (chamada em lote, opcional).
 
-Adicionar `whatsapp-lid-reconcile` ao `automation-scheduler` (executar a cada 15 min, além de já rodar sob demanda depois de webhooks). Como agora ela chama a Evolution API, cada rodada aproveita o cache mais recente do Baileys sem precisar de eventos vindo do WhatsApp.
+## 3. Deduplicação/vinculação no `AppointmentDialog`
 
-### 4. Remover toda a UI de revisão manual
+- Ao digitar telefone no campo, **auto-buscar lead do tenant por telefone normalizado** (debounced 400ms) e sugerir vincular ("Encontramos João Silva com este número — vincular?"). Se aceitar, preenche `lead_id`.
+- Fallback por nome: se telefone não bate e nome informado bate exato com um único lead do tenant → sugerir vinculação.
+- Se usuário salvar sem lead vinculado e o trigger criar um lead novo, mostrar toast "Lead criado automaticamente" (usando `RETURNING` via re-select do appointment após insert).
 
-Editar `src/pages/admin/WhatsAppChat.tsx`:
-- Remover `import { LidReviewDialog }`, `lidReviewOpen`, `lidPendingCount`, o botão "Revisão @lid" no header e o componente `<LidReviewDialog>` no fim do arquivo.
-- Remover o banner amarelo "Possível mistura de mensagens de outro contato" e o botão "Mesclar com contato…" (linhas ~1169-1186).
-- Manter apenas o selo "NÃO IDENTIFICADO" (para as raras conversas que ainda estejam `@lid` no intervalo entre webhook e reconciliação); ele desaparece sozinho assim que o job resolve.
+## 4. Criar lead a partir da Agenda (fluxo explícito)
 
-Editar `src/pages/admin/WhatsAppAuditPage.tsx`:
-- Remover o card "Conversas @lid pendentes" e qualquer chamada explícita ao reconcile.
+Adicionar no `AppointmentDialog`, quando não há `lead_id` selecionado, um botão secundário **"Criar como novo lead"** que força o comportamento (mesmo se houver match parcial suspeito).
 
-Excluir `src/components/admin/whatsapp/LidReviewDialog.tsx` (arquivo inteiro) — deixa de ser referenciado.
+## 5. Correção visual dos cards do Dashboard do tenant
 
-## Detalhes técnicos
+Arquivo: `src/pages/app/TenantDashboard.tsx`.
 
-- **Endpoint Evolution**: `GET /chat/findContacts/{instance}` com header `apikey: <api_key>` retorna JSON `[{ id, lid, pushName, ... }]`. Já usamos o mesmo padrão de autenticação em `fetchInstanceOwnJids` (linha 290 de `whatsapp-webhook/index.ts`).
-- **Segurança do alias**: continuamos usando `upsertJidAlias`, que exige `lidJid` e `phoneJid` presentes no **mesmo objeto** — reforça a proteção contra o bug de 2026-07-05.
-- **Idempotência**: `whatsapp_jid_aliases` já tem `unique(tenant_scope, lid_jid)`, então re-execuções não duplicam.
-- **Tabelas afetadas**: nenhuma migração necessária. Só usamos colunas existentes (`needs_lid_review`, `arquivada`, `whatsapp_jid_aliases`).
-- **Compatibilidade**: o webhook continua criando conversas `@lid` quando o pareamento não vem no `key` — a diferença é que agora elas são resolvidas pelo job dentro de ≤15 min sem intervenção humana.
+Problemas observados nos `KpiCard` / `KpiPremium`:
+- `whiteSpace: nowrap` + `overflow: hidden` + `textOverflow: ellipsis` corta valores longos (ex.: `R$ 1.245.000`) em cards estreitos no grid responsivo.
+- Label em `uppercase` com `letter-spacing: 0.18em` estoura em telas médias.
 
-## Passos de implementação
+Ajustes (apenas apresentação):
+- `KpiPremium`: trocar a lógica de `fontSize` fixa por `clamp()` responsivo, permitir quebra em 2 linhas no `value` para números muito longos, e adicionar `min-width: 0` no wrapper do grid.
+- `KpiCard` (legacy): idem — remover `whiteSpace: nowrap` do valor, aplicar `text-2xl md:text-3xl` e `break-words` no label.
+- Ajustar o grid pai dos KPIs para `grid-cols-1 sm:grid-cols-2 xl:grid-cols-4` (ou `auto-fit,minmax(220px,1fr)`) evitando 5+ cards espremidos.
+- Revisar os `Card` de "Atingimento de Metas" / "Evolução Trimestral" para `md:grid-cols-3` → `sm:grid-cols-2 lg:grid-cols-3` com `gap-3` menor.
 
-1. `supabase/functions/whatsapp-lid-reconcile/index.ts`
-   - Adicionar `resolveViaEvolutionApi(admin)` que itera `whatsapp_connections` ativas, chama `/chat/findContacts/{instance}`, salva aliases e dobra conversas.
-   - Adicionar `archiveStaleLidConversations(admin)` que arquiva `@lid` sem atividade há 48 h.
-   - Executar essas duas etapas **antes** do bloco atual de correlação por `wamid`/`pushName`; remover o branch de `pushName` (agora obsoleto).
-2. `supabase/functions/automation-scheduler/index.ts` (verificar caminho exato) — enfileirar `whatsapp-lid-reconcile` a cada 15 min.
-3. Remover UI: `WhatsAppChat.tsx`, `WhatsAppAuditPage.tsx`, deletar `LidReviewDialog.tsx`.
-4. Rodar o reconcile uma vez manualmente após deploy para limpar as 11 conversas pendentes atuais.
+## 6. Testes / verificação
+- SQL: rodar migration em ambiente e verificar cadeia:
+  1. Criar appointment com telefone existente → `lead_id` preenchido e status do lead promovido para `reuniao_agendada`.
+  2. Criar appointment com telefone novo → lead novo criado, aparece no Kanban.
+  3. Marcar como `compareceu` → lead vai para `proposta` e grava `reuniao_realizada_em`.
+- UI: mover card do Kanban para `reuniao_agendada` sem appointment → modal abre; após salvar, aparece na Agenda com o horário escolhido.
+- Dashboard: abrir Instituto Roar em 1280px e 1440px, confirmar que valores como `R$ 1.245.000` e labels longos não são mais cortados.
 
-## Fora do escopo
+---
 
-- Não vamos mexer no fluxo do webhook: ele continua criando aliases quando o payload traz par `@lid`+phone no mesmo `key`/`contacts.*`.
-- Não vamos matar conversas `@lid` que **ainda estão ativas** (mensagem recente) — só arquivamos as verdadeiramente órfãs.
+## Arquivos afetados
+
+**Migration SQL nova**
+- `supabase/migrations/<timestamp>_agenda_kanban_sync.sql`
+  - Reescreve `trg_link_appointment_to_lead` (match por telefone + nome + criação de lead).
+  - Cria função e trigger `trg_sync_lead_stage_from_appointment`.
+
+**Frontend**
+- `src/components/tenant/AppointmentDialog.tsx` — sugestão de match ao digitar telefone/nome, botão "Criar como novo lead", refresh do lead após save.
+- `src/components/admin/KanbanBoard.tsx` — ao drop em `reuniao_agendada` sem appointment futuro, abrir `AppointmentDialog` com `prefillLead`; ao drop em `perdido/cancelado`, opção de cancelar appointments futuros.
+- `src/pages/app/TenantDashboard.tsx` — ajustes visuais em `KpiCard`, `KpiPremium` e grid dos KPIs.
+
+Nada de business logic fora desses pontos; sem mudanças no master, no WhatsApp ou nas automações existentes (o trigger de automações continua reagindo aos INSERTs de leads gerados pela agenda, então já vai disparar o fluxo `lead_entered` normalmente — o guard de 10 min impede reentrada).

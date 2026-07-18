@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import KanbanColumn from "./KanbanColumn";
 import LeadCard from "./LeadCard";
 import LeadDetailModal from "./LeadDetailModal";
+import AppointmentDialog from "@/components/tenant/AppointmentDialog";
 import { CLIENT_PIPELINE_STAGES } from "@/types/admin";
 import type { Lead } from "@/types/admin";
 import {
@@ -31,6 +32,7 @@ interface KanbanBoardProps {
 const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoardProps) => {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
+  const [scheduleFor, setScheduleFor] = useState<Lead | null>(null);
 
   const handleDragStart = (e: React.DragEvent, leadId: string) => {
     setDraggedLeadId(leadId);
@@ -78,6 +80,20 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoar
       }
 
       onLeadsChange();
+
+      // Se moveu para "Consulta Agendada" e não existe appointment futuro, abrir dialog
+      if (newStatus === "reuniao_agendada" && lead.tenant_id) {
+        const { data: future } = await supabase
+          .from("appointments")
+          .select("id")
+          .eq("lead_id", lead.id)
+          .gte("date_time", new Date().toISOString())
+          .not("status", "in", "(cancelado,no_show)")
+          .limit(1);
+        if (!future || future.length === 0) {
+          setScheduleFor(lead);
+        }
+      }
     } catch (error) {
       console.error("Erro ao atualizar status:", error);
       toast.error("Erro ao mover lead");
@@ -133,6 +149,16 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoar
         onClose={() => setSelectedLead(null)}
         onUpdated={() => { onLeadsChange(); setSelectedLead(null); }}
       />
+
+      {scheduleFor && scheduleFor.tenant_id && (
+        <AppointmentDialog
+          open={!!scheduleFor}
+          onOpenChange={(v) => { if (!v) setScheduleFor(null); }}
+          tenantId={scheduleFor.tenant_id}
+          prefillLead={{ id: scheduleFor.id, name: scheduleFor.nome_completo, phone: scheduleFor.whatsapp }}
+          onSaved={() => { setScheduleFor(null); onLeadsChange(); }}
+        />
+      )}
     </>
   );
 };

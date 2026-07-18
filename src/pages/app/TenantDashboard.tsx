@@ -1268,14 +1268,14 @@ export default function TenantDashboard() {
 
 function KpiCard({ icon: Icon, label, value, delta, accent, sub }: any) {
   return (
-    <div className={`card-luxe ${accent ? "card-luxe-accent" : ""} p-5 group`}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/80 font-medium">{label}</div>
-        <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
+    <div className={`card-luxe ${accent ? "card-luxe-accent" : ""} p-5 group min-w-0`}>
+      <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
+        <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground/80 font-medium break-words flex-1 min-w-0">{label}</div>
+        <div className="w-8 h-8 shrink-0 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
           <Icon className="w-4 h-4 text-primary" />
         </div>
       </div>
-      <div className="font-display text-3xl num leading-none">{value}</div>
+      <div className="font-display num leading-tight break-words" style={{ fontSize: "clamp(20px, 3vw, 28px)" }}>{value}</div>
       {typeof delta === "number" && (
         <div className={`text-xs mt-3 flex items-center gap-1 num ${delta >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
           {delta >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
@@ -1290,23 +1290,21 @@ function KpiCard({ icon: Icon, label, value, delta, accent, sub }: any) {
 function KpiPremium({ icon: Icon, label, value, delta, loading, sub, prevLabel, spark }: { icon: any; label: string; value: string | null; delta?: number; loading?: boolean; sub?: string; prevLabel?: string; spark?: { v: number }[] }) {
   const showSkeleton = loading || value === null;
   const positive = (delta ?? 0) >= 0;
-  // Auto-shrink: números longos (ex: "R$ 1.245.000") nunca estouram o card
   const len = (value ?? "").length;
-  const fontSize = len <= 8 ? 30 : len <= 12 ? 24 : len <= 16 ? 20 : 17;
+  // Responsive size using clamp; permite quebrar em duas linhas quando muito longo
+  const fontSize = `clamp(${len > 14 ? 15 : 18}px, ${len > 14 ? 2.4 : 3}vw, ${len <= 8 ? 30 : len <= 12 ? 26 : 22}px)`;
 
   return (
     <div
       data-no-float
       className="premium-card relative p-5 group transition-all overflow-hidden min-w-0 rounded-2xl h-full flex flex-col"
     >
-      {/* Top accent line */}
       <div className="absolute inset-x-0 top-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(212,175,55,0.5), transparent)" }} />
-      {/* Soft glow blob */}
       <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-30 pointer-events-none"
         style={{ background: "radial-gradient(circle, rgba(212,175,55,0.25) 0%, transparent 70%)" }} />
 
-      <div className="flex items-start justify-between mb-4 relative">
-        <div style={{ fontFamily: "Inter, sans-serif", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "#94A3B8" }}>
+      <div className="flex items-start justify-between gap-2 mb-4 relative min-w-0">
+        <div className="min-w-0 flex-1" style={{ fontFamily: "Inter, sans-serif", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "#94A3B8", lineHeight: 1.3 }}>
           {label}
         </div>
         <div className="flex items-center justify-center shrink-0"
@@ -1319,18 +1317,15 @@ function KpiPremium({ icon: Icon, label, value, delta, loading, sub, prevLabel, 
         <div className="kpi-skeleton" style={{ height: 32, width: "70%", borderRadius: 6 }} />
       ) : (
         <div
-          className="num tabular-nums relative"
+          className="num tabular-nums relative min-w-0 break-words"
           title={value ?? undefined}
           style={{
             fontFamily: "Syne, sans-serif",
             fontSize,
             fontWeight: 700,
             color: "#FFFFFF",
-            letterSpacing: "-0.025em",
-            lineHeight: 1.08,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
+            letterSpacing: "-0.02em",
+            lineHeight: 1.1,
           }}
         >
           {value}
