@@ -281,6 +281,15 @@ export default function AppointmentDialog({
               </div>
               <div className="col-span-2"><Label>Telefone</Label>
                 <Input value={f.client_phone} onChange={(e) => setF({ ...f, client_phone: e.target.value })} placeholder="(11) 99999-9999" />
+                {phoneMatch && !f.lead_id && (
+                  <button
+                    type="button"
+                    onClick={() => pickLead(phoneMatch)}
+                    className="mt-1 text-[11px] text-primary hover:underline flex items-center gap-1"
+                  >
+                    <Link2 className="w-3 h-3" /> Vincular a lead existente: {phoneMatch.nome_completo}
+                  </button>
+                )}
               </div>
 
               <div>
