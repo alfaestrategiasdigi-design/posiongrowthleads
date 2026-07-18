@@ -32,6 +32,7 @@ interface KanbanBoardProps {
 const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoardProps) => {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
+  const [scheduleFor, setScheduleFor] = useState<Lead | null>(null);
 
   const handleDragStart = (e: React.DragEvent, leadId: string) => {
     setDraggedLeadId(leadId);
