@@ -127,6 +127,24 @@ export default function AppointmentDialog({
     return () => clearTimeout(t);
   }, [leadQuery, tenantId]);
 
+  // Auto-suggest: match by phone typed in "Telefone" field when no lead is linked
+  const [phoneMatch, setPhoneMatch] = useState<LeadHit | null>(null);
+  useEffect(() => {
+    if (f.lead_id) { setPhoneMatch(null); return; }
+    const digits = (f.client_phone || "").replace(/\D/g, "");
+    if (digits.length < 8) { setPhoneMatch(null); return; }
+    const t = setTimeout(async () => {
+      const { data } = await supabase
+        .from("leads")
+        .select("id, nome_completo, whatsapp")
+        .eq("tenant_id", tenantId)
+        .ilike("whatsapp", `%${digits.slice(-8)}%`)
+        .limit(1);
+      setPhoneMatch((data && data[0]) ? (data[0] as LeadHit) : null);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [f.client_phone, f.lead_id, tenantId]);
+
   const types = config?.appointment_types || [];
   const team = config?.team_members || [];
 
