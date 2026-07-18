@@ -152,6 +152,12 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
   };
 
   const handleSave = async () => {
+    // VALIDATION: Require lead linkage (admin mode requires agency_lead_id)
+    if (!form.agency_lead_id) {
+      toast.error("⚠️ Vincule um lead antes de criar o agendamento");
+      return;
+    }
+
     if (!form.client_name.trim() || !form.client_phone.trim() || !form.date_time) {
       toast.error("Preencha cliente, telefone e data/hora");
       return;
@@ -159,7 +165,7 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
     setSaving(true);
     const payload = {
       lead_id: form.lead_id,
-      agency_lead_id: form.agency_lead_id,
+      agency_lead_id: form.agency_lead_id, // REQUIRED for admin flow
       tenant_id: null, // Agenda do Admin Master (POSION) — nunca associada a tenant
       client_name: form.client_name.trim(),
       client_phone: unmask(form.client_phone),
@@ -199,6 +205,9 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
     onClose();
   };
 
+  // Disable save button if no lead is linked
+  const canSave = !!form.agency_lead_id && form.client_name.trim() && form.client_phone.trim() && form.date_time;
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -218,7 +227,7 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
           )}
 
           <div className="md:col-span-2">
-            <Label>Cliente *</Label>
+            <Label>Cliente * {!form.agency_lead_id && <span className="text-destructive">(Vincule um lead)</span>}</Label>
             <Input
               placeholder="Nome do cliente"
               value={form.client_name}
@@ -241,7 +250,7 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
                       className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex justify-between items-center gap-2"
                     >
                       <span className="min-w-0 truncate">
-                        <span className={`inline-block text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded mr-2 ${l.source === "whatsapp" ? "bg-green-500/15 text-green-400" : "bg-primary/15 text-primary"}`}>
+                        <span className={`inline-block text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded mr-2 ${l.source === "whatsapp" ? "bg-green-500/15 text-green-400" : "bg-primary/15"}`}>
                           {l.source === "whatsapp" ? "WhatsApp" : "POSION"}
                         </span>
                         {l.responsavel || l.nome_clinica}
@@ -394,7 +403,12 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
             </Button>
           )}
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving} className="gap-2 bg-accent hover:bg-accent/90">
+          <Button 
+            onClick={handleSave} 
+            disabled={saving || !canSave}
+            className="gap-2 bg-accent hover:bg-accent/90"
+            title={!canSave ? "Vincule um lead para continuar" : ""}
+          >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {appointment ? "Salvar alterações" : "Criar agendamento"}
           </Button>
