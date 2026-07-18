@@ -80,6 +80,20 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoar
       }
 
       onLeadsChange();
+
+      // Se moveu para "Consulta Agendada" e não existe appointment futuro, abrir dialog
+      if (newStatus === "reuniao_agendada" && lead.tenant_id) {
+        const { data: future } = await supabase
+          .from("appointments")
+          .select("id")
+          .eq("lead_id", lead.id)
+          .gte("date_time", new Date().toISOString())
+          .not("status", "in", "(cancelado,no_show)")
+          .limit(1);
+        if (!future || future.length === 0) {
+          setScheduleFor(lead);
+        }
+      }
     } catch (error) {
       console.error("Erro ao atualizar status:", error);
       toast.error("Erro ao mover lead");
