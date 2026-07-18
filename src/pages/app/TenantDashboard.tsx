@@ -193,8 +193,14 @@ export default function TenantDashboard() {
     return { chart, rates };
   };
 
-  const funnelData = useMemo(() => computeFunnel(funnelRange.from, funnelRange.to), [leads, funnelRange]);
-  const funnelPrev = useMemo(() => computeFunnel(funnelPrevRange.from, funnelPrevRange.to), [leads, funnelPrevRange]);
+  const funnelData = useMemo(
+    () => computeFunnel(funnelRange.from, funnelRange.to),
+    [leads, appointments, funnelRange]
+  );
+  const funnelPrev = useMemo(
+    () => computeFunnel(funnelPrevRange.from, funnelPrevRange.to),
+    [leads, appointments, funnelPrevRange]
+  );
 
   const funnelChart = funnelData.chart;
   const funnelRates = funnelData.rates;
