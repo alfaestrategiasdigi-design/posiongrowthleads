@@ -1268,14 +1268,14 @@ export default function TenantDashboard() {
 
 function KpiCard({ icon: Icon, label, value, delta, accent, sub }: any) {
   return (
-    <div className={`card-luxe ${accent ? "card-luxe-accent" : ""} p-5 group`}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/80 font-medium">{label}</div>
-        <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
+    <div className={`card-luxe ${accent ? "card-luxe-accent" : ""} p-5 group min-w-0`}>
+      <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
+        <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground/80 font-medium break-words flex-1 min-w-0">{label}</div>
+        <div className="w-8 h-8 shrink-0 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
           <Icon className="w-4 h-4 text-primary" />
         </div>
       </div>
-      <div className="font-display text-3xl num leading-none">{value}</div>
+      <div className="font-display num leading-tight break-words" style={{ fontSize: "clamp(20px, 3vw, 28px)" }}>{value}</div>
       {typeof delta === "number" && (
         <div className={`text-xs mt-3 flex items-center gap-1 num ${delta >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
           {delta >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
