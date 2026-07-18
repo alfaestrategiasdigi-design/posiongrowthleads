@@ -149,6 +149,16 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoar
         onClose={() => setSelectedLead(null)}
         onUpdated={() => { onLeadsChange(); setSelectedLead(null); }}
       />
+
+      {scheduleFor && scheduleFor.tenant_id && (
+        <AppointmentDialog
+          open={!!scheduleFor}
+          onOpenChange={(v) => { if (!v) setScheduleFor(null); }}
+          tenantId={scheduleFor.tenant_id}
+          prefillLead={{ id: scheduleFor.id, name: scheduleFor.nome_completo, phone: scheduleFor.whatsapp }}
+          onSaved={() => { setScheduleFor(null); onLeadsChange(); }}
+        />
+      )}
     </>
   );
 };
