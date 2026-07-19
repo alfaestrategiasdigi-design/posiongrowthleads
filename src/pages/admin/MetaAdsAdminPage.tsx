@@ -515,10 +515,12 @@ export default function MetaAdsAdminPage() {
   const ensureRoutingRules = async (formEntries: { id: string; name?: string | null; page_id?: string | null; page_name?: string | null }[]) => {
     if (formEntries.length === 0) return 0;
     const ids = formEntries.map((f) => f.id);
+    // Deduplica considerando escopo admin-master, evitando reinserir regras já existentes
     const { data: existing } = await supabase
       .from("lead_routing_rules")
       .select("match_value")
       .eq("match_type", "form_id")
+      .eq("is_admin_master", true)
       .in("match_value", ids);
     const have = new Set((existing ?? []).map((r: any) => String(r.match_value)));
     const toInsert = formEntries

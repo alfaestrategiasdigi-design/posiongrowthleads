@@ -163,6 +163,11 @@ export default function AppointmentDialog({
 
   async function submit() {
     if (!tenantId || !f.client_name.trim()) { toast.error("Paciente é obrigatório"); return; }
+    // Guardrail: exigir vínculo com lead antes de salvar
+    if (!f.lead_id) {
+      toast.error("Vincule um lead antes de criar o agendamento");
+      return;
+    }
     setSaving(true);
     const dt = new Date(`${f.date}T${f.time}:00`).toISOString();
     const payload = {
@@ -351,7 +356,11 @@ export default function AppointmentDialog({
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-              <Button onClick={submit} disabled={saving || loading}>
+              <Button
+                onClick={submit}
+                disabled={saving || loading || (!isEdit && !f.lead_id)}
+                title={!isEdit && !f.lead_id ? "Vincule um lead antes de criar o agendamento" : undefined}
+              >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (isEdit ? "Salvar alterações" : "Criar")}
               </Button>
             </div>
