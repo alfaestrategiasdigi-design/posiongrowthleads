@@ -156,6 +156,11 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
       toast.error("Preencha cliente, telefone e data/hora");
       return;
     }
+    // Guardrail: exigir vínculo com lead (agency ou lead) antes de criar/salvar
+    if (!form.agency_lead_id && !form.lead_id) {
+      toast.error("Vincule um lead antes de criar o agendamento");
+      return;
+    }
     setSaving(true);
     const payload = {
       lead_id: form.lead_id,
@@ -394,7 +399,12 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
             </Button>
           )}
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving} className="gap-2 bg-accent hover:bg-accent/90">
+          <Button
+            onClick={handleSave}
+            disabled={saving || (!appointment && !form.agency_lead_id && !form.lead_id)}
+            className="gap-2 bg-accent hover:bg-accent/90"
+            title={!appointment && !form.agency_lead_id && !form.lead_id ? "Vincule um lead antes de criar o agendamento" : undefined}
+          >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {appointment ? "Salvar alterações" : "Criar agendamento"}
           </Button>

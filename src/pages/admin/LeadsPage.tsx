@@ -452,9 +452,18 @@ const LeadsPage = () => {
             className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer max-w-[220px]"
           >
             <option value="all">Todos formulários</option>
-            {availableForms.map(f => (
-              <option key={f.form_id} value={f.form_id}>{f.form_name || `Formulário ${f.form_id}`}</option>
-            ))}
+            {(() => {
+              // União de forms vistos em leads com forms admin-master cadastrados
+              // (garante que forms POSION apareçam mesmo sem leads importados).
+              const map = new Map<string, string>();
+              for (const f of availableForms) map.set(f.form_id, f.form_name || `Formulário ${f.form_id}`);
+              for (const m of masterForms) {
+                if (!map.has(m.form_id)) map.set(m.form_id, (m.label || `Formulário ${m.form_id}`) + " (sem leads ainda)");
+              }
+              return Array.from(map.entries()).map(([id, label]) => (
+                <option key={id} value={id}>{label}</option>
+              ));
+            })()}
           </select>
         </div>
         <Popover>

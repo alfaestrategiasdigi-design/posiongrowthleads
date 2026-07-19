@@ -722,31 +722,37 @@ async function runFlow(
       } else if (type === "appointment_create") {
         detail = "criar agendamento";
         if (!dryRun && tenantId) {
-          // Accept ISO, "+1d", "+2h", or fallback +24h
-          let when: string;
-          const dt = String(d.date_time || "").trim();
-          const rel = dt.match(/^\+\s*(\d+)\s*([hdm])$/i);
-          if (rel) {
-            const n = Number(rel[1]);
-            const unit = rel[2].toLowerCase();
-            const ms = n * (unit === "d" ? 86400000 : unit === "h" ? 3600000 : 60000);
-            when = new Date(Date.now() + ms).toISOString();
-          } else if (dt) {
-            const parsed = new Date(dt);
-            when = isNaN(parsed.getTime()) ? new Date(Date.now() + 86400000).toISOString() : parsed.toISOString();
+          // Guardrail: nunca criar agendamento sem lead vinculado
+          if (!ctx.lead_id) {
+            ok = false;
+            detail = "ignorado: missing_lead_id (agendamento requer lead vinculado)";
           } else {
-            when = new Date(Date.now() + 86400000).toISOString();
+            // Accept ISO, "+1d", "+2h", or fallback +24h
+            let when: string;
+            const dt = String(d.date_time || "").trim();
+            const rel = dt.match(/^\+\s*(\d+)\s*([hdm])$/i);
+            if (rel) {
+              const n = Number(rel[1]);
+              const unit = rel[2].toLowerCase();
+              const ms = n * (unit === "d" ? 86400000 : unit === "h" ? 3600000 : 60000);
+              when = new Date(Date.now() + ms).toISOString();
+            } else if (dt) {
+              const parsed = new Date(dt);
+              when = isNaN(parsed.getTime()) ? new Date(Date.now() + 86400000).toISOString() : parsed.toISOString();
+            } else {
+              when = new Date(Date.now() + 86400000).toISOString();
+            }
+            const { data: appt, error } = await admin.from("appointments").insert({
+              tenant_id: tenantId, lead_id: ctx.lead_id,
+              client_name: vars.lead.nome || "Paciente",
+              client_phone: vars.lead.whatsapp || "",
+              date_time: when, duration_minutes: Number(d.duration) || 60,
+              appointment_type: d.appointment_type || "consulta",
+              procedure: d.procedure || null, status: "agendado",
+            }).select("id").maybeSingle();
+            if (error) { ok = false; detail += ` (erro: ${error.message})`; }
+            else if (appt) { ctx.appointment_id = appt.id; detail += ` (${new Date(when).toLocaleString("pt-BR")})`; }
           }
-          const { data: appt, error } = await admin.from("appointments").insert({
-            tenant_id: tenantId, lead_id: ctx.lead_id ?? null,
-            client_name: vars.lead.nome || "Paciente",
-            client_phone: vars.lead.whatsapp || "",
-            date_time: when, duration_minutes: Number(d.duration) || 60,
-            appointment_type: d.appointment_type || "consulta",
-            procedure: d.procedure || null, status: "agendado",
-          }).select("id").maybeSingle();
-          if (error) { ok = false; detail += ` (erro: ${error.message})`; }
-          else if (appt) { ctx.appointment_id = appt.id; detail += ` (${new Date(when).toLocaleString("pt-BR")})`; }
         }
       } else if (type === "appointment_link") {
         const link = interpolate(String(d.url || ""), vars);
