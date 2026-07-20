@@ -8,7 +8,8 @@ import AppointmentDialog from "@/components/tenant/AppointmentDialog";
 import { CLIENT_PIPELINE_STAGES } from "@/types/admin";
 import type { Lead } from "@/types/admin";
 import {
-  Inbox, PlayCircle, PhoneCall, Calendar, FileText, Handshake, Trophy, XCircle, UserCheck,
+  Inbox, PlayCircle, PhoneCall, Calendar, CalendarCheck, CalendarX,
+  FileText, Handshake, Trophy, XCircle, UserCheck,
 } from "lucide-react";
 
 const iconMap: Record<string, any> = {
@@ -16,10 +17,12 @@ const iconMap: Record<string, any> = {
   qualificado: PlayCircle,       // Início de Atendimento
   agendar_reuniao: PhoneCall,
   reuniao_agendada: Calendar,
+  compareceu: CalendarCheck,
   proposta: FileText,
   negociacao: Handshake,
   ganho: Trophy,
   ativo: UserCheck,
+  no_show: CalendarX,
   perdido: XCircle,
 };
 
