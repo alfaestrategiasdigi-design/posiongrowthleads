@@ -113,10 +113,12 @@ export const CLIENT_PIPELINE_STAGES = [
   { id: "qualificado",       title: "Início de Atendimento", short: "Início Atend.",   color: "from-violet-500 to-violet-600",   hex: "#8b5cf6" },
   { id: "agendar_reuniao",   title: "Agendar Consulta",      short: "Agendar",         color: "from-pink-500 to-pink-600",       hex: "#ec4899" },
   { id: "reuniao_agendada",  title: "Consulta Agendada",     short: "Consulta",        color: "from-red-500 to-red-600",         hex: "#ef4444" },
+  { id: "compareceu",        title: "Compareceu",            short: "Compareceu",      color: "from-fuchsia-500 to-fuchsia-600", hex: "#d946ef" },
   { id: "proposta",          title: "Proposta",              short: "Proposta",        color: "from-orange-500 to-orange-600",   hex: "#f97316" },
   { id: "negociacao",        title: "Negociação",            short: "Negociação",      color: "from-amber-500 to-amber-600",     hex: "#f59e0b" },
   { id: "ganho",             title: "Ganho",                 short: "Ganho",           color: "from-emerald-500 to-emerald-600", hex: "#10b981" },
   { id: "ativo",             title: "Paciente Ativo",        short: "Paciente Ativo",  color: "from-teal-500 to-teal-600",       hex: "#14b8a6" },
+  { id: "no_show",           title: "No-show",               short: "No-show",         color: "from-zinc-500 to-zinc-600",       hex: "#71717a" },
   { id: "perdido",           title: "Perdido",               short: "Perdido",         color: "from-rose-500 to-rose-600",       hex: "#f43f5e" },
 ] as const;
 
