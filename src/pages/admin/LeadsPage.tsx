@@ -305,7 +305,7 @@ const LeadsPage = () => {
         </div>
         <div className="flex flex-wrap gap-2 items-center">
           <Button variant="outline" onClick={() => setShowFormManager(v => !v)} className="gap-2 text-sm rounded-full">
-            <Filter className="w-4 h-4" /> Formulários POSION ({masterForms.filter(f => f.active).length})
+            <Filter className="w-4 h-4" /> Roteamento de Formulários ({masterForms.filter(f => f.active).length} POSION)
           </Button>
           <Button variant="outline" onClick={handleExportCSV} disabled={filtered.length === 0} className="gap-2 text-sm rounded-full">
             <Download className="w-4 h-4" /> Exportar CSV
@@ -316,64 +316,105 @@ const LeadsPage = () => {
         </div>
       </div>
 
-      {/* Gerenciador de formulários do Admin Master (POSION) */}
-      {showFormManager && (
-        <div className="card-elevated p-6 space-y-4">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Admin Master</p>
-            <h3 className="font-display text-lg text-foreground normal-case tracking-normal">Formulários atribuídos ao POSION</h3>
-            <p className="text-xs text-muted-foreground mt-1">
-              Somente leads dos formulários selecionados aqui aparecem nesta tela. Tudo que não estiver mapeado (nem aqui, nem em uma clínica) vai para "leads não roteados".
+      {/* Gerenciador global de roteamento (POSION Master + tenants) */}
+      {showFormManager && (() => {
+        // União: forms vistos em leads + forms com regra cadastrada.
+        const merged = new Map<string, { form_id: string; label: string | null; rule?: typeof formRules[number] }>();
+        for (const af of availableForms) merged.set(af.form_id, { form_id: af.form_id, label: af.form_name });
+        for (const r of formRules) {
+          const cur = merged.get(r.form_id);
+          if (cur) cur.rule = r;
+          else merged.set(r.form_id, { form_id: r.form_id, label: r.label, rule: r });
+        }
+        const rows = Array.from(merged.values())
+          .filter(x => {
+            const q = formSearch.trim().toLowerCase();
+            if (!q) return true;
+            return x.form_id.toLowerCase().includes(q) || (x.label || "").toLowerCase().includes(q);
+          })
+          .sort((a, b) => (a.label || a.form_id).localeCompare(b.label || b.form_id));
+        return (
+          <div className="card-elevated p-6 space-y-4">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.22em] text-accent/80">Admin Master</p>
+                <h3 className="font-display text-lg text-foreground normal-case tracking-normal">Roteamento de formulários por conta</h3>
+                <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
+                  Todos os formulários conhecidos (importados ou já roteados). Escolha o destino de cada um — POSION Master (esta tela), uma clínica específica, ou nenhum (leads vão para "não roteados").
+                </p>
+              </div>
+              <div className="relative min-w-[220px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  value={formSearch}
+                  onChange={(e) => setFormSearch(e.target.value)}
+                  placeholder="Buscar formulário…"
+                  className="pl-9 h-9 rounded-full"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+              {rows.length === 0 && (
+                <p className="text-xs text-muted-foreground italic">Nenhum formulário conhecido ainda.</p>
+              )}
+              {rows.map(row => {
+                const r = row.rule;
+                const current: string = r
+                  ? (r.is_admin_master ? "master" : (r.tenant_id ?? "unassigned"))
+                  : "unassigned";
+                const assignedLabel = r
+                  ? (r.is_admin_master ? "POSION Master" : (tenants.find(t => t.id === r.tenant_id)?.name ?? "Tenant"))
+                  : "Não atribuído";
+                const badgeCls = r
+                  ? (r.is_admin_master
+                      ? "bg-accent/15 text-accent border-accent/30"
+                      : "bg-emerald-500/10 text-emerald-300 border-emerald-500/30")
+                  : "bg-muted text-muted-foreground border-border";
+                return (
+                  <div key={row.form_id} className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-card/40 p-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-foreground truncate">{row.label || `Formulário ${row.form_id}`}</p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="text-[10px] text-muted-foreground font-mono">{row.form_id}</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full border ${badgeCls}`}>{assignedLabel}</span>
+                        {r && !r.active && <span className="text-[10px] px-2 py-0.5 rounded-full border border-rose-500/30 bg-rose-500/10 text-rose-300">Inativo</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <select
+                        value={current}
+                        disabled={savingFormId === row.form_id}
+                        onChange={(e) => {
+                          const migrate = window.confirm(
+                            "Aplicar também aos leads JÁ existentes deste formulário?\n\nOK = migra leads antigos para o novo destino.\nCancelar = só afeta novos leads."
+                          );
+                          setFormAssignment(row.form_id, row.label, e.target.value, migrate);
+                        }}
+                        className="bg-card/60 border border-border/60 rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none min-w-[180px]"
+                      >
+                        <option value="unassigned">— Não atribuído —</option>
+                        <option value="master">POSION Master</option>
+                        <optgroup label="Clínicas">
+                          {tenants.map(t => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                          ))}
+                        </optgroup>
+                      </select>
+                      {savingFormId === row.form_id && <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p className="text-[11px] text-muted-foreground/70 leading-relaxed">
+              Ao mudar o destino, você pode migrar (ou não) os leads já importados. Novos leads vindos do Meta seguirão automaticamente a regra vigente via <code className="font-mono">resolve_form_routing</code>.
             </p>
           </div>
+        );
+      })()}
 
-          <div className="space-y-2">
-            {masterForms.length === 0 && (
-              <p className="text-xs text-muted-foreground italic">Nenhum formulário POSION cadastrado.</p>
-            )}
-            {masterForms.map(f => (
-              <div key={f.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-card/40 p-3">
-                <div className="min-w-0">
-                  <p className="text-sm text-foreground truncate">{f.label || `Formulário ${f.form_id}`}</p>
-                  <p className="text-[10px] text-muted-foreground font-mono">{f.form_id}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant={f.active ? "default" : "outline"} className="rounded-full text-xs"
-                    onClick={() => toggleMasterForm(f.form_id, !f.active)}>
-                    {f.active ? "Ativo" : "Inativo"}
-                  </Button>
-                  <Button size="sm" variant="outline" className="rounded-full text-xs text-rose-400 border-rose-400/40 hover:bg-rose-500/10"
-                    onClick={() => removeMasterForm(f.form_id)}>
-                    Remover
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="pt-3 border-t border-border/60 space-y-2">
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Adicionar formulário POSION</p>
-            {availableForms.filter(af => !masterForms.some(mf => mf.form_id === af.form_id)).length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {availableForms
-                  .filter(af => !masterForms.some(mf => mf.form_id === af.form_id))
-                  .map(af => (
-                    <button
-                      key={af.form_id}
-                      onClick={() => addMasterForm(af.form_id, af.form_name)}
-                      className="text-xs px-3 py-1.5 rounded-full border border-accent/30 bg-accent/5 text-accent hover:bg-accent/15 transition"
-                      title={af.form_id}
-                    >
-                      + {af.form_name || af.form_id}
-                    </button>
-                  ))}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground italic">Nenhum novo formulário disponível.</p>
-            )}
-          </div>
-        </div>
-      )}
 
 
       {/* KPI Tiles */}
