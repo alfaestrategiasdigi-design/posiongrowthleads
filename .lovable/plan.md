@@ -1,74 +1,89 @@
-# Diagnóstico READ-ONLY — KPIs do dashboard
+## Diagnóstico READ-ONLY — Métricas Meta erradas
 
-Nada foi alterado. Abaixo o que encontrei.
+Confirmei lendo `supabase/functions/tenant-campaigns/index.ts`, `supabase/functions/tenant-campaign-detail/index.ts` e `src/pages/app/TenantCampaigns.tsx`. Não alterei nada.
 
-## 1. Qual dashboard e quais KPIs
+### 1. Fluxo atual
 
-Existem **dois** dashboards:
+- Frontend monta `since = daysAgoISO(period)` e `until = todayISO()` e chama a edge `tenant-campaigns`.
+- `daysAgoISO` / `todayISO` fazem `new Date().toISOString().slice(0,10)` → **data em UTC**.
+- Edge envia `time_range: { since, until }` para `GET /{campaign_id}/insights` com `level=campaign` e `time_increment=1` (uma linha por dia).
+- Cada linha diária vira `daily[]` (o "gasto no dia") e é somada em `agg` (spend, impressions, clicks, leads, purchases, purchase_value, messaging, link_clicks, video_p25, video_thruplay). CPL/CTR/CPC/CPM/ROAS/CPA são derivados desses agregados.
 
-- **Tenant (clínica)** — `src/pages/app/TenantDashboard.tsx`, rota `/app/:tenantSlug/dashboard`. É o dashboard onde estão os KPIs de funil que você mencionou. Cards renderizados (linhas 501–559):
-  - Qualificação = qualificados ÷ leads
-  - **Agendamento** = agendados ÷ qualificados
-  - **Comparecim.** = compareceu ÷ (compareceu + no-show)
-  - **Fechamento** = ganho ÷ compareceu
-  - No-show = no-show ÷ (compareceu + no-show)
-  - Conv. Geral = ganho ÷ leads
+### 2. Métricas erradas encontradas (com causa concreta)
 
-  Fórmulas centralizadas em `src/lib/funnel-metrics.ts` (`computeFunnelMetrics`).
+**A. "Gasto no dia" e todo recorte diário — janela de datas em UTC vs conta em BRT** ← causa principal do sintoma relatado
 
-- **Admin Master** — `src/pages/admin/Dashboard.tsx`. KPIs de agência/SaaS (pipeline, contratos, MRR, clínicas ativas). Não tem os cards de funil clínico. Se o print for daqui, o "funil clínico" não existe nessa página por design.
+- `todayISO()` retorna a data em UTC. No Brasil (UTC−3), das 21:00 às 23:59 BRT o `toISOString()` já devolve o **dia seguinte**; da 00:00 às 02:59 BRT ainda devolve o dia anterior teoricamente não (é o mesmo), mas para `daysAgoISO(1)` (opção "hoje") o `since` sai como "ontem UTC" em qualquer horário BRT antes das 21:00.
+- A conta de anúncios da Meta usa fuso próprio (as contas brasileiras normalmente America/Sao_Paulo). O parâmetro `time_range` é interpretado no fuso da conta. Ao enviar datas UTC, a janela consultada não bate com o dia local do usuário → aparece gasto "do dia errado", "hoje" mostrando gasto de ontem, e o último bucket do gráfico com valor parcial/vazio.
+- Efeito por período:
+  - `period=1` ("hoje"): `since` frequentemente é ontem BRT → gasto exibido é de ontem.
+  - `period=7/30/90`: o `until` some/ganha 1 dia dependendo da hora → totais e "gasto no dia" (último ponto do sparkline / `daily[]`) desalinhados.
+- Também não passamos `time_range[timezone]` nem consultamos `account_timezone_name`, então dependemos 100% da interpretação padrão da Meta.
 
-## 2. Os dados existem no banco?
+**B. "Uso do orçamento" (barra `spendPct`) — denominador errado** (`TenantCampaigns.tsx:841`)
 
-Sim para 3 clínicas, não para as demais. Contagens nos últimos 30 dias:
+- `spendPct = spend / (dailyBudget * period) * 100`, usando o `period` selecionado (1/7/14/30/90). Se a campanha começou depois, ficou pausada, ou é `lifetime_budget` (não `daily_budget`), o denominador está fora de escala → percentual exibido não representa uso real. `daily_budget` também vem em centavos (dividido por 100 ok), mas contas em USD apareceriam divididas como se fossem reais.
 
-```text
-tenant                       leads30  appt30  compareceu30  ganhos30
-Dr Instituto Roar             1600     25       8            3
-Fio terapia                   1276      0       0            0
-Clínica Donna Face             110     24       8            2
-Clínica Dr Gabriel Lourenço     58      4       2            0
-Dr. Brenda Lima                  4      0       0            0
-Dra Larissa Cangussu             0      0       0            0
-amo.servicosmedicos              0      0       0            0
-Dr Diego Lopes                   0      0       0            0
-Dr Sergio                        0      0       0            0
-MatheusBetSafe                   0      0       0            0
-```
+**C. ROAS / Faturamento — mistura duas fontes** (`TenantCampaigns.tsx:369-376`)
 
-Todos os 25 appointments do Roar têm `lead_id` preenchido (o backfill funcionou). Status dos appointments do Roar: 17 `agendado` + 8 `compareceu`, **nenhum** `no_show`/`faltou`.
+- `totalRev = s.revenue (Meta purchase_value) + globalStats.revenue (CRM wins do tenant no período)`.
+- `globalStats.revenue` é a receita de **todos** os leads ganhos do tenant no período, não apenas os atribuídos a campanhas Meta. Resultado: em tenants com vendas orgânicas / outros canais, ROAS fica inflado; se o Pixel também registra as mesmas compras, há **dupla contagem**.
+- `ROAS = totalRev / s.spend` herda o mesmo viés.
 
-## 3. Causa provável dos "0%"
+**D. Frequência da campanha — pega só o último dia** (`tenant-campaigns/index.ts:147`)
 
-Depende de qual tenant você estava vendo. Duas causas distintas, e ambas são consistentes com o print:
+- `last_frequency = Number(row?.frequency ?? last_frequency)` — a cada linha diária sobrescreve; ao final, é a frequência do último dia do intervalo, não a frequência do período (que deveria ser `impressions/reach`). O KPI global no front recomputa como `impressions/reach` (correto), mas cada card de campanha exibe o valor do último dia — inconsistente e usado nos alertas de "frequência alta".
 
-### (a) Tenants sem agenda → 0% é o valor correto
-Para Fio terapia, Brenda, Larissa, amo, Diego, Sergio, MatheusBetSafe **não existe nenhum appointment**. O cálculo devolve 0 legítimo para Agendamento/Comparecim./Fechamento. Não é bug de renderização — é ausência de dado. Se o dashboard aberto era um desses, o "zerado" reflete a realidade.
+**E. Reach agregado — soma diária, não deduplicado** (`tenant-campaigns/index.ts:140`)
 
-### (b) Tenants com agenda (Roar / Donna / Gabriel) — bug de truncamento silencioso no fetch de leads
-`TenantDashboard.tsx` linhas 87–92 buscam **todos** os leads do tenant sem `.range()` nem `.limit()` explícito:
+- `agg.reach += row.reach` soma o alcance de cada dia. Alcance da Meta é único por período; somando dias, superestima o reach (pode ficar > impressions em casos raros, e a `frequency = impressions/reach` calculada no front vira artificialmente baixa). O correto é pedir a linha agregada do período (`time_increment` omitido) e usar o `reach` de lá, ou pedir `unique_reach` em janela.
 
-```ts
-supabase.from("leads").select("id,status,created_at,nome_completo,whatsapp,mql,sql_qualified")
-  .eq("tenant_id", tenant.id)
-```
+**F. "Impressões" KPI — condicionado ao gasto** (`TenantCampaigns.tsx:600`)
 
-O PostgREST devolve no máximo **1000 linhas** por padrão. Roar tem **1631** leads (Fio 1276) → o array `leads` chega **truncado a 1000** e sem ordenação garantida, então `computeFunnelMetrics` recebe um subconjunto arbitrário. Consequência:
+- `NUM(kpis.spend > 0 ? impressões : 0)`. Se por qualquer motivo `spend` vier 0 (ex.: linha de insights truncada por permissão) o card mostra impressões zeradas mesmo quando a campanha teve entrega.
 
-- `totalLeads`, `qualificados` e `ganhos` calculados no cliente ficam **subestimados de forma não determinística** entre reloads.
-- Se os poucos leads qualificados/ganhos ficarem de fora do lote de 1000, as taxas caem para próximo de 0.
+**G. Moeda não validada**
 
-Isso explica por que o mesmo tenant pode mostrar KPIs "às vezes" e "às vezes zerado". Appointments (25 linhas) e sales (22 linhas) não sofrem — só a query de leads.
+- Nem `tenant-campaigns` nem o detail pedem `account_currency`. Todo `spend` é formatado como BRL (`Intl.NumberFormat pt-BR / BRL`). Contas em USD/outra moeda aparecem como reais com o mesmo número → valor exibido está errado. A função de sync antiga (`facebook-campaigns-sync`) até pede `account_currency`, mas as reais em uso (`tenant-campaigns`, `tenant-campaign-detail`) não.
 
-### (c) Descartadas após verificar
-- `whatsapp_connections` com `.maybeSingle()`: só existe 1 row em todo o banco e é para `tenant_id = NULL`, então nenhum tenant real dispara o erro "multiple rows" que travaria o `Promise.all`. Não é essa a causa.
-- Filtro de tenant nas queries: correto (`.eq("tenant_id", tenant.id)` em todas).
-- Filtro de período: leads são filtrados só no cliente por `created_at` dentro do `range` (default 30d). Correto.
-- Status de appointment: código aceita `compareceu`/`realizado` e `no_show`/`faltou`; combina com o que está no banco.
+**H. "Resultado" / cost_per_result para MESSAGES** (`tenant-campaigns/index.ts:159`)
 
-## 4. O que preciso de você antes de propor correção
+- Se `objective` inclui `MESSAG` e `messaging === 0`, cai em `messaging` mesmo com leads > 0 → `result_value=0` e o "Custo/Conv" exibido é 0, escondendo resultado real.
 
-- Qual tenant estava aberto quando você viu os 0%? Se for um da lista **sem appointments** (Fio, Brenda, etc.), é dado real e nada precisa ser "consertado" no código.
-- Se for Roar / Donna / Gabriel, a correção é limitar/pagniar a query de leads (ou movê-la para o servidor com agregação) para não sofrer o corte de 1000 linhas do PostgREST. Posso detalhar isso num próximo plano quando você confirmar.
+### 3. Métricas que estão corretas (dado o input)
 
-Nada foi tocado em agenda, formulários, webhook ou automações.
+- `spend`, `impressions`, `clicks` totais do período: soma direta e válida (assumindo janela correta e moeda BRL).
+- `ctr = clicks/impressions*100`, `cpc = spend/clicks`, `cpm = spend/impressions*1000`, `cpl = spend/leads`: fórmulas certas.
+- Extração de `leads`, `purchases`, `link_clicks`, `messaging` a partir de `actions`: mapeamento coerente com a documentação da Meta.
+- `hook_rate = video_p25/impressions*100`, `hold_rate = thruplay/video_p25*100`: convenção padrão.
+
+### 4. Correção proposta (a implementar depois da sua aprovação)
+
+1. **Fuso horário (fix mais importante — resolve o "gasto no dia" e todo o gráfico diário)**
+   - Na edge `tenant-campaigns` (e `tenant-campaign-detail`): buscar `timezone_name` da conta de anúncios (`GET /{act_id}?fields=timezone_name,account_currency,currency`), cachear, e:
+     - calcular `since`/`until` **naquele fuso** quando o cliente não enviar (usar `Intl.DateTimeFormat` com `timeZone: tz` para derivar `YYYY-MM-DD`);
+     - repassar `time_range: { since, until }` já no fuso da conta;
+   - No frontend, `daysAgoISO`/`todayISO` deixam de mandar UTC — passam a delegar a data para a edge (ou usam `America/Sao_Paulo` como fallback, com override por conta).
+   - Aceitação: `period=1` mostra o gasto do dia local; último bucket do sparkline bate com o Ads Manager na mesma janela.
+
+2. **Moeda**: expor `account_currency` na resposta por conta e por campanha; formatar `spend/cpl/cpm/ROAS` na moeda correta (default BRL). Bloquear soma cross-currency (ou converter usando última cotação — decisão que preciso confirmar com você).
+
+3. **Frequência**: parar de usar `last_frequency`; calcular `frequency = impressions / reach` no servidor a partir dos totais.
+
+4. **Reach**: pedir uma segunda chamada por campanha **sem** `time_increment` só para obter `reach` real do período (uma request extra por campanha; usar o cache existente de 3 min).
+
+5. **`spendPct` (uso do orçamento)**: usar `Math.max(1, dias_com_gasto_no_período)` no denominador, e desligar a barra quando a campanha for `lifetime_budget`.
+
+6. **ROAS**: separar em dois indicadores — "ROAS Meta (Pixel)" `= purchase_value/spend` e "ROAS CRM" `= wins_atribuídos_a_campanhas/spend` (usando `crmStats[campId].revenue`, não `globalStats.revenue`). Elimina dupla contagem e receita orgânica no numerador.
+
+7. **KPI "Impressões"**: remover a condicional em `spend > 0`; sempre exibir a soma de impressões.
+
+8. **Result_kind MESSAGES**: se `messaging === 0` e `leads > 0`, exibir "Leads" em vez de "Conversas 0".
+
+### 5. Perguntas antes de implementar
+
+- **ROAS**: você quer manter um único ROAS (qual fonte prevalece?) ou expor os dois separados (Meta Pixel × CRM)?
+- **Moeda**: alguma conta em USD/outra moeda? Se sim, converto para BRL (com cotação diária) ou mostro cada bloco na moeda nativa da conta?
+- **Fuso**: assumo `America/Sao_Paulo` como padrão quando a Meta não devolver `timezone_name`, ok?
+
+Sem tocar em dashboard, agendamento, formulários, webhook ou automações.

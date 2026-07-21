@@ -135,7 +135,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
     setLoading(true); setError(null); setReason(null);
     try {
       const { data, error: fnErr } = await supabase.functions.invoke("tenant-campaigns", {
-        body: { tenant_id: tenant.id, active_only: activeOnly, since: daysAgoISO(period), until: todayISO() },
+        body: { tenant_id: tenant.id, active_only: activeOnly, days: period },
       });
       if (fnErr) throw fnErr;
       if (!data?.ok) {
@@ -365,9 +365,12 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       acc.revenue += c.insights.purchase_value;
       return acc;
     }, { spend: 0, leads: 0, impressions: 0, clicks: 0, reach: 0, revenue: 0 });
-    // Faturamento e CAC baseados na receita real do CRM (kanban ganho).
-    const totalRev = s.revenue + globalStats.revenue;
-    const wins = globalStats.wins;
+    // Receita atribuída às campanhas Meta (wins do CRM ligados por campaign_id/nome).
+    // Não usa `globalStats.revenue` para não inflar ROAS com vendas orgânicas/outros canais.
+    const attributedCrmRevenue = Object.values(crmStats).reduce((sum, st) => sum + (st.revenue || 0), 0);
+    const attributedWins = Object.values(crmStats).reduce((sum, st) => sum + (st.wins || 0), 0);
+    const totalRev = s.revenue + attributedCrmRevenue;
+    const wins = attributedWins || globalStats.wins;
     // Frequência média ponderada (pelo alcance)
     const freq = s.reach > 0 ? s.impressions / s.reach : 0;
     return {
@@ -388,7 +391,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       cac: wins ? s.spend / wins : 0,
       ticket: wins ? totalRev / wins : 0,
     };
-  }, [campaigns, globalStats]);
+  }, [campaigns, globalStats, crmStats]);
 
 
   // Agrega séries diárias de todas as campanhas para os sparklines dos KPIs
@@ -597,7 +600,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
           <Kpi icon={DollarSign} label="Investido" value={BRL(kpis.spend)} tone="amber"
                series={dailyTotals} dataKey="spend" formatter={(v) => BRL(v)} delta={deltas.spend} />
 
-          <Kpi icon={MousePointerClick} label="Impressões" value={NUM(kpis.spend > 0 ? campaigns.reduce((a,c)=>a+(c.insights?.impressions||0),0) : 0)} tone="cyan" />
+          <Kpi icon={MousePointerClick} label="Impressões" value={NUM(campaigns.reduce((a,c)=>a+(c.insights?.impressions||0),0))} tone="cyan" />
           <Kpi icon={Target} label="CTR" value={`${kpis.ctr.toFixed(2)}%`} tone="violet" />
           <Kpi icon={DollarSign} label="CPM" value={BRL(kpis.cpm)} tone="amber" />
           <Kpi icon={Repeat} label="Frequência" value={kpis.frequency.toFixed(2)} tone="violet" />
@@ -832,13 +835,17 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
             {g.items.map((c) => {
               const stat = crmStats[c.id];
               const wins = stat?.wins ?? 0;
+              // Receita atribuída à campanha (Pixel + wins atribuídos no CRM), sem misturar com wins globais/orgânicos.
               const revenue = (c.insights?.purchase_value || 0) + (stat?.revenue || 0);
               const spend = c.insights?.spend || 0;
               const roas = spend ? revenue / spend : 0;
               const isActive = c.effective_status === "ACTIVE" || c.status === "ACTIVE";
               const health = healthOf(c, revenue);
               const dailyBudget = c.daily_budget ? Number(c.daily_budget) / 100 : 0;
-              const spendPct = dailyBudget > 0 ? Math.min(100, (spend / (dailyBudget * period)) * 100) : 0;
+              // Uso do orçamento diário: usa dias com gasto real na janela (não o `period` selecionado),
+              // evitando percentuais artificialmente baixos quando a campanha começou depois.
+              const daysWithSpend = (c.daily ?? []).filter((d) => (d.spend || 0) > 0).length || 1;
+              const spendPct = dailyBudget > 0 ? Math.min(100, (spend / (dailyBudget * daysWithSpend)) * 100) : 0;
               const selected = compareIds.includes(c.id);
               const metaUrl = `https://business.facebook.com/adsmanager/manage/campaigns?act=${(c.ad_account_id || "").replace(/^act_/, "")}&selected_campaign_ids=${c.id}`;
               const toneMap = {
