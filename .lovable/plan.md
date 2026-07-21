@@ -1,85 +1,74 @@
-## Objetivo
+# Diagnóstico READ-ONLY — KPIs do dashboard
 
-Aplicar mudanças mínimas e seguras para: (1) impedir agendamentos sem lead vinculado (UI e automações), (2) garantir que o roteamento use `resolve_form_routing` como fonte única, (3) corrigir a UI de Leads admin para incluir forms `is_admin_master`, e (4) preparar migration segura sem UPDATEs em massa.
+Nada foi alterado. Abaixo o que encontrei.
 
-## Escopo por área
+## 1. Qual dashboard e quais KPIs
 
-### 1. UI — Bloquear salvar agendamento sem lead
-- **`src/components/admin/AppointmentModal.tsx`**
-  - Adicionar validação em `handleSave`: se `!form.agency_lead_id && !form.lead_id` → `toast.error("Vincule um lead antes de criar o agendamento")` e abortar.
-  - Adicionar aviso visual (badge/hint vermelho) próximo ao campo de busca de lead enquanto nenhum lead está vinculado.
-  - Desabilitar botão "Criar agendamento" quando não houver vínculo (mantém "Salvar alterações" em edição de registros legados).
-- **`src/components/tenant/AppointmentDialog.tsx`**
-  - Mesma validação: exigir `lead_id` no payload antes do insert/update; nunca enviar `lead_id: null` em criação.
-  - Mensagem clara e botão desabilitado até vincular.
+Existem **dois** dashboards:
 
-### 2. Automations — Não criar agendamento sem lead
-- **`supabase/functions/automation-dispatch/index.ts`**
-  - No handler `appointment_create` (ou equivalente): se `ctx.lead_id` ausente/inválido, marcar execução como `skipped` com `reason: "missing_lead_id"` em `automation_executions`, sem inserir em `appointments`.
-  - Remover fallbacks tipo `lead_id: ctx.lead_id ?? null` — sempre usar `ctx.lead_id` validado.
+- **Tenant (clínica)** — `src/pages/app/TenantDashboard.tsx`, rota `/app/:tenantSlug/dashboard`. É o dashboard onde estão os KPIs de funil que você mencionou. Cards renderizados (linhas 501–559):
+  - Qualificação = qualificados ÷ leads
+  - **Agendamento** = agendados ÷ qualificados
+  - **Comparecim.** = compareceu ÷ (compareceu + no-show)
+  - **Fechamento** = ganho ÷ compareceu
+  - No-show = no-show ÷ (compareceu + no-show)
+  - Conv. Geral = ganho ÷ leads
 
-### 3. Leads admin — Forms admin-master visíveis mesmo sem leads
-- **`src/pages/admin/LeadsPage.tsx`**
-  - No dropdown/lista de formulários: unir `distinct facebook_form_id` de `leads` com todos os forms `lead_routing_rules` onde `is_admin_master=true AND match_type='form_id'`.
-  - Rotular forms sem leads como "Sem leads ainda" para clareza.
-- **`src/pages/admin/MetaAdsAdminPage.tsx`**
-  - Nas queries de checagem de duplicidade de regra, adicionar `.eq("is_admin_master", true)` para o escopo master; corrigir insert para respeitar unicidade `(match_type, match_value, is_admin_master)`.
+  Fórmulas centralizadas em `src/lib/funnel-metrics.ts` (`computeFunnelMetrics`).
 
-### 4. Edge functions — `resolve_form_routing` como fonte única
-- **`supabase/functions/facebook-leads-webhook/index.ts`**, **`facebook-backfill-leads/index.ts`**, **`sync-meta-leads/index.ts`**
-  - Confirmar/ajustar chamada `admin.rpc("resolve_form_routing", { p_form_id })`.
-  - Se `matched=false`: gravar em `unrouted_leads` (não em `leads`).
-  - Se `matched=true`: usar `tenant_id` retornado (pode ser `null` quando `is_admin_master=true`) na inserção em `leads`.
-  - Remover qualquer lookup direto legado a `lead_routing_rules` nessas funções.
+- **Admin Master** — `src/pages/admin/Dashboard.tsx`. KPIs de agência/SaaS (pipeline, contratos, MRR, clínicas ativas). Não tem os cards de funil clínico. Se o print for daqui, o "funil clínico" não existe nessa página por design.
 
-### 5. Migration segura — apenas a função
-- **`supabase/migrations/20260719000000_fix_resolve_form_routing.sql`** (novo)
-  - Somente `CREATE OR REPLACE FUNCTION public.resolve_form_routing(...)` com a implementação atual/corrigida.
-  - **NÃO** incluir `UPDATE public.leads` nem `UPDATE public.conversations`. Backfills ficam para janela posterior com aprovação explícita.
+## 2. Os dados existem no banco?
 
-### 6. Testes e verificação
-- Rodar `npm run build` e testes existentes (`vitest`).
-- Manual QA:
-  - Criar agendamento sem lead (admin e tenant) → bloqueado.
-  - Criar com lead → OK, `leads.reuniao_agendada_em` atualizado (trigger existente).
-  - Automação dispara sem `lead_id` → nada em `appointments`, execução registrada como `skipped`.
-  - `LeadsPage`: dropdown mostra forms admin-master mesmo sem leads.
-  - Webhook com `form_id` mapeado → lead no tenant certo; sem mapeamento → `unrouted_leads`.
+Sim para 3 clínicas, não para as demais. Contagens nos últimos 30 dias:
 
-## Fora de escopo (requer aprovação separada)
-- Qualquer `UPDATE` em massa em `public.leads` ou `public.conversations` para recolocar `tenant_id`. Fazer em janela com backup e plano de reversão.
-- Alterações em RLS/policies existentes.
-
-## Detalhes técnicos
-
-**Validação de payload (exemplo, admin):**
-```ts
-if (!form.agency_lead_id && !form.lead_id) {
-  toast.error("Vincule um lead antes de criar o agendamento");
-  return;
-}
+```text
+tenant                       leads30  appt30  compareceu30  ganhos30
+Dr Instituto Roar             1600     25       8            3
+Fio terapia                   1276      0       0            0
+Clínica Donna Face             110     24       8            2
+Clínica Dr Gabriel Lourenço     58      4       2            0
+Dr. Brenda Lima                  4      0       0            0
+Dra Larissa Cangussu             0      0       0            0
+amo.servicosmedicos              0      0       0            0
+Dr Diego Lopes                   0      0       0            0
+Dr Sergio                        0      0       0            0
+MatheusBetSafe                   0      0       0            0
 ```
 
-**Automations skip pattern:**
+Todos os 25 appointments do Roar têm `lead_id` preenchido (o backfill funcionou). Status dos appointments do Roar: 17 `agendado` + 8 `compareceu`, **nenhum** `no_show`/`faltou`.
+
+## 3. Causa provável dos "0%"
+
+Depende de qual tenant você estava vendo. Duas causas distintas, e ambas são consistentes com o print:
+
+### (a) Tenants sem agenda → 0% é o valor correto
+Para Fio terapia, Brenda, Larissa, amo, Diego, Sergio, MatheusBetSafe **não existe nenhum appointment**. O cálculo devolve 0 legítimo para Agendamento/Comparecim./Fechamento. Não é bug de renderização — é ausência de dado. Se o dashboard aberto era um desses, o "zerado" reflete a realidade.
+
+### (b) Tenants com agenda (Roar / Donna / Gabriel) — bug de truncamento silencioso no fetch de leads
+`TenantDashboard.tsx` linhas 87–92 buscam **todos** os leads do tenant sem `.range()` nem `.limit()` explícito:
+
 ```ts
-if (!ctx.lead_id) {
-  await logExecution(step, "skipped", { reason: "missing_lead_id" });
-  return;
-}
+supabase.from("leads").select("id,status,created_at,nome_completo,whatsapp,mql,sql_qualified")
+  .eq("tenant_id", tenant.id)
 ```
 
-**LeadsPage — união de forms:**
-```ts
-const [{ data: fromLeads }, { data: fromRules }] = await Promise.all([
-  supabase.from("leads").select("facebook_form_id, facebook_form_name").not("facebook_form_id","is",null),
-  supabase.from("lead_routing_rules").select("match_value, description").eq("is_admin_master", true).eq("match_type","form_id").eq("active", true),
-]);
-// merge por match_value/facebook_form_id
-```
+O PostgREST devolve no máximo **1000 linhas** por padrão. Roar tem **1631** leads (Fio 1276) → o array `leads` chega **truncado a 1000** e sem ordenação garantida, então `computeFunnelMetrics` recebe um subconjunto arbitrário. Consequência:
 
-## Ordem de aplicação
-1. Migration (só função) → aplicar e verificar `SELECT * FROM resolve_form_routing('FORM_ID')`.
-2. Edge functions (webhook/backfill/sync) → deploy.
-3. UI (AppointmentModal, AppointmentDialog, LeadsPage, MetaAdsAdminPage).
-4. Automations dispatcher.
-5. Build + QA manual dos 5 cenários.
+- `totalLeads`, `qualificados` e `ganhos` calculados no cliente ficam **subestimados de forma não determinística** entre reloads.
+- Se os poucos leads qualificados/ganhos ficarem de fora do lote de 1000, as taxas caem para próximo de 0.
+
+Isso explica por que o mesmo tenant pode mostrar KPIs "às vezes" e "às vezes zerado". Appointments (25 linhas) e sales (22 linhas) não sofrem — só a query de leads.
+
+### (c) Descartadas após verificar
+- `whatsapp_connections` com `.maybeSingle()`: só existe 1 row em todo o banco e é para `tenant_id = NULL`, então nenhum tenant real dispara o erro "multiple rows" que travaria o `Promise.all`. Não é essa a causa.
+- Filtro de tenant nas queries: correto (`.eq("tenant_id", tenant.id)` em todas).
+- Filtro de período: leads são filtrados só no cliente por `created_at` dentro do `range` (default 30d). Correto.
+- Status de appointment: código aceita `compareceu`/`realizado` e `no_show`/`faltou`; combina com o que está no banco.
+
+## 4. O que preciso de você antes de propor correção
+
+- Qual tenant estava aberto quando você viu os 0%? Se for um da lista **sem appointments** (Fio, Brenda, etc.), é dado real e nada precisa ser "consertado" no código.
+- Se for Roar / Donna / Gabriel, a correção é limitar/pagniar a query de leads (ou movê-la para o servidor com agregação) para não sofrer o corte de 1000 linhas do PostgREST. Posso detalhar isso num próximo plano quando você confirmar.
+
+Nada foi tocado em agenda, formulários, webhook ou automações.
