@@ -365,9 +365,12 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       acc.revenue += c.insights.purchase_value;
       return acc;
     }, { spend: 0, leads: 0, impressions: 0, clicks: 0, reach: 0, revenue: 0 });
-    // Faturamento e CAC baseados na receita real do CRM (kanban ganho).
-    const totalRev = s.revenue + globalStats.revenue;
-    const wins = globalStats.wins;
+    // Receita atribuída às campanhas Meta (wins do CRM ligados por campaign_id/nome).
+    // Não usa `globalStats.revenue` para não inflar ROAS com vendas orgânicas/outros canais.
+    const attributedCrmRevenue = Object.values(crmStats).reduce((sum, st) => sum + (st.revenue || 0), 0);
+    const attributedWins = Object.values(crmStats).reduce((sum, st) => sum + (st.wins || 0), 0);
+    const totalRev = s.revenue + attributedCrmRevenue;
+    const wins = attributedWins || globalStats.wins;
     // Frequência média ponderada (pelo alcance)
     const freq = s.reach > 0 ? s.impressions / s.reach : 0;
     return {
@@ -388,7 +391,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       cac: wins ? s.spend / wins : 0,
       ticket: wins ? totalRev / wins : 0,
     };
-  }, [campaigns, globalStats]);
+  }, [campaigns, globalStats, crmStats]);
 
 
   // Agrega séries diárias de todas as campanhas para os sparklines dos KPIs
