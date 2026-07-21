@@ -112,8 +112,35 @@ Deno.serve(async (req) => {
   const token = String(cfg?.user_access_token ?? "").trim();
   if (!token) return json({ ok: false, error: "Token do Facebook indisponível.", need_reconnect: true }, 200);
 
-  const since = String(body.since ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
-  const until = String(body.until ?? new Date().toISOString().slice(0, 10));
+  // Descobre timezone da conta a partir do próprio campaign (account_id) para alinhar since/until.
+  const campMeta = await fbGet(campaignId, token, { fields: "account_id" });
+  const actId = campMeta.ok && campMeta.body?.account_id ? `act_${String(campMeta.body.account_id).replace(/^act_/, "")}` : null;
+  let tz = "America/Sao_Paulo";
+  if (actId) {
+    const accRes = await fbGet(actId, token, { fields: "timezone_name" });
+    if (accRes.ok && accRes.body?.timezone_name) tz = String(accRes.body.timezone_name);
+  }
+  const dateInTz = (d: Date) => {
+    const p = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(d);
+    const g = (t: string) => p.find((x) => x.type === t)?.value ?? "";
+    return `${g("year")}-${g("month")}-${g("day")}`;
+  };
+  const days = Number.isFinite(Number(body.days)) ? Math.max(1, Math.min(365, Number(body.days))) : null;
+  let since: string;
+  let until: string;
+  if (typeof body.since === "string" && typeof body.until === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.since) && /^\d{4}-\d{2}-\d{2}$/.test(body.until)) {
+    since = body.since; until = body.until;
+  } else {
+    const d = days ?? 30;
+    until = dateInTz(new Date());
+    if (d <= 1) since = until;
+    else {
+      const [y, m, dd] = until.split("-").map(Number);
+      const base = new Date(Date.UTC(y, m - 1, dd));
+      base.setUTCDate(base.getUTCDate() - (d - 1));
+      since = `${base.getUTCFullYear()}-${String(base.getUTCMonth() + 1).padStart(2, "0")}-${String(base.getUTCDate()).padStart(2, "0")}`;
+    }
+  }
 
   const cacheKey = `${campaignId}|${since}|${until}`;
   const hit = cache.get(cacheKey);
