@@ -84,16 +84,39 @@ export default function TenantDashboard() {
   useEffect(() => {
     if (!tenant) return;
     setLoading(true);
+
+    // PostgREST caps single responses at 1000 rows. Tenants with more leads
+    // (Roar ~1631, Fio ~1276) were getting a truncated, non-deterministic
+    // subset — which zeroed out qualif/agend/comp/fech/geral. Fetch in
+    // fixed-size pages until we've seen every lead for the tenant.
+    const fetchAllLeads = async () => {
+      const PAGE = 1000;
+      const all: any[] = [];
+      for (let offset = 0; ; offset += PAGE) {
+        const { data, error } = await supabase
+          .from("leads")
+          .select("id,status,created_at,nome_completo,whatsapp,mql,sql_qualified")
+          .eq("tenant_id", tenant.id)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + PAGE - 1);
+        if (error) throw error;
+        const rows = data || [];
+        all.push(...rows);
+        if (rows.length < PAGE) break;
+      }
+      return all;
+    };
+
     Promise.all([
       supabase.from("sales").select("*").eq("tenant_id", tenant.id).order("sale_date", { ascending: true }),
       supabase.from("monthly_goals").select("*").eq("tenant_id", tenant.id),
-      supabase.from("leads").select("id,status,created_at,nome_completo,whatsapp,mql,sql_qualified").eq("tenant_id", tenant.id),
+      fetchAllLeads(),
       supabase.from("whatsapp_connections").select("status,instance_name").eq("tenant_id", tenant.id).maybeSingle(),
       supabase.from("appointments").select("id,lead_id,date_time,status").eq("tenant_id", tenant.id),
     ]).then(([s, g, l, wa, ap]) => {
       setSales((s.data || []) as SaleRow[]);
       setGoals((g.data || []) as Goal[]);
-      setLeads(((l.data || []) as any[]).map(r => ({
+      setLeads((l as any[]).map(r => ({
         id: r.id, stage: r.status, created_at: r.created_at,
         name: r.nome_completo, phone: r.whatsapp,
         mql: r.mql, sql_qualified: r.sql_qualified,
@@ -106,6 +129,9 @@ export default function TenantDashboard() {
       } else {
         setWaStatus({ connected: false, label: "Nenhuma instância configurada" });
       }
+      setLoading(false);
+    }).catch((err) => {
+      console.error("[TenantDashboard] load failed", err);
       setLoading(false);
     });
   }, [tenant]);
