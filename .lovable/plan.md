@@ -1,89 +1,62 @@
-## Diagnóstico READ-ONLY — Métricas Meta erradas
+## Diagnóstico (read-only) — outbound WhatsApp não entra na conversa
 
-Confirmei lendo `supabase/functions/tenant-campaigns/index.ts`, `supabase/functions/tenant-campaign-detail/index.ts` e `src/pages/app/TenantCampaigns.tsx`. Não alterei nada.
+### 1. Como o webhook trata OUTBOUND (`fromMe=true` / `SEND_MESSAGE`)
 
-### 1. Fluxo atual
+Fluxo em `supabase/functions/whatsapp-webhook/index.ts` (loop `messages.upsert`/`messages.set`/`SEND_MESSAGE`, linhas ~960–1330):
 
-- Frontend monta `since = daysAgoISO(period)` e `until = todayISO()` e chama a edge `tenant-campaigns`.
-- `daysAgoISO` / `todayISO` fazem `new Date().toISOString().slice(0,10)` → **data em UTC**.
-- Edge envia `time_range: { since, until }` para `GET /{campaign_id}/insights` com `level=campaign` e `time_increment=1` (uma linha por dia).
-- Cada linha diária vira `daily[]` (o "gasto no dia") e é somada em `agg` (spend, impressions, clicks, leads, purchases, purchase_value, messaging, link_clicks, video_p25, video_thruplay). CPL/CTR/CPC/CPM/ROAS/CPA são derivados desses agregados.
+1. `resolveRemoteJid(..., fromMe=true, ownJids)` (linha 504) tenta achar o **destinatário**:
+   - `sameKey` (LID+phone na mesma key) → devolve phone canônico. ✅
+   - Se não, roda `collectOutboundPeerCandidates` (participantAlt, senderPn, recipient, to, chatId, participantPn…) + `remoteJid` (só se não for own).
+   - `firstStandardJid` procura JID `@s.whatsapp.net`; se não achar, cai em `firstLidJid`.
+   - Se só houver LID → devolve `unresolvedLid:true`, `remoteJid=null`.
+   - Se `remoteJid` bruto for o próprio dono (`rawIsOwn`) → `blockedSelfJid:true`.
+2. No handler (linhas 986–1000) há um fallback extra: quando `resolved.remoteJid` é null e `fromMe`, tenta `key.senderPn / participantAlt / remoteJidAlt`. Se falhar, cai o `no_jid_dropped` e a mensagem é descartada.
+3. Se sobrar só `@lid`, mantém como **provisório** (log `outbound_lid_kept_provisional`, linha 1029) — não descarta mais, cria conversa nova com `remote_jid=<lid>@lid`, `telefone=<digitos do lid>`, `nome_contato=null`.
+4. Grava a message com `direction='outbound'`, `sender='usuario'`, `status='sent'`. Nenhum `metadata.origin='device'` é escrito (contrário ao que a auditoria em `docs/WHATSAPP_AUDIT.md` sugere — `device_24h=0` sempre).
 
-### 2. Métricas erradas encontradas (com causa concreta)
+### 2. `outbound_unresolved_lid_dropped_no_conv`
 
-**A. "Gasto no dia" e todo recorte diário — janela de datas em UTC vs conta em BRT** ← causa principal do sintoma relatado
+Grep no repo: **não existe mais** essa string. Foi removida na correção anterior (2026-07-16). O log atual equivalente é:
+- `no_jid_dropped` (linha 998) — só quando nem alt/senderPn resolve.
+- `outbound_lid_kept_provisional` (linha 1030) — caminho "salvo".
 
-- `todayISO()` retorna a data em UTC. No Brasil (UTC−3), das 21:00 às 23:59 BRT o `toISOString()` já devolve o **dia seguinte**; da 00:00 às 02:59 BRT ainda devolve o dia anterior teoricamente não (é o mesmo), mas para `daysAgoISO(1)` (opção "hoje") o `since` sai como "ontem UTC" em qualquer horário BRT antes das 21:00.
-- A conta de anúncios da Meta usa fuso próprio (as contas brasileiras normalmente America/Sao_Paulo). O parâmetro `time_range` é interpretado no fuso da conta. Ao enviar datas UTC, a janela consultada não bate com o dia local do usuário → aparece gasto "do dia errado", "hoje" mostrando gasto de ontem, e o último bucket do gráfico com valor parcial/vazio.
-- Efeito por período:
-  - `period=1` ("hoje"): `since` frequentemente é ontem BRT → gasto exibido é de ontem.
-  - `period=7/30/90`: o `until` some/ganha 1 dia dependendo da hora → totais e "gasto no dia" (último ponto do sparkline / `daily[]`) desalinhados.
-- Também não passamos `time_range[timezone]` nem consultamos `account_timezone_name`, então dependemos 100% da interpretação padrão da Meta.
+Nos logs recentes de `whatsapp-webhook` (últimas horas) aparecem **dezenas** de `outbound_lid_kept_provisional` para o `remoteJid` `190340199895239@lid` (instância DRMATHEUS) — nenhum `no_jid_dropped`. Ou seja, a mensagem enviada do celular **está sendo gravada**, mas em conversa provisória `@lid` separada, não na conversa canônica do contato.
 
-**B. "Uso do orçamento" (barra `spendPct`) — denominador errado** (`TenantCampaigns.tsx:841`)
+### 3. Por que abre "não identificado" separado
 
-- `spendPct = spend / (dailyBudget * period) * 100`, usando o `period` selecionado (1/7/14/30/90). Se a campanha começou depois, ficou pausada, ou é `lifetime_budget` (não `daily_budget`), o denominador está fora de escala → percentual exibido não representa uso real. `daily_budget` também vem em centavos (dividido por 100 ok), mas contas em USD apareceriam divididas como se fossem reais.
+O matching `findConversation` (linha 561) procura por `remote_jid` **exato** ou `telefone` **exato**. Para outbound `@lid`:
 
-**C. ROAS / Faturamento — mistura duas fontes** (`TenantCampaigns.tsx:369-376`)
+- `remote_jid` da conversa canônica = `5577999...@s.whatsapp.net`, `telefone = 5577999...`.
+- `remote_jid` do payload outbound = `190340199895239@lid`, `telefone` derivado = `190340199895239` (dígitos do LID).
+- Não bate por JID nem por telefone → cria conversa nova provisória sem nome.
 
-- `totalRev = s.revenue (Meta purchase_value) + globalStats.revenue (CRM wins do tenant no período)`.
-- `globalStats.revenue` é a receita de **todos** os leads ganhos do tenant no período, não apenas os atribuídos a campanhas Meta. Resultado: em tenants com vendas orgânicas / outros canais, ROAS fica inflado; se o Pixel também registra as mesmas compras, há **dupla contagem**.
-- `ROAS = totalRev / s.spend` herda o mesmo viés.
+**Por que o inbound do mesmo contato entra certo e o outbound não?**
+- Inbound geralmente traz `senderPn`/`participantPn` com o telefone real na mesma key → `sameKey` ou `firstStandardJid` resolvem para `@s.whatsapp.net`.
+- No SEND_MESSAGE / echo outbound emitido pelo celular, Baileys frequentemente **não** popula `senderPn` do destinatário; a única coisa disponível é o `remoteJid=<lid>@lid`. O `sameKey` na linha 522 tem ainda um guard `!(fromMe && ownJids.has(sameKey.phoneJid))` que faz o resolver descartar o pareamento sempre que o "phone" da key coincide com o dono da instância — impedindo aliasing legítimo em vários echoes.
+- Resultado: outbound cai no ramo LID e vira conversa nova. `mergeProvisionalLidConversations` só migra depois que um alias `lid→phone` for descoberto — mas como não há inbound novo para aquele contato trazendo os dois na mesma key, o alias nunca chega e as duas conversas coexistem.
 
-**D. Frequência da campanha — pega só o último dia** (`tenant-campaigns/index.ts:147`)
+Confirmação no banco: 21 conversas `@lid` criadas nas últimas 48h em 3 tenants (Roar, Gabriel, Fio). Todas com `mapped_phone = null` (sem alias em `whatsapp_jid_aliases`). Várias têm `out_count > 0, in_count = 0` — exatamente o padrão "só enviei do celular, virou chat novo sem nome".
 
-- `last_frequency = Number(row?.frequency ?? last_frequency)` — a cada linha diária sobrescreve; ao final, é a frequência do último dia do intervalo, não a frequência do período (que deveria ser `impressions/reach`). O KPI global no front recomputa como `impressions/reach` (correto), mas cada card de campanha exibe o valor do último dia — inconsistente e usado nos alertas de "frequência alta".
+### 4. `SEND_MESSAGE` inscrito e `direction`
 
-**E. Reach agregado — soma diária, não deduplicado** (`tenant-campaigns/index.ts:140`)
+- `_shared/evolution-webhook.ts` já inclui `SEND_MESSAGE` na lista obrigatória e o audit força reassinatura. Os logs mostram eventos `messages.set fromMe:true` chegando 200 OK.
+- `direction='outbound'` é gravado corretamente (verificado no banco: 67 outbound nas últimas 24h). Não é problema de gravação; é de **roteamento** para a conversa errada.
 
-- `agg.reach += row.reach` soma o alcance de cada dia. Alcance da Meta é único por período; somando dias, superestima o reach (pode ficar > impressions em casos raros, e a `frequency = impressions/reach` calculada no front vira artificialmente baixa). O correto é pedir a linha agregada do período (`time_increment` omitido) e usar o `reach` de lá, ou pedir `unique_reach` em janela.
+### 5. Causa concreta e correção mínima (a implementar depois)
 
-**F. "Impressões" KPI — condicionado ao gasto** (`TenantCampaigns.tsx:600`)
+Causa raiz única: **quando o outbound chega apenas com `@lid` do destinatário, o webhook cria uma nova conversa provisória em vez de anexar à conversa canônica existente do mesmo contato.** Nenhum caminho no código atual olha para `messages.wamid` já enviado pelo painel/celular, nem consulta a Evolution/API para resolver `lid→phone` on-demand no momento do echo.
 
-- `NUM(kpis.spend > 0 ? impressões : 0)`. Se por qualquer motivo `spend` vier 0 (ex.: linha de insights truncada por permissão) o card mostra impressões zeradas mesmo quando a campanha teve entrega.
+Correção mínima proposta (a validar):
 
-**G. Moeda não validada**
+a) **Casar por `wamid` primeiro.** Antes de `findConversation`, se o payload é `fromMe` e o `wamid` já existe em `messages`, usar a `conversation_id` daquela linha e só atualizar `status`/`wamid` — nunca criar conversa nova. Isso resolve 100% dos echoes de mensagens enviadas pelo painel (`evolution-send` grava wamid antes) e todos os casos em que o mesmo wamid aparece em múltiplos eventos.
 
-- Nem `tenant-campaigns` nem o detail pedem `account_currency`. Todo `spend` é formatado como BRL (`Intl.NumberFormat pt-BR / BRL`). Contas em USD/outra moeda aparecem como reais com o mesmo número → valor exibido está errado. A função de sync antiga (`facebook-campaigns-sync`) até pede `account_currency`, mas as reais em uso (`tenant-campaigns`, `tenant-campaign-detail`) não.
+b) **Resolver LID sob demanda para outbound.** Quando `fromMe && isPendingLid && !conv`, chamar o mesmo utilitário do `whatsapp-lid-reconcile` (Evolution `/chat/whatsappNumbers` ou `/chat/findContact`) para tentar mapear `lid→phone` antes de criar conversa. Se resolver, gravar alias e usar canônica; se não, aí sim manter provisória.
 
-**H. "Resultado" / cost_per_result para MESSAGES** (`tenant-campaigns/index.ts:159`)
+c) **Merge automático mais agressivo.** Rodar `mergeProvisionalLidConversations` para o `lid` específico assim que a conversa provisória outbound é criada, e novamente quando qualquer inbound daquele lid chegar — hoje só roda no cron 15min.
 
-- Se `objective` inclui `MESSAG` e `messaging === 0`, cai em `messaging` mesmo com leads > 0 → `result_value=0` e o "Custo/Conv" exibido é 0, escondendo resultado real.
+d) **Relaxar o guard do `sameKey`** (linha 522): o `!(fromMe && ownJids.has(sameKey.phoneJid))` foi pensado contra self-echo mas está bloqueando pareamento legítimo em echoes de destinatários cujo LID/phone vêm juntos. Aceitar `sameKey` sempre que o phone **não** for own; a proteção contra ownJid já existe em `firstStandardJid`.
 
-### 3. Métricas que estão corretas (dado o input)
+Nenhum outro subsistema (dashboard, agendamento, formulários, automações) precisa mudar.
 
-- `spend`, `impressions`, `clicks` totais do período: soma direta e válida (assumindo janela correta e moeda BRL).
-- `ctr = clicks/impressions*100`, `cpc = spend/clicks`, `cpm = spend/impressions*1000`, `cpl = spend/leads`: fórmulas certas.
-- Extração de `leads`, `purchases`, `link_clicks`, `messaging` a partir de `actions`: mapeamento coerente com a documentação da Meta.
-- `hook_rate = video_p25/impressions*100`, `hold_rate = thruplay/video_p25*100`: convenção padrão.
-
-### 4. Correção proposta (a implementar depois da sua aprovação)
-
-1. **Fuso horário (fix mais importante — resolve o "gasto no dia" e todo o gráfico diário)**
-   - Na edge `tenant-campaigns` (e `tenant-campaign-detail`): buscar `timezone_name` da conta de anúncios (`GET /{act_id}?fields=timezone_name,account_currency,currency`), cachear, e:
-     - calcular `since`/`until` **naquele fuso** quando o cliente não enviar (usar `Intl.DateTimeFormat` com `timeZone: tz` para derivar `YYYY-MM-DD`);
-     - repassar `time_range: { since, until }` já no fuso da conta;
-   - No frontend, `daysAgoISO`/`todayISO` deixam de mandar UTC — passam a delegar a data para a edge (ou usam `America/Sao_Paulo` como fallback, com override por conta).
-   - Aceitação: `period=1` mostra o gasto do dia local; último bucket do sparkline bate com o Ads Manager na mesma janela.
-
-2. **Moeda**: expor `account_currency` na resposta por conta e por campanha; formatar `spend/cpl/cpm/ROAS` na moeda correta (default BRL). Bloquear soma cross-currency (ou converter usando última cotação — decisão que preciso confirmar com você).
-
-3. **Frequência**: parar de usar `last_frequency`; calcular `frequency = impressions / reach` no servidor a partir dos totais.
-
-4. **Reach**: pedir uma segunda chamada por campanha **sem** `time_increment` só para obter `reach` real do período (uma request extra por campanha; usar o cache existente de 3 min).
-
-5. **`spendPct` (uso do orçamento)**: usar `Math.max(1, dias_com_gasto_no_período)` no denominador, e desligar a barra quando a campanha for `lifetime_budget`.
-
-6. **ROAS**: separar em dois indicadores — "ROAS Meta (Pixel)" `= purchase_value/spend` e "ROAS CRM" `= wins_atribuídos_a_campanhas/spend` (usando `crmStats[campId].revenue`, não `globalStats.revenue`). Elimina dupla contagem e receita orgânica no numerador.
-
-7. **KPI "Impressões"**: remover a condicional em `spend > 0`; sempre exibir a soma de impressões.
-
-8. **Result_kind MESSAGES**: se `messaging === 0` e `leads > 0`, exibir "Leads" em vez de "Conversas 0".
-
-### 5. Perguntas antes de implementar
-
-- **ROAS**: você quer manter um único ROAS (qual fonte prevalece?) ou expor os dois separados (Meta Pixel × CRM)?
-- **Moeda**: alguma conta em USD/outra moeda? Se sim, converto para BRL (com cotação diária) ou mostro cada bloco na moeda nativa da conta?
-- **Fuso**: assumo `America/Sao_Paulo` como padrão quando a Meta não devolver `timezone_name`, ok?
-
-Sem tocar em dashboard, agendamento, formulários, webhook ou automações.
+### Aguardando aprovação
+Confirmo a análise antes de implementar? Alguma preferência entre (a)+(b) mínimo vs. pacote completo (a)+(b)+(c)+(d)?
