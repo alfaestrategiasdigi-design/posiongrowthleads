@@ -501,6 +501,80 @@ async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): P
   return null;
 }
 
+// On-demand LID -> phone JID resolution via Evolution API.
+// Called when an outbound (fromMe) message arrives with only an @lid recipient
+// and no existing conversation, to avoid creating a duplicate provisional chat.
+// Result cached in-memory per instance for 5 min to bound API calls.
+const lidResolveCache = new Map<string, { at: number; phoneJid: string | null }>();
+const lidResolveNegativeTtl = 60 * 1000;
+const lidResolvePositiveTtl = 30 * 60 * 1000;
+
+async function resolveLidViaEvolution(
+  conn: { instance_url?: string; api_key?: string; instance_name?: string } | null | undefined,
+  tenantId: string | null,
+  instanceName: string | null,
+  lidJid: string | null,
+): Promise<string | null> {
+  if (!lidJid || !lidJid.includes("@lid")) return null;
+  if (!conn?.instance_url || !conn?.api_key || !conn?.instance_name) return null;
+  const cacheKey = `${conn.instance_name}::${lidJid}`;
+  const cached = lidResolveCache.get(cacheKey);
+  if (cached) {
+    const ttl = cached.phoneJid ? lidResolvePositiveTtl : lidResolveNegativeTtl;
+    if (Date.now() - cached.at < ttl) return cached.phoneJid;
+  }
+  const base = normalizeBase(conn.instance_url);
+  const attempts: Array<{ method: string; url: string; body?: unknown }> = [
+    { method: "POST", url: `${base}/chat/findContacts/${encodeURIComponent(conn.instance_name)}`, body: { where: { id: lidJid } } },
+    { method: "POST", url: `${base}/chat/findContacts/${encodeURIComponent(conn.instance_name)}`, body: { where: { lid: lidJid } } },
+    { method: "POST", url: `${base}/chat/findContacts/${encodeURIComponent(conn.instance_name)}`, body: { where: { remoteJid: lidJid } } },
+  ];
+  let phoneJid: string | null = null;
+  for (const ep of attempts) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 4000);
+      const res = await fetch(ep.url, {
+        method: ep.method,
+        headers: { "Content-Type": "application/json", apikey: conn.api_key },
+        body: ep.body ? JSON.stringify(ep.body) : undefined,
+        signal: ctrl.signal,
+      }).finally(() => clearTimeout(timer));
+      if (!res.ok) continue;
+      const parsed = await res.json().catch(() => null);
+      const list: any[] = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.contacts) ? parsed.contacts
+        : Array.isArray(parsed?.data) ? parsed.data
+        : Array.isArray(parsed?.response?.contacts) ? parsed.response.contacts
+        : [];
+      for (const c of list) {
+        const cands = [
+          c?.id, c?.remoteJid, c?.remoteJidAlt, c?.jid, c?.jidAlt,
+          c?.lid, c?.lidJid, c?.lid_jid,
+          c?.pn, c?.phoneNumber, c?.wa_id, c?.senderPn, c?.participantPn,
+        ];
+        const foundPhone = firstPhoneJid(cands);
+        const foundLid = firstLidJid(cands);
+        if (foundPhone && (!foundLid || foundLid === lidJid)) {
+          phoneJid = foundPhone;
+          break;
+        }
+      }
+      if (phoneJid) break;
+    } catch {
+      // try next endpoint
+    }
+  }
+  lidResolveCache.set(cacheKey, { at: Date.now(), phoneJid });
+  if (phoneJid) {
+    await upsertJidAlias(tenantId, instanceName, lidJid, phoneJid, "same_key");
+    console.log("[whatsapp-webhook] lid_resolved_via_evolution", { lidJid, phoneJid });
+  }
+  return phoneJid;
+}
+
+
 async function resolveRemoteJid(
   message: any,
   key: any,
