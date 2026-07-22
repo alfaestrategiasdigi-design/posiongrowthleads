@@ -1100,11 +1100,27 @@ Deno.serve(async (req) => {
         // provisional so they show up in the panel; when the phone JID alias
         // arrives (CONTACTS_UPDATE / same-key alias), mergeProvisionalLid...
         // migrates the conversation and messages to the canonical JID.
+        // Root-cause hardening #1b: outbound-only proactive LID -> phone lookup.
+        // When the operator texts from the physical phone to a contact whose
+        // recipient JID arrives only as @lid, ask Evolution for the canonical
+        // phone before creating a provisional conversation. This eliminates the
+        // "Contato não identificado" duplicate chat for device-originated sends.
+        if (isPendingLid && fromMe) {
+          const resolvedPhoneJid = await resolveLidViaEvolution(
+            conn as any, tenantId, instanceName || null, remoteJid,
+          );
+          if (resolvedPhoneJid) {
+            remoteJid = resolvedPhoneJid;
+            isPendingLid = false;
+          }
+        }
+
         if (isPendingLid && fromMe) {
           console.log("[whatsapp-webhook] outbound_lid_kept_provisional", {
             wamid, rawRemoteJid, remoteJid,
           });
         }
+
 
         if (isPendingLid) {
           console.log("[whatsapp-webhook] pending_lid_stored", { wamid, rawRemoteJid, fromMe, pushName });
