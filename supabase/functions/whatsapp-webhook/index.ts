@@ -310,7 +310,7 @@ async function fetchInstanceOwnJids(conn: any, instanceName: string): Promise<Se
 // in routing.ts). Any other source is rejected — this is the hardening after
 // the 2026-07-05 wrong-merge incident that glued 4 unrelated @lids onto a
 // single contact via pushName heuristics.
-type AliasSource = "same_key" | "contacts_event" | "wamid_dedup";
+type AliasSource = "same_key" | "contacts_event" | "wamid_dedup" | "evolution_lookup";
 async function upsertJidAlias(
   tenantId: string | null,
   instanceName: string | null,
