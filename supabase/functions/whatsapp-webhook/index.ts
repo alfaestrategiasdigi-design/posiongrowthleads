@@ -554,8 +554,9 @@ async function resolveLidViaEvolution(
           c?.lid, c?.lidJid, c?.lid_jid,
           c?.pn, c?.phoneNumber, c?.wa_id, c?.senderPn, c?.participantPn,
         ];
-        const foundPhone = firstPhoneJid(cands);
+        const foundPhone = firstStandardJid(cands);
         const foundLid = firstLidJid(cands);
+
         if (foundPhone && (!foundLid || foundLid === lidJid)) {
           phoneJid = foundPhone;
           break;
