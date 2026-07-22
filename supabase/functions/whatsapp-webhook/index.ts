@@ -568,7 +568,7 @@ async function resolveLidViaEvolution(
   }
   lidResolveCache.set(cacheKey, { at: Date.now(), phoneJid });
   if (phoneJid) {
-    await upsertJidAlias(tenantId, instanceName, lidJid, phoneJid, "same_key");
+    await upsertJidAlias(tenantId, instanceName, lidJid, phoneJid, "evolution_lookup");
     console.log("[whatsapp-webhook] lid_resolved_via_evolution", { lidJid, phoneJid });
   }
   return phoneJid;
