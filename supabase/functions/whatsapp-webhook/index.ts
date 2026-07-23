@@ -331,6 +331,13 @@ async function upsertJidAlias(
 ) {
   if (!lidJid?.includes("@lid") || !phoneJid || phoneJid.includes("@lid")) return;
   if (!source) return;
+  // Never persist an alias whose phone side isn't a plausible E.164 phone.
+  // Short/leading-zero digit strings are opaque identifiers, not phones —
+  // persisting them was the root cause of the "chat órfão" bug.
+  if (!isPlausiblePhoneDigits(onlyDigits(phoneJid.split("@")[0]))) {
+    console.warn("[whatsapp-webhook] alias_rejected_implausible_phone", { lidJid, phoneJid, source });
+    return;
+  }
   try {
     await admin.from("whatsapp_jid_aliases").upsert({
       tenant_id: tenantId,
