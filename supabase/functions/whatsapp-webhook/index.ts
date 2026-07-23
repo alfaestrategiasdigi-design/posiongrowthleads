@@ -31,6 +31,17 @@ function onlyDigits(value: unknown): string {
   return String(value ?? "").replace(/\D/g, "");
 }
 
+// A real WhatsApp phone JID is E.164 (country code + national) — at minimum
+// 11 digits and never starts with "0". Guards against opaque numeric IDs
+// (LID pn digits, message IDs, truncated internal keys) being accepted as
+// `<digits>@s.whatsapp.net` and creating parallel "chat órfão" conversations
+// for outbound-from-another-device messages.
+function isPlausiblePhoneDigits(digits: string): boolean {
+  if (!digits) return false;
+  if (digits.startsWith("0")) return false;
+  return digits.length >= 11 && digits.length <= 15;
+}
+
 function normalizePhoneJid(value: unknown): string | null {
   let raw = String(value ?? "").trim();
   if (!raw) return null;
@@ -44,7 +55,7 @@ function normalizePhoneJid(value: unknown): string | null {
     return lidDigits ? `${lidDigits}@lid` : null;
   }
   const digits = onlyDigits(raw.split("@")[0]);
-  if (!digits) return null;
+  if (!isPlausiblePhoneDigits(digits)) return null;
   return `${digits}@s.whatsapp.net`;
 }
 
@@ -320,6 +331,13 @@ async function upsertJidAlias(
 ) {
   if (!lidJid?.includes("@lid") || !phoneJid || phoneJid.includes("@lid")) return;
   if (!source) return;
+  // Never persist an alias whose phone side isn't a plausible E.164 phone.
+  // Short/leading-zero digit strings are opaque identifiers, not phones —
+  // persisting them was the root cause of the "chat órfão" bug.
+  if (!isPlausiblePhoneDigits(onlyDigits(phoneJid.split("@")[0]))) {
+    console.warn("[whatsapp-webhook] alias_rejected_implausible_phone", { lidJid, phoneJid, source });
+    return;
+  }
   try {
     await admin.from("whatsapp_jid_aliases").upsert({
       tenant_id: tenantId,
@@ -477,16 +495,26 @@ async function tryRouteLidToCanonicalByPushName(
 
 
 
+function isTrustworthyAliasPhoneJid(phoneJid: string | null | undefined): boolean {
+  if (!phoneJid || phoneJid.includes("@lid")) return false;
+  const digits = onlyDigits(phoneJid.split("@")[0]);
+  return isPlausiblePhoneDigits(digits);
+}
+
 async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): Promise<string | null> {
   if (!lidJid?.includes("@lid")) return null;
   // HARDENED: quarantined aliases must never be used for routing.
+  // ALSO HARDENED: aliases whose phone_jid isn't a plausible E.164 phone are
+  // ignored — they were created by the pre-fix loose normalizer and would
+  // route outbound messages onto the wrong (truncated) conversation. We do
+  // not delete them (that is a separate manual decision), only skip them.
   let q = admin.from("whatsapp_jid_aliases")
     .select("phone_jid")
     .eq("lid_jid", lidJid)
     .is("quarantined_at", null);
   q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
   const { data } = await q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
-  if (data?.phone_jid) return data.phone_jid;
+  if (isTrustworthyAliasPhoneJid(data?.phone_jid)) return data!.phone_jid;
   if (tenantId) {
     const { data: globalAlias } = await admin.from("whatsapp_jid_aliases")
       .select("phone_jid")
@@ -496,10 +524,11 @@ async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): P
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    return globalAlias?.phone_jid ?? null;
+    if (isTrustworthyAliasPhoneJid(globalAlias?.phone_jid)) return globalAlias!.phone_jid;
   }
   return null;
 }
+
 
 // On-demand LID -> phone JID resolution via Evolution API.
 // Called when an outbound (fromMe) message arrives with only an @lid recipient
