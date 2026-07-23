@@ -488,16 +488,26 @@ async function tryRouteLidToCanonicalByPushName(
 
 
 
+function isTrustworthyAliasPhoneJid(phoneJid: string | null | undefined): boolean {
+  if (!phoneJid || phoneJid.includes("@lid")) return false;
+  const digits = onlyDigits(phoneJid.split("@")[0]);
+  return isPlausiblePhoneDigits(digits);
+}
+
 async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): Promise<string | null> {
   if (!lidJid?.includes("@lid")) return null;
   // HARDENED: quarantined aliases must never be used for routing.
+  // ALSO HARDENED: aliases whose phone_jid isn't a plausible E.164 phone are
+  // ignored — they were created by the pre-fix loose normalizer and would
+  // route outbound messages onto the wrong (truncated) conversation. We do
+  // not delete them (that is a separate manual decision), only skip them.
   let q = admin.from("whatsapp_jid_aliases")
     .select("phone_jid")
     .eq("lid_jid", lidJid)
     .is("quarantined_at", null);
   q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
   const { data } = await q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
-  if (data?.phone_jid) return data.phone_jid;
+  if (isTrustworthyAliasPhoneJid(data?.phone_jid)) return data!.phone_jid;
   if (tenantId) {
     const { data: globalAlias } = await admin.from("whatsapp_jid_aliases")
       .select("phone_jid")
@@ -507,10 +517,11 @@ async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): P
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    return globalAlias?.phone_jid ?? null;
+    if (isTrustworthyAliasPhoneJid(globalAlias?.phone_jid)) return globalAlias!.phone_jid;
   }
   return null;
 }
+
 
 // On-demand LID -> phone JID resolution via Evolution API.
 // Called when an outbound (fromMe) message arrives with only an @lid recipient
