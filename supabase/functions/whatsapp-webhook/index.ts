@@ -31,6 +31,17 @@ function onlyDigits(value: unknown): string {
   return String(value ?? "").replace(/\D/g, "");
 }
 
+// A real WhatsApp phone JID is E.164 (country code + national) — at minimum
+// 11 digits and never starts with "0". Guards against opaque numeric IDs
+// (LID pn digits, message IDs, truncated internal keys) being accepted as
+// `<digits>@s.whatsapp.net` and creating parallel "chat órfão" conversations
+// for outbound-from-another-device messages.
+function isPlausiblePhoneDigits(digits: string): boolean {
+  if (!digits) return false;
+  if (digits.startsWith("0")) return false;
+  return digits.length >= 11 && digits.length <= 15;
+}
+
 function normalizePhoneJid(value: unknown): string | null {
   let raw = String(value ?? "").trim();
   if (!raw) return null;
@@ -44,7 +55,7 @@ function normalizePhoneJid(value: unknown): string | null {
     return lidDigits ? `${lidDigits}@lid` : null;
   }
   const digits = onlyDigits(raw.split("@")[0]);
-  if (!digits) return null;
+  if (!isPlausiblePhoneDigits(digits)) return null;
   return `${digits}@s.whatsapp.net`;
 }
 
