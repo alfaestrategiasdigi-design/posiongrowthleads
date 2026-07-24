@@ -5,6 +5,7 @@
 // alias in whatsapp_jid_aliases + folds any pending @lid conversation into the
 // canonical phone-jid one. Mirrors the "contacts_event" path in whatsapp-webhook.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { isTrustworthyPhoneJid } from "../_shared/phone-jid.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -121,6 +122,16 @@ async function upsertJidAlias(
   lidJid: string | null, phoneJid: string | null,
 ): Promise<{ aliased: boolean; merged: number; renamed: number }> {
   if (!lidJid?.includes("@lid") || !phoneJid || phoneJid.includes("@lid")) return { aliased: false, merged: 0, renamed: 0 };
+  // Same hardening as whatsapp-webhook: never persist an alias whose phone side
+  // isn't a plausible E.164 phone. Short / leading-zero digit strings are opaque
+  // identifiers (LID pn digits, message ids, truncated keys), not phones. They
+  // were the root cause of "chat órfão" outbound conversations.
+  if (!isTrustworthyPhoneJid(phoneJid)) {
+    console.warn("[evolution-sync-contacts] alias_rejected_implausible_phone", {
+      lidJid, phoneJid, source: "contacts_event",
+    });
+    return { aliased: false, merged: 0, renamed: 0 };
+  }
   await admin.from("whatsapp_jid_aliases").upsert({
     tenant_id: tenantId,
     instance_name: instanceName,
