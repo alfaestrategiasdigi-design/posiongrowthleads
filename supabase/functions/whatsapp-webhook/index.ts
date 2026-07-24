@@ -1098,6 +1098,36 @@ Deno.serve(async (req) => {
             console.log("[wa-in] outbound_recovered_via_alt", { wamid, alt });
           }
         }
+        // HARDENING: never let a truncated `<digits>@s.whatsapp.net` slip
+        // through as an effective JID. `resolveRemoteJid` may return null and
+        // this branch would otherwise fall back to the raw string (e.g.
+        // "9740540@s.whatsapp.net") — that's exactly how outbound-from-phone
+        // messages were still spawning chats órfãos after the last fix.
+        // If we can salvage any @lid from the key/message, keep the message
+        // as a provisional @lid conversation (reconcile promotes it later
+        // when a trustworthy pair arrives). Otherwise, drop it.
+        if (effectiveJid && !effectiveJid.includes("@lid")) {
+          const effDigits = onlyDigits(effectiveJid.split("@")[0]);
+          if (!isPlausiblePhoneDigits(effDigits)) {
+            const salvagedLid = firstLidJid([
+              key?.remoteJid, key?.remoteJidAlt, key?.remoteJid_alt,
+              key?.participant, key?.participantAlt, key?.participant_alt,
+              key?.senderLid, key?.sender_lid,
+              (m as any)?.remoteJid, (m as any)?.participant,
+            ]);
+            if (salvagedLid) {
+              console.warn("[whatsapp-webhook] truncated_phone_downgraded_to_lid", {
+                wamid, fromMe, rejected: effectiveJid, lid: salvagedLid,
+              });
+              effectiveJid = salvagedLid;
+            } else {
+              console.warn("[whatsapp-webhook] truncated_phone_dropped", {
+                wamid, fromMe, rejected: effectiveJid, rawRemoteJid,
+              });
+              continue;
+            }
+          }
+        }
         if (!effectiveJid) {
           console.warn("[whatsapp-webhook] no_jid_dropped", { wamid, fromMe, blockedSelfJid: resolved.blockedSelfJid, ownJids: Array.from(ownJids) });
           continue;

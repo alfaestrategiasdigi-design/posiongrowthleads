@@ -8,6 +8,7 @@
 //   3) Conversa @lid sem candidato há mais de 48h -> removida silenciosamente.
 // Aceita chamadas internas (Bearer SERVICE_KEY) e chamadas de admin autenticado.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { isPlausiblePhoneDigits, isTrustworthyPhoneJid } from "../_shared/phone-jid.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -44,7 +45,9 @@ function firstPhoneJid(list: unknown[]): string | null {
     const s = String(raw ?? "").trim();
     if (!s || s.includes("@lid") || s.includes("@g.us") || s.includes("@broadcast")) continue;
     const digits = onlyDigits(s.split("@")[0]);
-    if (digits && digits.length >= 8) return `${digits}@s.whatsapp.net`;
+    // Only accept plausible E.164 (>=11, <=15, no leading zero). The previous
+    // >=8 threshold was the residual porta that let truncated ids in.
+    if (isPlausiblePhoneDigits(digits)) return `${digits}@s.whatsapp.net`;
   }
   return null;
 }
@@ -92,6 +95,12 @@ async function upsertAliasAndMerge(
   lidJid: string,
   phoneJid: string,
 ) {
+  if (!isTrustworthyPhoneJid(phoneJid)) {
+    console.warn("[whatsapp-lid-reconcile] alias_rejected_implausible_phone", {
+      lidJid, phoneJid, source: "evolution_lookup",
+    });
+    return { merged: 0, renamed: 0 };
+  }
   await admin.from("whatsapp_jid_aliases").upsert({
     tenant_id: tenantId,
     instance_name: instanceName,
@@ -336,6 +345,16 @@ Deno.serve(async (req) => {
         .maybeSingle();
       alias = globalAlias;
     }
+    // HARDENED: ignore aliases whose phone_jid isn't a plausible E.164 phone.
+    // Legacy rows persist in the table (356 in Donna Face alone) — treating
+    // them as absent prevents "rename by alias" from stamping a truncated
+    // <digits>@s.whatsapp.net onto a conversation.
+    if (alias && !isTrustworthyPhoneJid(alias.phone_jid)) {
+      console.warn("[whatsapp-lid-reconcile] alias_read_skipped_implausible_phone", {
+        lidJid: lid.remote_jid, phoneJid: alias.phone_jid,
+      });
+      alias = null;
+    }
 
     let target: any = null;
 
@@ -400,13 +419,19 @@ Deno.serve(async (req) => {
 
     if (target) {
       if (!dryRun && lid.remote_jid?.includes("@lid") && target.remote_jid && !target.remote_jid.includes("@lid")) {
-        await admin.from("whatsapp_jid_aliases").upsert({
-          tenant_id: lid.tenant_id,
-          lid_jid: lid.remote_jid,
-          phone_jid: target.remote_jid,
-          updated_at: new Date().toISOString(),
-          last_seen_at: new Date().toISOString(),
-        }, { onConflict: "tenant_scope,lid_jid" });
+        if (!isTrustworthyPhoneJid(target.remote_jid)) {
+          console.warn("[whatsapp-lid-reconcile] alias_rejected_implausible_phone", {
+            lidJid: lid.remote_jid, phoneJid: target.remote_jid, source: "wamid_correlation",
+          });
+        } else {
+          await admin.from("whatsapp_jid_aliases").upsert({
+            tenant_id: lid.tenant_id,
+            lid_jid: lid.remote_jid,
+            phone_jid: target.remote_jid,
+            updated_at: new Date().toISOString(),
+            last_seen_at: new Date().toISOString(),
+          }, { onConflict: "tenant_scope,lid_jid" });
+        }
       }
       if (!dryRun) await mergeInto(admin, lid.id, target);
       bumpT(lid.tenant_id, "auto_merged");
