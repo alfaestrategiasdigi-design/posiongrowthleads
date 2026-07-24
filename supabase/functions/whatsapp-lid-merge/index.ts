@@ -118,13 +118,19 @@ Deno.serve(async (req) => {
   const { data: existing } = await cq.neq("id", lid.id).limit(1).maybeSingle();
 
   if (lidJid) {
-    await admin.from("whatsapp_jid_aliases").upsert({
-      tenant_id: lid.tenant_id,
-      lid_jid: lidJid,
-      phone_jid: phoneJid,
-      updated_at: new Date().toISOString(),
-      last_seen_at: new Date().toISOString(),
-    }, { onConflict: "tenant_scope,lid_jid" });
+    if (!isTrustworthyPhoneJid(phoneJid)) {
+      console.warn("[whatsapp-lid-merge] alias_rejected_implausible_phone", {
+        lidJid, phoneJid, source: "manual_merge_phone",
+      });
+    } else {
+      await admin.from("whatsapp_jid_aliases").upsert({
+        tenant_id: lid.tenant_id,
+        lid_jid: lidJid,
+        phone_jid: phoneJid,
+        updated_at: new Date().toISOString(),
+        last_seen_at: new Date().toISOString(),
+      }, { onConflict: "tenant_scope,lid_jid" });
+    }
   }
 
   if (existing) {
