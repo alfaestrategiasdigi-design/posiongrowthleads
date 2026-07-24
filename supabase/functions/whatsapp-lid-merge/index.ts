@@ -4,6 +4,7 @@
 // - target_phone: E.164 ou dígitos; renomeia a @lid para <digits>@s.whatsapp.net (se não existir canônica). Se já existir uma canônica com esse telefone, mescla nela.
 // Sempre registra o alias em whatsapp_jid_aliases para prevenir recorrência do mesmo LID.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { isTrustworthyPhoneJid } from "../_shared/phone-jid.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -86,13 +87,19 @@ Deno.serve(async (req) => {
       return json({ error: "Alvo e origem devem estar no mesmo tenant" }, 400);
     }
     if (lidJid && target.remote_jid && !target.remote_jid.includes("@lid")) {
-      await admin.from("whatsapp_jid_aliases").upsert({
-        tenant_id: lid.tenant_id,
-        lid_jid: lidJid,
-        phone_jid: target.remote_jid,
-        updated_at: new Date().toISOString(),
-        last_seen_at: new Date().toISOString(),
-      }, { onConflict: "tenant_scope,lid_jid" });
+      if (!isTrustworthyPhoneJid(target.remote_jid)) {
+        console.warn("[whatsapp-lid-merge] alias_rejected_implausible_phone", {
+          lidJid, phoneJid: target.remote_jid, source: "manual_merge_target",
+        });
+      } else {
+        await admin.from("whatsapp_jid_aliases").upsert({
+          tenant_id: lid.tenant_id,
+          lid_jid: lidJid,
+          phone_jid: target.remote_jid,
+          updated_at: new Date().toISOString(),
+          last_seen_at: new Date().toISOString(),
+        }, { onConflict: "tenant_scope,lid_jid" });
+      }
     }
     await mergeInto(admin, lid.id, target, lid.nao_lidas ?? 0);
     return json({ ok: true, action: "merged_into", target_id: target.id });
