@@ -136,7 +136,8 @@ function NewSaleDialog({ tenantId, onCreated }: { tenantId: string; onCreated: (
   const [newChannel, setNewChannel] = useState("");
   const [creatingChannel, setCreatingChannel] = useState(false);
   const [f, setF] = useState({
-    patient_name: "", seller_name: "", sale_date: new Date().toISOString().slice(0, 10),
+    patient_name: "", lead_id: null as string | null,
+    seller_name: "", sale_date: new Date().toISOString().slice(0, 10),
     product: "", amount: "", payment_method: "PIX", installments: 1, channel: "",
     attended: "SIM", first_contact_date: "", international: false, arrival_date: "", notes: "",
   });
