@@ -129,7 +129,11 @@ export default function Index() {
       >
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={logoAsset.url} alt="POSION" className="h-7 w-auto" />
+            <img
+              src={logoAsset.url}
+              alt="POSION"
+              className="h-8 w-auto object-contain shrink-0 block bg-transparent"
+            />
             <span
               className="hidden sm:inline text-[10px] uppercase"
               style={{ fontFamily: FONT_MONO, letterSpacing: "0.24em", color: PALETTE.muted }}
