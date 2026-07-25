@@ -53,14 +53,15 @@
     --gold-bright: 42 68% 52%;
     --gold-deep: 36 70% 32%;
 
-    --sidebar-background: 40 30% 93%;
-    --sidebar-foreground: 25 8% 28%;
-    --sidebar-primary: 38 65% 40%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 40 22% 87%;
-    --sidebar-accent-foreground: 20 14% 12%;
-    --sidebar-border: 38 20% 80%;
-    --sidebar-ring: 38 65% 40%;
+    /* Sidebar sempre escura — forma "moldura" com o header preto */
+    --sidebar-background: 0 0% 5.1%;
+    --sidebar-foreground: 0 0% 72%;
+    --sidebar-primary: 44 55% 54%;
+    --sidebar-primary-foreground: 0 0% 0%;
+    --sidebar-accent: 0 0% 10.2%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 11.8%;
+    --sidebar-ring: 44 55% 54%;
   }
 
   .dark {
@@ -1478,35 +1479,16 @@ html { scroll-behavior: smooth; }
     linear-gradient(90deg, hsl(38 20% 78% / 0.18) 1px, transparent 1px) !important;
 }
 
-/* Header — faixa branca com borda dourada sutil, texto escuro */
-.light .tech-header {
-  background: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%) !important;
-  border-bottom: 1px solid hsl(var(--border)) !important;
-  color: hsl(var(--foreground)) !important;
-  box-shadow: 0 1px 2px rgba(15,23,42,.04);
+/* Header e faixa da sidebar permanecem SEMPRE escuros (moldura).
+   Reforça a barra dourada inferior no light. */
+.light .tech-header::after,
+.light .tech-topbar-band::after {
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.85), transparent) !important;
 }
-.light .tech-header::after {
-  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.6), transparent) !important;
-}
+/* Garante contraste do texto branco dentro do header/faixa mesmo no light */
+.light .tech-header,
 .light .tech-topbar-band {
-  background: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%) !important;
-  border-color: hsl(var(--border)) !important;
-  color: hsl(var(--foreground)) !important;
-}
-.light .tech-topbar-band .text-muted-foreground {
-  color: hsl(var(--muted-foreground)) !important;
-}
-.light .tech-header .text-white,
-.light .tech-topbar-band .text-white {
-  color: hsl(var(--foreground)) !important;
-}
-.light .tech-header .text-white\/55,
-.light .tech-header .text-white\/60,
-.light .tech-header .text-white\/70,
-.light .tech-topbar-band .text-white\/55,
-.light .tech-topbar-band .text-white\/60,
-.light .tech-topbar-band .text-white\/70 {
-  color: hsl(var(--muted-foreground)) !important;
+  color: #fff !important;
 }
 
 /* Heading gradiente — em light vira dourado sólido sobre foreground */
@@ -1516,63 +1498,72 @@ html { scroll-behavior: smooth; }
   color: transparent !important;
 }
 
-/* Premium surfaces — cartão branco, sombra suave, borda cinza clara */
+/* ---- Superfícies claras com profundidade real ---- */
+/* Fundo do conteúdo levemente marfim, com grid dourado sutil (via .tech-shell acima) */
+
+/* Premium surfaces — branco puro, borda cinza definida, sombra em camadas */
 .light .premium-card {
-  background: hsl(var(--card)) !important;
-  border: 1px solid hsl(var(--border)) !important;
+  background: #ffffff !important;
+  border: 1px solid hsl(38 18% 84%) !important;
+  border-radius: 14px !important;
   box-shadow:
-    0 1px 2px rgba(15,23,42,.04),
-    0 4px 12px -4px rgba(15,23,42,.06) !important;
+    0 1px 0 hsl(38 30% 96%) inset,
+    0 1px 2px rgba(15,23,42,.05),
+    0 8px 20px -10px rgba(15,23,42,.12) !important;
 }
 .light .premium-card:hover {
   transform: translateY(-1px);
-  border-color: hsl(var(--primary) / 0.35) !important;
+  border-color: hsl(var(--primary) / 0.45) !important;
   box-shadow:
+    0 1px 0 hsl(38 30% 96%) inset,
     0 2px 4px rgba(15,23,42,.06),
-    0 12px 24px -8px rgba(15,23,42,.10) !important;
+    0 16px 32px -12px rgba(15,23,42,.18) !important;
 }
 .light .premium-hero {
   background:
-    radial-gradient(80% 100% at 0% 0%, hsl(38 65% 92% / 0.6), transparent 55%),
-    hsl(var(--card)) !important;
-  border: 1px solid hsl(var(--border)) !important;
+    radial-gradient(80% 100% at 0% 0%, hsl(38 65% 92% / 0.55), transparent 55%),
+    #ffffff !important;
+  border: 1px solid hsl(38 22% 82%) !important;
+  border-radius: 16px !important;
   box-shadow:
-    0 1px 2px rgba(15,23,42,.04),
-    0 12px 32px -12px rgba(15,23,42,.10) !important;
+    0 1px 0 hsl(38 30% 96%) inset,
+    0 2px 4px rgba(15,23,42,.05),
+    0 20px 48px -18px rgba(15,23,42,.18) !important;
 }
 .light .premium-hero::before {
-  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.55), transparent) !important;
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.7), transparent) !important;
 }
 .light .premium-section-icon {
-  background: linear-gradient(135deg, hsl(var(--primary) / 0.14), hsl(var(--primary) / 0.04)) !important;
-  border: 1px solid hsl(var(--primary) / 0.35) !important;
-  box-shadow: none !important;
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.18), hsl(var(--primary) / 0.06)) !important;
+  border: 1px solid hsl(var(--primary) / 0.4) !important;
+  box-shadow: 0 1px 2px rgba(15,23,42,.05) !important;
 }
 .light .premium-kpi-icon {
-  background: hsl(var(--card)) !important;
-  border: 1px solid hsl(var(--border)) !important;
-  box-shadow: none !important;
+  background: #ffffff !important;
+  border: 1px solid hsl(38 20% 82%) !important;
+  box-shadow: 0 1px 2px rgba(15,23,42,.05) !important;
 }
 
-/* Floating cards inside admin shell — sem sombra escura pesada */
+/* Floating cards inside admin shell — profundidade consistente */
 .light .tech-shell [data-tech-card],
 .light .tech-shell [class*="rounded-"][class*="border"][class*="bg-card"]:not([data-no-float]),
 .light .tech-shell [class*="rounded-"][class*="border"][class*="bg-background/"]:not([data-no-float]),
 .light .tech-shell [class*="rounded-"][class*="border"][class*="bg-muted/"]:not([data-no-float]) {
-  border-color: hsl(var(--border)) !important;
+  background-color: #ffffff !important;
+  border-color: hsl(38 18% 84%) !important;
   box-shadow:
-    0 1px 2px rgba(15,23,42,.04),
-    0 4px 12px -4px rgba(15,23,42,.06) !important;
+    0 1px 2px rgba(15,23,42,.05),
+    0 6px 16px -8px rgba(15,23,42,.10) !important;
 }
 .light .tech-shell [data-tech-card]:hover,
 .light .tech-shell [class*="rounded-"][class*="border"][class*="bg-card"]:not([data-no-float]):hover,
 .light .tech-shell [class*="rounded-"][class*="border"][class*="bg-background/"]:not([data-no-float]):hover,
 .light .tech-shell [class*="rounded-"][class*="border"][class*="bg-muted/"]:not([data-no-float]):hover {
   transform: none;
-  border-color: hsl(var(--primary) / 0.35) !important;
+  border-color: hsl(var(--primary) / 0.4) !important;
   box-shadow:
     0 2px 4px rgba(15,23,42,.06),
-    0 10px 24px -10px rgba(15,23,42,.10) !important;
+    0 14px 30px -12px rgba(15,23,42,.16) !important;
 }
 
 /* Textos amber/gold ficam legíveis em light — mantém accent gold */
