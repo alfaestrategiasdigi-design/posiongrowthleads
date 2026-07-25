@@ -25,6 +25,7 @@ export default function TenantKanban() {
   const [search, setSearch] = useState("");
   const [rangeDays, setRangeDays] = useState<number | null>(null);
   const [nextAppt, setNextAppt] = useState<Record<string, string>>({});
+  const [density, setDensity] = useState<KanbanDensity>(() => readDensity());
 
   const loadLeads = async () => {
     if (!tenant?.id) return;
