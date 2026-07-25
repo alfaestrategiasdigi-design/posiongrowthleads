@@ -47,8 +47,8 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
     {
       label: "Gestão",
       items: [
-        { title: "Pacientes Ativos", url: `${base}/pacientes`, icon: Users },
-        { title: "Agenda", url: `${base}/agenda`, icon: Calendar, comercial: true },
+        { title: isInfoproduto ? "Clientes Ativos" : "Pacientes Ativos", url: `${base}/pacientes`, icon: Users },
+        { title: isInfoproduto ? "Sessões" : "Agenda", url: `${base}/agenda`, icon: Calendar, comercial: true },
         { title: "Financeiro", url: `${base}/financeiro`, icon: DollarSign },
         { title: "Relatórios", url: `${base}/relatorios`, icon: BarChart3, comercial: true },
       ],
