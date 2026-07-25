@@ -103,14 +103,9 @@ const AppSidebar = () => {
   return (
     <Sidebar collapsible="icon" className="tech-sidebar border-r border-sidebar-border bg-sidebar/95 backdrop-blur-xl">
       <SidebarHeader className="p-0">
-        <div className={`tech-topbar-band h-14 px-3 border-b ${collapsed ? "flex flex-col items-center justify-center gap-2" : "flex items-center justify-between gap-2"}`}>
-          <div className="relative min-w-0 flex items-center">
-            <img src={logoAsset.url} alt="Posion" className={collapsed ? "h-6 w-auto" : "h-7 w-auto"} />
-            {!collapsed && (
-              <span className="ml-2 text-[9px] font-mono uppercase tracking-[0.2em] text-white/55">
-                v2 · Tools
-              </span>
-            )}
+        <div className={`tech-topbar-band h-14 px-2 border-b ${collapsed ? "flex flex-col items-center justify-center gap-2" : "flex items-center justify-between gap-1"}`}>
+          <div className="min-w-0 flex-1">
+            <UserAvatarBlock to="/admin/perfil" collapsed={collapsed} subtitle="POSION Master" />
           </div>
           <Button
             type="button"
