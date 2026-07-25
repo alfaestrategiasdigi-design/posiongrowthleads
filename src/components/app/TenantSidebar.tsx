@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tenant } from "@/hooks/useTenant";
 import UserAvatarBlock from "@/components/shared/UserAvatarBlock";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 
 interface Props { tenant: Tenant; isSuperAdmin: boolean; tenantRole?: string | null }
 
