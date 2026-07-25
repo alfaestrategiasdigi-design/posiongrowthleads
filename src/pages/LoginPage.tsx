@@ -105,9 +105,9 @@ export default function LoginPage() {
             <div
               className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
               style={{
-                background: PALETTE.card,
-                border: `1px solid ${PALETTE.border}`,
-                boxShadow: "0 12px 28px -20px rgba(20,18,13,0.25)",
+                background: PALETTE.header,
+                border: `1px solid ${PALETTE.gold}33`,
+                boxShadow: "0 12px 28px -20px rgba(20,18,13,0.45)",
               }}
             >
               <img src={logoAsset.url} alt="POSION" className="h-6 w-auto" />
