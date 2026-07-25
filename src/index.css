@@ -11,47 +11,48 @@
     The <html> element gets either `.dark` or `.light` (see index.html + useTheme).
   */
   :root {
-    /* POSION LIGHT — cream paper backdrop, white cards, deep gold accent */
-    --background: 40 32% 95%;         /* warm ivory paper */
-    --foreground: 20 14% 12%;
+    /* POSION LIGHT — pure white paper, deep near-black elements, gold accent */
+    --background: 0 0% 100%;          /* pure white */
+    --foreground: 0 0% 8%;            /* near black for max contrast */
 
-    --card: 0 0% 100%;                /* real white cards over cream */
-    --card-foreground: 20 14% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 8%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 20 14% 12%;
+    --popover-foreground: 0 0% 8%;
 
-    --primary: 38 65% 40%;            /* darker, more saturated gold */
+    --primary: 0 0% 10%;              /* deep charcoal — high-impact buttons */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 40 22% 92%;
-    --secondary-foreground: 20 14% 14%;
+    --secondary: 0 0% 95%;
+    --secondary-foreground: 0 0% 10%;
 
-    --muted: 40 20% 90%;
-    --muted-foreground: 25 8% 38%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 30%;     /* darker so labels read strong */
 
-    --accent: 38 65% 40%;
+    --accent: 38 70% 42%;              /* gold accent kept for highlights */
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 48%;
+    --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 38 20% 82%;
-    --input: 38 20% 88%;
-    --ring: 38 65% 40%;
+    --border: 0 0% 82%;                /* stronger, visible borders */
+    --input: 0 0% 88%;
+    --ring: 0 0% 10%;
 
     --radius: 0.5rem;
 
-    --header-bg: 40 32% 96%;
-    --header-foreground: 20 14% 12%;
-    --success: 142 62% 34%;
+    --header-bg: 0 0% 100%;
+    --header-foreground: 0 0% 8%;
+    --success: 142 62% 30%;
     --success-foreground: 0 0% 100%;
-    --whatsapp: 142 68% 36%;
+    --whatsapp: 142 68% 32%;
     --whatsapp-foreground: 0 0% 100%;
 
-    --gold: 38 65% 40%;
-    --gold-bright: 42 68% 52%;
-    --gold-deep: 36 70% 32%;
+    --gold: 38 70% 42%;
+    --gold-bright: 42 72% 52%;
+    --gold-deep: 36 72% 32%;
+
 
     /* Sidebar sempre escura — forma "moldura" com o header preto */
     --sidebar-background: 0 0% 5.1%;
