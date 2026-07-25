@@ -44,45 +44,41 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
   return (
     <Sidebar collapsible="icon" className="tech-sidebar border-r border-sidebar-border bg-sidebar/95 backdrop-blur-xl">
       <SidebarContent>
+        {/* Cabeçalho simétrico: usuário logado + botão de recolher */}
         <div className="tech-topbar-band h-14 px-3 flex items-center border-b">
-          <div className="flex items-center gap-3 w-full">
-            <div className="w-9 h-9 rounded-lg premium-kpi-icon flex items-center justify-center shrink-0">
-              <Building2 className="w-4 h-4 text-white" />
+          <div className="flex items-center gap-2 w-full min-w-0">
+            <div className="min-w-0 flex-1">
+              <UserAvatarBlock
+                to={`/app/${tenant.slug}/perfil`}
+                collapsed={collapsed}
+                subtitle="Meu perfil"
+              />
             </div>
-            {!collapsed && (
-              <div className="min-w-0">
-                <div className="font-display text-sm leading-tight truncate text-white">{tenant.name}</div>
-                <div className="text-[10px] uppercase tracking-[0.18em] text-white/55 mt-0.5">{tenant.plan}</div>
-              </div>
-            )}
-            {!collapsed && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={toggleSidebar}
-                aria-label="Recolher menu lateral"
-                title="Recolher menu"
-                className="ml-auto h-8 w-8 shrink-0 text-white/60 hover:text-white hover:bg-white/5"
-              >
-                <PanelLeftClose className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-          {collapsed && (
             <Button
               type="button"
               variant="ghost"
               size="icon"
               onClick={toggleSidebar}
-              aria-label="Expandir menu lateral"
-              title="Expandir menu"
-              className="mt-3 h-8 w-8 mx-auto text-muted-foreground hover:text-foreground"
+              aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+              title={collapsed ? "Expandir menu" : "Recolher menu"}
+              className="h-8 w-8 shrink-0 text-white/60 hover:text-white hover:bg-white/5"
             >
-              <PanelLeftOpen className="h-4 w-4" />
+              {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
             </Button>
-          )}
+          </div>
         </div>
+
+        {/* Identificação discreta da clínica */}
+        {!collapsed && (
+          <div className="px-3 pt-2 pb-1">
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+              <Building2 className="h-3 w-3 opacity-70" />
+              <span className="truncate">{tenant.name}</span>
+              <span className="ml-auto text-muted-foreground/50">{tenant.plan}</span>
+            </div>
+          </div>
+        )}
+
         <SidebarGroup>
           <SidebarGroupLabel className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/70">Operação</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -127,10 +123,7 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
           </SidebarGroup>
         )}
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border gap-2">
-        <div className="px-2 pt-2">
-          <UserAvatarBlock to={`/app/${tenant.slug}/perfil`} collapsed={collapsed} subtitle="Meu perfil" />
-        </div>
+      <SidebarFooter className="border-t border-sidebar-border">
         <div className={collapsed ? "py-3 flex justify-center" : "px-3 py-3 flex items-center gap-2"}>
           <img src={posionLogo.url} alt="Posion" className={collapsed ? "h-6 opacity-80" : "h-5 opacity-80"} />
           {!collapsed && (
