@@ -63,24 +63,29 @@ const LeadCard = ({ lead, onClick, onDragStart, nextAppointmentAt, density = "co
       onDragStart={(e) => onDragStart(e, lead.id)}
       onClick={onClick}
       title={lead.nome_completo}
-      className={`${base} p-2.5`}
+      className={`${base} p-3.5 relative`}
     >
-      <div className="flex items-start gap-2">
-        <div className="w-6 h-6 shrink-0 rounded-full bg-primary/10 text-primary text-[10px] font-semibold flex items-center justify-center border border-primary/20">
-          {initials(lead.nome_completo) || <User className="w-3 h-3" />}
+      {/* Data no canto superior direito */}
+      <span className="absolute top-2 right-2.5 text-[9.5px] font-medium text-muted-foreground/80 tabular-nums pointer-events-none">
+        {format(new Date(lead.created_at), "dd/MM", { locale: ptBR })}
+      </span>
+
+      <div className="flex items-start gap-2.5 pr-8">
+        <div className="w-7 h-7 shrink-0 rounded-full bg-primary/10 text-primary text-[11px] font-semibold flex items-center justify-center border border-primary/20">
+          {initials(lead.nome_completo) || <User className="w-3.5 h-3.5" />}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-medium text-foreground truncate leading-tight">
+          <div className="text-sm font-semibold text-foreground truncate leading-tight">
             {lead.nome_completo}
           </div>
           {lead.nome_empresa && (
-            <div className="text-[11px] text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+            <div className="text-[11.5px] text-muted-foreground truncate flex items-center gap-1 mt-0.5">
               <Building2 className="w-3 h-3 shrink-0" /> <span className="truncate">{lead.nome_empresa}</span>
             </div>
           )}
 
           {spacious && (
-            <div className="mt-1.5 space-y-0.5">
+            <div className="mt-2 space-y-0.5">
               <div className="text-[11px] text-muted-foreground flex items-center gap-1 truncate">
                 <Phone className="w-3 h-3 shrink-0" /> {lead.whatsapp}
               </div>
@@ -113,18 +118,14 @@ const LeadCard = ({ lead, onClick, onDragStart, nextAppointmentAt, density = "co
             </div>
           )}
 
-          <div className="mt-1.5 flex items-center gap-2">
-            {val && <span className="text-[12px] font-semibold tabular-nums text-primary">{val}</span>}
-            <span className="ml-auto text-[10px] text-muted-foreground tabular-nums flex items-center gap-1">
-              <Calendar className="w-3 h-3" />
-              {format(new Date(lead.created_at), "dd/MM", { locale: ptBR })}
-            </span>
+          <div className="mt-2 flex items-center gap-2">
+            {val && <span className="text-[12.5px] font-semibold tabular-nums text-primary">{val}</span>}
             <button
               onClick={handleWhatsAppClick}
-              className="w-5 h-5 rounded-full bg-[hsl(var(--whatsapp)/0.12)] hover:bg-[hsl(var(--whatsapp)/0.22)] flex items-center justify-center transition-colors"
+              className="ml-auto w-6 h-6 rounded-full bg-[hsl(var(--whatsapp)/0.12)] hover:bg-[hsl(var(--whatsapp)/0.22)] flex items-center justify-center transition-colors"
               title="Abrir WhatsApp"
             >
-              <MessageCircle className="w-3 h-3 text-[hsl(var(--whatsapp))]" />
+              <MessageCircle className="w-3.5 h-3.5 text-[hsl(var(--whatsapp))]" />
             </button>
           </div>
         </div>

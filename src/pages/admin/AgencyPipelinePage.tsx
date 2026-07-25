@@ -212,21 +212,21 @@ export default function AgencyPipelinePage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <div className="text-[10px] uppercase tracking-[0.22em] text-primary/70 mb-1">POSION Agência</div>
-          <h1 className="text-3xl font-bold">Pipeline de Vendas</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Funil de clínicas interessadas em contratar a POSION.
+          <h1 className="text-xl font-semibold leading-tight">Pipeline</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Funil de clínicas interessadas.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar clínica, responsável, e-mail..."
-              className="pl-8 pr-8 w-[280px] h-9"
+              placeholder="Buscar..."
+              className="pl-8 pr-8 w-[220px] h-8 text-xs"
             />
             {search && (
               <button
@@ -240,8 +240,8 @@ export default function AgencyPipelinePage() {
             )}
           </div>
           <DensityToggle value={density} onChange={(d) => { setDensity(d); writeDensity(d); }} />
-          <Button onClick={() => { setEditing(null); setNewOpen(true); }} className="gap-2">
-            <Plus className="w-4 h-4" /> Novo Lead
+          <Button size="sm" onClick={() => { setEditing(null); setNewOpen(true); }} className="gap-1.5 h-8 text-xs">
+            <Plus className="w-3.5 h-3.5" /> Novo Lead
           </Button>
         </div>
       </div>
