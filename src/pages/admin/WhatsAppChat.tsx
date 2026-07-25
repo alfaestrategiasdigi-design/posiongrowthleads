@@ -916,7 +916,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   };
 
   const isFromOtherDevice = (msg: Message): boolean => {
-    if (msg.sender !== "usuario") return false;
+    if (msg.direction !== "outbound") return false;
     if (!msg.wamid) return false;                        // optimistic local send
     if (msg.tipo_disparo) return false;                  // system auto (welcome etc)
     const ts = msg.created_at ? new Date(msg.created_at).getTime() : 0;
@@ -926,7 +926,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   };
 
   const renderStatus = (msg: Message) => {
-    if (msg.sender !== "usuario") return null;
+    if (msg.direction !== "outbound") return null;
     const s = msg.status || "sent";
     if (s === "sending") return <Loader2 className="w-3 h-3 inline animate-spin opacity-70" />;
     if (s === "failed") return <AlertTriangle className="w-3 h-3 inline text-rose-400" />;
@@ -1166,7 +1166,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
               </div>
             ) : (
               messages.map(msg => {
-                const isOut = msg.sender === "usuario";
+                const isOut = msg.direction === "outbound";
                 const otherDevice = isOut && isFromOtherDevice(msg);
                 return (
                   <div key={msg.id} className={`group flex ${isOut ? "justify-end" : "justify-start"} gap-2`}>

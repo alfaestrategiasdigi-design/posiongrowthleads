@@ -1493,13 +1493,24 @@ Deno.serve(async (req) => {
           if (dup.data) continue;
         }
         if (fromMe && text) {
-          const since = new Date(Date.now() - 15000).toISOString();
+          // Hardened dedup: only adopt a local outbound row that (a) still has
+          // no wamid, (b) was written by the panel (sender=usuario, direction=outbound),
+          // (c) matches the same content, and (d) is within the correlation window.
+          // Prefer the messageCreatedAt from Evolution (physical send time) over
+          // Date.now() so an echo arriving late doesn't miss the window.
+          const evtTsMs = messageCreatedAt ? new Date(messageCreatedAt).getTime() : Date.now();
+          const since = new Date(evtTsMs - 20000).toISOString();
+          const until = new Date(evtTsMs + 20000).toISOString();
           const dup2 = await admin.from("messages")
-            .select("id")
+            .select("id, wamid")
             .eq("conversation_id", conv.id)
             .eq("sender", "usuario")
+            .eq("direction", "outbound")
+            .is("wamid", null)
             .eq("conteudo", text)
             .gte("created_at", since)
+            .lte("created_at", until)
+            .order("created_at", { ascending: false })
             .limit(1).maybeSingle();
           if (dup2.data) {
             // Attach the wamid to the existing outbound row so future ACKs match.
