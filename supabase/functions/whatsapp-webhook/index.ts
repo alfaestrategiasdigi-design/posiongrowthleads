@@ -724,6 +724,19 @@ Deno.serve(async (req) => {
 
   try {
     const event = (body?.event ?? body?.type ?? "").toString().toLowerCase();
+    // Global trace: log every incoming event name + minimal payload shape so we
+    // can diagnose "events arriving but silently ignored" cases.
+    try {
+      const dataKeys = body?.data && typeof body.data === "object" ? Object.keys(body.data).slice(0, 6) : [];
+      console.log("[wa-evt]", {
+        event,
+        instance: body?.instance ?? body?.instanceName ?? null,
+        hasData: Boolean(body?.data),
+        dataIsArray: Array.isArray(body?.data),
+        dataLen: Array.isArray(body?.data) ? body.data.length : undefined,
+        dataKeys,
+      });
+    } catch { /* ignore trace failure */ }
     const senderCandidate = String(body?.sender ?? "").trim();
     const senderLooksLikeJid = Boolean(normalizePhoneJid(senderCandidate))
       && (senderCandidate.includes("@") || onlyDigits(senderCandidate).length >= 10);
