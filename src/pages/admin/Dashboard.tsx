@@ -259,6 +259,21 @@ export default function Dashboard() {
   };
   const goalPct = monthlyGoal > 0 ? Math.min(100, (agency.totalCombinado / monthlyGoal) * 100) : 0;
 
+  // Dados ricos consolidados (mesma fonte dos Relatórios) — respeita o período do DateRangePicker
+  const relatorioFilters = useMemo(() => ({
+    from: format(range.from, "yyyy-MM-dd"),
+    to: format(range.to, "yyyy-MM-dd"),
+    tenantIds: [] as string[],
+    campaigns: [] as string[],
+    forms: [] as string[],
+    ownerIds: [] as string[],
+    origem: "all" as const,
+  }), [range.from, range.to]);
+  const relatorioQuery = useRelatorioData(relatorioFilters, "admin", null);
+  const relatorio = relatorioQuery.data;
+
+
+
   if (loading) {
     return <div className="flex items-center justify-center h-96"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
