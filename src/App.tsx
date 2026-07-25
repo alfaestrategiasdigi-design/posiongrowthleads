@@ -107,6 +107,7 @@ const App = () => (
 
           <Route path="/admin/conexao-whatsapp" element={<AdminLayout><ConexaoWhatsappPage /></AdminLayout>} />
           <Route path="/admin/whatsapp-status" element={<AdminLayout><WhatsAppStatusPage /></AdminLayout>} />
+          <Route path="/admin/whatsapp-conexoes" element={<AdminLayout><WhatsAppConnectionsPage /></AdminLayout>} />
           <Route path="/admin/whatsapp-audit" element={<AdminLayout><WhatsAppAuditPage /></AdminLayout>} />
           <Route path="/admin/usuarios" element={<AdminLayout><CreateUserPage /></AdminLayout>} />
           <Route path="/admin/automacoes" element={<AdminLayout><AutomacoesPage /></AdminLayout>} />
