@@ -1,10 +1,12 @@
 // Sync chats from Evolution API into the conversations table.
-// POST body: { tenant_id?: string | null, with_pictures?: boolean }
+// POST body: { tenant_id?: string | null, with_pictures?: boolean, all_tenants?: boolean }
+// Auth: user JWT (admin/tenant), service-role key, or dispatch_token from edge_internal_config
+// (accepted via Authorization: Bearer <token> or X-Cron-Token header).
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -51,42 +53,55 @@ function json(b: unknown, status = 200) {
   return new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+let cachedDispatchToken: { value: string; expiresAt: number } | null = null;
+async function getDispatchToken(admin: any): Promise<string | null> {
+  if (cachedDispatchToken && cachedDispatchToken.expiresAt > Date.now()) return cachedDispatchToken.value;
+  const { data } = await admin.from("edge_internal_config").select("dispatch_token").eq("id", 1).maybeSingle();
+  const value = (data as any)?.dispatch_token ?? null;
+  if (value) cachedDispatchToken = { value, expiresAt: Date.now() + 60_000 };
+  return value;
+}
 
+interface AuthResult {
+  ok: boolean;
+  internal: boolean;
+  userId?: string | null;
+  isAdmin?: boolean;
+  error?: string;
+  status?: number;
+}
+
+async function authorize(req: Request, admin: any): Promise<AuthResult> {
   const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
-  const userClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
-  const token = authHeader.replace("Bearer ", "");
-  const { data: userRes } = await userClient.auth.getUser(token);
-  const userId = userRes?.user?.id;
-  if (!userId) return json({ error: "Unauthorized" }, 401);
-
-  const admin = createClient(SUPABASE_URL, SERVICE_KEY);
-  const body = await req.json().catch(() => ({}));
-  const tenantId: string | null = body.tenant_id ?? null;
-  const withPictures: boolean = body.with_pictures === true;
-
-  // Permission check
-  const { data: isAdmin } = await admin.rpc("has_role", { _user_id: userId, _role: "admin" });
-  if (tenantId) {
-    const { data: hasTenantAccess } = await admin.rpc("has_tenant_access", { _user_id: userId, _tenant_id: tenantId });
-    if (!isAdmin && !hasTenantAccess) return json({ error: "Sem permissão" }, 403);
-  } else if (!isAdmin) {
-    return json({ error: "Sem permissão para escopo global" }, 403);
+  const cronToken = req.headers.get("x-cron-token") ?? req.headers.get("X-Cron-Token");
+  const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  const internal = await getDispatchToken(admin);
+  if (cronToken && internal && cronToken === internal) return { ok: true, internal: true };
+  if (bearer && bearer === SERVICE_KEY) return { ok: true, internal: true };
+  if (bearer && internal && bearer === internal) return { ok: true, internal: true };
+  if (!bearer) return { ok: false, internal: false, status: 401, error: "Unauthorized" };
+  try {
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
+    const { data: userRes } = await userClient.auth.getUser(bearer);
+    const userId = userRes?.user?.id;
+    if (!userId) return { ok: false, internal: false, status: 401, error: "Unauthorized" };
+    const { data: isAdmin } = await admin.rpc("has_role", { _user_id: userId, _role: "admin" });
+    return { ok: true, internal: false, userId, isAdmin: !!isAdmin };
+  } catch {
+    return { ok: false, internal: false, status: 401, error: "invalid_token" };
   }
+}
 
+async function runForTenant(admin: any, tenantId: string | null, withPictures: boolean) {
   let connQ = admin.from("zapi_connections")
     .select("instance_url, api_key, instance_name")
     .eq("provider", "evolution");
   connQ = tenantId ? connQ.eq("tenant_id", tenantId) : connQ.is("tenant_id", null);
   const { data: conn } = await connQ.order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (!conn?.instance_url || !conn.instance_name || !conn.api_key) {
-    return json({ error: "Instância Evolution não configurada" }, 400);
+    return { tenant_id: tenantId, error: "no_instance" };
   }
   const base = normalizeBase(conn.instance_url);
-
-  // Fetch chats
   const chatsUrl = `${base}/chat/findChats/${encodeURIComponent(conn.instance_name)}`;
   let chats: any[] = [];
   try {
@@ -96,13 +111,13 @@ Deno.serve(async (req) => {
       body: JSON.stringify({}),
     });
     const j = await r.json();
-    if (!r.ok) return json({ error: "findChats falhou", detail: j }, 502);
+    if (!r.ok) return { tenant_id: tenantId, error: "findChats_failed", detail: j };
     chats = Array.isArray(j) ? j : (j?.chats || j?.data || []);
   } catch (e) {
-    return json({ error: "Erro de rede ao buscar chats", detail: String(e) }, 502);
+    return { tenant_id: tenantId, error: "network", detail: String(e) };
   }
 
-  const deadline = Date.now() + 120_000; // hard budget within the 150s idle limit
+  const deadline = Date.now() + 120_000;
   let upserted = 0, pictures = 0, skippedByTime = 0;
 
   async function fetchPicture(jid: string): Promise<string | null> {
@@ -173,5 +188,58 @@ Deno.serve(async (req) => {
     await Promise.all(chats.slice(i, i + CONCURRENCY).map(processChat));
   }
 
-  return json({ ok: true, count: chats.length, upserted, pictures, skipped_by_time: skippedByTime });
+  return { tenant_id: tenantId, count: chats.length, upserted, pictures, skipped_by_time: skippedByTime };
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+  const authz = await authorize(req, admin);
+  if (!authz.ok) return json({ error: authz.error }, authz.status ?? 401);
+
+  const body = await req.json().catch(() => ({}));
+  const withPictures: boolean = body.with_pictures === true;
+  const allTenants: boolean = body.all_tenants === true;
+
+  if (allTenants) {
+    if (!authz.internal && !authz.isAdmin) {
+      return json({ error: "Sem permissão para escopo global" }, 403);
+    }
+    const { data: conns } = await admin
+      .from("zapi_connections")
+      .select("tenant_id")
+      .eq("provider", "evolution");
+    const seen = new Set<string>();
+    const scopes: (string | null)[] = [];
+    for (const c of conns ?? []) {
+      const key = c.tenant_id === null ? "__master__" : String(c.tenant_id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      scopes.push(c.tenant_id as string | null);
+    }
+    const results: any[] = [];
+    for (const scope of scopes) {
+      try {
+        results.push(await runForTenant(admin, scope, withPictures));
+      } catch (e) {
+        results.push({ tenant_id: scope, error: String((e as Error).message ?? e) });
+      }
+    }
+    return json({ ok: true, all_tenants: true, results });
+  }
+
+  const tenantId: string | null = body.tenant_id ?? null;
+
+  if (!authz.internal) {
+    if (tenantId) {
+      const { data: hasTenantAccess } = await admin.rpc("has_tenant_access", { _user_id: authz.userId, _tenant_id: tenantId });
+      if (!authz.isAdmin && !hasTenantAccess) return json({ error: "Sem permissão" }, 403);
+    } else if (!authz.isAdmin) {
+      return json({ error: "Sem permissão para escopo global" }, 403);
+    }
+  }
+
+  const res = await runForTenant(admin, tenantId, withPictures);
+  return json({ ok: true, ...res });
 });
