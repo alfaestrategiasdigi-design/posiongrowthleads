@@ -31,6 +31,7 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
   const { pathname } = useLocation();
   const base = `/app/${tenant.slug}`;
   const isComercial = !isSuperAdmin && !!tenantRole && COMERCIAL_ROLES.has(tenantRole);
+  const isInfoproduto = (tenant as any).business_type === "infoproduto";
 
   const groups: NavGroup[] = [
     {
