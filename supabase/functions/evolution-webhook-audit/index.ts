@@ -2,7 +2,7 @@
 // MESSAGES_UPSERT e SEND_MESSAGE estão inscritos e reinscreve se faltar.
 // POST body: { connection_id?, tenant_id?, dry_run?: boolean }
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { buildWebhookUrl, configureWebhook, ensureWebhookSecret, findWebhookEvents, missingRequiredEvents, normalizeBase, validateWebhookUrl } from "../_shared/evolution-webhook.ts";
+import { buildWebhookUrl, configureWebhook, ensureWebhookSecret, normalizeBase, verifyWebhookState } from "../_shared/evolution-webhook.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,28 +63,29 @@ Deno.serve(async (req) => {
     }
 
     const base = normalizeBase(conn.instance_url);
-    const info = await findWebhookEvents(base, conn.api_key, conn.instance_name);
-    const missing = missingRequiredEvents(info.found);
 
-    // Resolve tenant slug + secret (guarantee a secret exists) so we can
-    // validate the currently-registered webhook URL carries ?secret=<expected>.
+    // Resolve tenant slug + secret (guarantee a secret exists).
     const slugPart = conn.tenant_id
       ? (await admin.from("tenants").select("slug").eq("id", conn.tenant_id).maybeSingle()).data?.slug
       : null;
     const expectedSecret = await ensureWebhookSecret(admin, conn.id, conn.webhook_secret);
     const expected = { supabaseUrl: SUPABASE_URL, tenantSlug: slugPart, tenantId: conn.tenant_id, secret: expectedSecret };
-    const liveCheck = validateWebhookUrl(info.url, expected);
-    const dbCheck = validateWebhookUrl(conn.webhook_url, expected);
-    const urlInvalid = !liveCheck.ok || !dbCheck.ok;
-    const needsFix = missing.length > 0 || urlInvalid;
+
+    // Read live state and check it against the canonical expectations.
+    const verified = await verifyWebhookState(base, conn.api_key, conn.instance_name, expected);
+    const needsFix = !verified.ok;
 
     let fixed = false;
     let fixDebug: unknown = null;
+    let fixedVerified: unknown = null;
     if (needsFix && !dryRun) {
       const webhookUrl = buildWebhookUrl(expected);
-      const res = await configureWebhook(base, conn.api_key, conn.instance_name, webhookUrl);
+      const res = await configureWebhook(base, conn.api_key, conn.instance_name, webhookUrl, expected);
       fixed = res.ok;
       fixDebug = res.debug;
+      fixedVerified = res.verified
+        ? { ok: res.verified.ok, extras: res.verified.extras, missing: res.verified.missing, reasons: res.verified.reasons, webhookByEvents: res.verified.webhookByEvents, url: res.verified.url }
+        : null;
       if (res.ok) {
         await admin.from("zapi_connections")
           .update({ webhook_url: webhookUrl, updated_at: new Date().toISOString() })
@@ -96,16 +97,15 @@ Deno.serve(async (req) => {
       id: conn.id,
       instance: conn.instance_name,
       tenant_id: conn.tenant_id,
-      webhook_url: info.url,
-      enabled: info.enabled,
-      found_events: info.found,
-      missing_required: missing,
-      url_valid_live: liveCheck.ok,
-      url_reason_live: liveCheck.ok ? null : liveCheck.reason,
-      url_valid_db: dbCheck.ok,
-      url_reason_db: dbCheck.ok ? null : dbCheck.reason,
+      webhook_url: verified.url,
+      webhookByEvents: verified.webhookByEvents,
+      found_events: verified.events,
+      extras: verified.extras,
+      missing: verified.missing,
+      reasons: verified.reasons,
       needs_fix: needsFix,
       fixed,
+      fixed_verified: fixedVerified,
       fix_debug: fixDebug,
     });
   }
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
     healthy: results.filter((r) => r.needs_fix === false).length,
     needed_fix: results.filter((r) => r.needs_fix === true).length,
     fixed: results.filter((r) => r.fixed === true).length,
-    url_invalid: results.filter((r) => r.url_valid_live === false || r.url_valid_db === false).length,
   };
   return json({ ok: true, summary, results });
 });
+

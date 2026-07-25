@@ -1,8 +1,14 @@
 // Reaplica a subscrição de eventos do webhook para instâncias Evolution já criadas.
-// Necessário para instâncias antigas que ficaram sem SEND_MESSAGE / MESSAGES_UPSERT.
-// POST body: { connection_id?: string, tenant_id?: string } — vazio = todas as instâncias ativas
+// Sempre verifica o estado final via GET /webhook/find e só marca ok=true quando
+// a URL, o secret, `webhookByEvents=false` e a lista de eventos batem com o
+// canônico. Loop de auto-heal (até 3 tentativas por instância) dentro do shared.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { buildWebhookUrl, ensureWebhookSecret, normalizeBase as sharedNormalizeBase } from "../_shared/evolution-webhook.ts";
+import {
+  buildWebhookUrl,
+  configureWebhook,
+  ensureWebhookSecret,
+  normalizeBase as sharedNormalizeBase,
+} from "../_shared/evolution-webhook.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,24 +19,6 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-
-const EVENTS = [
-  "MESSAGES_UPSERT", "MESSAGES_SET", "MESSAGES_UPDATE", "MESSAGES_DELETE", "MESSAGES_EDITED",
-  "SEND_MESSAGE", "SEND_MESSAGE_UPDATE",
-  "CONTACTS_UPDATE", "CONTACTS_UPSERT",
-  "CHATS_UPSERT", "CHATS_UPDATE", "CHATS_DELETE",
-  "PRESENCE_UPDATE", "CONNECTION_UPDATE",
-];
-
-function normalizeBase(raw: string): string {
-  let s = (raw || "").trim();
-  if (!s) return s;
-  if (!/^https?:\/\//i.test(s)) s = "http://" + s;
-  try {
-    const u = new URL(s);
-    return `${u.protocol}//${u.host}`;
-  } catch { return s.replace(/\/+$/, ""); }
-}
 
 function json(b: unknown, status = 200) {
   return new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -83,53 +71,14 @@ Deno.serve(async (req) => {
     const slugPart = conn.tenant_id
       ? (await admin.from("tenants").select("slug").eq("id", conn.tenant_id).maybeSingle()).data?.slug
       : null;
-    // Guarantee a per-tenant webhook_secret exists in the DB, then always
-    // build the URL as `?tenant=<slug>&secret=<secret>` — this is the shape
-    // whatsapp-webhook validates on every incoming event.
     const secret = await ensureWebhookSecret(admin, conn.id, conn.webhook_secret);
-    const webhookUrl = buildWebhookUrl({
-      supabaseUrl: SUPABASE_URL,
-      tenantSlug: slugPart,
-      tenantId: conn.tenant_id,
-      secret,
-    });
+    const expected = { supabaseUrl: SUPABASE_URL, tenantSlug: slugPart, tenantId: conn.tenant_id, secret };
+    const webhookUrl = buildWebhookUrl(expected);
 
-    // Try multiple payload variants (Evolution v1 flat, v2 wrapped, v2 minimal)
-    const attempts = [
-      { name: "v2_wrapped_full", body: { webhook: { enabled: true, url: webhookUrl, webhookByEvents: false, byEvents: false, base64: true, events: EVENTS } } },
-      { name: "v2_wrapped_min",  body: { webhook: { enabled: true, url: webhookUrl, events: EVENTS } } },
-      { name: "v1_flat_full",    body: { enabled: true, url: webhookUrl, webhookByEvents: false, webhook_by_events: false, events: EVENTS } },
-      { name: "v1_flat_min",     body: { enabled: true, url: webhookUrl, events: EVENTS } },
-    ];
-    let ok = false; const debug: any[] = [];
-    for (const att of attempts) {
-      try {
-        const r = await fetch(`${base}/webhook/set/${encodeURIComponent(conn.instance_name)}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", apikey: conn.api_key },
-          body: JSON.stringify(att.body),
-        });
-        const txt = await r.text();
-        debug.push({ variant: att.name, status: r.status, body: txt.slice(0, 200) });
-        if (r.ok) { ok = true; break; }
-      } catch (e) {
-        debug.push({ variant: att.name, error: String(e) });
-      }
-    }
+    const res = await configureWebhook(base, conn.api_key, conn.instance_name, webhookUrl, expected);
 
-
-    try {
-      await fetch(`${base}/settings/set/${encodeURIComponent(conn.instance_name)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", apikey: conn.api_key },
-        body: JSON.stringify({
-          syncFullHistory: true, alwaysOnline: true,
-          readMessages: true, readStatus: true, rejectCall: false,
-        }),
-      });
-    } catch { /* non-fatal */ }
-
-    if (ok) {
+    // Só marca ok e persiste no DB quando o estado final foi provado correto.
+    if (res.ok) {
       await admin.from("zapi_connections")
         .update({ webhook_url: webhookUrl, updated_at: new Date().toISOString() })
         .eq("id", conn.id);
@@ -139,10 +88,26 @@ Deno.serve(async (req) => {
       id: conn.id,
       instance: conn.instance_name,
       tenant_id: conn.tenant_id,
-      ok, webhook_url: webhookUrl,
-      debug,
+      ok: res.ok,
+      webhook_url: webhookUrl,
+      verified: res.verified
+        ? {
+            ok: res.verified.ok,
+            live_url: res.verified.url,
+            webhookByEvents: res.verified.webhookByEvents,
+            extras: res.verified.extras,
+            missing: res.verified.missing,
+            reasons: res.verified.reasons,
+          }
+        : null,
+      debug: res.debug,
     });
   }
 
-  return json({ ok: true, count: results.length, results });
+  const summary = {
+    total: results.length,
+    ok: results.filter((r) => r.ok === true).length,
+    failed: results.filter((r) => r.ok === false).length,
+  };
+  return json({ ok: true, summary, count: results.length, results });
 });
