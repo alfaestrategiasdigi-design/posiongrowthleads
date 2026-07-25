@@ -157,7 +157,12 @@ async function upsertConversationForContact(
   return { created: true };
 }
 
-async function runForTenant(admin: any, tenantId: string | null, defaultStatus: string) {
+async function runForTenant(
+  admin: any,
+  tenantId: string | null,
+  defaultStatus: string,
+  skipConversationUpsert = false,
+) {
   let connQ = admin.from("zapi_connections")
     .select("instance_url, api_key, instance_name")
     .eq("provider", "evolution");
@@ -275,16 +280,67 @@ async function runForTenant(admin: any, tenantId: string | null, defaultStatus: 
     else updated++;
   }
 
+  // Internal verification mode still fetches all contacts, performs the full
+  // database anti-join and writes any missing leads. It only skips the separate
+  // conversation reconciliation phase, which has its own global backfill job.
+  if (skipConversationUpsert) {
+    return {
+      tenant_id: tenantId,
+      total_contacts: contacts.length,
+      valid_phones: rows.length,
+      created, updated, skipped, errors,
+      conversations_created: 0,
+      conversations_updated: 0,
+      conversations_errors: 0,
+      conversation_upsert_skipped: true,
+    };
+  }
+
   // Upsert conversations for EVERY contact (new + existing) so the inbox always has them.
+  // Process bounded parallel batches: large tenants previously spent several minutes
+  // awaiting each contact serially and hit the Edge Function idle timeout.
   const allWithLead = [...existingResolved, ...insertedIds];
-  for (const item of allWithLead) {
-    try {
-      const res = await upsertConversationForContact(admin, tenantId, item.row.phone, item.row.jid, item.row.name, item.leadId);
-      if (res.created) convsCreated++;
-      else if (res.updated) convsUpdated++;
-    } catch (e) {
-      convsErrors++;
-      console.warn("conversation upsert failed", String(e));
+  const linkedLeadIds = new Set<string>();
+  const leadIdChunks: string[][] = [];
+  for (let i = 0; i < allWithLead.length; i += 200) {
+    leadIdChunks.push(allWithLead.slice(i, i + 200).map((item) => item.leadId));
+  }
+  const linkedResults = await Promise.all(leadIdChunks.map(async (ids) => {
+    const { data, error } = await admin
+      .from("conversations")
+      .select("lead_id")
+      .in("lead_id", ids);
+    if (error) throw new Error(`conversation_lookup_failed: ${error.message}`);
+    return data ?? [];
+  }));
+  for (const rows of linkedResults) {
+    for (const row of rows) {
+      if (row.lead_id) linkedLeadIds.add(row.lead_id);
+    }
+  }
+  const conversationsToUpsert = allWithLead.filter((item) => !linkedLeadIds.has(item.leadId));
+  const conversationBatchSize = 12;
+  for (let i = 0; i < conversationsToUpsert.length; i += conversationBatchSize) {
+    const batch = conversationsToUpsert.slice(i, i + conversationBatchSize);
+    const results = await Promise.all(batch.map(async (item) => {
+      try {
+        return await upsertConversationForContact(
+          admin,
+          tenantId,
+          item.row.phone,
+          item.row.jid,
+          item.row.name,
+          item.leadId,
+        );
+      } catch (e) {
+        console.warn("conversation upsert failed", String(e));
+        return { error: true };
+      }
+    }));
+    for (const result of results) {
+      if ("error" in result) convsErrors++;
+      else if (result.created) convsCreated++;
+      else if (result.updated) convsUpdated++;
     }
   }
 
@@ -309,6 +365,7 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const defaultStatus: string = String(body.default_status ?? "lead");
   const allTenants: boolean = body.all_tenants === true;
+  const skipConversationUpsert: boolean = body.skip_conversation_upsert === true && authz.internal;
 
   if (allTenants) {
     if (!authz.internal && !authz.isAdmin) {
@@ -329,7 +386,7 @@ Deno.serve(async (req) => {
     const results: any[] = [];
     for (const scope of scopes) {
       try {
-        results.push(await runForTenant(admin, scope, defaultStatus));
+        results.push(await runForTenant(admin, scope, defaultStatus, skipConversationUpsert));
       } catch (e) {
         results.push({ tenant_id: scope, error: String((e as Error).message ?? e) });
       }
@@ -349,6 +406,6 @@ Deno.serve(async (req) => {
     }
   }
 
-  const res = await runForTenant(admin, tenantId, defaultStatus);
+  const res = await runForTenant(admin, tenantId, defaultStatus, skipConversationUpsert);
   return json({ ok: true, ...res });
 });
