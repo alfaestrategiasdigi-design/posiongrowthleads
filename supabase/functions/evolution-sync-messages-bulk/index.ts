@@ -121,7 +121,7 @@ async function runForTenant(admin: any, tenantId: string | null, sinceDays: numb
   connQ = tenantId ? connQ.eq("tenant_id", tenantId) : connQ.is("tenant_id", null);
   const { data: conn } = await connQ.order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (!conn?.instance_url || !conn.instance_name || !conn.api_key) {
-    return { tenant_id: tenantId, error: "no_instance", processed: 0, messages_replayed: 0, still_empty_estimate: 0 };
+    return { tenant_id: tenantId, soft_skip: true, reason: "no_connection", processed: 0, messages_replayed: 0, still_empty_estimate: 0 };
   }
   const base = normalizeBase(conn.instance_url);
 
