@@ -12,6 +12,8 @@ import {
   Plus, Loader2, MapPin, DollarSign, Calendar, Trophy, Building2, Trash2, Phone, Mail, Sparkles, Pencil, Search, X,
 } from "lucide-react";
 import UnifiedLeadPanel from "@/components/leads/UnifiedLeadPanel";
+import DensityToggle from "@/components/kanban/DensityToggle";
+import { readDensity, writeDensity, type KanbanDensity } from "@/components/kanban/types";
 import { PIPELINE_STAGES, type PipelineStage } from "@/types/admin";
 
 const STAGES = PIPELINE_STAGES;
