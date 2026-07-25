@@ -926,7 +926,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   };
 
   const renderStatus = (msg: Message) => {
-    if (msg.sender !== "usuario") return null;
+    if (msg.direction !== "outbound") return null;
     const s = msg.status || "sent";
     if (s === "sending") return <Loader2 className="w-3 h-3 inline animate-spin opacity-70" />;
     if (s === "failed") return <AlertTriangle className="w-3 h-3 inline text-rose-400" />;
