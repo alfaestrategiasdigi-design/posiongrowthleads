@@ -190,18 +190,44 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   const pendingLocalSendRef = useRef<number | null>(null);
 
   // ============ Loads ============
+  const conversationsLoadedOnceRef = useRef(false);
   const loadConversations = useCallback(async () => {
     // Strict isolation: master mode = somente conversas sem tenant (instância master);
     // tenant mode = somente conversas do próprio tenant.
-    let query = supabase.from("conversations").select("*");
-    query = masterMode
-      ? query.is("tenant_id", null)
-      : (tenantId ? query.eq("tenant_id", tenantId) : query.is("tenant_id", null));
-    const { data, error } = await query.order("ultima_interacao", { ascending: false });
-    if (error) toast.error("Falha ao carregar conversas", { description: error.message });
+    const runQuery = async () => {
+      let query = supabase.from("conversations").select("*");
+      query = masterMode
+        ? query.is("tenant_id", null)
+        : (tenantId ? query.eq("tenant_id", tenantId) : query.is("tenant_id", null));
+      return await query.order("ultima_interacao", { ascending: false });
+    };
+    // Retry transient network errors ("Failed to fetch") silently with backoff.
+    let data: any = null;
+    let error: any = null;
+    for (let i = 0; i < 4; i++) {
+      try {
+        const res = await runQuery();
+        data = res.data; error = res.error;
+        if (!error) break;
+      } catch (e: any) {
+        error = e;
+      }
+      await new Promise(r => setTimeout(r, 400 * Math.pow(2, i)));
+    }
+    if (error) {
+      // Only surface the toast if we never managed to load conversations at least once —
+      // avoids noisy transient "Failed to fetch" while the user is actively chatting.
+      if (!conversationsLoadedOnceRef.current) {
+        toast.error("Falha ao carregar conversas", { description: error.message || String(error) });
+      } else {
+        console.warn("[loadConversations] transient error suppressed:", error);
+      }
+      setLoading(false);
+      return;
+    }
     const list = (data as Conversation[]) || [];
     setConversations(list);
-    
+    conversationsLoadedOnceRef.current = true;
     setLoading(false);
     // Carrega nomes dos leads vinculados às conversas (usado como fallback de exibição
     // quando a conversa está com @lid não resolvido ou sem pushName).
