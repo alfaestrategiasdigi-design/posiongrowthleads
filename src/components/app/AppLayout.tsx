@@ -8,6 +8,7 @@ import { useTenant } from "@/hooks/useTenant";
 import { useUserProfile, initialsFrom } from "@/hooks/useUserProfile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import TenantSidebar from "./TenantSidebar";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 import posionLogo from "@/assets/posion/logo-posion.png.asset.json";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -90,6 +91,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <span className="hidden sm:inline text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground/70">
                 {new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase()}
               </span>
+              <ThemeToggle />
               <Link
                 to={`/app/${tenant.slug}/perfil`}
                 title="Meu perfil"

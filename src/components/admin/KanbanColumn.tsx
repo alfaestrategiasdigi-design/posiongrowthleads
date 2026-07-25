@@ -18,7 +18,7 @@ const KanbanColumn = ({
 }: KanbanColumnProps) => {
   return (
     <div
-      className="flex flex-col bg-muted/30 rounded-xl border border-border/50 min-w-[260px] max-w-[280px] flex-shrink-0"
+      className="kanban-column flex flex-col bg-muted/40 rounded-xl border border-border/60 flex-shrink-0 transition-colors duration-200"
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
@@ -28,18 +28,18 @@ const KanbanColumn = ({
             <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
               <Icon className="w-3.5 h-3.5 text-white" />
             </div>
-            <h3 className="font-semibold text-white text-xs truncate">{title}</h3>
+            <h3 className="font-semibold text-white text-xs truncate" title={title}>{title}</h3>
           </div>
           <span className="w-6 h-6 rounded-full bg-white/25 flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0">
             {count}
           </span>
         </div>
         {subtitle && (
-          <p className="text-[10px] text-white/80 mt-1.5 font-medium tabular-nums">{subtitle}</p>
+          <p className="text-[10px] text-white/85 mt-1.5 font-medium tabular-nums">{subtitle}</p>
         )}
       </div>
 
-      <div className="flex-1 p-2.5 space-y-2.5 overflow-y-auto max-h-[calc(100vh-280px)] min-h-[180px]">
+      <div className="kanban-column-body flex-1 space-y-2.5 overflow-y-auto max-h-[calc(100vh-280px)]">
         {children}
       </div>
     </div>
