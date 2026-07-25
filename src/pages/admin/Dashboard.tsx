@@ -403,16 +403,16 @@ export default function Dashboard() {
           <KPI icon={Sparkles} label="MRR SaaS ativo" value={fmt(agency.mrr)} sub={`${saasContracts.filter((s) => s.status === "active").length} assinaturas`} />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div data-no-float className="premium-card rounded-xl p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+          <div data-no-float className="premium-card rounded-xl p-4 self-start">
             <h3 className="text-sm font-semibold mb-3 text-white">Distribuição do funil</h3>
             <div className="space-y-2">
               {agency.stageData.map((s) => {
-                const total = agency.stageData.reduce((sum, x) => sum + x.count, 0);
-                const pct = total > 0 ? (s.count / total) * 100 : 0;
+                const max = Math.max(1, ...agency.stageData.map((x) => x.count));
+                const pct = max > 0 ? Math.max(2, (s.count / max) * 100) : 0;
                 return (
                   <div key={s.stage} className="flex items-center gap-3">
-                    <span className="text-xs w-24" style={{ color: PALETTE.muted }}>{s.stage}</span>
+                    <span className="text-xs w-28 truncate" style={{ color: PALETTE.muted }} title={s.stage}>{s.stage}</span>
                     <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: s.fill }} />
                     </div>
@@ -426,13 +426,15 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div data-no-float className="premium-card rounded-xl p-4">
+          <div data-no-float className="premium-card rounded-xl p-4 self-start">
             <h3 className="text-sm font-semibold mb-3 text-white">Origem dos leads</h3>
             <div className="space-y-2">
               {(() => {
+                const totalOrig = agency.origemData.reduce((sum, o) => sum + o.count, 0);
                 const max = Math.max(1, ...agency.origemData.map((o) => o.count));
                 return agency.origemData.map((o, idx) => {
-                  const pct = (o.count / max) * 100;
+                  const pct = max > 0 ? Math.max(2, (o.count / max) * 100) : 0;
+                  const share = totalOrig > 0 ? (o.count / totalOrig) * 100 : 0;
                   const isTop = idx === 0;
                   const alpha = 0.35 + (o.count / max) * 0.55;
                   const bg = isTop ? PALETTE.gold : `rgba(245,245,245,${alpha.toFixed(2)})`;
@@ -445,7 +447,8 @@ export default function Dashboard() {
                           style={{ width: `${pct}%`, background: bg }}
                         />
                       </div>
-                      <span className="text-xs font-bold w-10 text-right tabular-nums text-white">{o.count}</span>
+                      <span className="text-[10px] font-mono w-10 text-right tabular-nums" style={{ color: PALETTE.mutedDim }}>{share.toFixed(0)}%</span>
+                      <span className="text-xs font-bold w-8 text-right tabular-nums text-white">{o.count}</span>
                     </div>
                   );
                 });
@@ -456,14 +459,14 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div data-no-float className="premium-card rounded-xl p-4">
+          <div data-no-float className="premium-card rounded-xl p-4 self-start">
             <Tabs defaultValue="ganhos" className="w-full">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex flex-col gap-2 mb-3">
                 <h3 className="text-sm font-semibold text-white">Movimentação</h3>
-                <TabsList className="h-7 bg-white/5">
-                  <TabsTrigger value="ganhos" className="text-[10px] px-2 h-6 text-zinc-400 data-[state=active]:bg-amber-500/12 data-[state=active]:text-amber-300">Ganhos</TabsTrigger>
-                  <TabsTrigger value="perdas" className="text-[10px] px-2 h-6 text-zinc-400 data-[state=active]:bg-amber-500/12 data-[state=active]:text-amber-300">Perdas</TabsTrigger>
-                  <TabsTrigger value="ativ" className="text-[10px] px-2 h-6 text-zinc-400 data-[state=active]:bg-amber-500/12 data-[state=active]:text-amber-300">Atividade</TabsTrigger>
+                <TabsList className="h-7 bg-white/5 w-full grid grid-cols-3">
+                  <TabsTrigger value="ganhos" className="text-[10px] px-1 h-6 text-zinc-400 data-[state=active]:bg-amber-500/12 data-[state=active]:text-amber-300">Ganhos</TabsTrigger>
+                  <TabsTrigger value="perdas" className="text-[10px] px-1 h-6 text-zinc-400 data-[state=active]:bg-amber-500/12 data-[state=active]:text-amber-300">Perdas</TabsTrigger>
+                  <TabsTrigger value="ativ" className="text-[10px] px-1 h-6 text-zinc-400 data-[state=active]:bg-amber-500/12 data-[state=active]:text-amber-300">Atividade</TabsTrigger>
                 </TabsList>
               </div>
 
