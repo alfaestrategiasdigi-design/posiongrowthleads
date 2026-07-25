@@ -128,7 +128,7 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead, density = "c
   return (
     <>
       <div className="kanban-scroll flex gap-4 overflow-x-auto pb-4 -mx-4 px-4">
-        {CLIENT_PIPELINE_STAGES.map((column) => {
+        {activeStages.map((column) => {
           const columnLeads = getLeadsByStatus(column.id);
           const Icon = iconMap[column.id] || Inbox;
           const totalValor = columnLeads.reduce((s, l) => s + (Number(l.valor_proposta) || 0), 0);
