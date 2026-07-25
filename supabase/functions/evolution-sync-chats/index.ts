@@ -92,6 +92,19 @@ async function authorize(req: Request, admin: any): Promise<AuthResult> {
   }
 }
 
+async function tryRecoverInstance(base: string, apiKey: string, instanceName: string) {
+  try {
+    const sr = await fetch(`${base}/instance/connectionState/${encodeURIComponent(instanceName)}`,
+      { method: "GET", headers: { apikey: apiKey } });
+    const sj: any = await sr.json().catch(() => ({}));
+    const state = sj?.instance?.state ?? sj?.state ?? null;
+    if (sr.ok && state === "open") return { attempted: false, state };
+    const cr = await fetch(`${base}/instance/connect/${encodeURIComponent(instanceName)}`,
+      { method: "GET", headers: { apikey: apiKey } });
+    return { attempted: true, state, error: cr.ok ? undefined : `connect_http_${cr.status}` };
+  } catch (e) { return { attempted: true, error: String((e as Error).message ?? e) }; }
+}
+
 async function runForTenant(admin: any, tenantId: string | null, withPictures: boolean) {
   let connQ = admin.from("zapi_connections")
     .select("instance_url, api_key, instance_name")
@@ -99,22 +112,35 @@ async function runForTenant(admin: any, tenantId: string | null, withPictures: b
   connQ = tenantId ? connQ.eq("tenant_id", tenantId) : connQ.is("tenant_id", null);
   const { data: conn } = await connQ.order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (!conn?.instance_url || !conn.instance_name || !conn.api_key) {
-    return { tenant_id: tenantId, error: "no_instance" };
+    return { tenant_id: tenantId, soft_skip: true, reason: "no_connection" };
   }
   const base = normalizeBase(conn.instance_url);
   const chatsUrl = `${base}/chat/findChats/${encodeURIComponent(conn.instance_name)}`;
-  let chats: any[] = [];
-  try {
+  const fetchChats = async () => {
     const r = await fetch(chatsUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: conn.api_key },
       body: JSON.stringify({}),
     });
-    const j = await r.json();
-    if (!r.ok) return { tenant_id: tenantId, error: "findChats_failed", detail: j };
+    const j: any = await r.json().catch(() => ({}));
+    return { r, j };
+  };
+  let chats: any[] = [];
+  let recovery: any = null;
+  try {
+    let { r, j } = await fetchChats();
+    if (!r.ok && (r.status === 404 || r.status === 401 || r.status === 400)) {
+      recovery = await tryRecoverInstance(base, conn.api_key, conn.instance_name);
+      if (recovery.attempted && !recovery.error) {
+        await new Promise((res) => setTimeout(res, 1500));
+        ({ r, j } = await fetchChats());
+      }
+    }
+    if (!r.ok) return { tenant_id: tenantId, soft_skip: true, reason: "instance_unreachable", status: r.status, recovery, detail: j };
     chats = Array.isArray(j) ? j : (j?.chats || j?.data || []);
   } catch (e) {
-    return { tenant_id: tenantId, error: "network", detail: String(e) };
+    recovery = recovery ?? await tryRecoverInstance(base, conn.api_key, conn.instance_name);
+    return { tenant_id: tenantId, soft_skip: true, reason: "network", recovery, detail: String(e) };
   }
 
   const deadline = Date.now() + 120_000;
