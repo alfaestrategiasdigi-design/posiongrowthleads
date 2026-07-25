@@ -351,12 +351,21 @@ export default function WhatsAppStatusPage() {
               toast.info("Reassinando eventos em todas as instâncias…");
               const { data, error } = await supabase.functions.invoke("evolution-resubscribe", { body: {} });
               if (error) return toast.error("Falha ao reassinar", { description: error.message });
-              const ok = (data?.results ?? []).filter((r: any) => r.ok).length;
-              const total = data?.count ?? 0;
-              toast.success(`Eventos reassinados: ${ok}/${total}`, {
-                description: "Mensagens enviadas de outros aparelhos vão aparecer no inbox.",
-              });
+              const results = data?.results ?? [];
+              const ok = results.filter((r: any) => r.ok).length;
+              const total = data?.count ?? results.length;
+              const failed = results.filter((r: any) => r.ok === false && !r.skipped);
+              if (failed.length === 0) {
+                toast.success(`Webhook validado: ${ok}/${total}`, {
+                  description: "URL, secret, webhookByEvents=false e eventos canônicos confirmados via /webhook/find.",
+                });
+              } else {
+                const first = failed[0];
+                const reasons = first?.verified?.reasons?.join(", ") ?? "sem detalhes";
+                toast.error(`Falhou em ${failed.length}/${total} — ex.: ${first?.instance}: ${reasons}`);
+              }
               load();
+
             }}
           >
             <Smartphone className="w-4 h-4" /> Reassinar eventos (bidirecional)
