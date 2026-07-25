@@ -279,9 +279,28 @@ async function runForTenant(admin: any, tenantId: string | null, defaultStatus: 
   // Process bounded parallel batches: large tenants previously spent several minutes
   // awaiting each contact serially and hit the Edge Function idle timeout.
   const allWithLead = [...existingResolved, ...insertedIds];
+  const linkedLeadIds = new Set<string>();
+  const leadIdChunks: string[][] = [];
+  for (let i = 0; i < allWithLead.length; i += 200) {
+    leadIdChunks.push(allWithLead.slice(i, i + 200).map((item) => item.leadId));
+  }
+  const linkedResults = await Promise.all(leadIdChunks.map(async (ids) => {
+    const { data, error } = await admin
+      .from("conversations")
+      .select("lead_id")
+      .in("lead_id", ids);
+    if (error) throw new Error(`conversation_lookup_failed: ${error.message}`);
+    return data ?? [];
+  }));
+  for (const rows of linkedResults) {
+    for (const row of rows) {
+      if (row.lead_id) linkedLeadIds.add(row.lead_id);
+    }
+  }
+  const conversationsToUpsert = allWithLead.filter((item) => !linkedLeadIds.has(item.leadId));
   const conversationBatchSize = 12;
-  for (let i = 0; i < allWithLead.length; i += conversationBatchSize) {
-    const batch = allWithLead.slice(i, i + conversationBatchSize);
+  for (let i = 0; i < conversationsToUpsert.length; i += conversationBatchSize) {
+    const batch = conversationsToUpsert.slice(i, i + conversationBatchSize);
     const results = await Promise.all(batch.map(async (item) => {
       try {
         return await upsertConversationForContact(
