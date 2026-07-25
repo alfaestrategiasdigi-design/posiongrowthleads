@@ -34,9 +34,11 @@ interface KanbanBoardProps {
   onLeadsChange: () => void;
   nextAppointmentByLead?: Record<string, string>;
   density?: import("@/components/kanban/types").KanbanDensity;
+  stages?: readonly StageDef[];
 }
 
-const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead, density = "comfortable" }: KanbanBoardProps) => {
+const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead, density = "comfortable", stages }: KanbanBoardProps) => {
+  const activeStages: readonly StageDef[] = stages ?? CLIENT_PIPELINE_STAGES;
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
   const [scheduleFor, setScheduleFor] = useState<Lead | null>(null);
