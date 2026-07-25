@@ -30,9 +30,10 @@ const PALETTE = {
 
 const STAGE_LABELS: Record<string, string> = {
   lead: "Lead", qualificado: "Qualificado", reuniao: "Reunião",
+  agendar_reuniao: "Agendar Reunião", agendada: "Reunião Agendada",
   proposta: "Proposta", negociacao: "Negociação", ganho: "Ganho", perdido: "Perdido",
 };
-const STAGE_ORDER = ["lead", "qualificado", "reuniao", "proposta", "negociacao", "ganho", "perdido"];
+const STAGE_ORDER = ["lead", "qualificado", "agendar_reuniao", "reuniao", "proposta", "negociacao", "ganho", "perdido"];
 const stageColor = (stageKey: string): string => {
   if (stageKey === "ganho") return PALETTE.green;
   if (stageKey === "perdido") return PALETTE.red;
