@@ -4335,8 +4335,16 @@ export type Database = {
     }
     Functions: {
       _internal_dispatch_headers: { Args: never; Returns: Json }
+      backfill_whatsapp_lead_conversations: { Args: never; Returns: number }
       count_founder_slots_taken: { Args: never; Returns: number }
       current_tenant_ids: { Args: never; Returns: string[] }
+      dedupe_whatsapp_import_leads: {
+        Args: never
+        Returns: {
+          groups_processed: number
+          leads_removed: number
+        }[]
+      }
       get_cost_per_appointment: {
         Args: { p_end: string; p_start: string; p_tenant?: string }
         Returns: {
@@ -4401,6 +4409,14 @@ export type Database = {
       is_tenant_comercial: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
+      }
+      leads_existing_by_norm_phone: {
+        Args: { p_phones: string[]; p_tenant_id: string }
+        Returns: {
+          id: string
+          nome_completo: string
+          norm: string
+        }[]
       }
       link_lead_to_campaigns: {
         Args: { p_agency_lead_id?: string; p_lead_id?: string }
