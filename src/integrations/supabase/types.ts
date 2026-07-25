@@ -4339,7 +4339,7 @@ export type Database = {
       count_founder_slots_taken: { Args: never; Returns: number }
       current_tenant_ids: { Args: never; Returns: string[] }
       dedupe_whatsapp_import_leads: {
-        Args: never
+        Args: { p_limit?: number }
         Returns: {
           groups_processed: number
           leads_removed: number
