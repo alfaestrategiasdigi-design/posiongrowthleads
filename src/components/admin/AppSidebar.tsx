@@ -132,7 +132,7 @@ const AppSidebar = () => {
         {visibleGroups.map((group) => (
           <SidebarGroup key={group.label}>
             {!collapsed && (
-              <SidebarGroupLabel className="text-[9px] font-mono uppercase tracking-[0.22em] text-muted-foreground/50 px-3 mt-2 mb-1 flex items-center gap-2">
+              <SidebarGroupLabel className="text-[9px] font-mono uppercase tracking-[0.22em] text-white/50 px-3 mt-2 mb-1 flex items-center gap-2">
                 <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
                 {group.label}
               </SidebarGroupLabel>
@@ -166,7 +166,7 @@ const AppSidebar = () => {
 
       <SidebarFooter className="p-2 border-t border-sidebar-border gap-1">
         {!collapsed && (
-          <div className="px-3 py-2 mb-1 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em] text-muted-foreground/60">
+          <div className="px-3 py-2 mb-1 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em] text-white/55">
             <Activity className="w-3 h-3 text-amber-400" />
             <span>Status</span>
             <span className="ml-auto tech-dot" />
