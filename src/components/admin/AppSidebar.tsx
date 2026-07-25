@@ -38,8 +38,9 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Marketing",
+    agency: true,
     items: [
-      { title: "Campanhas Meta", url: "/admin/campanhas", icon: Megaphone },
+      { title: "Campanhas Meta", url: "/admin/campanhas", icon: Megaphone, agency: true },
       { title: "Conexão Facebook", url: "/admin/facebook", icon: Facebook },
       { title: "Conversions API", url: "/admin/capi", icon: Target },
     ],
