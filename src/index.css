@@ -1211,107 +1211,121 @@ html { scroll-behavior: smooth; }
   box-shadow: 0 0 20px hsl(var(--primary) / 0.10);
 }
 
-/* Tech shell — light backdrop */
+/* Tech shell — light backdrop: warm cream paper + almost invisible grid */
 .light .tech-shell {
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, hsl(var(--primary) / 0.08), transparent 60%),
-    radial-gradient(ellipse 60% 40% at 90% 110%, hsl(var(--primary) / 0.06), transparent 60%),
-    hsl(var(--background));
+    radial-gradient(ellipse 90% 60% at 50% -10%, hsl(var(--primary) / 0.06), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 100% 100%, hsl(38 40% 88% / 0.5), transparent 65%),
+    linear-gradient(180deg, hsl(40 34% 96%) 0%, hsl(40 30% 94%) 100%);
 }
 .light .tech-shell::before {
+  /* keep the paper grid but make it whisper-quiet so cards float on top */
   background-image:
-    linear-gradient(hsl(40 15% 82% / 0.55) 1px, transparent 1px),
-    linear-gradient(90deg, hsl(40 15% 82% / 0.55) 1px, transparent 1px);
+    linear-gradient(hsl(38 20% 78% / 0.18) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(38 20% 78% / 0.18) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 70% 55% at 50% 35%, #000 20%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 55% at 50% 35%, #000 20%, transparent 75%);
+  opacity: 0.55;
 }
 .light .tech-header {
-  background: linear-gradient(180deg, hsl(40 30% 97% / 0.95), hsl(40 30% 96% / 0.9));
+  background: linear-gradient(180deg, hsl(40 32% 97% / 0.96), hsl(40 30% 95% / 0.9));
   border-bottom: 1px solid hsl(var(--border));
+  backdrop-filter: blur(10px);
 }
 .light .tech-header::after {
-  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.35), hsl(var(--primary) / 0.5), transparent);
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.45), hsl(var(--primary) / 0.6), transparent);
 }
 
 .light .tech-panel {
-  background: linear-gradient(180deg, hsl(0 0% 100% / 0.9), hsl(40 20% 98% / 0.95));
+  background: linear-gradient(180deg, hsl(0 0% 100%), hsl(40 24% 98%));
   border: 1px solid hsl(var(--border));
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.9) inset,
+    0 12px 30px -18px rgba(60, 45, 10, 0.18),
+    0 4px 10px -6px rgba(60, 45, 10, 0.10);
 }
 .light .tech-panel:hover {
-  border-color: hsl(var(--primary) / 0.35);
-  box-shadow: 0 0 24px -10px hsl(var(--primary) / 0.25);
+  border-color: hsl(var(--primary) / 0.4);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.9) inset,
+    0 20px 44px -22px rgba(60, 45, 10, 0.28),
+    0 0 22px -8px hsl(var(--primary) / 0.25);
 }
 
 .light .tech-sidebar [data-active="true"] {
-  background: linear-gradient(90deg, hsl(var(--primary) / 0.12), transparent 80%) !important;
+  background: linear-gradient(90deg, hsl(var(--primary) / 0.14), transparent 80%) !important;
   border-left: 2px solid hsl(var(--primary));
   color: hsl(var(--primary)) !important;
   box-shadow: inset 0 0 20px hsl(var(--primary) / 0.06);
 }
 .light .tech-sidebar [data-active="true"] svg {
   color: hsl(var(--primary));
-  filter: drop-shadow(0 0 4px hsl(var(--primary) / 0.3));
+  filter: drop-shadow(0 0 4px hsl(var(--primary) / 0.35));
 }
 
 .light .tech-pill {
-  background: linear-gradient(135deg, hsl(var(--primary) / 0.14), hsl(var(--primary) / 0.08));
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.16), hsl(var(--primary) / 0.08));
   color: hsl(var(--primary));
-  border: 1px solid hsl(var(--primary) / 0.35);
+  border: 1px solid hsl(var(--primary) / 0.4);
   box-shadow: 0 0 10px -4px hsl(var(--primary) / 0.28);
 }
 .light .tech-heading {
-  background: linear-gradient(135deg, hsl(0 0% 10%) 0%, hsl(var(--primary)) 100%);
+  background: linear-gradient(135deg, hsl(20 14% 12%) 0%, hsl(var(--primary)) 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 
 /* Premium surfaces — light equivalents */
 .light .premium-card {
-  background: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(40 25% 98%) 100%) !important;
-  border: 1px solid hsl(var(--primary) / 0.22) !important;
+  background: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(40 28% 98%) 100%) !important;
+  border: 1px solid hsl(var(--border)) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.6),
-    0 18px 40px -24px rgba(60,45,10,0.20),
-    0 4px 10px -6px rgba(60,45,10,0.10) !important;
+    inset 0 1px 0 rgba(255,255,255,0.8),
+    0 22px 44px -22px rgba(60,45,10,0.22),
+    0 6px 14px -8px rgba(60,45,10,0.12) !important;
 }
 .light .premium-card:hover {
-  border-color: hsl(var(--primary) / 0.36) !important;
+  border-color: hsl(var(--primary) / 0.4) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.7),
-    0 24px 50px -22px rgba(60,45,10,0.28),
-    0 8px 16px -8px rgba(60,45,10,0.14) !important;
+    inset 0 1px 0 rgba(255,255,255,0.9),
+    0 28px 56px -22px rgba(60,45,10,0.30),
+    0 10px 18px -10px rgba(60,45,10,0.16) !important;
 }
 .light .premium-hero {
   background:
-    radial-gradient(70% 110% at 0% 0%, hsl(var(--primary) / 0.10), transparent 55%),
+    radial-gradient(70% 110% at 0% 0%, hsl(var(--primary) / 0.12), transparent 55%),
     linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(40 30% 97%) 100%) !important;
-  border: 1px solid hsl(var(--primary) / 0.30) !important;
+  border: 1px solid hsl(var(--primary) / 0.35) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.7),
-    0 26px 54px -24px rgba(60,45,10,0.24),
-    0 8px 18px -10px rgba(60,45,10,0.14) !important;
+    inset 0 1px 0 rgba(255,255,255,0.9),
+    0 30px 60px -24px rgba(60,45,10,0.28),
+    0 10px 20px -10px rgba(60,45,10,0.16) !important;
 }
 .light .premium-hero::before {
-  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.35), transparent);
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.5), transparent);
 }
 .light .premium-section-icon {
-  background: linear-gradient(135deg, hsl(var(--primary) / 0.18), hsl(var(--primary) / 0.04)) !important;
-  border: 1px solid hsl(var(--primary) / 0.38) !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 4px 12px -8px rgba(60,45,10,0.20);
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.20), hsl(var(--primary) / 0.06)) !important;
+  border: 1px solid hsl(var(--primary) / 0.42) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), 0 4px 12px -8px rgba(60,45,10,0.22);
 }
 .light .premium-kpi-icon {
   background: hsl(0 0% 100%) !important;
-  border: 1px solid hsl(var(--primary) / 0.30) !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+  border: 1px solid hsl(var(--primary) / 0.35) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 2px 6px -3px rgba(60,45,10,0.18);
 }
 
-/* Tech-shell floating card cascade — light version */
+/* Tech-shell floating card cascade — light version: real depth via shadow */
 .light .tech-shell [data-tech-card],
 .light .tech-shell [class*="rounded-"][class*="border"][class*="bg-card"]:not([data-no-float]),
 .light .tech-shell [class*="rounded-"][class*="border"][class*="bg-background/"]:not([data-no-float]),
 .light .tech-shell [class*="rounded-"][class*="border"][class*="bg-muted/"]:not([data-no-float]) {
+  background: hsl(0 0% 100%) !important;
   border-color: hsl(var(--border)) !important;
   box-shadow:
-    0 1px 0 rgba(255,255,255,0.6) inset,
-    0 12px 28px -22px rgba(60,45,10,0.18),
-    0 4px 10px -8px rgba(60,45,10,0.10) !important;
+    0 1px 0 rgba(255,255,255,0.9) inset,
+    0 14px 32px -22px rgba(60,45,10,0.22),
+    0 4px 10px -6px rgba(60,45,10,0.10) !important;
 }
 .light .tech-shell [data-tech-card]:hover,
 .light .tech-shell [class*="rounded-"][class*="border"][class*="bg-card"]:not([data-no-float]):hover,
@@ -1319,12 +1333,62 @@ html { scroll-behavior: smooth; }
 .light .tech-shell [class*="rounded-"][class*="border"][class*="bg-muted/"]:not([data-no-float]):hover {
   border-color: hsl(var(--primary) / 0.42) !important;
   box-shadow:
-    0 1px 0 rgba(255,255,255,0.7) inset,
-    0 18px 38px -22px rgba(60,45,10,0.22),
-    0 0 18px -6px hsl(var(--primary) / 0.28) !important;
+    0 1px 0 rgba(255,255,255,0.9) inset,
+    0 22px 44px -22px rgba(60,45,10,0.28),
+    0 0 22px -8px hsl(var(--primary) / 0.30) !important;
 }
 .light .tech-shell [class*="text-amber-300"],
-.light .tech-shell [class*="text-amber-200"] {
+.light .tech-shell [class*="text-amber-200"],
+.light .tech-shell [class*="text-amber-100"] {
+  color: hsl(var(--primary)) !important;
+}
+
+/* ------------------------------------------------------------------
+   CRITICAL LIGHT-MODE READABILITY FIX
+   Many premium/tech cards hardcode `text-white` because the design
+   was born dark. On the light theme those numbers/titles disappear
+   against the white card background. Neutralize globally inside the
+   themed shells so the whole app becomes readable in light mode
+   without page-by-page edits.
+   ------------------------------------------------------------------ */
+.light .tech-shell .text-white,
+.light .premium-card .text-white,
+.light .premium-hero .text-white,
+.light .card-luxe .text-white {
+  color: hsl(var(--foreground)) !important;
+}
+.light .tech-shell [class*="text-white/"],
+.light .premium-card [class*="text-white/"],
+.light .premium-hero [class*="text-white/"],
+.light .card-luxe [class*="text-white/"] {
+  color: hsl(var(--muted-foreground)) !important;
+}
+.light .tech-shell .text-neutral-100,
+.light .tech-shell .text-neutral-200,
+.light .tech-shell .text-slate-100,
+.light .tech-shell .text-slate-200,
+.light .tech-shell .text-zinc-100,
+.light .tech-shell .text-zinc-200 {
+  color: hsl(var(--foreground)) !important;
+}
+.light .tech-shell .text-neutral-300,
+.light .tech-shell .text-neutral-400,
+.light .tech-shell .text-slate-300,
+.light .tech-shell .text-slate-400,
+.light .tech-shell .text-zinc-300,
+.light .tech-shell .text-zinc-400 {
+  color: hsl(var(--muted-foreground)) !important;
+}
+/* Icons that were `text-white` inside a colored pill also need to
+   flip so they don't vanish on the neutralized white pill above. */
+.light .tech-shell [class*="bg-violet-500/"] .text-white,
+.light .tech-shell [class*="bg-cyan-500/"] .text-white,
+.light .tech-shell [class*="bg-purple-500/"] .text-white,
+.light .tech-shell [class*="bg-indigo-500/"] .text-white,
+.light .tech-shell [class*="bg-blue-500/"] .text-white,
+.light .tech-shell [class*="bg-pink-500/"] .text-white,
+.light .tech-shell [class*="bg-teal-500/"] .text-white,
+.light .tech-shell [class*="bg-sky-500/"] .text-white {
   color: hsl(var(--primary)) !important;
 }
 
@@ -1337,8 +1401,8 @@ html { scroll-behavior: smooth; }
 .light .tech-shell [class*="bg-pink-500/"],
 .light .tech-shell [class*="bg-teal-500/"],
 .light .tech-shell [class*="bg-sky-500/"] {
-  background: hsl(0 0% 100%) !important;
-  border: 1px solid hsl(var(--primary) / 0.30) !important;
+  background: hsl(40 24% 97%) !important;
+  border: 1px solid hsl(var(--primary) / 0.28) !important;
 }
 .light .tech-shell [class*="text-violet-"],
 .light .tech-shell [class*="text-cyan-"],
@@ -1347,7 +1411,7 @@ html { scroll-behavior: smooth; }
 .light .tech-shell [class*="text-blue-"],
 .light .tech-shell [class*="text-pink-"],
 .light .tech-shell [class*="text-teal-"],
-.light .tech-shell [class*="text-sky-"] { color: hsl(0 0% 20%) !important; }
+.light .tech-shell [class*="text-sky-"] { color: hsl(20 14% 20%) !important; }
 
 /* Scrollbar — theme-aware */
 .light ::-webkit-scrollbar-track { background: hsl(40 25% 92%); }
