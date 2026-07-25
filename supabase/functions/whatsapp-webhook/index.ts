@@ -787,8 +787,46 @@ Deno.serve(async (req) => {
         console.log("[whatsapp-webhook] webhook_secret_auto_heal", { instanceName, tenant: conn.tenant_id });
       }
     } else if (requestSecret !== conn.webhook_secret) {
-      console.warn("[whatsapp-webhook] invalid_secret", { instanceName, tenant: conn.tenant_id });
-      return new Response(JSON.stringify({ ok: false, error: "invalid_secret" }), {
+      console.warn("[whatsapp-webhook] invalid_secret", {
+        instanceName, tenant: conn.tenant_id,
+        received_prefix: requestSecret ? requestSecret.slice(0, 6) : "(empty)",
+        expected_prefix: conn.webhook_secret.slice(0, 6),
+      });
+      // Self-heal: Evolution is POSTing with a stale/wrong secret. Fire a
+      // background webhook/set to force Evolution to adopt the correct URL
+      // (including the ?secret= from the DB). Next event should validate.
+      if (conn.instance_url && conn.api_key && conn.instance_name) {
+        (async () => {
+          try {
+            const base = normalizeBase(conn.instance_url);
+            const slug = tenantSlug
+              ?? (conn.tenant_id
+                ? (await admin.from("tenants").select("slug").eq("id", conn.tenant_id).maybeSingle()).data?.slug
+                : null);
+            const qs = new URLSearchParams();
+            if (slug) qs.set("tenant", slug); else if (conn.tenant_id) qs.set("tenant_id", conn.tenant_id);
+            qs.set("secret", conn.webhook_secret);
+            const healUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/whatsapp-webhook?${qs.toString()}`;
+            const events = [
+              "MESSAGES_UPSERT","MESSAGES_SET","MESSAGES_UPDATE","MESSAGES_DELETE","MESSAGES_EDITED",
+              "SEND_MESSAGE","SEND_MESSAGE_UPDATE","CONTACTS_UPDATE","CONTACTS_UPSERT",
+              "CHATS_UPSERT","CHATS_UPDATE","CHATS_DELETE","PRESENCE_UPDATE","CONNECTION_UPDATE",
+            ];
+            await fetch(`${base}/webhook/set/${encodeURIComponent(conn.instance_name)}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", apikey: conn.api_key },
+              body: JSON.stringify({ webhook: { enabled: true, url: healUrl, webhookByEvents: false, byEvents: false, base64: true, events } }),
+            });
+            await admin.from("zapi_connections")
+              .update({ webhook_url: healUrl, updated_at: new Date().toISOString() })
+              .eq("id", conn.id);
+            console.log("[whatsapp-webhook] auto_resubscribed", { instanceName, tenant: conn.tenant_id });
+          } catch (e) {
+            console.warn("[whatsapp-webhook] auto_resubscribe_failed", { instanceName, error: String(e) });
+          }
+        })();
+      }
+      return new Response(JSON.stringify({ ok: false, error: "invalid_secret", self_heal: "queued" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
