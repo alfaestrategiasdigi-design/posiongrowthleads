@@ -119,18 +119,18 @@ export default function TenantKanban() {
   const filtersActive = search.trim().length > 0 || rangeDays != null;
 
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-[1800px] mx-auto">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Kanban de Leads</h1>
-          <p className="text-muted-foreground">
-            {filtersActive ? `${filteredLeads.length} de ${leads.length} leads` : `${leads.length} leads`} · arraste cards entre etapas
+    <div className="p-4 md:p-6 space-y-4 max-w-[1800px] mx-auto">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight leading-tight">Kanban</h1>
+          <p className="text-xs text-muted-foreground">
+            {filtersActive ? `${filteredLeads.length} de ${leads.length} leads` : `${leads.length} leads`}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <DensityToggle value={density} onChange={(d) => { setDensity(d); writeDensity(d); }} />
-          <Button variant="outline" onClick={handleExportCSV} disabled={filteredLeads.length === 0} className="gap-2 text-sm">
-            <Download className="w-4 h-4" /> Exportar CSV
+          <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={filteredLeads.length === 0} className="gap-1.5 h-8 text-xs">
+            <Download className="w-3.5 h-3.5" /> CSV
           </Button>
         </div>
       </div>
