@@ -80,7 +80,7 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead, density = "c
     try {
       const { error } = await supabase.from("leads").update(patch as any).eq("id", draggedLeadId);
       if (error) throw error;
-      toast.success(`Lead movido para "${CLIENT_PIPELINE_STAGES.find(c => c.id === newStatus)?.title}"`);
+      toast.success(`Lead movido para "${activeStages.find(c => c.id === newStatus)?.title}"`);
 
       // Celebrate a won deal
       if (newStatus === "ganho" || newStatus === "ativo") {
