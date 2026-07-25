@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import KanbanBoard from "@/components/admin/KanbanBoard";
+import DensityToggle from "@/components/kanban/DensityToggle";
+import { readDensity, writeDensity, type KanbanDensity } from "@/components/kanban/types";
 import type { Lead } from "@/types/admin";
 
 const RANGE_OPTIONS: { label: string; days: number | null }[] = [
