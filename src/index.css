@@ -725,17 +725,26 @@ html { scroll-behavior: smooth; }
 .tech-dot.amber { background: hsl(45 95% 60%); box-shadow: 0 0 8px hsl(45 95% 60% / 0.9), 0 0 16px hsl(45 95% 60% / 0.4); }
 .tech-dot.rose  { background: hsl(0 85% 65%); box-shadow: 0 0 8px hsl(0 85% 65% / 0.9), 0 0 16px hsl(0 85% 65% / 0.4); }
 
-/* Tech header bar */
+/* Tech header bar — solid black band in ambos os temas, dourado só como detalhe */
 .tech-header {
-  background: linear-gradient(180deg, hsl(0 0% 4% / 0.96), hsl(0 0% 7% / 0.9));
-  border-bottom: 1px solid hsl(var(--tech-cyan) / 0.18);
+  background: linear-gradient(180deg, #050505 0%, #0a0a0a 100%);
+  border-bottom: 1px solid rgba(217, 164, 65, 0.28);
   backdrop-filter: blur(12px);
+  color: #ffffff;
 }
 .tech-header::after {
   content: "";
   display: block; height: 1px;
-  background: linear-gradient(90deg, transparent, hsl(var(--tech-gold-soft) / 0.55), hsl(var(--tech-cyan) / 0.55), transparent);
+  background: linear-gradient(90deg, transparent, hsl(var(--tech-gold-soft) / 0.7), transparent);
 }
+
+/* Faixa preta simétrica no topo da sidebar, alinhada ao header */
+.tech-topbar-band {
+  background: linear-gradient(180deg, #050505 0%, #0a0a0a 100%);
+  border-color: rgba(217, 164, 65, 0.28) !important;
+  color: #ffffff;
+}
+.tech-topbar-band .text-muted-foreground { color: rgba(255,255,255,0.55) !important; }
 
 /* Sidebar tech polish */
 .tech-sidebar [data-active="true"] {
@@ -758,6 +767,14 @@ html { scroll-behavior: smooth; }
   box-shadow: 0 0 12px -4px hsl(var(--tech-cyan) / 0.4);
 }
 .tech-pill .tech-dot { background: hsl(var(--tech-mint)); }
+
+/* Variante da pill quando colocada sobre a faixa preta do topo */
+.tech-pill--onblack {
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.85);
+  border-color: rgba(217, 164, 65, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+}
 
 /* Page heading tech */
 .tech-heading {

@@ -77,37 +77,37 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <TenantSidebar tenant={tenant} isSuperAdmin={isSuperAdmin} tenantRole={role} />
         <main className="flex-1 flex flex-col overflow-hidden">
           <header className="h-14 tech-header flex items-center px-4 shrink-0 gap-4">
-            <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
+            <SidebarTrigger className="text-white/60 hover:text-white" />
             <div className="hidden md:flex items-center gap-3">
-              <img src={posionLogo.url} alt="Posion" className="h-6 opacity-90" />
-              <span className="tech-pill">
+              <img src={posionLogo.url} alt="Posion" className="h-6 opacity-95" />
+              <span className="tech-pill tech-pill--onblack">
                 <span className="tech-dot" /> Sistema operacional
               </span>
-              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground/70">
+              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-white/55">
                 v2.0 · Posion OS
               </span>
             </div>
             <div className="ml-auto flex items-center gap-3">
-              <span className="hidden sm:inline text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground/70">
+              <span className="hidden sm:inline text-[10px] font-mono uppercase tracking-[0.18em] text-white/55">
                 {new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase()}
               </span>
               <ThemeToggle />
               <Link
                 to={`/app/${tenant.slug}/perfil`}
                 title="Meu perfil"
-                className="flex items-center gap-2 rounded-full pl-1 pr-3 py-1 border border-amber-500/25 hover:border-amber-400/60 hover:bg-amber-500/5 transition-colors max-w-[220px]"
+                className="flex items-center gap-2 rounded-full pl-1 pr-3 py-1 border border-amber-500/40 hover:border-amber-400/70 hover:bg-white/5 transition-colors max-w-[220px]"
               >
-                <Avatar className="h-6 w-6 border border-amber-500/40">
+                <Avatar className="h-6 w-6 border border-amber-500/50">
                   {profile?.avatar_url ? <AvatarImage src={profile.avatar_url} alt={displayName} /> : null}
-                  <AvatarFallback className="bg-amber-500/15 text-amber-200 text-[10px] font-mono uppercase">
+                  <AvatarFallback className="bg-white/10 text-white text-[10px] font-mono uppercase">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
-                <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-amber-300/80 truncate">
+                <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-white/85 truncate">
                   {displayName}
                 </span>
               </Link>
-              <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-muted-foreground hover:text-foreground">
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-white/70 hover:text-white hover:bg-white/5">
                 <LogOut className="w-4 h-4" />
                 <span className="hidden sm:inline">Sair</span>
               </Button>

@@ -100,12 +100,12 @@ const AppSidebar = () => {
 
   return (
     <Sidebar collapsible="icon" className="tech-sidebar border-r border-sidebar-border bg-sidebar/95 backdrop-blur-xl">
-      <SidebarHeader className="p-4">
-        <div className={collapsed ? "flex flex-col items-center gap-3" : "flex items-center justify-between gap-2"}>
-          <div className="relative min-w-0 flex justify-center">
-            <img src={logoAsset.url} alt="Posion" className={collapsed ? "h-7 w-auto" : "h-9 w-auto"} />
+      <SidebarHeader className="p-0">
+        <div className={`tech-topbar-band h-14 px-3 border-b ${collapsed ? "flex flex-col items-center justify-center gap-2" : "flex items-center justify-between gap-2"}`}>
+          <div className="relative min-w-0 flex items-center">
+            <img src={logoAsset.url} alt="Posion" className={collapsed ? "h-6 w-auto" : "h-7 w-auto"} />
             {!collapsed && (
-              <span className="absolute -bottom-2 right-0 text-[8px] font-mono uppercase tracking-[0.2em] text-amber-300/80">
+              <span className="ml-2 text-[9px] font-mono uppercase tracking-[0.2em] text-white/55">
                 v2 · OS
               </span>
             )}
@@ -117,7 +117,7 @@ const AppSidebar = () => {
             onClick={toggleSidebar}
             aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
             title={collapsed ? "Expandir menu" : "Recolher menu"}
-            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+            className="h-8 w-8 shrink-0 text-white/60 hover:text-white hover:bg-white/5"
           >
             {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
           </Button>

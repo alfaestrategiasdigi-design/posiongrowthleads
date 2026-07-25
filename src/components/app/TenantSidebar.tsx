@@ -44,15 +44,15 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
   return (
     <Sidebar collapsible="icon" className="tech-sidebar border-r border-sidebar-border bg-sidebar/95 backdrop-blur-xl">
       <SidebarContent>
-        <div className="px-3 py-4 border-b border-amber-500/20">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl premium-kpi-icon flex items-center justify-center shrink-0">
-              <Building2 className="w-5 h-5 text-white" />
+        <div className="tech-topbar-band h-14 px-3 flex items-center border-b">
+          <div className="flex items-center gap-3 w-full">
+            <div className="w-9 h-9 rounded-lg premium-kpi-icon flex items-center justify-center shrink-0">
+              <Building2 className="w-4 h-4 text-white" />
             </div>
             {!collapsed && (
               <div className="min-w-0">
-                <div className="font-display text-base leading-tight truncate">{tenant.name}</div>
-                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mt-0.5">{tenant.plan}</div>
+                <div className="font-display text-sm leading-tight truncate text-white">{tenant.name}</div>
+                <div className="text-[10px] uppercase tracking-[0.18em] text-white/55 mt-0.5">{tenant.plan}</div>
               </div>
             )}
             {!collapsed && (
@@ -63,7 +63,7 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
                 onClick={toggleSidebar}
                 aria-label="Recolher menu lateral"
                 title="Recolher menu"
-                className="ml-auto h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                className="ml-auto h-8 w-8 shrink-0 text-white/60 hover:text-white hover:bg-white/5"
               >
                 <PanelLeftClose className="h-4 w-4" />
               </Button>
