@@ -61,6 +61,7 @@ export default function AgencyPipelinePage() {
   const [promoting, setPromoting] = useState(false);
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
   const [search, setSearch] = useState("");
+  const [density, setDensity] = useState<KanbanDensity>(() => readDensity());
 
   useEffect(() => {
     supabase
