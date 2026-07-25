@@ -3,14 +3,28 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, Trash2, MessageSquare, ChevronDown, ChevronRight, Send, Loader2, CheckCircle2, Sparkles } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Plus, Trash2, MessageSquare, ChevronDown, ChevronRight, Send, Loader2,
+  CheckCircle2, Sparkles, Bell, CalendarClock, ListTodo,
+} from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useLeadTasks, useTaskComments, type LeadTask } from "@/hooks/useLeadTasks";
+import { useLeadTasks, useTaskComments, type LeadTask, type LeadTaskFrequency } from "@/hooks/useLeadTasks";
 import type { UnifiedLeadView } from "@/hooks/useUnifiedLead";
 import { getSuggestedTasks, type SuggestedTask } from "@/lib/lead-task-templates";
 import { toast } from "sonner";
+
+const FREQ_LABEL: Record<LeadTaskFrequency, string> = {
+  once: "uma vez",
+  daily: "diariamente",
+  weekly: "semanalmente",
+  monthly: "mensalmente",
+};
 
 export default function LeadTasksTab({ lead }: { lead: UnifiedLeadView }) {
   const { tasks, loading, addTask, updateTask, removeTask, bulkInsert } = useLeadTasks(lead.source, lead.id, lead.tenantId);
@@ -69,17 +83,56 @@ export default function LeadTasksTab({ lead }: { lead: UnifiedLeadView }) {
         {loading && <Loader2 className="w-3 h-3 animate-spin" />}
       </div>
 
-      {/* Novo */}
-      <div className="flex gap-2">
-        <Input
-          value={newTitle}
-          onChange={(e) => setNewTitle(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && submit()}
-          placeholder="Nova tarefa (Enter para adicionar)"
-          className="h-9"
-        />
-        <Button size="sm" onClick={submit} className="gap-1"><Plus className="w-3.5 h-3.5" /> Adicionar</Button>
-      </div>
+      {/* Novo — abas por tipo */}
+      <Tabs defaultValue="geral" className="w-full">
+        <TabsList className="grid grid-cols-3 h-9">
+          <TabsTrigger value="geral" className="gap-1 text-xs"><ListTodo className="w-3.5 h-3.5" /> Geral</TabsTrigger>
+          <TabsTrigger value="lembrete" className="gap-1 text-xs"><Bell className="w-3.5 h-3.5" /> Lembrete</TabsTrigger>
+          <TabsTrigger value="mensagem" className="gap-1 text-xs"><MessageSquare className="w-3.5 h-3.5" /> Mensagem</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="geral" className="pt-3">
+          <div className="flex gap-2">
+            <Input
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submit()}
+              placeholder="Nova tarefa (Enter para adicionar)"
+              className="h-9"
+            />
+            <Button size="sm" onClick={submit} className="gap-1"><Plus className="w-3.5 h-3.5" /> Adicionar</Button>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="lembrete" className="pt-3">
+          <ScheduledForm
+            kind="lembrete"
+            leadPhone={lead.whatsapp}
+            onCreate={async (payload) => {
+              const err = await addTask(payload);
+              if (err) toast.error("Erro ao criar lembrete");
+              else toast.success("Lembrete agendado");
+            }}
+          />
+        </TabsContent>
+
+        <TabsContent value="mensagem" className="pt-3">
+          <ScheduledForm
+            kind="mensagem"
+            leadPhone={lead.whatsapp}
+            leadName={lead.name}
+            onCreate={async (payload) => {
+              if (!lead.whatsapp) {
+                toast.error("Lead sem WhatsApp cadastrado");
+                return;
+              }
+              const err = await addTask(payload);
+              if (err) toast.error("Erro ao agendar mensagem");
+              else toast.success("Mensagem agendada");
+            }}
+          />
+        </TabsContent>
+      </Tabs>
 
       {pendingSuggestions.length > 0 && (
         <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
@@ -143,6 +196,102 @@ export default function LeadTasksTab({ lead }: { lead: UnifiedLeadView }) {
   );
 }
 
+interface ScheduledFormProps {
+  kind: "mensagem" | "lembrete";
+  leadPhone?: string | null;
+  leadName?: string | null;
+  onCreate: (payload: Partial<LeadTask>) => Promise<void>;
+}
+
+function ScheduledForm({ kind, leadPhone, leadName, onCreate }: ScheduledFormProps) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState(today);
+  const [time, setTime] = useState("09:00");
+  const [freq, setFreq] = useState<LeadTaskFrequency>("once");
+  const [body, setBody] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const defaultTitle = kind === "mensagem" ? "Enviar mensagem" : "Lembrete";
+
+  const submit = async () => {
+    if (kind === "mensagem" && !body.trim()) {
+      toast.error("Escreva a mensagem");
+      return;
+    }
+    setSaving(true);
+    await onCreate({
+      title: title.trim() || defaultTitle,
+      task_type: kind,
+      scheduled_date: date,
+      scheduled_time: time,
+      frequency: freq,
+      message_body: kind === "mensagem" ? body.trim() : null,
+      phone: kind === "mensagem" ? (leadPhone || null) : null,
+    });
+    setSaving(false);
+    setTitle("");
+    setBody("");
+  };
+
+  return (
+    <div className="space-y-3 rounded-lg border border-border/50 bg-card/40 p-3">
+      <div>
+        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Título</Label>
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder={defaultTitle}
+          className="mt-1 h-9"
+        />
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Data</Label>
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 h-9" />
+        </div>
+        <div>
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Hora</Label>
+          <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="mt-1 h-9" />
+        </div>
+        <div>
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Frequência</Label>
+          <Select value={freq} onValueChange={(v) => setFreq(v as LeadTaskFrequency)}>
+            <SelectTrigger className="mt-1 h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="once">Uma vez</SelectItem>
+              <SelectItem value="daily">Diariamente</SelectItem>
+              <SelectItem value="weekly">Semanalmente</SelectItem>
+              <SelectItem value="monthly">Mensalmente</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      {kind === "mensagem" && (
+        <div>
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Mensagem {leadPhone ? <span className="normal-case text-muted-foreground/70">→ {leadPhone}</span> : <span className="text-destructive">(lead sem WhatsApp)</span>}
+          </Label>
+          <Textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={4}
+            placeholder={`Olá ${leadName || "{{nome}}"}, tudo bem? ...`}
+            className="mt-1 text-sm"
+          />
+          <div className="text-[10px] text-muted-foreground mt-1">
+            Placeholders: <code>{"{{nome}}"}</code> será substituído pelo nome do lead no envio.
+          </div>
+        </div>
+      )}
+      <Button size="sm" onClick={submit} disabled={saving} className="w-full gap-1 h-9">
+        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarClock className="w-3.5 h-3.5" />}
+        {kind === "mensagem" ? "Agendar mensagem" : "Criar lembrete"}
+      </Button>
+    </div>
+  );
+}
+
 interface RowProps {
   task: LeadTask;
   subs: LeadTask[];
@@ -168,24 +317,54 @@ function TaskRow({ task, subs, onToggle, onUpdate, onDelete, onAddSub, onUpdateS
     if (newVal !== task.due_date) onUpdate({ due_date: newVal });
   };
 
+  const isScheduled = task.task_type === "mensagem" || task.task_type === "lembrete";
+  const scheduleSummary = (() => {
+    if (!isScheduled || !task.scheduled_date) return null;
+    const dateStr = format(new Date(`${task.scheduled_date}T${task.scheduled_time || "09:00"}:00`), "dd/MM 'às' HH:mm", { locale: ptBR });
+    const freqStr = task.frequency && task.frequency !== "once" ? `, repete ${FREQ_LABEL[task.frequency]}` : "";
+    const prefix = task.task_type === "mensagem" ? "Mensagem agendada para" : "Lembrete para";
+    return `${prefix} ${dateStr}${freqStr}`;
+  })();
+
+  const status = (() => {
+    if (task.task_type !== "mensagem") return null;
+    if (task.last_sent_at) return { label: `Enviada ${formatDistanceToNow(new Date(task.last_sent_at), { addSuffix: true, locale: ptBR })}`, tone: "default" as const };
+    if (task.next_send_at) return { label: `Próximo envio ${formatDistanceToNow(new Date(task.next_send_at), { addSuffix: true, locale: ptBR })}`, tone: "secondary" as const };
+    return { label: "Pendente", tone: "outline" as const };
+  })();
+
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="rounded-lg border border-border/50 bg-card/40">
       <div className="flex items-center gap-2 p-2">
         <Checkbox checked={task.done} onCheckedChange={(v) => onToggle(!!v)} />
-        <Input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={commitTitle}
-          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-          className={`flex-1 h-8 border-transparent bg-transparent focus-visible:border-border ${task.done ? "line-through text-muted-foreground" : ""}`}
-        />
-        <Input
-          type="date"
-          value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
-          onBlur={commitDate}
-          className="w-36 h-8 text-xs"
-        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            {task.task_type === "mensagem" && <MessageSquare className="w-3.5 h-3.5 text-primary shrink-0" />}
+            {task.task_type === "lembrete" && <Bell className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+              className={`h-8 border-transparent bg-transparent focus-visible:border-border ${task.done ? "line-through text-muted-foreground" : ""}`}
+            />
+          </div>
+          {scheduleSummary && (
+            <div className="flex items-center gap-2 pl-6 mt-0.5">
+              <span className="text-[11px] text-muted-foreground">{scheduleSummary}</span>
+              {status && <Badge variant={status.tone} className="text-[10px] h-4 px-1.5">{status.label}</Badge>}
+            </div>
+          )}
+        </div>
+        {!isScheduled && (
+          <Input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            onBlur={commitDate}
+            className="w-36 h-8 text-xs"
+          />
+        )}
         <CollapsibleTrigger asChild>
           <Button size="sm" variant="ghost" className="gap-1 h-8 text-xs text-muted-foreground">
             {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
@@ -199,6 +378,11 @@ function TaskRow({ task, subs, onToggle, onUpdate, onDelete, onAddSub, onUpdateS
 
       <CollapsibleContent>
         <div className="border-t border-border/40 p-3 space-y-3 bg-muted/10">
+          {task.task_type === "mensagem" && task.message_body && (
+            <div className="rounded-md border border-primary/20 bg-primary/5 p-2 text-sm whitespace-pre-wrap">
+              {task.message_body}
+            </div>
+          )}
           {/* Sub-tarefas */}
           <div className="space-y-1.5">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Sub-tarefas</div>
