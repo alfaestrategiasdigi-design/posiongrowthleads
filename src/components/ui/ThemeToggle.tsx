@@ -11,13 +11,24 @@ export default function ThemeToggle({ className = "" }: { className?: string }) 
       title={isDark ? "Mudar para tema claro" : "Mudar para tema escuro"}
       aria-label={isDark ? "Mudar para tema claro" : "Mudar para tema escuro"}
       className={
-        "h-8 w-8 inline-flex items-center justify-center rounded-full " +
-        "text-muted-foreground hover:text-foreground border border-border/60 " +
-        "hover:border-primary/40 bg-transparent hover:bg-primary/5 " +
-        "transition-all duration-200 " + className
+        "relative h-8 w-16 inline-flex items-center rounded-full p-1 " +
+        "border transition-colors duration-300 " +
+        (isDark
+          ? "bg-black border-white/20"
+          : "bg-white border-black/20") +
+        " " + className
       }
     >
-      {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+      {/* Track icons */}
+      <Sun className={"w-3.5 h-3.5 absolute left-1.5 " + (isDark ? "text-white/40" : "text-black")} />
+      <Moon className={"w-3.5 h-3.5 absolute right-1.5 " + (isDark ? "text-white" : "text-black/40")} />
+      {/* Thumb */}
+      <span
+        className={
+          "inline-block h-6 w-6 rounded-full shadow-md transform transition-transform duration-300 " +
+          (isDark ? "translate-x-8 bg-white" : "translate-x-0 bg-black")
+        }
+      />
     </button>
   );
 }
