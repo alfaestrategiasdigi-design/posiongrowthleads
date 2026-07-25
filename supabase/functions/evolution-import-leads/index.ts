@@ -1,14 +1,17 @@
-// Import all Evolution API contacts into public.leads for a given tenant.
-// POST body: { tenant_id: string | null, default_status?: string }
+// Import all Evolution API contacts into public.leads for a given tenant (or all tenants).
+// POST body: { tenant_id?: string | null, default_status?: string, all_tenants?: boolean }
 // - Calls /chat/findContacts/{instance}
 // - Dedupes by normalize_phone(whatsapp) within the tenant scope
 // - Inserts new leads; updates nome_completo of existing leads only if empty
-// - The DB trigger trg_link_lead_to_conversations will back-fill conversations.lead_id
+// - Upserts a row in public.conversations for every imported contact so the
+//   Evolution inbox always shows them (fixes orphan leads created by imports).
+// - Authorization: user JWT (admin/tenant), service-role key, or the dispatch_token
+//   stored in edge_internal_config (used by pg_cron).
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -52,7 +55,6 @@ function extractName(c: any, phone: string): string {
     const s = String(v ?? "").trim();
     if (s && !/^\d+$/.test(s)) return s.slice(0, 120);
   }
-  // Fallback: format BR phone
   if (phone.length === 13 && phone.startsWith("55")) {
     const ddd = phone.slice(2, 4);
     const rest = phone.slice(4);
@@ -61,37 +63,108 @@ function extractName(c: any, phone: string): string {
   return `+${phone}`;
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+let cachedDispatchToken: { value: string; expiresAt: number } | null = null;
+async function getDispatchToken(admin: any): Promise<string | null> {
+  if (cachedDispatchToken && cachedDispatchToken.expiresAt > Date.now()) return cachedDispatchToken.value;
+  const { data } = await admin.from("edge_internal_config").select("dispatch_token").eq("id", 1).maybeSingle();
+  const value = (data as any)?.dispatch_token ?? null;
+  if (value) cachedDispatchToken = { value, expiresAt: Date.now() + 60_000 };
+  return value;
+}
 
+interface AuthResult {
+  ok: boolean;
+  internal: boolean;      // service role / dispatch token / cron
+  userId?: string | null;
+  isAdmin?: boolean;
+  error?: string;
+  status?: number;
+}
+
+async function authorize(req: Request, admin: any): Promise<AuthResult> {
   const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
-  const userClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
-  const token = authHeader.replace("Bearer ", "");
-  const { data: userRes } = await userClient.auth.getUser(token);
-  const userId = userRes?.user?.id;
-  if (!userId) return json({ error: "Unauthorized" }, 401);
+  const cronToken = req.headers.get("x-cron-token") ?? req.headers.get("X-Cron-Token");
+  const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  const internal = await getDispatchToken(admin);
+  if (cronToken && internal && cronToken === internal) return { ok: true, internal: true };
+  if (bearer && bearer === SERVICE_KEY) return { ok: true, internal: true };
+  if (bearer && internal && bearer === internal) return { ok: true, internal: true };
+  if (!bearer) return { ok: false, internal: false, status: 401, error: "Unauthorized" };
+  try {
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
+    const { data: userRes } = await userClient.auth.getUser(bearer);
+    const userId = userRes?.user?.id;
+    if (!userId) return { ok: false, internal: false, status: 401, error: "Unauthorized" };
+    const { data: isAdmin } = await admin.rpc("has_role", { _user_id: userId, _role: "admin" });
+    return { ok: true, internal: false, userId, isAdmin: !!isAdmin };
+  } catch {
+    return { ok: false, internal: false, status: 401, error: "invalid_token" };
+  }
+}
 
-  const admin = createClient(SUPABASE_URL, SERVICE_KEY);
-  const body = await req.json().catch(() => ({}));
-  const tenantId: string | null = body.tenant_id ?? null;
-  const defaultStatus: string = String(body.default_status ?? "lead");
+async function upsertConversationForContact(
+  admin: any,
+  tenantId: string | null,
+  phone: string,
+  jid: string | null,
+  name: string,
+  leadId: string | null,
+) {
+  const remoteJid = jid && jid.includes("@") ? jid : `${phone}@s.whatsapp.net`;
 
-  const { data: isAdmin } = await admin.rpc("has_role", { _user_id: userId, _role: "admin" });
-  if (tenantId) {
-    const { data: ok } = await admin.rpc("has_tenant_access", { _user_id: userId, _tenant_id: tenantId });
-    if (!isAdmin && !ok) return json({ error: "Sem permissão" }, 403);
-  } else if (!isAdmin) {
-    return json({ error: "Sem permissão para escopo global" }, 403);
+  // Try find by remote_jid first
+  let byJid = admin.from("conversations").select("id, lead_id, nome_contato").eq("remote_jid", remoteJid);
+  byJid = tenantId ? byJid.eq("tenant_id", tenantId) : byJid.is("tenant_id", null);
+  let existing = await byJid.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
+
+  // Fallback: by normalized phone
+  if (!existing?.data) {
+    let byPhone = admin.from("conversations").select("id, lead_id, nome_contato").eq("telefone", phone);
+    byPhone = tenantId ? byPhone.eq("tenant_id", tenantId) : byPhone.is("tenant_id", null);
+    existing = await byPhone.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
   }
 
+  if (existing?.data) {
+    const patch: any = {};
+    if (!existing.data.lead_id && leadId) patch.lead_id = leadId;
+    if (!existing.data.nome_contato && name) patch.nome_contato = name;
+    if (Object.keys(patch).length > 0) {
+      await admin.from("conversations").update(patch).eq("id", existing.data.id);
+    }
+    return { updated: true };
+  }
+
+  const insertRes = await admin.from("conversations").insert({
+    tenant_id: tenantId,
+    telefone: phone,
+    remote_jid: remoteJid,
+    nome_contato: name,
+    provider: "evolution",
+    lead_id: leadId,
+    ultima_mensagem: "Lead importado da campanha de WhatsApp",
+    ultima_interacao: new Date().toISOString(),
+  });
+  if (insertRes.error) {
+    // race: retry find and patch lead_id
+    let retryQ = admin.from("conversations").select("id, lead_id").eq("telefone", phone);
+    retryQ = tenantId ? retryQ.eq("tenant_id", tenantId) : retryQ.is("tenant_id", null);
+    const retry = await retryQ.order("ultima_interacao", { ascending: false }).limit(1).maybeSingle();
+    if (retry.data?.id && leadId && !retry.data.lead_id) {
+      await admin.from("conversations").update({ lead_id: leadId, nome_contato: name, remote_jid: remoteJid }).eq("id", retry.data.id);
+    }
+    return { updated: true };
+  }
+  return { created: true };
+}
+
+async function runForTenant(admin: any, tenantId: string | null, defaultStatus: string) {
   let connQ = admin.from("zapi_connections")
     .select("instance_url, api_key, instance_name")
     .eq("provider", "evolution");
   connQ = tenantId ? connQ.eq("tenant_id", tenantId) : connQ.is("tenant_id", null);
   const { data: conn } = await connQ.order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (!conn?.instance_url || !conn.instance_name || !conn.api_key) {
-    return json({ error: "Instância Evolution não configurada" }, 400);
+    return { tenant_id: tenantId, error: "no_instance" };
   }
   const base = normalizeBase(conn.instance_url);
   const url = `${base}/chat/findContacts/${encodeURIComponent(conn.instance_name)}`;
@@ -104,13 +177,12 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ where: {} }),
     });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) return json({ error: "findContacts falhou", detail: j, status: r.status }, 502);
+    if (!r.ok) return { tenant_id: tenantId, error: "findContacts_failed", status: r.status, detail: j };
     contacts = Array.isArray(j) ? j : (j?.contacts || j?.data || []);
   } catch (e) {
-    return json({ error: "Erro de rede", detail: String(e) }, 502);
+    return { tenant_id: tenantId, error: "network", detail: String(e) };
   }
 
-  // Dedup phones within the payload itself
   const byPhone = new Map<string, { phone: string; name: string; jid: string | null }>();
   for (const c of contacts) {
     const phone = extractPhone(c);
@@ -120,10 +192,8 @@ Deno.serve(async (req) => {
     const jid = c?.remoteJid || c?.jid || c?.id || null;
     byPhone.set(phone, { phone, name, jid: jid ? String(jid) : null });
   }
-
   const rows = Array.from(byPhone.values());
 
-  // Preload existing leads for this tenant to dedupe by normalize_phone
   const norm = (p: string) => p.replace(/\D/g, "").slice(-11);
   const targetNormalized = new Set(rows.map((r) => norm(r.phone)));
 
@@ -139,38 +209,52 @@ Deno.serve(async (req) => {
   }
 
   let created = 0, updated = 0, skipped = 0, errors = 0;
-  const toInsert: any[] = [];
-  const toUpdate: { id: string; nome: string }[] = [];
+  let convsCreated = 0, convsUpdated = 0, convsErrors = 0;
+
+  const toInsert: { row: typeof rows[number]; payload: any }[] = [];
+  const toUpdate: { id: string; nome: string; row: typeof rows[number] }[] = [];
+  const existingResolved: { leadId: string; row: typeof rows[number] }[] = [];
 
   for (const r of rows) {
     const n = norm(r.phone);
-    const existing = existingByNorm.get(n);
-    if (existing) {
-      // Only fill missing name
-      const cur = (existing.name ?? "").trim();
+    const ex = existingByNorm.get(n);
+    if (ex) {
+      existingResolved.push({ leadId: ex.id, row: r });
+      const cur = (ex.name ?? "").trim();
       if (!cur && r.name && !/^\+?\d/.test(r.name)) {
-        toUpdate.push({ id: existing.id, nome: r.name });
+        toUpdate.push({ id: ex.id, nome: r.name, row: r });
       } else {
         skipped++;
       }
       continue;
     }
     toInsert.push({
-      nome_completo: r.name,
-      whatsapp: r.phone,
-      tenant_id: tenantId,
-      status: defaultStatus,
-      origem: "whatsapp_import",
-      extras: { source: "evolution_contacts", jid: r.jid, imported_at: new Date().toISOString() },
+      row: r,
+      payload: {
+        nome_completo: r.name,
+        whatsapp: r.phone,
+        tenant_id: tenantId,
+        status: defaultStatus,
+        origem: "whatsapp_import",
+        extras: { source: "evolution_contacts", jid: r.jid, imported_at: new Date().toISOString() },
+      },
     });
   }
 
-  // Batch insert (chunks of 200)
+  const insertedIds: { leadId: string; row: typeof rows[number] }[] = [];
   for (let i = 0; i < toInsert.length; i += 200) {
     const chunk = toInsert.slice(i, i + 200);
-    const { error, data } = await admin.from("leads").insert(chunk).select("id");
-    if (error) { errors += chunk.length; console.warn("insert leads chunk failed", error.message); }
-    else created += data?.length ?? 0;
+    const { error, data } = await admin.from("leads").insert(chunk.map((c) => c.payload)).select("id");
+    if (error) {
+      errors += chunk.length;
+      console.warn("insert leads chunk failed", error.message);
+    } else {
+      // Preserve order: PostgREST returns rows in insertion order for the same call.
+      (data ?? []).forEach((d: any, idx: number) => {
+        insertedIds.push({ leadId: d.id, row: chunk[idx].row });
+      });
+      created += data?.length ?? 0;
+    }
   }
 
   for (const u of toUpdate) {
@@ -179,13 +263,80 @@ Deno.serve(async (req) => {
     else updated++;
   }
 
-  return json({
-    ok: true,
+  // Upsert conversations for EVERY contact (new + existing) so the inbox always has them.
+  const allWithLead = [...existingResolved, ...insertedIds];
+  for (const item of allWithLead) {
+    try {
+      const res = await upsertConversationForContact(admin, tenantId, item.row.phone, item.row.jid, item.row.name, item.leadId);
+      if (res.created) convsCreated++;
+      else if (res.updated) convsUpdated++;
+    } catch (e) {
+      convsErrors++;
+      console.warn("conversation upsert failed", String(e));
+    }
+  }
+
+  return {
+    tenant_id: tenantId,
     total_contacts: contacts.length,
     valid_phones: rows.length,
-    created,
-    updated,
-    skipped,
-    errors,
-  });
+    created, updated, skipped, errors,
+    conversations_created: convsCreated,
+    conversations_updated: convsUpdated,
+    conversations_errors: convsErrors,
+  };
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+  const authz = await authorize(req, admin);
+  if (!authz.ok) return json({ error: authz.error }, authz.status ?? 401);
+
+  const body = await req.json().catch(() => ({}));
+  const defaultStatus: string = String(body.default_status ?? "lead");
+  const allTenants: boolean = body.all_tenants === true;
+
+  if (allTenants) {
+    if (!authz.internal && !authz.isAdmin) {
+      return json({ error: "Sem permissão para escopo global" }, 403);
+    }
+    const { data: conns } = await admin
+      .from("zapi_connections")
+      .select("tenant_id")
+      .eq("provider", "evolution");
+    const seen = new Set<string>();
+    const scopes: (string | null)[] = [];
+    for (const c of conns ?? []) {
+      const key = c.tenant_id === null ? "__master__" : String(c.tenant_id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      scopes.push(c.tenant_id as string | null);
+    }
+    const results: any[] = [];
+    for (const scope of scopes) {
+      try {
+        results.push(await runForTenant(admin, scope, defaultStatus));
+      } catch (e) {
+        results.push({ tenant_id: scope, error: String((e as Error).message ?? e) });
+      }
+    }
+    return json({ ok: true, all_tenants: true, results });
+  }
+
+  const tenantId: string | null = body.tenant_id ?? null;
+
+  // Per-tenant permission (only user calls need this; internal already trusted)
+  if (!authz.internal) {
+    if (tenantId) {
+      const { data: ok } = await admin.rpc("has_tenant_access", { _user_id: authz.userId, _tenant_id: tenantId });
+      if (!authz.isAdmin && !ok) return json({ error: "Sem permissão" }, 403);
+    } else if (!authz.isAdmin) {
+      return json({ error: "Sem permissão para escopo global" }, 403);
+    }
+  }
+
+  const res = await runForTenant(admin, tenantId, defaultStatus);
+  return json({ ok: true, ...res });
 });
