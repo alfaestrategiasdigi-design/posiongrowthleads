@@ -207,20 +207,22 @@ async function runForTenant(
   // and re-insert everything else as duplicates on every cron run.
   const existingByNorm = new Map<string, { id: string; name: string | null }>();
   if (normalizedTargets.length > 0) {
-    // The RPC scopes by tenant (NULL means master) and returns at most one
-    // row per normalized phone (oldest lead wins), so we never lose the anchor
-    // even for tenants with 100k+ leads.
-    const { data: existing, error: existErr } = await admin.rpc("leads_existing_by_norm_phone", {
-      p_tenant_id: tenantId,
-      p_phones: normalizedTargets,
-    });
-    if (existErr) {
-      console.error("leads_existing_by_norm_phone failed", existErr);
-      return { tenant_id: tenantId, error: "dedup_lookup_failed", detail: existErr.message };
-    }
-    for (const e of (existing as any[]) ?? []) {
-      if (e?.norm && !existingByNorm.has(e.norm)) {
-        existingByNorm.set(e.norm, { id: e.id, name: e.nome_completo ?? null });
+    // RPC responses are also subject to the Data API 1000-row cap. Keep each
+    // input chunk below that cap so every normalized phone is accounted for.
+    for (let i = 0; i < normalizedTargets.length; i += 500) {
+      const phoneChunk = normalizedTargets.slice(i, i + 500);
+      const { data: existing, error: existErr } = await admin.rpc("leads_existing_by_norm_phone", {
+        p_tenant_id: tenantId,
+        p_phones: phoneChunk,
+      });
+      if (existErr) {
+        console.error("leads_existing_by_norm_phone failed", existErr);
+        return { tenant_id: tenantId, error: "dedup_lookup_failed", detail: existErr.message };
+      }
+      for (const e of (existing as any[]) ?? []) {
+        if (e?.norm && !existingByNorm.has(e.norm)) {
+          existingByNorm.set(e.norm, { id: e.id, name: e.nome_completo ?? null });
+        }
       }
     }
   }
