@@ -245,6 +245,94 @@ async function resolveViaEvolutionApi(admin: any, tenantFilter: string | null) {
   return stats;
 }
 
+// Fallback per-LID: para cada conversa @lid pendente, consulta Evolution
+// individualmente (findContacts com filtro por id, e fetchProfile como último
+// recurso) tentando extrair o telefone canônico. Isto captura contatos que
+// o dump geral do /chat/findContacts não retornou (baileys ainda não sincronizou
+// contact list mas conhece o par via mensagem enviada).
+async function resolvePendingLidsIndividually(admin: any, tenantFilter: string | null) {
+  const stats = { attempted: 0, resolved: 0, merged: 0, renamed: 0, errors: 0 };
+  let pendQ = admin.from("conversations")
+    .select("id, tenant_id, remote_jid")
+    .like("remote_jid", "%@lid")
+    .limit(300);
+  if (tenantFilter) pendQ = pendQ.eq("tenant_id", tenantFilter);
+  const { data: pending } = await pendQ;
+  if (!pending?.length) return stats;
+
+  const tenantIds = Array.from(new Set(pending.map((p: any) => p.tenant_id).filter(Boolean)));
+  if (tenantIds.length === 0) return stats;
+
+  const { data: conns } = await admin.from("zapi_connections")
+    .select("tenant_id, instance_url, api_key, instance_name")
+    .eq("provider", "evolution")
+    .eq("status", "connected")
+    .in("tenant_id", tenantIds);
+  const connByTenant = new Map<string, any>();
+  for (const c of conns ?? []) if (c?.tenant_id) connByTenant.set(c.tenant_id, c);
+
+  for (const lid of pending) {
+    const conn = connByTenant.get(lid.tenant_id);
+    if (!conn?.instance_url || !conn?.api_key || !conn?.instance_name) continue;
+    const base = normalizeBase(conn.instance_url);
+    const lidJid = String(lid.remote_jid);
+    const lidDigits = onlyDigits(lidJid.split("@")[0]);
+    stats.attempted++;
+
+    const attempts: Array<{ method: string; url: string; body?: any }> = [
+      { method: "POST", url: `${base}/chat/findContacts/${encodeURIComponent(conn.instance_name)}`, body: { where: { id: lidJid } } },
+      { method: "POST", url: `${base}/chat/findContacts/${encodeURIComponent(conn.instance_name)}`, body: { where: { remoteJid: lidJid } } },
+      { method: "POST", url: `${base}/chat/fetchProfile/${encodeURIComponent(conn.instance_name)}`, body: { number: lidJid } },
+      { method: "POST", url: `${base}/chat/fetchProfile/${encodeURIComponent(conn.instance_name)}`, body: { number: lidDigits } },
+    ];
+
+    let phoneJid: string | null = null;
+    for (const ep of attempts) {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 8000);
+        const res = await fetch(ep.url, {
+          method: ep.method,
+          headers: { "Content-Type": "application/json", apikey: conn.api_key },
+          body: ep.body ? JSON.stringify(ep.body) : undefined,
+          signal: ctrl.signal,
+        }).finally(() => clearTimeout(timer));
+        if (!res.ok) continue;
+        const parsed = await res.json().catch(() => null);
+        const arr = Array.isArray(parsed) ? parsed
+          : Array.isArray(parsed?.contacts) ? parsed.contacts
+          : Array.isArray(parsed?.data) ? parsed.data
+          : parsed ? [parsed] : [];
+        for (const c of arr) {
+          const cands = [
+            c?.id, c?.remoteJid, c?.remoteJidAlt, c?.jid, c?.jidAlt,
+            c?.pn, c?.phoneNumber, c?.wa_id, c?.wuid, c?.senderPn,
+            c?.participantPn, c?.owner, c?.number,
+          ];
+          const p = firstPhoneJid(cands);
+          if (p) { phoneJid = p; break; }
+        }
+        if (phoneJid) break;
+      } catch (e) {
+        stats.errors++;
+        console.warn("[whatsapp-lid-reconcile] per_lid_fetch_failed", String(e).slice(0, 200));
+      }
+    }
+
+    if (!phoneJid) continue;
+    stats.resolved++;
+    try {
+      const r = await upsertAliasAndMerge(admin, conn.tenant_id, conn.instance_name, lidJid, phoneJid);
+      stats.merged += r.merged;
+      stats.renamed += r.renamed;
+    } catch (e) {
+      stats.errors++;
+      console.warn("[whatsapp-lid-reconcile] per_lid_merge_failed", String(e).slice(0, 200));
+    }
+  }
+  return stats;
+}
+
 // Remove silenciosamente conversas @lid órfãs há muito tempo (sem candidato
 // canônico após consulta à Evolution API e correlação por wamid). Cascata
 // remove mensagens associadas — mas mensagens úteis já foram mescladas antes.
@@ -306,6 +394,7 @@ Deno.serve(async (req) => {
 
   // Etapa 0: importa mapeamento autoritativo lid<->phone via Evolution API.
   const evolutionStats = dryRun ? { skipped: true } : await resolveViaEvolutionApi(admin, tenantFilter);
+  const perLidStats = dryRun ? { skipped: true } : await resolvePendingLidsIndividually(admin, tenantFilter);
 
   // Etapa 1/2: percorre @lid remanescentes tentando alias já persistido e wamid.
   let q = admin.from("conversations")
@@ -455,6 +544,7 @@ Deno.serve(async (req) => {
     ok: true,
     dry_run: dryRun,
     evolution: evolutionStats,
+    per_lid_lookup: perLidStats,
     per_tenant: perTenant,
     archived: archiveStats,
     processed: (lidConvs ?? []).length,
