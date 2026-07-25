@@ -1479,35 +1479,16 @@ html { scroll-behavior: smooth; }
     linear-gradient(90deg, hsl(38 20% 78% / 0.18) 1px, transparent 1px) !important;
 }
 
-/* Header — faixa branca com borda dourada sutil, texto escuro */
-.light .tech-header {
-  background: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%) !important;
-  border-bottom: 1px solid hsl(var(--border)) !important;
-  color: hsl(var(--foreground)) !important;
-  box-shadow: 0 1px 2px rgba(15,23,42,.04);
+/* Header e faixa da sidebar permanecem SEMPRE escuros (moldura).
+   Reforça a barra dourada inferior no light. */
+.light .tech-header::after,
+.light .tech-topbar-band::after {
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.85), transparent) !important;
 }
-.light .tech-header::after {
-  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.6), transparent) !important;
-}
+/* Garante contraste do texto branco dentro do header/faixa mesmo no light */
+.light .tech-header,
 .light .tech-topbar-band {
-  background: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%) !important;
-  border-color: hsl(var(--border)) !important;
-  color: hsl(var(--foreground)) !important;
-}
-.light .tech-topbar-band .text-muted-foreground {
-  color: hsl(var(--muted-foreground)) !important;
-}
-.light .tech-header .text-white,
-.light .tech-topbar-band .text-white {
-  color: hsl(var(--foreground)) !important;
-}
-.light .tech-header .text-white\/55,
-.light .tech-header .text-white\/60,
-.light .tech-header .text-white\/70,
-.light .tech-topbar-band .text-white\/55,
-.light .tech-topbar-band .text-white\/60,
-.light .tech-topbar-band .text-white\/70 {
-  color: hsl(var(--muted-foreground)) !important;
+  color: #fff !important;
 }
 
 /* Heading gradiente — em light vira dourado sólido sobre foreground */
