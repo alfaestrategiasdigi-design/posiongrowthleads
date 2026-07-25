@@ -18,6 +18,9 @@ interface Props { tenant: Tenant; isSuperAdmin: boolean; tenantRole?: string | n
 
 const COMERCIAL_ROLES = new Set(["comercial_tenant", "vendedor", "recepcao", "viewer"]);
 
+// Itens ocultos no modo infoproduto (não fazem sentido para produto digital)
+const INFOPRODUTO_HIDDEN_URLS = new Set(["/pacientes", "/agenda", "/produtos", "/planos", "/automacoes"]);
+
 type NavItem = { title: string; url: string; icon: any; comercial?: boolean };
 type NavGroup = { label: string; items: NavItem[] };
 
@@ -28,6 +31,7 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
   const { pathname } = useLocation();
   const base = `/app/${tenant.slug}`;
   const isComercial = !isSuperAdmin && !!tenantRole && COMERCIAL_ROLES.has(tenantRole);
+  const isInfoproduto = (tenant as any).business_type === "infoproduto";
 
   const groups: NavGroup[] = [
     {
@@ -43,8 +47,8 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
     {
       label: "Gestão",
       items: [
-        { title: "Pacientes Ativos", url: `${base}/pacientes`, icon: Users },
-        { title: "Agenda", url: `${base}/agenda`, icon: Calendar, comercial: true },
+        { title: isInfoproduto ? "Clientes Ativos" : "Pacientes Ativos", url: `${base}/pacientes`, icon: Users },
+        { title: isInfoproduto ? "Sessões" : "Agenda", url: `${base}/agenda`, icon: Calendar, comercial: true },
         { title: "Financeiro", url: `${base}/financeiro`, icon: DollarSign },
         { title: "Relatórios", url: `${base}/relatorios`, icon: BarChart3, comercial: true },
       ],
@@ -63,7 +67,14 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
   const visibleGroups = groups
     .map((g) => ({
       ...g,
-      items: isComercial ? g.items.filter((i) => i.comercial) : g.items,
+      items: g.items.filter((i) => {
+        if (isComercial && !i.comercial) return false;
+        if (isInfoproduto) {
+          const suffix = i.url.replace(base, "");
+          if (INFOPRODUTO_HIDDEN_URLS.has(suffix)) return false;
+        }
+        return true;
+      }),
     }))
     .filter((g) => g.items.length > 0);
 

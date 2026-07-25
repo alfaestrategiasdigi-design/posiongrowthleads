@@ -122,6 +122,24 @@ export const CLIENT_PIPELINE_STAGES = [
   { id: "perdido",           title: "Perdido",               short: "Perdido",         color: "from-rose-500 to-rose-600",       hex: "#f43f5e" },
 ] as const;
 
+// Funil para tenants em modo infoproduto — mesmos IDs (compatível com leads_status_check),
+// só muda a linguagem exibida.
+export const INFOPRODUTO_PIPELINE_STAGES = [
+  { id: "lead",              title: "Lead Novo",            short: "Lead Novo",       color: "from-blue-500 to-blue-600",       hex: "#3b82f6" },
+  { id: "qualificado",       title: "Assistiu VSL",         short: "Assistiu VSL",    color: "from-violet-500 to-violet-600",   hex: "#8b5cf6" },
+  { id: "agendar_reuniao",   title: "Iniciou Checkout",     short: "Checkout",        color: "from-pink-500 to-pink-600",       hex: "#ec4899" },
+  { id: "reuniao_agendada",  title: "Boleto/Pix Gerado",    short: "Pix Gerado",      color: "from-red-500 to-red-600",         hex: "#ef4444" },
+  { id: "proposta",          title: "Aguardando Pagamento", short: "Aguardando Pgto", color: "from-orange-500 to-orange-600",   hex: "#f97316" },
+  { id: "negociacao",        title: "Em Negociação",        short: "Negociação",      color: "from-amber-500 to-amber-600",     hex: "#f59e0b" },
+  { id: "ganho",             title: "Comprou",              short: "Comprou",         color: "from-emerald-500 to-emerald-600", hex: "#10b981" },
+  { id: "ativo",             title: "Cliente Ativo",        short: "Cliente Ativo",   color: "from-teal-500 to-teal-600",       hex: "#14b8a6" },
+  { id: "perdido",           title: "Perdido / Reembolso",  short: "Perdido",         color: "from-rose-500 to-rose-600",       hex: "#f43f5e" },
+] as const;
+
+export function getPipelineStages(businessType?: string | null) {
+  return businessType === "infoproduto" ? INFOPRODUTO_PIPELINE_STAGES : CLIENT_PIPELINE_STAGES;
+}
+
 export type PipelineStage = typeof PIPELINE_STAGES[number]["id"];
 
 export const ORIGEM_LABELS: Record<string, { label: string; color: string }> = {

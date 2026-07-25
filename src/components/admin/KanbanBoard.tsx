@@ -7,6 +7,7 @@ import LeadDetailModal from "./LeadDetailModal";
 import LossReasonDialog from "./LossReasonDialog";
 import AppointmentDialog from "@/components/tenant/AppointmentDialog";
 import { CLIENT_PIPELINE_STAGES } from "@/types/admin";
+type StageDef = { id: string; title: string; short: string; color: string; hex: string };
 import type { Lead } from "@/types/admin";
 import { celebrateSale } from "@/lib/sale-celebration";
 import {
@@ -33,9 +34,11 @@ interface KanbanBoardProps {
   onLeadsChange: () => void;
   nextAppointmentByLead?: Record<string, string>;
   density?: import("@/components/kanban/types").KanbanDensity;
+  stages?: readonly StageDef[];
 }
 
-const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead, density = "comfortable" }: KanbanBoardProps) => {
+const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead, density = "comfortable", stages }: KanbanBoardProps) => {
+  const activeStages: readonly StageDef[] = stages ?? CLIENT_PIPELINE_STAGES;
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
   const [scheduleFor, setScheduleFor] = useState<Lead | null>(null);
@@ -77,7 +80,7 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead, density = "c
     try {
       const { error } = await supabase.from("leads").update(patch as any).eq("id", draggedLeadId);
       if (error) throw error;
-      toast.success(`Lead movido para "${CLIENT_PIPELINE_STAGES.find(c => c.id === newStatus)?.title}"`);
+      toast.success(`Lead movido para "${activeStages.find(c => c.id === newStatus)?.title}"`);
 
       // Celebrate a won deal
       if (newStatus === "ganho" || newStatus === "ativo") {
@@ -125,7 +128,7 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead, density = "c
   return (
     <>
       <div className="kanban-scroll flex gap-4 overflow-x-auto pb-4 -mx-4 px-4">
-        {CLIENT_PIPELINE_STAGES.map((column) => {
+        {activeStages.map((column) => {
           const columnLeads = getLeadsByStatus(column.id);
           const Icon = iconMap[column.id] || Inbox;
           const totalValor = columnLeads.reduce((s, l) => s + (Number(l.valor_proposta) || 0), 0);

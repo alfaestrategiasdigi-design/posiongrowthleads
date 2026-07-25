@@ -9,6 +9,7 @@ import KanbanBoard from "@/components/admin/KanbanBoard";
 import DensityToggle from "@/components/kanban/DensityToggle";
 import { readDensity, writeDensity, type KanbanDensity } from "@/components/kanban/types";
 import type { Lead } from "@/types/admin";
+import { getPipelineStages } from "@/types/admin";
 
 const RANGE_OPTIONS: { label: string; days: number | null }[] = [
   { label: "Hoje", days: 1 },
@@ -177,7 +178,7 @@ export default function TenantKanban() {
         </div>
       </div>
 
-      <KanbanBoard leads={filteredLeads} onLeadsChange={() => { loadLeads(); loadNextAppointments(); }} nextAppointmentByLead={nextAppt} density={density} />
+      <KanbanBoard leads={filteredLeads} onLeadsChange={() => { loadLeads(); loadNextAppointments(); }} nextAppointmentByLead={nextAppt} density={density} stages={getPipelineStages((tenant as any).business_type)} />
     </div>
   );
 }
