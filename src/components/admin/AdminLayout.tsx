@@ -98,22 +98,22 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
         <AppSidebar />
         <main className="flex-1 flex flex-col overflow-hidden">
           <header className="h-14 tech-header flex items-center px-4 shrink-0 gap-4">
-            <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
+            <SidebarTrigger className="text-white/60 hover:text-white" />
             <div className="hidden md:flex items-center gap-3">
-              <span className="tech-pill">
+              <span className="tech-pill tech-pill--onblack">
                 <span className="tech-dot" /> Sistema operacional
               </span>
-              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground/70">
+              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-white/55">
                 v2.0 · Posion OS
               </span>
             </div>
             <div className="ml-auto flex items-center gap-3">
-              <span className="hidden sm:inline text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground/70">
+              <span className="hidden sm:inline text-[10px] font-mono uppercase tracking-[0.18em] text-white/55">
                 {new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase()}
               </span>
               <ThemeToggle />
               <NotificationBell />
-              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-primary/80 truncate max-w-[180px]">
+              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-white/80 truncate max-w-[180px]">
                 {user.email}
               </span>
             </div>
