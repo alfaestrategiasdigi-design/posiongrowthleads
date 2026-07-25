@@ -231,7 +231,15 @@ function NewSaleDialog({ tenantId, onCreated }: { tenantId: string; onCreated: (
     <DialogContent className="max-w-xl">
       <DialogHeader><DialogTitle>Registrar Fechamento</DialogTitle></DialogHeader>
       <div className="grid grid-cols-2 gap-3">
-        <div className="col-span-2"><Label>Cliente *</Label><Input value={f.patient_name} onChange={(e) => setF({ ...f, patient_name: e.target.value })} /></div>
+        <div className="col-span-2">
+          <Label>Cliente *</Label>
+          <LeadCombobox
+            tenantId={tenantId}
+            value={f.patient_name}
+            leadId={f.lead_id}
+            onChange={(name, id) => setF({ ...f, patient_name: name, lead_id: id })}
+          />
+        </div>
         <div>
           <Label>Vendedor</Label>
           {customSeller || sellers.length === 0 ? (
