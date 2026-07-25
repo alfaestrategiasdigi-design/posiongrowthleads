@@ -136,7 +136,7 @@ export default function LoginPage() {
               <img
                 src={logoAsset.url}
                 alt="POSION"
-                className="relative h-10 w-auto"
+                className="relative h-12 sm:h-14 w-auto object-contain block bg-transparent"
               />
             </div>
             <span
