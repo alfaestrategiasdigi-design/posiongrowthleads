@@ -122,21 +122,22 @@ export default function LoginPage() {
 
       <main className="flex-1 flex items-center justify-center px-4 py-12 relative z-10">
         <div className="w-full max-w-md">
-          <div className="flex flex-col items-center mb-6">
-            <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
-              style={{
-                background: PALETTE.bgSoft,
-                border: `1px solid ${PALETTE.gold}55`,
-                boxShadow:
-                  `0 0 0 1px ${PALETTE.gold}22, 0 20px 40px -18px ${PALETTE.gold}55`,
-              }}
-            >
-              <img src={logoAsset.url} alt="POSION" className="h-7 w-auto" />
+          <div className="flex flex-col items-center mb-8">
+            <div className="relative mb-5">
+              <div
+                aria-hidden
+                className="absolute inset-0 -m-6 rounded-full blur-2xl opacity-40"
+                style={{ background: `radial-gradient(closest-side, ${PALETTE.gold}, transparent)` }}
+              />
+              <img
+                src={logoAsset.url}
+                alt="POSION"
+                className="relative h-10 w-auto"
+              />
             </div>
             <span
               className="text-[10px] uppercase"
-              style={{ fontFamily: FONT_MONO, letterSpacing: "0.28em", color: PALETTE.gold }}
+              style={{ fontFamily: FONT_MONO, letterSpacing: "0.32em", color: PALETTE.gold }}
             >
               POSION Tools · Acesso
             </span>
