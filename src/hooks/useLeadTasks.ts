@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { LeadSource } from "./useUnifiedLead";
 
+export type LeadTaskType = "geral" | "lembrete" | "mensagem";
+export type LeadTaskFrequency = "once" | "daily" | "weekly" | "monthly";
+
 export interface LeadTask {
   id: string;
   parent_task_id: string | null;
@@ -16,6 +19,14 @@ export interface LeadTask {
   template_key: string | null;
   created_at: string;
   updated_at: string;
+  task_type?: LeadTaskType | null;
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
+  frequency?: LeadTaskFrequency | null;
+  message_body?: string | null;
+  phone?: string | null;
+  next_send_at?: string | null;
+  last_sent_at?: string | null;
 }
 
 
@@ -53,15 +64,31 @@ export function useLeadTasks(source: LeadSource | null, leadId: string | null, t
   }, [source, leadId, load]);
 
   const addTask = useCallback(
-    async (title: string, parent_task_id: string | null = null) => {
-      if (!source || !leadId || !title.trim()) return;
+    async (
+      titleOrPayload: string | Partial<LeadTask>,
+      parent_task_id: string | null = null
+    ) => {
+      if (!source || !leadId) return;
       const user = (await supabase.auth.getUser()).data.user;
+      const extra: Partial<LeadTask> =
+        typeof titleOrPayload === "string" ? { title: titleOrPayload } : titleOrPayload;
+      const title = String(extra.title ?? "").trim();
+      if (!title) return;
+      // Compute next_send_at from scheduled_date + scheduled_time when relevant
+      let next_send_at = extra.next_send_at ?? null;
+      if (extra.task_type === "mensagem" && extra.scheduled_date && !next_send_at) {
+        const t = extra.scheduled_time || "09:00";
+        const iso = new Date(`${extra.scheduled_date}T${t}:00`).toISOString();
+        next_send_at = iso;
+      }
       const payload: any = {
-        title: title.trim(),
-        parent_task_id,
-        tenant_id: tenantId ?? null,
+        ...extra,
+        title,
+        parent_task_id: extra.parent_task_id ?? parent_task_id,
+        tenant_id: extra.tenant_id ?? tenantId ?? null,
         created_by: user?.id ?? null,
-        position: tasks.filter((t) => t.parent_task_id === parent_task_id).length,
+        position: tasks.filter((t) => t.parent_task_id === (extra.parent_task_id ?? parent_task_id)).length,
+        next_send_at,
       };
       payload[ownerColumn(source)] = leadId;
       const { error } = await supabase.from("lead_tasks").insert(payload);

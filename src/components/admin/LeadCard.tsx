@@ -1,7 +1,8 @@
-import { User, Phone, Building2, MapPin, Calendar, MessageCircle, DollarSign } from "lucide-react";
+import { User, Phone, Building2, MapPin, Calendar, MessageCircle, DollarSign, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ORIGEM_LABELS } from "@/types/admin";
+import { getLossReasonLabel } from "@/lib/loss-reasons";
 import type { Lead } from "@/types/admin";
 
 interface LeadCardProps {
@@ -20,15 +21,17 @@ const LeadCard = ({ lead, onClick, onDragStart, nextAppointmentAt }: LeadCardPro
     window.open(whatsappLink, "_blank");
   };
 
+  const lossLabel = lead.status === "perdido" ? getLossReasonLabel(lead.motivo_perda) : null;
+
   return (
     <div
       draggable
       onDragStart={(e) => onDragStart(e, lead.id)}
       onClick={onClick}
-      className="bg-card border border-border/50 rounded-xl p-4 cursor-grab active:cursor-grabbing hover:shadow-lg hover:border-primary/30 transition-all duration-200 group"
+      className="bg-card border border-border/50 rounded-xl p-4 cursor-grab active:cursor-grabbing hover:shadow-lg hover:border-primary/30 transition-all duration-200 group flex flex-col min-h-[180px] h-[180px]"
     >
       {/* Nome */}
-      <div className="flex items-start gap-2 mb-3">
+      <div className="flex items-start gap-2 mb-2">
         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
           <User className="w-4 h-4 text-primary" />
         </div>
@@ -60,28 +63,34 @@ const LeadCard = ({ lead, onClick, onDragStart, nextAppointmentAt }: LeadCardPro
       </div>
 
       {/* Info */}
-      <div className="space-y-1 mb-3">
-        <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-          <Phone className="w-3 h-3" /> {lead.whatsapp}
+      <div className="space-y-1 mb-2 flex-1 min-h-0 overflow-hidden">
+        <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
+          <Phone className="w-3 h-3 shrink-0" /> <span className="truncate">{lead.whatsapp}</span>
         </p>
         {lead.cidade_estado && (
-          <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-            <MapPin className="w-3 h-3" /> {lead.cidade_estado}
+          <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
+            <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{lead.cidade_estado}</span>
+          </p>
+        )}
+        {lossLabel && (
+          <p className="text-[11px] text-rose-300 flex items-center gap-1.5 truncate">
+            <XCircle className="w-3 h-3 shrink-0" /> <span className="truncate">{lossLabel}</span>
           </p>
         )}
       </div>
 
       {/* Próxima consulta */}
       {nextAppointmentAt && (
-        <div className="mb-2 flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20">
-          <Calendar className="w-3 h-3" />
+        <div className="mb-2 flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20 truncate">
+          <Calendar className="w-3 h-3 shrink-0" />
           <span className="font-semibold">Consulta:</span>
-          <span>{format(new Date(nextAppointmentAt), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
+          <span className="truncate">{format(new Date(nextAppointmentAt), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
         </div>
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-2 border-t border-border/50">
+      <div className="flex items-center justify-between pt-2 border-t border-border/50 mt-auto">
+
         <span className="text-[10px] text-muted-foreground flex items-center gap-1">
           <Calendar className="w-3 h-3" />
           {format(new Date(lead.created_at), "dd/MM", { locale: ptBR })}

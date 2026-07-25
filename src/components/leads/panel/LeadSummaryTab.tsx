@@ -11,6 +11,11 @@ import { ptBR } from "date-fns/locale";
 import type { UnifiedLeadView } from "@/hooks/useUnifiedLead";
 import { PIPELINE_STAGES, CLIENT_PIPELINE_STAGES } from "@/types/admin";
 import LeadAppointmentsSection from "@/components/tenant/LeadAppointmentsSection";
+import PipelineStepper from "@/components/leads/PipelineStepper";
+import FirstResponseCard from "@/components/leads/FirstResponseCard";
+import LossReasonDialog from "@/components/admin/LossReasonDialog";
+import { getLossReasonLabel } from "@/lib/loss-reasons";
+import { celebrateSale } from "@/lib/sale-celebration";
 import { FIELDS_BY_KIND, resolveEntityKindLegacy, type EntityKind } from "@/lib/entity-fields";
 
 
@@ -54,6 +59,10 @@ export default function LeadSummaryTab({ lead, onSave, entityKind }: Props) {
     toLocalInput(lead.source === "lead" ? lead.raw.proposta_enviada_em : lead.raw.proposta_enviada_em)
   );
   const [saving, setSaving] = useState(false);
+  const [askLoss, setAskLoss] = useState(false);
+  const [lossReason, setLossReason] = useState<string | null>(
+    (lead.source === "lead" ? (lead.raw.motivo_perda ?? null) : null),
+  );
 
 
   useEffect(() => {
@@ -80,6 +89,11 @@ export default function LeadSummaryTab({ lead, onSave, entityKind }: Props) {
     : ["proposta", "negociacao", "ganho", "perdido"].includes(stage);
 
   const handleSave = async () => {
+    // Require loss reason before persisting "perdido"
+    if (stage === "perdido" && lead.source === "lead" && !lossReason) {
+      setAskLoss(true);
+      return;
+    }
     setSaving(true);
     const patch: Record<string, any> = {
       [stageField]: stage,
@@ -99,16 +113,42 @@ export default function LeadSummaryTab({ lead, onSave, entityKind }: Props) {
         patch.proposta_enviada_em = propostaIso ?? (lead.raw.proposta_enviada_em || now);
       }
       if ((stage === "ganho" || stage === "perdido") && !lead.raw.fechado_em) patch.fechado_em = now;
+      if (stage === "perdido" && lossReason) patch.motivo_perda = lossReason;
     } else {
       if (showReuniaoField && reuniaoIso) patch.proximo_followup = reuniaoIso;
       if (showPropostaField) patch.proposta_enviada_em = propostaIso ?? new Date().toISOString();
     }
     await onSave(patch);
+    if (stage === "ganho" || stage === "ativo") celebrateSale();
     setSaving(false);
   };
 
   return (
     <div className="space-y-5">
+      <PipelineStepper stage={stage} variant={lead.source === "lead" ? "client" : "agency"} />
+
+      {lead.source === "lead" && (
+        <FirstResponseCard
+          leadId={lead.id}
+          leadPhone={lead.whatsapp}
+          createdAt={lead.createdAt || lead.raw.created_at}
+        />
+      )}
+
+      {stage === "perdido" && lead.source === "lead" && (
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-3 flex items-center justify-between gap-3">
+          <div className="text-xs">
+            <div className="text-[10px] uppercase tracking-wider text-rose-300/70">Motivo da perda</div>
+            <div className="text-sm text-rose-100 font-medium">
+              {getLossReasonLabel(lossReason) || "Nenhum motivo definido"}
+            </div>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => setAskLoss(true)}>
+            {lossReason ? "Editar" : "Definir"}
+          </Button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label className="text-xs">Etapa do pipeline</Label>
@@ -215,6 +255,18 @@ export default function LeadSummaryTab({ lead, onSave, entityKind }: Props) {
           value={lead.createdAt ? format(new Date(lead.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : null}
         />
       </div>
+
+      <LossReasonDialog
+        open={askLoss}
+        leadName={lead.name}
+        initialValue={lossReason}
+        onCancel={() => setAskLoss(false)}
+        onConfirm={async (r) => {
+          setLossReason(r);
+          setAskLoss(false);
+          setStage("perdido");
+        }}
+      />
     </div>
   );
 }

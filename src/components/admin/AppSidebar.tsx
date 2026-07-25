@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, MessageCircle, Users, LogOut, UserPlus, Zap,
   Facebook, Building2, FileText, Megaphone, Plug, Activity, Target, CreditCard, GitBranch,
-  PanelLeftClose, PanelLeftOpen, BarChart3,
+  PanelLeftClose, PanelLeftOpen, BarChart3, ListTodo,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ const navGroups: NavGroup[] = [
       { title: "Dashboard", url: "/admin", icon: LayoutDashboard, agency: true },
       { title: "Pipeline Agência", url: "/admin/pipeline", icon: GitBranch, agency: true },
       { title: "Leads (formulário)", url: "/admin/leads", icon: Users, agency: true },
+      { title: "Tarefas", url: "/admin/tarefas", icon: ListTodo, agency: true },
       { title: "Automações", url: "/admin/automacoes", icon: Zap, agency: true },
       { title: "Agenda de Reunião", url: "/admin/agendamentos", icon: Activity, agency: true },
       { title: "WhatsApp Master", url: "/admin/whatsapp", icon: MessageCircle, live: true, agency: true },
