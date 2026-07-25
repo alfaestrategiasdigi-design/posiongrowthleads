@@ -12,7 +12,7 @@ import {
 import { format, eachDayOfInterval, differenceInCalendarDays, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import FormLeadsAuditCard from "@/components/shared/FormLeadsAuditCard";
+
 import CostPerAppointmentCard from "@/components/shared/CostPerAppointmentCard";
 
 const fmt = (v: number) =>
@@ -390,7 +390,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <FormLeadsAuditCard from={range.from} to={range.to} scope="admin" currentTenantId={null} detailsHref="/admin/relatorios" />
+      
 
       {/* AGÊNCIA */}
       <section>
