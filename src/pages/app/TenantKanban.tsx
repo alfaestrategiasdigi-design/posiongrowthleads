@@ -177,7 +177,7 @@ export default function TenantKanban() {
         </div>
       </div>
 
-      <KanbanBoard leads={filteredLeads} onLeadsChange={() => { loadLeads(); loadNextAppointments(); }} nextAppointmentByLead={nextAppt} />
+      <KanbanBoard leads={filteredLeads} onLeadsChange={() => { loadLeads(); loadNextAppointments(); }} nextAppointmentByLead={nextAppt} density={density} />
     </div>
   );
 }
