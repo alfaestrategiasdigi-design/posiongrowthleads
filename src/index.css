@@ -1168,3 +1168,214 @@ html { scroll-behavior: smooth; }
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(134,150,160,0.25), transparent);
 }
+
+/* ==========================================================
+   LIGHT THEME OVERRIDES
+   Applied when <html class="light">. Preserves the dark
+   identity untouched — only paints an alternative palette
+   for the same hardcoded surfaces (.tech-shell, .premium-*,
+   .card-luxe, .tech-panel, .tech-header, etc.).
+   ========================================================== */
+.light .card-luxe {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow:
+    0 1px 0 rgba(0,0,0,0.02) inset,
+    0 10px 28px -18px rgba(60, 45, 10, 0.18);
+}
+.light .card-luxe:hover { border-color: hsl(var(--primary) / 0.35); }
+.light .card-luxe-accent {
+  border-color: hsl(var(--primary) / 0.45);
+  box-shadow:
+    0 1px 0 hsl(var(--primary) / 0.06) inset,
+    0 12px 32px -18px hsl(var(--primary) / 0.25);
+}
+
+.light .tech-bg {
+  background: radial-gradient(ellipse at top, hsl(40 30% 98%) 0%, hsl(40 30% 96%) 60%, hsl(40 25% 92%) 100%);
+}
+.light .tech-bg::before {
+  background-image:
+    linear-gradient(hsl(var(--primary) / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--primary) / 0.05) 1px, transparent 1px);
+}
+
+.light .gradient-tech { background: linear-gradient(135deg, hsl(40 30% 98%) 0%, hsl(0 0% 100%) 100%); }
+.light .gradient-header { background: linear-gradient(180deg, hsl(40 30% 97%) 0%, hsl(40 30% 95%) 100%); }
+
+.light .card-elevated {
+  box-shadow: 0 2px 4px -1px rgba(0,0,0,0.06), 0 8px 24px -12px rgba(60,45,10,0.14);
+}
+.light .card-tech:hover {
+  border-color: hsl(var(--primary) / 0.4);
+  box-shadow: 0 0 20px hsl(var(--primary) / 0.10);
+}
+
+/* Tech shell — light backdrop */
+.light .tech-shell {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, hsl(var(--primary) / 0.08), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 90% 110%, hsl(var(--primary) / 0.06), transparent 60%),
+    hsl(var(--background));
+}
+.light .tech-shell::before {
+  background-image:
+    linear-gradient(hsl(40 15% 82% / 0.55) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(40 15% 82% / 0.55) 1px, transparent 1px);
+}
+.light .tech-header {
+  background: linear-gradient(180deg, hsl(40 30% 97% / 0.95), hsl(40 30% 96% / 0.9));
+  border-bottom: 1px solid hsl(var(--border));
+}
+.light .tech-header::after {
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.35), hsl(var(--primary) / 0.5), transparent);
+}
+
+.light .tech-panel {
+  background: linear-gradient(180deg, hsl(0 0% 100% / 0.9), hsl(40 20% 98% / 0.95));
+  border: 1px solid hsl(var(--border));
+}
+.light .tech-panel:hover {
+  border-color: hsl(var(--primary) / 0.35);
+  box-shadow: 0 0 24px -10px hsl(var(--primary) / 0.25);
+}
+
+.light .tech-sidebar [data-active="true"] {
+  background: linear-gradient(90deg, hsl(var(--primary) / 0.12), transparent 80%) !important;
+  border-left: 2px solid hsl(var(--primary));
+  color: hsl(var(--primary)) !important;
+  box-shadow: inset 0 0 20px hsl(var(--primary) / 0.06);
+}
+.light .tech-sidebar [data-active="true"] svg {
+  color: hsl(var(--primary));
+  filter: drop-shadow(0 0 4px hsl(var(--primary) / 0.3));
+}
+
+.light .tech-pill {
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.14), hsl(var(--primary) / 0.08));
+  color: hsl(var(--primary));
+  border: 1px solid hsl(var(--primary) / 0.35);
+  box-shadow: 0 0 10px -4px hsl(var(--primary) / 0.28);
+}
+.light .tech-heading {
+  background: linear-gradient(135deg, hsl(0 0% 10%) 0%, hsl(var(--primary)) 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* Premium surfaces — light equivalents */
+.light .premium-card {
+  background: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(40 25% 98%) 100%) !important;
+  border: 1px solid hsl(var(--primary) / 0.22) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.6),
+    0 18px 40px -24px rgba(60,45,10,0.20),
+    0 4px 10px -6px rgba(60,45,10,0.10) !important;
+}
+.light .premium-card:hover {
+  border-color: hsl(var(--primary) / 0.36) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.7),
+    0 24px 50px -22px rgba(60,45,10,0.28),
+    0 8px 16px -8px rgba(60,45,10,0.14) !important;
+}
+.light .premium-hero {
+  background:
+    radial-gradient(70% 110% at 0% 0%, hsl(var(--primary) / 0.10), transparent 55%),
+    linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(40 30% 97%) 100%) !important;
+  border: 1px solid hsl(var(--primary) / 0.30) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.7),
+    0 26px 54px -24px rgba(60,45,10,0.24),
+    0 8px 18px -10px rgba(60,45,10,0.14) !important;
+}
+.light .premium-hero::before {
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.35), transparent);
+}
+.light .premium-section-icon {
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.18), hsl(var(--primary) / 0.04)) !important;
+  border: 1px solid hsl(var(--primary) / 0.38) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 4px 12px -8px rgba(60,45,10,0.20);
+}
+.light .premium-kpi-icon {
+  background: hsl(0 0% 100%) !important;
+  border: 1px solid hsl(var(--primary) / 0.30) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+}
+
+/* Tech-shell floating card cascade — light version */
+.light .tech-shell [data-tech-card],
+.light .tech-shell [class*="rounded-"][class*="border"][class*="bg-card"]:not([data-no-float]),
+.light .tech-shell [class*="rounded-"][class*="border"][class*="bg-background/"]:not([data-no-float]),
+.light .tech-shell [class*="rounded-"][class*="border"][class*="bg-muted/"]:not([data-no-float]) {
+  border-color: hsl(var(--border)) !important;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.6) inset,
+    0 12px 28px -22px rgba(60,45,10,0.18),
+    0 4px 10px -8px rgba(60,45,10,0.10) !important;
+}
+.light .tech-shell [data-tech-card]:hover,
+.light .tech-shell [class*="rounded-"][class*="border"][class*="bg-card"]:not([data-no-float]):hover,
+.light .tech-shell [class*="rounded-"][class*="border"][class*="bg-background/"]:not([data-no-float]):hover,
+.light .tech-shell [class*="rounded-"][class*="border"][class*="bg-muted/"]:not([data-no-float]):hover {
+  border-color: hsl(var(--primary) / 0.42) !important;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.7) inset,
+    0 18px 38px -22px rgba(60,45,10,0.22),
+    0 0 18px -6px hsl(var(--primary) / 0.28) !important;
+}
+.light .tech-shell [class*="text-amber-300"],
+.light .tech-shell [class*="text-amber-200"] {
+  color: hsl(var(--primary)) !important;
+}
+
+/* Neutralize dark-only alpha washes so they read on light */
+.light .tech-shell [class*="bg-violet-500/"],
+.light .tech-shell [class*="bg-cyan-500/"],
+.light .tech-shell [class*="bg-purple-500/"],
+.light .tech-shell [class*="bg-indigo-500/"],
+.light .tech-shell [class*="bg-blue-500/"],
+.light .tech-shell [class*="bg-pink-500/"],
+.light .tech-shell [class*="bg-teal-500/"],
+.light .tech-shell [class*="bg-sky-500/"] {
+  background: hsl(0 0% 100%) !important;
+  border: 1px solid hsl(var(--primary) / 0.30) !important;
+}
+.light .tech-shell [class*="text-violet-"],
+.light .tech-shell [class*="text-cyan-"],
+.light .tech-shell [class*="text-purple-"],
+.light .tech-shell [class*="text-indigo-"],
+.light .tech-shell [class*="text-blue-"],
+.light .tech-shell [class*="text-pink-"],
+.light .tech-shell [class*="text-teal-"],
+.light .tech-shell [class*="text-sky-"] { color: hsl(0 0% 20%) !important; }
+
+/* Scrollbar — theme-aware */
+.light ::-webkit-scrollbar-track { background: hsl(40 25% 92%); }
+.light ::-webkit-scrollbar-thumb { background: hsl(40 12% 70%); }
+.light ::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary)); }
+
+/* Kanban parity — consistent columns + card polish */
+.kanban-scroll { scrollbar-gutter: stable; }
+.kanban-column {
+  width: 288px;
+  min-width: 288px;
+  max-width: 288px;
+}
+.kanban-column-body {
+  min-height: 220px;
+  padding: 10px;
+}
+.lead-card {
+  transition: transform 180ms cubic-bezier(.2,.7,.2,1),
+              border-color 180ms ease,
+              box-shadow 180ms ease;
+}
+.lead-card:hover {
+  transform: translateY(-2px);
+}
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
