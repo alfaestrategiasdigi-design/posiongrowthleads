@@ -1168,6 +1168,7 @@ export type Database = {
           archived_at: string | null
           created_at: string
           foto_url: string | null
+          history_synced_at: string | null
           id: string
           lead_id: string | null
           lid_review_notes: string | null
@@ -1187,6 +1188,7 @@ export type Database = {
           archived_at?: string | null
           created_at?: string
           foto_url?: string | null
+          history_synced_at?: string | null
           id?: string
           lead_id?: string | null
           lid_review_notes?: string | null
@@ -1206,6 +1208,7 @@ export type Database = {
           archived_at?: string | null
           created_at?: string
           foto_url?: string | null
+          history_synced_at?: string | null
           id?: string
           lead_id?: string | null
           lid_review_notes?: string | null

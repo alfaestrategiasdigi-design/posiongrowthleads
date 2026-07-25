@@ -1,0 +1,2 @@
+ALTER TABLE public.conversations ADD COLUMN IF NOT EXISTS history_synced_at timestamptz;
+CREATE INDEX IF NOT EXISTS idx_conversations_history_sync ON public.conversations (tenant_id, history_synced_at, ultima_interacao DESC);
