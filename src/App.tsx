@@ -48,6 +48,7 @@ import TenantRelatorios from "./pages/app/TenantRelatorios";
 import RelatoriosPage from "./pages/admin/RelatoriosPage";
 import ProfilePage from "./pages/shared/ProfilePage";
 import ClientPanelPreview from "./pages/admin/ClientPanelPreview";
+import TasksPage from "./pages/admin/TasksPage";
 
 const queryClient = new QueryClient();
 
@@ -99,6 +100,7 @@ const App = () => (
           <Route path="/admin/whatsapp" element={<AdminLayout><WhatsAppChat masterMode /></AdminLayout>} />
           <Route path="/admin/kanban" element={<Navigate to="/admin/pipeline" replace />} />
           <Route path="/admin/leads" element={<AdminLayout><LeadsPage /></AdminLayout>} />
+          <Route path="/admin/tarefas" element={<AdminLayout><TasksPage /></AdminLayout>} />
 
           <Route path="/admin/conexao-whatsapp" element={<AdminLayout><ConexaoWhatsappPage /></AdminLayout>} />
           <Route path="/admin/whatsapp-status" element={<AdminLayout><WhatsAppStatusPage /></AdminLayout>} />
