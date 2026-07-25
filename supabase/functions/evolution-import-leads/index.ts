@@ -258,6 +258,23 @@ async function runForTenant(
     });
   }
 
+  // A verification run must be a true dry-run: classify every Evolution
+  // contact through the same database anti-join, but never write leads or
+  // conversations. `would_create` is the proof that the next real run is safe.
+  if (skipConversationUpsert) {
+    return {
+      tenant_id: tenantId,
+      total_contacts: contacts.length,
+      valid_phones: rows.length,
+      created: 0,
+      would_create: toInsert.length,
+      would_update: toUpdate.length,
+      skipped,
+      errors: 0,
+      dry_run: true,
+    };
+  }
+
   const insertedIds: { leadId: string; row: typeof rows[number] }[] = [];
   for (let i = 0; i < toInsert.length; i += 200) {
     const chunk = toInsert.slice(i, i + 200);
@@ -278,22 +295,6 @@ async function runForTenant(
     const { error } = await admin.from("leads").update({ nome_completo: u.nome }).eq("id", u.id);
     if (error) errors++;
     else updated++;
-  }
-
-  // Internal verification mode still fetches all contacts, performs the full
-  // database anti-join and writes any missing leads. It only skips the separate
-  // conversation reconciliation phase, which has its own global backfill job.
-  if (skipConversationUpsert) {
-    return {
-      tenant_id: tenantId,
-      total_contacts: contacts.length,
-      valid_phones: rows.length,
-      created, updated, skipped, errors,
-      conversations_created: 0,
-      conversations_updated: 0,
-      conversations_errors: 0,
-      conversation_upsert_skipped: true,
-    };
   }
 
   // Upsert conversations for EVERY contact (new + existing) so the inbox always has them.
