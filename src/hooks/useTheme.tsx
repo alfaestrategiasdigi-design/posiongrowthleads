@@ -7,13 +7,13 @@ type Ctx = { theme: Theme; setTheme: (t: Theme) => void; toggle: () => void };
 const ThemeContext = createContext<Ctx | null>(null);
 
 function readInitial(): Theme {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "light" || stored === "dark") return stored;
   } catch {}
-  // Default to dark (current visual identity). Users can switch.
-  return "dark";
+  // Default to light — profissional, clean, alinhado ao padrão da tela Leads.
+  return "light";
 }
 
 function apply(theme: Theme) {
