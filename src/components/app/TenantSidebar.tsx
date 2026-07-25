@@ -63,7 +63,7 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
                 onClick={toggleSidebar}
                 aria-label="Recolher menu lateral"
                 title="Recolher menu"
-                className="ml-auto h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                className="ml-auto h-8 w-8 shrink-0 text-white/60 hover:text-white hover:bg-white/5"
               >
                 <PanelLeftClose className="h-4 w-4" />
               </Button>
