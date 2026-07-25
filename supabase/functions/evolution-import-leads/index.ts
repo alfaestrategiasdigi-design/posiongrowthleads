@@ -368,6 +368,9 @@ Deno.serve(async (req) => {
   const skipConversationUpsert: boolean = body.skip_conversation_upsert === true && authz.internal;
 
   if (allTenants) {
+    // Emergency circuit breaker: the global cron stays blocked until two
+    // consecutive per-tenant verification runs return created=0.
+    return json({ ok: false, paused: true, error: "global_import_temporarily_paused" }, 503);
     if (!authz.internal && !authz.isAdmin) {
       return json({ error: "Sem permissão para escopo global" }, 403);
     }
