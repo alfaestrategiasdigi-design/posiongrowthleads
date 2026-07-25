@@ -4,9 +4,11 @@ import { toast } from "sonner";
 import KanbanColumn from "./KanbanColumn";
 import LeadCard from "./LeadCard";
 import LeadDetailModal from "./LeadDetailModal";
+import LossReasonDialog from "./LossReasonDialog";
 import AppointmentDialog from "@/components/tenant/AppointmentDialog";
 import { CLIENT_PIPELINE_STAGES } from "@/types/admin";
 import type { Lead } from "@/types/admin";
+import { celebrateSale } from "@/lib/sale-celebration";
 import {
   Inbox, PlayCircle, PhoneCall, Calendar, CalendarCheck, CalendarX,
   FileText, Handshake, Trophy, XCircle, UserCheck,
@@ -36,6 +38,7 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoar
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
   const [scheduleFor, setScheduleFor] = useState<Lead | null>(null);
+  const [pendingLossFor, setPendingLossFor] = useState<Lead | null>(null);
 
   const handleDragStart = (e: React.DragEvent, leadId: string) => {
     setDraggedLeadId(leadId);
@@ -52,6 +55,12 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoar
     if (!draggedLeadId) return;
     const lead = leads.find((l) => l.id === draggedLeadId);
     if (!lead || lead.status === newStatus) { setDraggedLeadId(null); return; }
+    // Ask for loss reason before persisting when moving to "perdido"
+    if (newStatus === "perdido") {
+      setPendingLossFor(lead);
+      setDraggedLeadId(null);
+      return;
+    }
 
     const patch: Record<string, any> = { status: newStatus };
     const now = new Date().toISOString();
@@ -68,6 +77,11 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoar
       const { error } = await supabase.from("leads").update(patch as any).eq("id", draggedLeadId);
       if (error) throw error;
       toast.success(`Lead movido para "${CLIENT_PIPELINE_STAGES.find(c => c.id === newStatus)?.title}"`);
+
+      // Celebrate a won deal
+      if (newStatus === "ganho" || newStatus === "ativo") {
+        celebrateSale();
+      }
 
       // Fire Facebook CAPI when a lead is marked as won (fire-and-forget)
       if (newStatus === "ganho" && lead.tenant_id) {
@@ -162,6 +176,27 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoar
           onSaved={() => { setScheduleFor(null); onLeadsChange(); }}
         />
       )}
+
+      <LossReasonDialog
+        open={!!pendingLossFor}
+        leadName={pendingLossFor?.nome_completo}
+        initialValue={pendingLossFor?.motivo_perda ?? null}
+        onCancel={() => setPendingLossFor(null)}
+        onConfirm={async (reason) => {
+          if (!pendingLossFor) return;
+          const now = new Date().toISOString();
+          const patch: any = {
+            status: "perdido",
+            motivo_perda: reason,
+            fechado_em: pendingLossFor.fechado_em ?? now,
+          };
+          const { error } = await supabase.from("leads").update(patch).eq("id", pendingLossFor.id);
+          if (error) { toast.error("Erro ao mover lead"); return; }
+          toast.success("Lead marcado como perdido");
+          setPendingLossFor(null);
+          onLeadsChange();
+        }}
+      />
     </>
   );
 };
