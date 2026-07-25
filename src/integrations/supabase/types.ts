@@ -1850,10 +1850,18 @@ export type Database = {
           created_by: string | null
           done: boolean
           due_date: string | null
+          frequency: Database["public"]["Enums"]["lead_task_frequency"]
           id: string
+          last_sent_at: string | null
           lead_id: string | null
+          message_body: string | null
+          next_send_at: string | null
           parent_task_id: string | null
+          phone: string | null
           position: number
+          scheduled_date: string | null
+          scheduled_time: string | null
+          task_type: Database["public"]["Enums"]["lead_task_type"]
           template_key: string | null
           tenant_id: string | null
           title: string
@@ -1866,10 +1874,18 @@ export type Database = {
           created_by?: string | null
           done?: boolean
           due_date?: string | null
+          frequency?: Database["public"]["Enums"]["lead_task_frequency"]
           id?: string
+          last_sent_at?: string | null
           lead_id?: string | null
+          message_body?: string | null
+          next_send_at?: string | null
           parent_task_id?: string | null
+          phone?: string | null
           position?: number
+          scheduled_date?: string | null
+          scheduled_time?: string | null
+          task_type?: Database["public"]["Enums"]["lead_task_type"]
           template_key?: string | null
           tenant_id?: string | null
           title: string
@@ -1882,10 +1898,18 @@ export type Database = {
           created_by?: string | null
           done?: boolean
           due_date?: string | null
+          frequency?: Database["public"]["Enums"]["lead_task_frequency"]
           id?: string
+          last_sent_at?: string | null
           lead_id?: string | null
+          message_body?: string | null
+          next_send_at?: string | null
           parent_task_id?: string | null
+          phone?: string | null
           position?: number
+          scheduled_date?: string | null
+          scheduled_time?: string | null
+          task_type?: Database["public"]["Enums"]["lead_task_type"]
           template_key?: string | null
           tenant_id?: string | null
           title?: string
@@ -4419,6 +4443,8 @@ export type Database = {
         | "comercial_admin_master"
         | "admin_tenant"
         | "comercial_tenant"
+      lead_task_frequency: "once" | "daily" | "weekly" | "monthly"
+      lead_task_type: "geral" | "lembrete" | "mensagem"
       tenant_role:
         | "owner"
         | "admin"
@@ -4560,6 +4586,8 @@ export const Constants = {
         "admin_tenant",
         "comercial_tenant",
       ],
+      lead_task_frequency: ["once", "daily", "weekly", "monthly"],
+      lead_task_type: ["geral", "lembrete", "mensagem"],
       tenant_role: [
         "owner",
         "admin",
