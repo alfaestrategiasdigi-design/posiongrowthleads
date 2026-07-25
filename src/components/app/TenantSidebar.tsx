@@ -112,7 +112,7 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
                       asChild
                       isActive={pathname === item.url}
                       tooltip={item.title}
-                      className="gap-3 relative font-medium text-sm transition-all hover:bg-amber-500/5 hover:text-amber-200"
+                      className="gap-3 relative font-medium text-sm text-white/85 transition-all hover:bg-amber-500/5 hover:text-amber-200"
                     >
                       <NavLink to={item.url} className="flex items-center gap-2">
                         <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.8} />
