@@ -27,10 +27,10 @@ export default function UserAvatarBlock({ to, collapsed, subtitle }: Props) {
       </Avatar>
       {!collapsed && (
         <div className="min-w-0 leading-tight">
-          <div className="text-sm font-medium text-foreground truncate group-hover:text-amber-200 transition-colors">
+          <div className="text-sm font-medium text-white truncate group-hover:text-amber-200 transition-colors">
             {name}
           </div>
-          <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-muted-foreground/70 truncate">
+          <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-white/60 truncate">
             {subtitle || "Meu perfil"}
           </div>
         </div>
