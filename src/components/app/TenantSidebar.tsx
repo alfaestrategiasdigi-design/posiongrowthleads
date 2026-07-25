@@ -74,25 +74,11 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
   return (
     <Sidebar collapsible="icon" className="tech-sidebar border-r border-sidebar-border bg-sidebar/95 backdrop-blur-xl">
       <SidebarHeader className="p-0">
-        {/* Topo: identidade do contexto (clínica + plano) + toggle */}
-        <div className={`tech-topbar-band h-14 px-3 border-b ${collapsed ? "flex flex-col items-center justify-center gap-2" : "flex items-center justify-between gap-2"}`}>
-          {!collapsed ? (
-            <div className="min-w-0 flex-1 flex items-center gap-2">
-              <div className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center bg-amber-500/10 border border-amber-500/30">
-                <Building2 className="h-4 w-4 text-amber-300" />
-              </div>
-              <div className="min-w-0 leading-tight">
-                <div className="truncate text-sm font-semibold text-white/90">{tenant.name}</div>
-                <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-white/50">
-                  {tenant.plan}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center bg-amber-500/10 border border-amber-500/30">
-              <Building2 className="h-4 w-4 text-amber-300" />
-            </div>
-          )}
+        {/* Topo: perfil do usuário + toggle */}
+        <div className={`tech-topbar-band h-14 px-2 border-b ${collapsed ? "flex flex-col items-center justify-center gap-2" : "flex items-center justify-between gap-1"}`}>
+          <div className="min-w-0 flex-1">
+            <UserAvatarBlock to={`/app/${tenant.slug}/perfil`} collapsed={collapsed} subtitle={tenant.name} />
+          </div>
           <Button
             type="button"
             variant="ghost"
