@@ -141,8 +141,12 @@ async function buildWebhookUrl(admin: any, tenantId: string | null, secret: stri
   const secretParam = `secret=${encodeURIComponent(secret)}`;
   if (!tenantId) return `${base}?${secretParam}`;
   const { data: tenant } = await admin.from("tenants").select("slug").eq("id", tenantId).maybeSingle();
-  const tenantParam = tenant?.slug
-    ? `tenant=${encodeURIComponent(tenant.slug)}`
+  // Sanitize: strip any accidental path/query fragment ("/presence-update",
+  // "?x=y", whitespace) that could leak into the tenant query param.
+  const rawSlug: string | null = tenant?.slug ?? null;
+  const cleanSlug = rawSlug ? rawSlug.split(/[\/?#&=\s]/)[0] : null;
+  const tenantParam = cleanSlug
+    ? `tenant=${encodeURIComponent(cleanSlug)}`
     : `tenant_id=${encodeURIComponent(tenantId)}`;
   return `${base}?${tenantParam}&${secretParam}`;
 }
