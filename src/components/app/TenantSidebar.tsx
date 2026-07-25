@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tenant } from "@/hooks/useTenant";
 import UserAvatarBlock from "@/components/shared/UserAvatarBlock";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 
 interface Props { tenant: Tenant; isSuperAdmin: boolean; tenantRole?: string | null }
 
@@ -74,25 +75,11 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
   return (
     <Sidebar collapsible="icon" className="tech-sidebar border-r border-sidebar-border bg-sidebar/95 backdrop-blur-xl">
       <SidebarHeader className="p-0">
-        {/* Topo: identidade do contexto (clínica + plano) + toggle */}
-        <div className={`tech-topbar-band h-14 px-3 border-b ${collapsed ? "flex flex-col items-center justify-center gap-2" : "flex items-center justify-between gap-2"}`}>
-          {!collapsed ? (
-            <div className="min-w-0 flex-1 flex items-center gap-2">
-              <div className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center bg-amber-500/10 border border-amber-500/30">
-                <Building2 className="h-4 w-4 text-amber-300" />
-              </div>
-              <div className="min-w-0 leading-tight">
-                <div className="truncate text-sm font-semibold text-white/90">{tenant.name}</div>
-                <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-white/50">
-                  {tenant.plan}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center bg-amber-500/10 border border-amber-500/30">
-              <Building2 className="h-4 w-4 text-amber-300" />
-            </div>
-          )}
+        {/* Topo: perfil do usuário + toggle */}
+        <div className={`tech-topbar-band h-14 px-2 border-b ${collapsed ? "flex flex-col items-center justify-center gap-2" : "flex items-center justify-between gap-1"}`}>
+          <div className="min-w-0 flex-1">
+            <UserAvatarBlock to={`/app/${tenant.slug}/perfil`} collapsed={collapsed} subtitle={tenant.name} />
+          </div>
           <Button
             type="button"
             variant="ghost"
@@ -126,7 +113,7 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
                       asChild
                       isActive={pathname === item.url}
                       tooltip={item.title}
-                      className="gap-3 relative font-medium text-sm transition-all hover:bg-amber-500/5 hover:text-amber-200"
+                      className="gap-3 relative font-medium text-sm text-white/85 transition-all hover:bg-amber-500/5 hover:text-amber-200"
                     >
                       <NavLink to={item.url} className="flex items-center gap-2">
                         <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.8} />
@@ -174,28 +161,24 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
 
       <SidebarFooter className="p-2 border-t border-sidebar-border gap-1">
         {!collapsed && (
-          <div className="px-3 py-2 mb-1 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em] text-white/55">
+          <div className="px-3 py-2 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em] text-white/55">
             <Activity className="w-3 h-3 text-amber-400" />
-            <span>Status</span>
+            <span className="truncate">{tenant.plan}</span>
             <span className="ml-auto tech-dot" />
             <span className="text-emerald-400">online</span>
           </div>
         )}
-        <div className="px-1">
-          <UserAvatarBlock to={`/app/${tenant.slug}/perfil`} collapsed={collapsed} subtitle="Meu perfil" />
+        <div className={`px-1 flex items-center ${collapsed ? "flex-col gap-1" : "justify-between gap-1"}`}>
+          <ThemeToggle />
+          <SidebarMenuButton
+            onClick={handleLogout}
+            tooltip="Sair"
+            className="gap-2 w-auto text-rose-400/90 hover:text-rose-300 hover:bg-rose-500/10"
+          >
+            <LogOut className="w-4 h-4" strokeWidth={1.8} />
+            {!collapsed && <span className="font-medium text-sm">Sair</span>}
+          </SidebarMenuButton>
         </div>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              onClick={handleLogout}
-              tooltip="Sair"
-              className="gap-3 text-rose-400/90 hover:text-rose-300 hover:bg-rose-500/10"
-            >
-              <LogOut className="w-4 h-4" strokeWidth={1.8} />
-              {!collapsed && <span className="font-medium text-sm">Sair</span>}
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   );

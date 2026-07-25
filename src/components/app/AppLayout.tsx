@@ -76,35 +76,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <div className="min-h-screen flex w-full tech-shell">
         <TenantSidebar tenant={tenant} isSuperAdmin={isSuperAdmin} tenantRole={role} />
         <main className="flex-1 flex flex-col overflow-hidden">
-          <header className="h-14 tech-header flex items-center px-4 shrink-0 gap-4">
-            <SidebarTrigger className="text-white/60 hover:text-white" />
-            <div className="hidden md:flex items-center gap-3">
-              <img src={posionLogo.url} alt="Posion" className="h-6 opacity-95" />
-            </div>
-            <div className="ml-auto flex items-center gap-3">
-              <ThemeToggle />
-              <Link
-                to={`/app/${tenant.slug}/perfil`}
-                title="Meu perfil"
-                className="flex items-center gap-2 rounded-full pl-1 pr-3 py-1 border border-amber-500/40 hover:border-amber-400/70 hover:bg-white/5 transition-colors max-w-[220px]"
-              >
-                <Avatar className="h-6 w-6 border border-amber-500/50">
-                  {profile?.avatar_url ? <AvatarImage src={profile.avatar_url} alt={displayName} /> : null}
-                  <AvatarFallback className="bg-white/10 text-white text-[10px] font-mono uppercase">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-white/85 truncate">
-                  {displayName}
-                </span>
-              </Link>
-              <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-white/70 hover:text-white hover:bg-white/5">
-                <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline">Sair</span>
-              </Button>
-            </div>
-          </header>
-
           <div className="flex-1 overflow-auto">{children}</div>
         </main>
       </div>
