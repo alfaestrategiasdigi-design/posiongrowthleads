@@ -1496,11 +1496,9 @@ Deno.serve(async (req) => {
           // Hardened dedup: only adopt a local outbound row that (a) still has
           // no wamid, (b) was written by the panel (sender=usuario, direction=outbound),
           // (c) matches the same content, and (d) is within the correlation window.
-          // Prefer the messageTimestamp from Evolution (physical send time) over
+          // Prefer the messageCreatedAt from Evolution (physical send time) over
           // Date.now() so an echo arriving late doesn't miss the window.
-          const evtTsMs = Number.isFinite(Number(messageTimestamp))
-            ? Number(messageTimestamp) * 1000
-            : Date.now();
+          const evtTsMs = messageCreatedAt ? new Date(messageCreatedAt).getTime() : Date.now();
           const since = new Date(evtTsMs - 20000).toISOString();
           const until = new Date(evtTsMs + 20000).toISOString();
           const dup2 = await admin.from("messages")
