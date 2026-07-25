@@ -14,6 +14,7 @@ import { Loader2, Search, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { BRL, type SaleRow } from "@/lib/clinic-kpis";
 import { useTenantApptConfig } from "@/hooks/useTenantApptConfig";
+import LeadCombobox from "@/components/sales/LeadCombobox";
 
 const PAYMENTS = ["PIX","Crédito","PIX + Crédito","PayPal","Boleto","Dinheiro","Outros"];
 const DEFAULT_CHANNELS = ["Instagram Orgânico","Tráfego Pago","Paciente","Indicação","TikTok"];
@@ -135,7 +136,8 @@ function NewSaleDialog({ tenantId, onCreated }: { tenantId: string; onCreated: (
   const [newChannel, setNewChannel] = useState("");
   const [creatingChannel, setCreatingChannel] = useState(false);
   const [f, setF] = useState({
-    patient_name: "", seller_name: "", sale_date: new Date().toISOString().slice(0, 10),
+    patient_name: "", lead_id: null as string | null,
+    seller_name: "", sale_date: new Date().toISOString().slice(0, 10),
     product: "", amount: "", payment_method: "PIX", installments: 1, channel: "",
     attended: "SIM", first_contact_date: "", international: false, arrival_date: "", notes: "",
   });
@@ -211,7 +213,8 @@ function NewSaleDialog({ tenantId, onCreated }: { tenantId: string; onCreated: (
       f.international && f.arrival_date ? `Chegada: ${f.arrival_date}` : null,
     ].filter(Boolean).join(" · ");
     const { error } = await supabase.from("sales").insert({
-      tenant_id: tenantId, patient_name: f.patient_name, seller_name: f.seller_name,
+      tenant_id: tenantId, patient_name: f.patient_name, lead_id: f.lead_id,
+      seller_name: f.seller_name,
       sale_date: f.sale_date, product: f.product, amount: Number(f.amount),
       payment_method: f.payment_method, channel: f.channel, attended: f.attended,
       first_contact_date: f.first_contact_date || null, international: f.international,
@@ -228,7 +231,15 @@ function NewSaleDialog({ tenantId, onCreated }: { tenantId: string; onCreated: (
     <DialogContent className="max-w-xl">
       <DialogHeader><DialogTitle>Registrar Fechamento</DialogTitle></DialogHeader>
       <div className="grid grid-cols-2 gap-3">
-        <div className="col-span-2"><Label>Cliente *</Label><Input value={f.patient_name} onChange={(e) => setF({ ...f, patient_name: e.target.value })} /></div>
+        <div className="col-span-2">
+          <Label>Cliente *</Label>
+          <LeadCombobox
+            tenantId={tenantId}
+            value={f.patient_name}
+            leadId={f.lead_id}
+            onChange={(name, id) => setF({ ...f, patient_name: name, lead_id: id })}
+          />
+        </div>
         <div>
           <Label>Vendedor</Label>
           {customSeller || sellers.length === 0 ? (
