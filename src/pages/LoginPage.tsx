@@ -103,7 +103,11 @@ export default function LoginPage() {
             onClick={() => navigate("/")}
             className="flex items-center gap-3 opacity-90 hover:opacity-100 transition"
           >
-            <img src={logoAsset.url} alt="POSION" className="h-7 w-auto" />
+            <img
+              src={logoAsset.url}
+              alt="POSION"
+              className="h-8 w-auto object-contain shrink-0 block bg-transparent"
+            />
             <span
               className="hidden sm:inline text-[10px] uppercase"
               style={{ fontFamily: FONT_MONO, letterSpacing: "0.24em", color: PALETTE.muted }}
@@ -132,7 +136,7 @@ export default function LoginPage() {
               <img
                 src={logoAsset.url}
                 alt="POSION"
-                className="relative h-10 w-auto"
+                className="relative h-12 sm:h-14 w-auto object-contain block bg-transparent"
               />
             </div>
             <span
