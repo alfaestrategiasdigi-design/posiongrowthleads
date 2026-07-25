@@ -465,6 +465,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
 
   useEffect(() => {
     if (selectedConversation) {
+      setMessages([]);
       loadMessages(selectedConversation.id);
       supabase.from("conversations").update({ nao_lidas: 0 }).eq("id", selectedConversation.id).then(() => {});
     }
