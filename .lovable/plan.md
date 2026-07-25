@@ -1,141 +1,52 @@
-## Diagnóstico READ-ONLY — outbound de outro dispositivo
+# Teste E2E: outbound de outro dispositivo sem alias
 
-Nenhum arquivo, função ou dado foi alterado.
+## Objetivo
 
-### Conclusão executiva
+Congelar a correção do "chat paralelo" com um teste determinístico que cobre os 5 cenários pedidos, usando o mesmo framework já em uso (`Deno.test` em `supabase/functions/whatsapp-webhook/*_test.ts`), sem introduzir dependências novas e sem tocar a Evolution real.
 
-A causa concreta é a resolução incorreta de `@lid` para um suposto telefone.
+## Estratégia
 
-Nos casos informados, o webhook recebeu identificadores LID completos e válidos:
+Dois níveis, ambos no mesmo arquivo de teste:
 
-- `82004364259387@lid`
-- `217312561000489@lid`
+1. **Nível puro** (rápido, sem I/O) — exercita `routing.ts`, `_shared/phone-jid.ts` e `decideAliasFromSameKey` para provar as invariantes que vivem em código puro (cenários 1, 2, 5 em grande parte).
+2. **Nível handler** — invoca o loop de processamento de `messages.upsert` do webhook com:
+   - um **mock in-memory do client Supabase** (implementa apenas os métodos usados: `from().select/insert/update/upsert/delete/.eq/.or/.like/.limit/.maybeSingle/.single`) — mantém tabelas `conversations`, `messages`, `whatsapp_jid_aliases`, `whatsapp_connections`, `leads`, `facebook_webhook_events` em `Map`s.
+   - um **fetcher da Evolution mockado** (função injetada) que devolve respostas controladas para `chat/findChats` / `contacts/find` etc.
+   - payloads de webhook construídos à mão a partir de amostras reais (`fromMe:true`, `remoteJid:<lid>@lid`, sem alias, sem par no mesmo `key`).
 
-Porém, a tabela de aliases contém estes mapeamentos incorretos no tenant Donna Face:
+Para viabilizar o nível handler **sem alterar comportamento de produção**, faço uma extração puramente estrutural em `whatsapp-webhook/index.ts`: mover o corpo do handler de `messages.upsert` para uma função exportada `export async function handleMessagesUpsert(deps, body)` onde `deps = { admin, evolutionLookup, ownJidsResolver, now }`. `Deno.serve` continua chamando essa função com as deps reais. Nenhuma regra de negócio muda; só o ponto de entrada fica testável. Se durante a implementação essa extração revelar risco, os cenários 3 e 4 caem para follow-up e ficam marcados como `Deno.test.ignore` com nota — os cenários 1, 2 e 5 continuam cobertos no nível puro.
 
-- `82004364259387@lid` → `8812944955@s.whatsapp.net`
-- `217312561000489@lid` → `01807406@s.whatsapp.net`
+## Arquivos
 
-As mensagens armazenadas preservam em `metadata.raw_key.remoteJid` os LIDs completos acima. Portanto, **o webhook não está cortando o `remoteJid` bruto**, nem usando parte do `wamid`. Os valores `8812944955` e `01807406` vêm do `phone_jid` já resolvido/persistido como alias e depois usado como se fosse um telefone real.
+- **Novo**: `supabase/functions/whatsapp-webhook/outbound_integration_test.ts`
+  - Helpers: `makeSupabaseMock()`, `makeEvolutionMock()`, `buildOutboundLidPayload({ instance, ownJid, lidJid, tenantId, text })`, `buildContactsUpdatePayload({ lidJid, phoneJid, tenantId })`.
+  - Blocos `Deno.test` por cenário (ver abaixo).
+- **Novo**: `supabase/functions/whatsapp-webhook/_test_utils/supabase-mock.ts` — implementação do mock (isolada para reuso futuro; sem dep externa).
+- **Edit estrutural (sem mudar comportamento)**: `supabase/functions/whatsapp-webhook/index.ts` — extrair `handleMessagesUpsert(deps, body)` e `handleContactsUpsert(deps, body)`. `Deno.serve` passa a montar `deps` reais e delegar. Nenhum ajuste em validação, resolução de JID, políticas de alias, merge, needs_lid_review.
 
-## 1. Caminho de outbound vindo de outro dispositivo
+## Cenários cobertos
 
-O handler aceita `MESSAGES_UPSERT`, `MESSAGES_SET` e `SEND_MESSAGE` em `supabase/functions/whatsapp-webhook/index.ts:1030-1042`:
+1. **Outbound sem alias** — payload `fromMe:true`, `remoteJid:"888777@lid"`, sem entradas em `whatsapp_jid_aliases`, sem `remoteJidAlt`/`senderPn`/`participantAlt`. Assert: exatamente 1 conversa criada, `remote_jid` termina em `@lid`, `needs_lid_review=true`, `tenant_id` correto. Assert negativo: **nenhuma** conversa com `remote_jid` casando `^\d{1,10}@s\.whatsapp\.net$` nem começando com `0`.
+2. **Telefone truncado rejeitado** — três sub-testes com candidatos `"9740540"`, `"01807406"`, `"8812944955"` como único hint de peer. Assert: `normalizePhoneJid` devolve `null` para eles; ao rodar o handler, nenhuma conversa é criada com esses JIDs; se houver `@lid` disponível, cai em conversa provisória `@lid`; caso contrário, mensagem é descartada e log `alias_rejected_implausible_phone` / `implausible_phone_rejected` é emitido (capturado via `console.warn` stub).
+3. **Renomeação posterior sem chat paralelo** — encadeia cenário 1 e depois dispara um `contacts.update` com `@lid + telefone válido` no mesmo objeto (same-key). Assert: `conversations.count` **antes = depois = 1**, `remote_jid` mudou de `@lid` para `<phone>@s.whatsapp.net`, `needs_lid_review=false`, mensagens preservadas (mesmo `conversation_id`), nenhum duplicado.
+4. **Isolamento entre tenants** — dois tenants (A e B) com instâncias separadas processam o mesmo `lidJid` (colisão intencional de ID opaco). Assert: cada conversa fica no seu `tenant_id`, nenhuma linha com `tenant_id=null`, query `select where tenant_id=A` não retorna a de B.
+5. **Anti-merge por pushName** — dois payloads `@lid` distintos com **mesmo `pushName="Lucas"`**, sem par same-key. Assert: duas conversas provisórias distintas, nenhuma entrada nova em `whatsapp_jid_aliases`, `decideAliasFromSameKey` recusa (`ok:false`), `needs_lid_review` marcado mas sem merge automático (protege o incidente de 05/07).
 
-```ts
-if (eventMatches(event, "messages.upsert", "messages.set", "send.message")) {
-  const key = m?.key ?? m?.message?.key ?? m?.message?.message?.key ?? {};
-  const wamid = key?.id ?? m?.id ?? null;
-  const fromMe = Boolean(key?.fromMe ?? m?.fromMe);
-  const resolved = await resolveRemoteJid(...);
-}
-```
+## Salvaguardas do próprio teste
 
-Para `fromMe=true`, `resolveRemoteJid` monta candidatos em `index.ts:579-625` e `routing.ts:62-81` usando, nesta ordem geral:
+- Sem `--allow-net` real: mock Supabase e mock Evolution vivem em memória.
+- Sem dependência nova em `deno.json` (usa `https://deno.land/std@0.224.0/assert/mod.ts` como os testes atuais).
+- Determinístico: `now` injetado, IDs gerados por contador.
+- Se qualquer assert falhar, o teste **falha** — não ajusto código de produção para verdejar.
 
-- `remoteJidAlt`
-- `participantAlt`
-- `participantPn`
-- `senderPn`
-- `recipientJid`, `recipient`, `to`, `chatId`
-- `destinationJid`, `targetJid`
-- `participant`
-- por último, o `key.remoteJid` bruto quando ele não é o próprio número da instância
+## Execução
 
-Se existir um JID telefônico entre esses candidatos, ele é usado. Se houver somente `@lid`, o código tenta:
+- Ferramenta interna: `supabase--test_edge_functions` com `{ "functions": ["whatsapp-webhook"] }`.
+- Local (equivalente ao que a ferramenta roda):
+  ```
+  deno test --allow-env --allow-net supabase/functions/whatsapp-webhook/
+  ```
 
-1. alias já salvo em `whatsapp_jid_aliases` (`index.ts:480-501`, `617-618`);
-2. consulta sob demanda à Evolution (`index.ts:504-575`, `1104-1117`);
-3. se ainda não resolver, mantém o LID como conversa provisória (`index.ts:1119-1127`).
+## Entrega no fim
 
-## 2. Origem dos números errados
-
-A origem confirmada no banco é `whatsapp_jid_aliases.phone_jid`. A vulnerabilidade que permite gravá-los está nos resolvedores da resposta de contatos da Evolution.
-
-Em `whatsapp-webhook/index.ts:551-560`, uma única lista mistura campos semanticamente diferentes:
-
-```ts
-const cands = [
-  c?.id, c?.remoteJid, c?.remoteJidAlt, c?.jid, c?.jidAlt,
-  c?.lid, c?.lidJid, c?.lid_jid,
-  c?.pn, c?.phoneNumber, c?.wa_id, c?.senderPn, c?.participantPn,
-];
-const foundPhone = firstStandardJid(cands);
-const foundLid = firstLidJid(cands);
-```
-
-O problema é que `firstStandardJid` chama `normalizePhoneJid`, e essa função aceita **qualquer sequência de dígitos** como telefone (`index.ts:34-48`; equivalente em `routing.ts:9-24`). Não há validação E.164, comprimento adequado ou rejeição de zero inicial.
-
-Além disso:
-
-- `c.id` é o primeiro candidato, embora possa ser um identificador interno/opaco;
-- o primeiro valor numérico não-LID pode virar `@s.whatsapp.net` mesmo sem ser telefone;
-- o reconciliador periódico repete a fragilidade: `whatsapp-lid-reconcile/index.ts:42-49, 208-223` aceita números com apenas 8 dígitos e também mistura `id`, `jid`, `pn`, `phoneNumber` e `wa_id`;
-- a checagem sob demanda aceita um telefone mesmo quando a resposta não contém o LID solicitado: `if (foundPhone && (!foundLid || foundLid === lidJid))` (`index.ts:560`).
-
-O banco não registra a coluna `source` do alias, então não é possível afirmar qual das duas rotinas o criou originalmente. Mas ambas possuem a mesma falha estrutural e os aliases atuais reproduzem exatamente os IDs exibidos na UI.
-
-## 3. Diferença entre envio pelo sistema e pelo celular
-
-### Enviado dentro do sistema
-
-`evolution-send` recebe um `conversation_id` já conhecido (`evolution-send/index.ts:39, 54-57`). Ele:
-
-1. carrega diretamente essa conversa;
-2. extrai o número de `conversations.telefone` ou `remote_jid` (`linha 82`);
-3. envia pela Evolution;
-4. grava a mensagem diretamente no mesmo `conversation_id`, já com o `wamid` retornado (`linhas 153, 160-173`).
-
-Quando o eco volta pelo webhook, a deduplicação por `wamid` encontra essa mensagem e não cria outro chat (`whatsapp-webhook/index.ts:1223-1241`).
-
-### Enviado por outro dispositivo
-
-Não existe uma mensagem pré-gravada nem um `conversation_id` fornecido pelo painel. O webhook precisa descobrir o destinatário somente pelo payload. Quando recebe apenas `key.remoteJid=<LID>@lid`, consulta o alias/resolvedor. Se esse alias é `8812944955@s.whatsapp.net`, esse valor passa a ser o `remoteJid` efetivo.
-
-Depois o código deriva:
-
-```ts
-const phone = onlyDigits(remoteJid.split("@")[0]);
-let conv = await findConversation(tenantId, remoteJid, phone);
-```
-
-(`index.ts:1284-1287`)
-
-Assim, procura exatamente por `remote_jid='8812944955@s.whatsapp.net'` ou `telefone='8812944955'`. Não encontra a conversa real e cria uma nova (`index.ts:1303-1319`).
-
-## 4. Matching existente e motivo da falha
-
-Existe matching antes da criação, em `findConversation` (`index.ts:636-649`):
-
-1. igualdade exata por `remote_jid`;
-2. igualdade exata por `telefone`;
-3. sempre respeitando o tenant/Master.
-
-Ele falha porque recebe como entrada o alias inválido, não o telefone canônico. Não há como uma busca exata por `8812944955` encontrar a conversa cujo telefone real é outro.
-
-A deduplicação por `wamid` também não resolve o caso do celular: ela só encontra algo quando o mesmo `wamid` já foi salvo anteriormente. No envio pelo painel isso ocorre; no primeiro evento vindo do dispositivo, não.
-
-## 5. Causa concreta
-
-```text
-Celular envia
-  → payload contém somente <LID>@lid
-  → resolvedor consulta/usa whatsapp_jid_aliases
-  → campo numérico opaco é aceito como telefone
-  → alias LID → telefone falso é persistido
-  → findConversation busca esse telefone falso
-  → nenhuma conversa canônica corresponde
-  → webhook cria chat paralelo
-```
-
-Portanto, não é problema de tenant, formulário, lead, dashboard ou agenda. Também não é truncamento por `split('@')[0]`: esse `split` apenas remove o domínio **depois** que o alias incorreto já foi escolhido.
-
-## Correção mínima recomendada — ainda não aplicada
-
-1. **Restringir os campos que podem fornecer telefone:** priorizar somente campos explicitamente telefônicos (`pn`, `phoneNumber`, `wa_id`, `senderPn`, `participantPn` e JIDs canônicos explícitos); nunca interpretar um `id` numérico genérico como telefone.
-2. **Exigir pareamento autoritativo:** uma resposta da Evolution só pode criar alias se contiver simultaneamente o LID exatamente igual ao solicitado e um telefone canônico válido. Remover a condição permissiva `!foundLid`.
-3. **Validar telefone antes de persistir/usar alias:** formato internacional plausível, comprimento E.164 e rejeição de zero inicial/IDs opacos. Aplicar a mesma validação no webhook e no reconciliador periódico.
-4. **Sanear os aliases inválidos existentes:** colocar em quarentena os aliases que falharem na nova validação, consultar novamente a fonte autoritativa e então mesclar os chats órfãos na conversa canônica.
-5. **Fail-safe:** quando houver somente LID e nenhuma resolução confiável, não convertê-lo em `@s.whatsapp.net`; mantê-lo explicitamente como pendente até resolução, evitando que um identificador opaco pareça telefone real.
-
-Escopo futuro restrito ao webhook, resolução/reconciliação de LID, saneamento dos aliases e testes de roteamento outbound; sem tocar em dashboard, agenda ou formulários.
+Reporto: arquivos criados/alterados, saída do runner (passou/falhou por `Deno.test`), e — se algum cenário falhar — descrevo a falha sem mexer na lógica de produção.
