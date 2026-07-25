@@ -18,6 +18,9 @@ interface Props { tenant: Tenant; isSuperAdmin: boolean; tenantRole?: string | n
 
 const COMERCIAL_ROLES = new Set(["comercial_tenant", "vendedor", "recepcao", "viewer"]);
 
+// Itens ocultos no modo infoproduto (não fazem sentido para produto digital)
+const INFOPRODUTO_HIDDEN_URLS = new Set(["/pacientes", "/agenda", "/produtos", "/planos", "/automacoes"]);
+
 type NavItem = { title: string; url: string; icon: any; comercial?: boolean };
 type NavGroup = { label: string; items: NavItem[] };
 
