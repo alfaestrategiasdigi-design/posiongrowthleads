@@ -195,16 +195,28 @@ async function runForTenant(admin: any, tenantId: string | null, defaultStatus: 
   const rows = Array.from(byPhone.values());
 
   const norm = (p: string) => p.replace(/\D/g, "").slice(-11);
-  const targetNormalized = new Set(rows.map((r) => norm(r.phone)));
+  const normalizedTargets = Array.from(new Set(rows.map((r) => norm(r.phone)).filter(Boolean)));
 
-  let existQ = admin.from("leads").select("id, whatsapp, nome_completo");
-  existQ = tenantId ? existQ.eq("tenant_id", tenantId) : existQ.is("tenant_id", null);
-  const { data: existing } = await existQ;
+  // Deduplication anti-join in Postgres — avoids the 1000-row PostgREST cap that
+  // previously caused the import to see only the first 1000 leads as "existing"
+  // and re-insert everything else as duplicates on every cron run.
   const existingByNorm = new Map<string, { id: string; name: string | null }>();
-  for (const e of existing ?? []) {
-    const n = norm(String(e.whatsapp ?? ""));
-    if (n && targetNormalized.has(n) && !existingByNorm.has(n)) {
-      existingByNorm.set(n, { id: e.id, name: e.nome_completo ?? null });
+  if (normalizedTargets.length > 0) {
+    // The RPC scopes by tenant (NULL means master) and returns at most one
+    // row per normalized phone (oldest lead wins), so we never lose the anchor
+    // even for tenants with 100k+ leads.
+    const { data: existing, error: existErr } = await admin.rpc("leads_existing_by_norm_phone", {
+      p_tenant_id: tenantId,
+      p_phones: normalizedTargets,
+    });
+    if (existErr) {
+      console.error("leads_existing_by_norm_phone failed", existErr);
+      return { tenant_id: tenantId, error: "dedup_lookup_failed", detail: existErr.message };
+    }
+    for (const e of (existing as any[]) ?? []) {
+      if (e?.norm && !existingByNorm.has(e.norm)) {
+        existingByNorm.set(e.norm, { id: e.id, name: e.nome_completo ?? null });
+      }
     }
   }
 
