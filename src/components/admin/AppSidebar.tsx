@@ -56,6 +56,7 @@ const navGroups: NavGroup[] = [
     label: "Operação Master",
     items: [
       { title: "Conexão WhatsApp", url: "/admin/conexao-whatsapp", icon: Plug },
+      { title: "Conexões WhatsApp (Clínicas)", url: "/admin/whatsapp-conexoes", icon: Plug },
       { title: "Status WhatsApp", url: "/admin/whatsapp-status", icon: Activity },
       { title: "Auditoria WhatsApp", url: "/admin/whatsapp-audit", icon: Activity },
       { title: "Usuários & Convites", url: "/admin/usuarios", icon: UserPlus },
