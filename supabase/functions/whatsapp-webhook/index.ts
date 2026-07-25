@@ -1438,6 +1438,21 @@ Deno.serve(async (req) => {
             } catch (e) { console.error("[wa auto-lead]", e); }
           }
         } else {
+          // If the existing conversation already has a canonical phone JID and
+          // the incoming message carries a different JID variant (e.g. outbound
+          // from another device that ships @lid or truncated senderPn), KEEP
+          // the canonical value. Overwriting it was the root cause of the
+          // "chat paralelo" bug where sent-from-phone messages spawned a
+          // second conversation on the sidebar.
+          const existingJid: string | null = (conv as any).remote_jid ?? null;
+          const existingIsCanonical = existingJid && !existingJid.includes("@lid");
+          const incomingMatchesExisting = existingJid === remoteJid;
+          const preservedJid = existingIsCanonical && !incomingMatchesExisting ? existingJid : remoteJid;
+          if (existingIsCanonical && !incomingMatchesExisting) {
+            console.log("[wa-in] outbound_merged_by_phone", {
+              conv_id: conv.id, kept: existingJid, incoming: remoteJid, fromMe, wamid,
+            });
+          }
           await admin.from("conversations").update({
             ...(shouldUpdateConversationPreview ? {
               ultima_mensagem: preview,
@@ -1445,7 +1460,7 @@ Deno.serve(async (req) => {
             } : {}),
             nao_lidas: fromMe || isHistorySet ? conv.nao_lidas : (conv.nao_lidas ?? 0) + 1,
             telefone: phone,
-            remote_jid: remoteJid,
+            remote_jid: preservedJid,
             nome_contato: !fromMe && pushName ? pushName : undefined,
           }).eq("id", conv.id);
         }
