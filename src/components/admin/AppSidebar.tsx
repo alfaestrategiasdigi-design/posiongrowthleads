@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/sidebar";
 import logoAsset from "@/assets/posion/logo-posion.png.asset.json";
 import UserAvatarBlock from "@/components/shared/UserAvatarBlock";
+import ThemeToggle from "@/components/ui/ThemeToggle";
+import NotificationBell from "./NotificationBell";
 
 import { useUserRole } from "@/hooks/useUserRole";
 
