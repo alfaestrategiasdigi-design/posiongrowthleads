@@ -53,14 +53,15 @@
     --gold-bright: 42 68% 52%;
     --gold-deep: 36 70% 32%;
 
-    --sidebar-background: 40 30% 93%;
-    --sidebar-foreground: 25 8% 28%;
-    --sidebar-primary: 38 65% 40%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 40 22% 87%;
-    --sidebar-accent-foreground: 20 14% 12%;
-    --sidebar-border: 38 20% 80%;
-    --sidebar-ring: 38 65% 40%;
+    /* Sidebar sempre escura — forma "moldura" com o header preto */
+    --sidebar-background: 0 0% 5.1%;
+    --sidebar-foreground: 0 0% 72%;
+    --sidebar-primary: 44 55% 54%;
+    --sidebar-primary-foreground: 0 0% 0%;
+    --sidebar-accent: 0 0% 10.2%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 11.8%;
+    --sidebar-ring: 44 55% 54%;
   }
 
   .dark {
