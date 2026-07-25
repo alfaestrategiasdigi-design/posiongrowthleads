@@ -67,7 +67,14 @@ export default function TenantSidebar({ tenant, isSuperAdmin, tenantRole }: Prop
   const visibleGroups = groups
     .map((g) => ({
       ...g,
-      items: isComercial ? g.items.filter((i) => i.comercial) : g.items,
+      items: g.items.filter((i) => {
+        if (isComercial && !i.comercial) return false;
+        if (isInfoproduto) {
+          const suffix = i.url.replace(base, "");
+          if (INFOPRODUTO_HIDDEN_URLS.has(suffix)) return false;
+        }
+        return true;
+      }),
     }))
     .filter((g) => g.items.length > 0);
 
