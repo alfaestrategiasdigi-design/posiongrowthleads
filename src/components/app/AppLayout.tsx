@@ -80,17 +80,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <SidebarTrigger className="text-white/60 hover:text-white" />
             <div className="hidden md:flex items-center gap-3">
               <img src={posionLogo.url} alt="Posion" className="h-6 opacity-95" />
-              <span className="tech-pill tech-pill--onblack">
-                <span className="tech-dot" /> Sistema operacional
-              </span>
-              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-white/55">
-                v2.0 · POSION Tools
-              </span>
             </div>
             <div className="ml-auto flex items-center gap-3">
-              <span className="hidden sm:inline text-[10px] font-mono uppercase tracking-[0.18em] text-white/55">
-                {new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase()}
-              </span>
               <ThemeToggle />
               <Link
                 to={`/app/${tenant.slug}/perfil`}
