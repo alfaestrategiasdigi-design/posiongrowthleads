@@ -157,6 +157,39 @@ async function upsertConversationForContact(
   return { created: true };
 }
 
+// Tries to bring an Evolution instance back online when the API rejects our
+// findContacts call. Returns true if a reconnect attempt was fired (whether or
+// not the instance is already online). The caller may then retry the request.
+async function tryRecoverInstance(
+  base: string,
+  apiKey: string,
+  instanceName: string,
+): Promise<{ attempted: boolean; state?: string; error?: string }> {
+  try {
+    const stateRes = await fetch(
+      `${base}/instance/connectionState/${encodeURIComponent(instanceName)}`,
+      { method: "GET", headers: { apikey: apiKey } },
+    );
+    const stateJson: any = await stateRes.json().catch(() => ({}));
+    const state = stateJson?.instance?.state ?? stateJson?.state ?? null;
+    // "open" = healthy; anything else deserves a nudge.
+    if (stateRes.ok && state === "open") {
+      return { attempted: false, state };
+    }
+    const connectRes = await fetch(
+      `${base}/instance/connect/${encodeURIComponent(instanceName)}`,
+      { method: "GET", headers: { apikey: apiKey } },
+    );
+    return {
+      attempted: true,
+      state: state ?? undefined,
+      error: connectRes.ok ? undefined : `connect_http_${connectRes.status}`,
+    };
+  } catch (e) {
+    return { attempted: true, error: String((e as Error).message ?? e) };
+  }
+}
+
 async function runForTenant(
   admin: any,
   tenantId: string | null,
@@ -169,23 +202,66 @@ async function runForTenant(
   connQ = tenantId ? connQ.eq("tenant_id", tenantId) : connQ.is("tenant_id", null);
   const { data: conn } = await connQ.order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (!conn?.instance_url || !conn.instance_name || !conn.api_key) {
-    return { tenant_id: tenantId, error: "no_instance" };
+    // Soft-skip: nothing we can recover here. Return ok so the global cron
+    // reactivation check isn't blocked by tenants that were never onboarded.
+    return {
+      tenant_id: tenantId,
+      soft_skip: true,
+      reason: "no_connection",
+      created: 0, updated: 0, skipped: 0, would_create: 0,
+    };
   }
   const base = normalizeBase(conn.instance_url);
   const url = `${base}/chat/findContacts/${encodeURIComponent(conn.instance_name)}`;
 
-  let contacts: any[] = [];
-  try {
+  const fetchContacts = async () => {
     const r = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: conn.api_key },
       body: JSON.stringify({ where: {} }),
     });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) return { tenant_id: tenantId, error: "findContacts_failed", status: r.status, detail: j };
+    const j: any = await r.json().catch(() => ({}));
+    return { r, j };
+  };
+
+  let contacts: any[] = [];
+  let recovery: { attempted: boolean; state?: string; error?: string } | null = null;
+  try {
+    let { r, j } = await fetchContacts();
+    // On 404/401/instance-not-found, try to reconnect once then retry.
+    if (!r.ok && (r.status === 404 || r.status === 401 || r.status === 400)) {
+      recovery = await tryRecoverInstance(base, conn.api_key, conn.instance_name);
+      if (recovery.attempted && !recovery.error) {
+        // Small settle window before retry.
+        await new Promise((res) => setTimeout(res, 1500));
+        ({ r, j } = await fetchContacts());
+      }
+    }
+    if (!r.ok) {
+      return {
+        tenant_id: tenantId,
+        soft_skip: true,
+        reason: "instance_unreachable",
+        status: r.status,
+        recovery,
+        created: 0, updated: 0, skipped: 0, would_create: 0,
+        detail: j,
+      };
+    }
     contacts = Array.isArray(j) ? j : (j?.contacts || j?.data || []);
   } catch (e) {
-    return { tenant_id: tenantId, error: "network", detail: String(e) };
+    // Network error → attempt one recovery cycle before giving up soft.
+    if (!recovery) {
+      recovery = await tryRecoverInstance(base, conn.api_key, conn.instance_name);
+    }
+    return {
+      tenant_id: tenantId,
+      soft_skip: true,
+      reason: "network",
+      recovery,
+      created: 0, updated: 0, skipped: 0, would_create: 0,
+      detail: String(e),
+    };
   }
 
   const byPhone = new Map<string, { phone: string; name: string; jid: string | null }>();
