@@ -32,9 +32,10 @@ interface KanbanBoardProps {
   leads: Lead[];
   onLeadsChange: () => void;
   nextAppointmentByLead?: Record<string, string>;
+  density?: import("@/components/kanban/types").KanbanDensity;
 }
 
-const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoardProps) => {
+const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead, density = "comfortable" }: KanbanBoardProps) => {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
   const [scheduleFor, setScheduleFor] = useState<Lead | null>(null);
@@ -152,6 +153,7 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoar
                     nextAppointmentAt={nextAppointmentByLead?.[lead.id]}
                     onClick={() => setSelectedLead(lead)}
                     onDragStart={handleDragStart}
+                    density={density}
                   />
                 ))
               )}

@@ -1,37 +1,62 @@
-## O que vou fazer no Dashboard da Agência (`/admin/tenants`)
+## Reformulação visual — sistema todo em tema claro, no padrão da tela "Leads"
 
-### 1. Trazer o hero "Receita Total Combinada" de volta pro topo
-Hoje ele desceu pra baixo do Pipeline. Vou colocá-lo **logo abaixo do header** de novo — grande, com o valor faturado (Agência + SaaS MRR), meta mensal editável, sparkline de receita, e 3 mini-KPIs à direita (Clínicas interessadas, Ganhos, Conversão) exatamente como estava antes.
+Vou unificar POSION num único padrão claro/profissional (fundo creme, cards brancos, texto escuro, dourado só como accent) e deixar o Kanban leve estilo Kommo com seletor de densidade. Sem mexer em regra de negócio.
 
-Ordem final da página passa a ser:
-1. Header + DateRangePicker
-2. **Hero de Receita + mini-KPIs** ← volta pro topo
-3. Pipeline & Agência (5 KPIs tintados + Distribuição do funil / Origem / Movimentação)
-4. **Novas seções ricas** (item 2 abaixo)
-5. Clientes POSION
+### 1. Trocar o padrão de fundo do admin (dark → light)
+Hoje `tech-shell`, `premium-card`, `premium-hero` e o "black band" do topo estão hardcoded em preto/gradiente escuro. Vou:
+- Refatorar essas classes em `src/index.css` para usarem tokens (`hsl(var(--background))`, `hsl(var(--card))`, `hsl(var(--border))`, `hsl(var(--foreground))`) — assim seguem o tema.
+- Definir tema **claro como padrão** no `ThemeProvider` (mantendo o toggle para quem quiser escuro).
+- Trocar o "black band" do header por uma faixa branca com borda dourada sutil e texto escuro, mantendo a marca POSION visível mas sem peso.
+- Ajustar `AdminLayout` e `AppLayout` para o mesmo fundo creme/off-white da tela de Leads.
+- Passar por cima de utilitários hardcoded (`text-white`, `bg-black/`, `text-amber-300` em textos) nos componentes de topo/sidebar/dashboard, trocando por tokens semânticos (`text-foreground`, `text-muted-foreground`, `bg-card`, `border-border`).
 
-### 2. Replicar a "riqueza" dos Relatórios dentro do Dashboard
-Os componentes que você mostrou no print (Funil de Conversão cumulativo, Rankings, Leads por dia, Origem donut, Top campanhas) já existem prontos em `src/components/relatorios/` e são alimentados pelo hook `useRelatorioData(filters, "admin", null)`, que já sabe consolidar dados de todas as clínicas.
+### 2. Kanban "Pipeline Agência" no padrão claro + estilo Kommo
+Em `src/pages/admin/AgencyPipelinePage.tsx`:
+- Fundo da página: creme claro (herda do layout).
+- Colunas: cartão branco com borda cinza clara, header da coluna com **título em cinza escuro + contador em badge cinza discreto** — remover as cores vermelho/laranja/amarelo por coluna (viraram só um filete dourado de 2px no topo da coluna ativa/hover).
+- Header da coluna mostra nome + contagem + valor total do estágio (fmt BRL) em tipografia pequena.
+- **Cards compactos, hierarquia Kommo**:
+  - **Densidade P (compacto)**: 1 linha — nome + valor à direita. Altura ~40px.
+  - **Densidade M (padrão)**: nome (bold), responsável (pequeno cinza), valor (dourado) — altura ~72px.
+  - **Densidade G (confortável)**: adiciona origem/etiqueta e "última movimentação há X". Altura ~120px.
+- Card: fundo branco, borda sutil, hover eleva 1px, avatar do responsável como bolinha 20px à esquerda, valor à direita alinhado.
+- **Seletor de densidade** no topo direito do Kanban (grupo de 3 botões ícone, igual Kommo — linhas finas/médias/grossas). Persiste a escolha em `localStorage` (`posion.kanban.density`).
 
-Vou plugar esses mesmos componentes no Dashboard, dentro de uma nova seção **"Performance consolidada"**, respeitando o mesmo período do `DateRangePicker` do Dashboard:
+### 3. Kanban do tenant (`TenantKanban.tsx`) recebe o mesmo tratamento
+Mesmas colunas brancas, cards compactos com as 3 densidades, mesmo seletor. Componente `KanbanCard` e `DensityToggle` compartilhados em `src/components/kanban/` para reuso entre admin e tenant.
 
-- **`<FunilVisual>`** — funil com barra proporcional, % do total e % da etapa anterior, mais os cards "Perdido" e "Não comparecimento" abaixo (idêntico ao print).
-- **`<RankingsGrid>`** — Ranking Closer (faturamento por vendedor) + Ranking SDR (leads ganhos por responsável), lado a lado.
-- **`<ChartsGrid>`** — Leads por dia (área), Origem (donut pago vs. orgânico), Top campanhas (barras horizontais), Formulários (donut), Comparecimento por dia da semana, Faturamento por produto, Monetizados por produto, Taxa Conversão/Canal, Taxa SQL/Canal.
+### 4. Dashboards das clínicas (`TenantDashboard.tsx`) alinhados
+- Fundo claro, KPIs em cards brancos com borda cinza fina + accent dourado no ícone/valor destaque.
+- Tipografia igual à tela de Leads (títulos `text-foreground font-semibold`, labels `text-muted-foreground uppercase tracking-wide text-[10px]`).
+- Substituir gradientes/ruído por superfícies chapadas com sombra suave (`shadow-sm`).
+- Manter estrutura de dados/queries — só o wrapper visual muda.
 
-Como são os mesmos componentes usados em `/admin/relatorios`, o visual e o comportamento (tooltips, cores douradas, responsividade) ficam automaticamente consistentes com o resto do sistema.
+### 5. Tokens de cor centralizados (identidade POSION mantida)
+No `:root` de `src/index.css`:
+- `--background: 40 32% 96%` (creme papel — já existe, só reforço).
+- `--card: 0 0% 100%` (branco puro).
+- `--foreground: 220 15% 15%` (cinza-quase-preto para texto).
+- `--muted-foreground: 220 10% 45%`.
+- `--border: 220 15% 90%`.
+- `--primary` / `--accent`: **dourado POSION** (mantém `#E8C468` em HSL) — usado só em ícones-chave, valores destacados, filete de coluna ativa, hover states. **Nunca como cor de fonte de parágrafo.**
+- `--ring: gold` para foco visível.
+- Sombra padrão: `--shadow-elegant: 0 1px 2px rgba(15,23,42,.04), 0 4px 12px -4px rgba(15,23,42,.08)`.
 
-### 3. Ligação com o filtro de data existente
-O `DateRangePicker` do Dashboard vira a fonte única do período: convertemos `range.from`/`range.to` para o formato `yyyy-MM-dd` que o `useRelatorioData` espera e alimentamos tudo (hero, pipeline, funil rico, rankings, charts) com o mesmo intervalo. Sem filtro duplicado, sem confusão.
+### 6. Escopo — o que **não** vou mexer
+- Nenhuma query, edge function, migração ou lógica de dados.
+- WhatsApp Chat interno mantém o dark (é interface de conversa, funciona melhor escura) — só o cabeçalho e a navegação ficam claros para casar com o resto.
+- Página de login e telas públicas ficam como estão.
+- Toggle de tema continua funcionando; o dark vira "modo alternativo", não o padrão.
 
-### 4. Detalhes técnicos
-- Arquivo tocado: `src/pages/admin/Dashboard.tsx` (só reordenação + imports novos).
-- Sem migração de banco, sem edge function, sem mudança de schema.
-- Sem novos componentes — reaproveita `FunilVisual`, `RankingsGrid`, `ChartsGrid`, `useRelatorioData`.
-- Loading state: mostra spinner só nas seções ricas enquanto `useRelatorioData` carrega, sem bloquear o resto do Dashboard.
-- Se `useRelatorioData` retornar erro, mostro um aviso discreto na seção rica sem quebrar a página.
+### Arquivos que vou tocar
+- `src/index.css` (tokens + refactor de `tech-shell`, `premium-card`, `premium-hero`, "black band").
+- `src/hooks/useTheme.tsx` (default = light).
+- `src/components/AdminLayout.tsx`, `src/components/AppLayout.tsx`, `src/components/TenantSidebar.tsx`, `src/components/AppSidebar.tsx` (remover classes escuras hardcoded).
+- `src/pages/admin/AgencyPipelinePage.tsx` (Kanban redesenhado).
+- `src/pages/app/TenantKanban.tsx` (mesmo tratamento).
+- `src/pages/app/TenantDashboard.tsx` (superfícies claras).
+- `src/pages/admin/Dashboard.tsx` (adaptar hero + cards ao tema claro, sem perder o conteúdo rico que acabamos de plugar).
+- **Novos**: `src/components/kanban/KanbanCard.tsx`, `src/components/kanban/DensityToggle.tsx`, `src/components/kanban/types.ts`.
 
-### O que **não** vou mexer
-- Estilo/identidade (dark + gold) permanece.
-- Sidebar, header, tema claro/escuro — nada.
-- Página `/admin/relatorios` continua existindo do jeito que está (só passa a compartilhar componentes com o Dashboard).
+### Entrega
+Faço tudo numa leva só. Depois abro a preview e você valida página por página; se algum ponto precisar recalibrar (peso do dourado, tamanho da densidade P/M/G, borda de coluna), ajusto pontualmente.

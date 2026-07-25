@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import KanbanBoard from "@/components/admin/KanbanBoard";
+import DensityToggle from "@/components/kanban/DensityToggle";
+import { readDensity, writeDensity, type KanbanDensity } from "@/components/kanban/types";
 import type { Lead } from "@/types/admin";
 
 const RANGE_OPTIONS: { label: string; days: number | null }[] = [
@@ -23,6 +25,7 @@ export default function TenantKanban() {
   const [search, setSearch] = useState("");
   const [rangeDays, setRangeDays] = useState<number | null>(null);
   const [nextAppt, setNextAppt] = useState<Record<string, string>>({});
+  const [density, setDensity] = useState<KanbanDensity>(() => readDensity());
 
   const loadLeads = async () => {
     if (!tenant?.id) return;
@@ -124,9 +127,12 @@ export default function TenantKanban() {
             {filtersActive ? `${filteredLeads.length} de ${leads.length} leads` : `${leads.length} leads`} · arraste cards entre etapas
           </p>
         </div>
-        <Button variant="outline" onClick={handleExportCSV} disabled={filteredLeads.length === 0} className="gap-2 text-sm">
-          <Download className="w-4 h-4" /> Exportar CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <DensityToggle value={density} onChange={(d) => { setDensity(d); writeDensity(d); }} />
+          <Button variant="outline" onClick={handleExportCSV} disabled={filteredLeads.length === 0} className="gap-2 text-sm">
+            <Download className="w-4 h-4" /> Exportar CSV
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -160,8 +166,8 @@ export default function TenantKanban() {
                 onClick={() => setRangeDays(opt.days)}
                 className={`px-3 h-9 rounded-md border text-xs font-medium transition ${
                   active
-                    ? "bg-amber-400/15 border-amber-400/50 text-amber-300"
-                    : "bg-transparent border-border text-muted-foreground hover:text-foreground hover:border-amber-400/30"
+                    ? "bg-primary/10 border-primary/50 text-primary"
+                    : "bg-transparent border-border text-muted-foreground hover:text-foreground hover:border-primary/30"
                 }`}
               >
                 {opt.label}
@@ -171,7 +177,7 @@ export default function TenantKanban() {
         </div>
       </div>
 
-      <KanbanBoard leads={filteredLeads} onLeadsChange={() => { loadLeads(); loadNextAppointments(); }} nextAppointmentByLead={nextAppt} />
+      <KanbanBoard leads={filteredLeads} onLeadsChange={() => { loadLeads(); loadNextAppointments(); }} nextAppointmentByLead={nextAppt} density={density} />
     </div>
   );
 }

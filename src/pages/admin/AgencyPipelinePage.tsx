@@ -12,6 +12,8 @@ import {
   Plus, Loader2, MapPin, DollarSign, Calendar, Trophy, Building2, Trash2, Phone, Mail, Sparkles, Pencil, Search, X,
 } from "lucide-react";
 import UnifiedLeadPanel from "@/components/leads/UnifiedLeadPanel";
+import DensityToggle from "@/components/kanban/DensityToggle";
+import { readDensity, writeDensity, type KanbanDensity } from "@/components/kanban/types";
 import { PIPELINE_STAGES, type PipelineStage } from "@/types/admin";
 
 const STAGES = PIPELINE_STAGES;
@@ -59,6 +61,7 @@ export default function AgencyPipelinePage() {
   const [promoting, setPromoting] = useState(false);
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
   const [search, setSearch] = useState("");
+  const [density, setDensity] = useState<KanbanDensity>(() => readDensity());
 
   useEffect(() => {
     supabase
@@ -236,6 +239,7 @@ export default function AgencyPipelinePage() {
               </button>
             )}
           </div>
+          <DensityToggle value={density} onChange={(d) => { setDensity(d); writeDensity(d); }} />
           <Button onClick={() => { setEditing(null); setNewOpen(true); }} className="gap-2">
             <Plus className="w-4 h-4" /> Novo Lead
           </Button>
@@ -251,7 +255,7 @@ export default function AgencyPipelinePage() {
         <KPI icon={Sparkles} label="Conversão" value={`${kpis.convRate.toFixed(1)}%`} tint="violet" />
       </div>
 
-      {/* Kanban */}
+      {/* Kanban — visual claro estilo Kommo */}
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : (
@@ -259,80 +263,100 @@ export default function AgencyPipelinePage() {
           {STAGES.map((stage) => {
             const items = grouped[stage.id];
             const total = items.reduce((s, l) => s + (l.valor_proposta || 0), 0);
+            const cardPad = density === "compact" ? "px-2.5 py-1.5" : density === "spacious" ? "p-3" : "p-2.5";
             return (
               <div
                 key={stage.id}
-                className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-sm overflow-hidden flex flex-col min-h-[320px]"
+                className="rounded-lg border border-border bg-card shadow-sm overflow-hidden flex flex-col min-h-[320px]"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => { if (dragged) { moveStage(dragged, stage.id); setDragged(null); } }}
               >
-                <div className={`h-1.5 bg-gradient-to-r ${stage.color}`} />
-                <div className="p-3 border-b border-border/40 flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold tracking-wider">{stage.title}</div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">{fmt(total)}</div>
+                <div className="h-[3px] bg-gradient-to-r from-primary/70 via-primary/50 to-primary/20" />
+                <div className="px-3 pt-2.5 pb-2 border-b border-border/70 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-[11.5px] font-semibold uppercase tracking-[0.14em] text-foreground/85 truncate">
+                      {stage.title}
+                    </div>
+                    <div className="text-[10.5px] text-muted-foreground mt-0.5 font-mono tabular-nums">{fmt(total)}</div>
                   </div>
-                  <span
-                    className="text-xs font-bold rounded-full px-2 py-0.5"
-                    style={{ background: `${stage.hex}20`, color: stage.hex }}
-                  >
+                  <span className="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-muted text-[10.5px] font-semibold tabular-nums text-foreground/70">
                     {items.length}
                   </span>
                 </div>
-                <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[70vh]">
+                <div className="flex-1 p-2 space-y-1.5 overflow-y-auto max-h-[70vh]">
                   {items.length === 0 && (
                     <div className="text-center text-[11px] text-muted-foreground/60 py-8">{search ? "Nenhum resultado" : "Vazio"}</div>
                   )}
-                  {items.map((l) => (
-                    <div
-                      key={l.id}
-                      draggable
-                      onDragStart={() => setDragged(l.id)}
-                      onClick={() => setPanelLeadId(l.id)}
-                      className="group cursor-grab active:cursor-grabbing rounded-lg border border-border/60 bg-background/60 p-3 hover:border-primary/40 hover:shadow-lg transition-all"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="font-medium text-sm truncate flex-1">{l.nome_clinica}</div>
-                        {l.plano_interesse && (
-                          <Badge variant="outline" className="text-[9px] uppercase h-4">{l.plano_interesse}</Badge>
+                  {items.map((l) => {
+                    // Densidade compacta — 1 linha
+                    if (density === "compact") {
+                      return (
+                        <div
+                          key={l.id}
+                          draggable
+                          onDragStart={() => setDragged(l.id)}
+                          onClick={() => setPanelLeadId(l.id)}
+                          className={`group cursor-grab active:cursor-grabbing rounded-md border border-border bg-card hover:border-primary/40 hover:shadow-sm transition-all ${cardPad} flex items-center gap-2`}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary/70 shrink-0" aria-hidden />
+                          <span className="text-[12.5px] font-medium text-foreground truncate flex-1">{l.nome_clinica}</span>
+                          {l.valor_proposta ? (
+                            <span className="text-[11px] font-semibold tabular-nums text-primary">{fmt(l.valor_proposta)}</span>
+                          ) : null}
+                        </div>
+                      );
+                    }
+                    return (
+                      <div
+                        key={l.id}
+                        draggable
+                        onDragStart={() => setDragged(l.id)}
+                        onClick={() => setPanelLeadId(l.id)}
+                        className={`group cursor-grab active:cursor-grabbing rounded-md border border-border bg-card hover:border-primary/40 hover:shadow-sm transition-all ${cardPad}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="font-medium text-[13px] text-foreground truncate flex-1">{l.nome_clinica}</div>
+                          {l.plano_interesse && (
+                            <Badge variant="outline" className="text-[9px] uppercase h-4">{l.plano_interesse}</Badge>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setEditing(l); }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
+                            title="Editar campos avançados"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        </div>
+                        {l.responsavel && density === "spacious" && (
+                          <div className="text-[11px] text-muted-foreground truncate mt-0.5">{l.responsavel}</div>
                         )}
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setEditing(l); }}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
-                          title="Editar campos avançados"
-                        >
-                          <Pencil className="w-3 h-3" />
-                        </button>
-                      </div>
-                      {l.responsavel && (
-                        <div className="text-[11px] text-muted-foreground truncate mt-0.5">{l.responsavel}</div>
-                      )}
-                      <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
-                        {l.cidade && <span className="flex items-center gap-0.5"><MapPin className="w-3 h-3" />{l.cidade}</span>}
-                        {l.valor_proposta ? <span className="ml-auto font-semibold text-primary">{fmt(l.valor_proposta)}</span> : null}
-                      </div>
-                      {stage.id === "ganho" && !l.campaign_id_manual && !l.utm_campaign && (
-                        <div className="mt-2 text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-1.5 py-1">
-                          ⚠ Sem campanha vinculada — clique para editar e escolha uma no combo.
+                        <div className="flex items-center gap-2 mt-1.5 text-[10.5px] text-muted-foreground">
+                          {l.cidade && <span className="flex items-center gap-0.5"><MapPin className="w-3 h-3" />{l.cidade}</span>}
+                          {l.valor_proposta ? <span className="ml-auto font-semibold tabular-nums text-primary">{fmt(l.valor_proposta)}</span> : null}
                         </div>
-                      )}
-                      {stage.id === "ganho" && !l.tenant_id_criado && (
-                        <Button
-                          size="sm"
-                          className="w-full mt-2 h-7 text-[11px]"
-                          onClick={(e) => { e.stopPropagation(); setPromoteOpen(l); setPromoteSlug(slugify(l.nome_clinica)); }}
-                        >
-                          <Sparkles className="w-3 h-3 mr-1" /> Criar clínica
-                        </Button>
-                      )}
-                      {stage.id === "ganho" && l.tenant_id_criado && (
-                        <div className="mt-2 text-[10px] text-emerald-500 flex items-center gap-1">
-                          <Sparkles className="w-3 h-3" /> Tenant criado
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                        {stage.id === "ganho" && !l.campaign_id_manual && !l.utm_campaign && (
+                          <div className="mt-2 text-[10px] text-amber-700 bg-amber-500/10 border border-amber-500/30 rounded px-1.5 py-1">
+                            ⚠ Sem campanha vinculada — clique para editar.
+                          </div>
+                        )}
+                        {stage.id === "ganho" && !l.tenant_id_criado && (
+                          <Button
+                            size="sm"
+                            className="w-full mt-2 h-7 text-[11px]"
+                            onClick={(e) => { e.stopPropagation(); setPromoteOpen(l); setPromoteSlug(slugify(l.nome_clinica)); }}
+                          >
+                            <Sparkles className="w-3 h-3 mr-1" /> Criar clínica
+                          </Button>
+                        )}
+                        {stage.id === "ganho" && l.tenant_id_criado && (
+                          <div className="mt-2 text-[10px] text-emerald-600 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" /> Tenant criado
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
