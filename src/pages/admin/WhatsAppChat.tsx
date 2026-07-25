@@ -502,10 +502,16 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
       const results = (data as any)?.results ?? [];
       const ok = results.some((r: any) => r.ok);
       if (!ok) {
-        toast.error("Evolution rejeitou a reassinatura", { description: JSON.stringify(results?.[0]?.debug ?? results).slice(0, 200) });
+        const first = results?.[0];
+        const reasons = first?.verified?.reasons?.join(", ") ?? JSON.stringify(first?.debug ?? results).slice(0, 200);
+        toast.error("Webhook não validou", { description: reasons });
         return;
       }
-      toast.success("Webhook reassinado — puxando mensagens perdidas…");
+      const first = results.find((r: any) => r.ok);
+      toast.success("Webhook validado (URL + secret + eventos canônicos)", {
+        description: `webhookByEvents=${first?.verified?.webhookByEvents ?? "?"} · puxando mensagens perdidas…`,
+      });
+
       // Backfill after resubscribing so missed messages appear.
       try {
         const { data: syncData } = await supabase.functions.invoke("evolution-sync-chats", {
