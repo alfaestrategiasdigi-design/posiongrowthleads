@@ -157,7 +157,12 @@ async function upsertConversationForContact(
   return { created: true };
 }
 
-async function runForTenant(admin: any, tenantId: string | null, defaultStatus: string) {
+async function runForTenant(
+  admin: any,
+  tenantId: string | null,
+  defaultStatus: string,
+  skipConversationUpsert = false,
+) {
   let connQ = admin.from("zapi_connections")
     .select("instance_url, api_key, instance_name")
     .eq("provider", "evolution");
@@ -275,6 +280,22 @@ async function runForTenant(admin: any, tenantId: string | null, defaultStatus: 
     else updated++;
   }
 
+  // Internal verification mode still fetches all contacts, performs the full
+  // database anti-join and writes any missing leads. It only skips the separate
+  // conversation reconciliation phase, which has its own global backfill job.
+  if (skipConversationUpsert) {
+    return {
+      tenant_id: tenantId,
+      total_contacts: contacts.length,
+      valid_phones: rows.length,
+      created, updated, skipped, errors,
+      conversations_created: 0,
+      conversations_updated: 0,
+      conversations_errors: 0,
+      conversation_upsert_skipped: true,
+    };
+  }
+
   // Upsert conversations for EVERY contact (new + existing) so the inbox always has them.
   // Process bounded parallel batches: large tenants previously spent several minutes
   // awaiting each contact serially and hit the Edge Function idle timeout.
@@ -344,6 +365,7 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const defaultStatus: string = String(body.default_status ?? "lead");
   const allTenants: boolean = body.all_tenants === true;
+  const skipConversationUpsert: boolean = body.skip_conversation_upsert === true && authz.internal;
 
   if (allTenants) {
     if (!authz.internal && !authz.isAdmin) {
@@ -364,7 +386,7 @@ Deno.serve(async (req) => {
     const results: any[] = [];
     for (const scope of scopes) {
       try {
-        results.push(await runForTenant(admin, scope, defaultStatus));
+        results.push(await runForTenant(admin, scope, defaultStatus, skipConversationUpsert));
       } catch (e) {
         results.push({ tenant_id: scope, error: String((e as Error).message ?? e) });
       }
@@ -384,6 +406,6 @@ Deno.serve(async (req) => {
     }
   }
 
-  const res = await runForTenant(admin, tenantId, defaultStatus);
+  const res = await runForTenant(admin, tenantId, defaultStatus, skipConversationUpsert);
   return json({ ok: true, ...res });
 });
