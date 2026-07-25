@@ -400,7 +400,7 @@ export default function Dashboard() {
           <KPI icon={DollarSign} label="Em negociação" value={fmt(agency.pipelineValue)} sub={`${agency.emNegociacao} leads`} />
           <KPI icon={FileText} label="Contratos assinados" value={String(agency.contratosPeriodo.length)} sub={fmt(agency.receitaAgencia)} />
           <KPI icon={TrendingUp} label="Ticket médio" value={fmt(agency.ticketMedio)} />
-          <KPI icon={Sparkles} label="MRR SaaS ativo" value={fmt(agency.mrr)} sub={`${saasContracts.filter((s) => s.status === "active").length} assinaturas`} />
+          <KPI icon={Sparkles} label="MRR SaaS ativo" value={agency.mrr > 0 ? fmt(agency.mrr) : "—"} sub={saasContracts.filter((s) => s.status === "active").length > 0 ? `${saasContracts.filter((s) => s.status === "active").length} assinaturas` : "nenhuma assinatura ativa ainda"} />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
