@@ -239,6 +239,7 @@ export default function AgencyPipelinePage() {
               </button>
             )}
           </div>
+          <DensityToggle value={density} onChange={(d) => { setDensity(d); writeDensity(d); }} />
           <Button onClick={() => { setEditing(null); setNewOpen(true); }} className="gap-2">
             <Plus className="w-4 h-4" /> Novo Lead
           </Button>
