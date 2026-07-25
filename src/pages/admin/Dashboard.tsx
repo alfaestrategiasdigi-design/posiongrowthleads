@@ -6,6 +6,7 @@ import {
   Building2, DollarSign, TrendingUp, GitBranch, FileText, Trophy, Sparkles, ArrowUpRight,
   Loader2, Target, Pencil, Check, X, ArrowUp, ArrowDown, Minus,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
 } from "recharts";
