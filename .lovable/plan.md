@@ -1,57 +1,73 @@
-## Diagnóstico (o que já sabemos)
+## Diagnóstico READ-ONLY — direção de mensagens no WhatsApp
 
-Nos prints:
-- Painel envia várias mensagens pra `557799032433` (teste 16:23, 16:26, 16:29, 17:37, oi 18:40, teste 18:49). Aparecem com **✓ único** e nunca viram ✓✓.
-- No celular físico do Dr. Matheus, essas **não aparecem** na conversa com o mesmo contato — só aparecem as que ele mesmo digitou no aparelho (Teste 16:27, Oi/Teste 17:38, teste 18:37/38/39).
-- Nos logs do `whatsapp-webhook`, o único evento recente é um `send.message` cujo `ownJids: ["5511965022801@s.whatsapp.net"]` — esse é o número do **Admin Master**, não o do Instituto Roar.
+Auditei todos os pontos que gravam/leêm `direction` (webhook, envio, sync, UI). Segue o mapa e os desvios.
 
-Conclusão (a confirmar como passo 1): a instância `DRMATHEUS` na Evolution está **pareada no aparelho errado** (celular do Admin Master, 11 96502-2801). Por isso:
-- Mensagens saem do painel mas saem do número do Admin, então o Matheus não vê nada saindo do WhatsApp dele.
-- ACKs (✓✓) e recebidas do número do Matheus não chegam, porque a sessão Baileys que está de pé não é a dele.
+### Onde a direção é decidida hoje
 
-Você diz que na Evolution (`129.121.36.166:8080/manager`) "está tudo conectado e recebendo certo" — isso combina: **a sessão está saudável, só está no telefone errado**.
+**Fonte da verdade (correto):** `supabase/functions/whatsapp-webhook/index.ts:1121`
+```ts
+const fromMe: boolean = Boolean(key?.fromMe ?? m?.fromMe);
+...
+// linha 1528
+direction: fromMe ? "outbound" : "inbound",
+status:    fromMe ? "sent"     : "delivered",
+sender:    fromMe ? "usuario"  : "cliente",   // linha 1523
+```
+Vem direto do `fromMe` da Evolution. ✅ Aderente à spec (item 1).
 
-## O que o plano faz
+**Outros writers de `messages`:**
+- `evolution-send/index.ts:167` — envio pelo painel, hardcoded `direction: "outbound"`, `sender: "usuario"`. ✅ Correto (só é chamado no envio).
+- `whatsapp-cloud-webhook/index.ts:162` — canal Cloud API, hardcoded `direction: "inbound"`. ✅ (essa função só processa recebidos).
+- `evolution-sync-messages/index.ts` e `evolution-sync-messages-bulk` — **não inserem direto**; fazem replay POST no `whatsapp-webhook` preservando `key.fromMe` do histórico da Evolution. ✅ (linha 109 do sync-messages).
 
-Duas frentes, na ordem:
+**Verdicto do backend:** nenhum lugar infere direção. `direction` é sempre derivado do `fromMe` do payload.
 
-**A. Reparear a instância `DRMATHEUS` no número certo do Matheus** (resolve o "não chega no destinatário" e o "recebida não marca").
+### Desvios da spec
 
-1. Consultar `/instance/fetchInstances` na Evolution pra confirmar qual número está pareado hoje em `DRMATHEUS` (owner JID). Reportar antes de derrubar nada.
-2. Se o owner não for o número do Matheus:
-   - Chamar `/instance/logout/DRMATHEUS` na Evolution.
-   - Abrir a tela de reconexão já existente (`ReconnectSessionCard` em `TenantConfig`) e gerar QR novo.
-   - Pedir pro Matheus escanear no **celular dele**, não no do Admin.
-   - Após `state=open`, rodar `evolution-resubscribe` **só pra essa instância** (mantém `webhookByEvents:false` + secret do banco, padrão que já validamos).
-3. Confirmar owner novo em `/instance/fetchInstances` e registrar em `tenant_whatsapp_numbers` (número oficial da clínica) pra a rotina de merge-by-owner passar a rotear certo.
+#### 🔴 Desvio 1 — UI não usa `direction`, usa `sender`
+`src/pages/admin/WhatsAppChat.tsx`
+- Linha 1169: `const isOut = msg.sender === "usuario";`
+- Linha 919: `isFromOtherDevice` também depende de `sender === "usuario"`.
+- Linha 929: `renderStatus` idem.
 
-**B. Garantir que TODA conversa marque entrada e saída, em todos os tenants.**
+Contraria a spec (item 2: "inbound sempre à esquerda, outbound sempre à direita"). Hoje o lado do balão depende de `sender`, não de `direction`. Como todos os writers gravam os dois campos coerentes, isso funciona por coincidência — mas qualquer regressão futura em `sender` (ex.: um novo writer esquecer de setar) vai renderizar do lado errado sem que ninguém perceba. **Ponto a corrigir:** trocar `msg.sender === "usuario"` por `msg.direction === "outbound"` em `WhatsAppChat.tsx` (linhas 919, 929, 1169) — e usar `direction` como fonte única na UI.
 
-Isso é o "preciso que em cada conta cada mensagem tenha `received` do lado esquerdo e `sent` do direito, garantido". Trabalho em `whatsapp-webhook`:
+Validação: a query `SELECT direction, sender, COUNT(*) FROM messages GROUP BY 1,2` retornou só 2 combinações (`inbound/cliente` = 3365, `outbound/usuario` = 2321). Nenhum caso divergente no banco hoje — mas exatamente por isso o bug relatado deve estar vindo de outro lugar (ver Desvio 2 e 3).
 
-4. Auditar o handler `messages.upsert` e o `messages.update`:
-   - Confirmar que nenhum branch descarta mensagens quando `ownerJid` diverge do cache — se descarta, trocar por **rota provisória + reconciliar depois** (mesmo padrão que já usamos pro @lid), nunca dropar.
-   - Confirmar que outbound de qualquer aparelho (painel, celular físico, Evolution direto) sempre grava `direcao='enviada'` e entra na conversa canônica por telefone. Já temos merge-by-phone; garantir que roda pra `fromMe=true` também.
-   - Confirmar que `messages.update` (status ACK) casa por `wamid` **e** por fallback `(remote_jid, timestamp±5s, from_me=true)` pros casos onde o wamid do envio local difere do que a Evolution emite depois — sem esse fallback, ✓ único fica pra sempre.
-5. Rodar `whatsapp-wamid-reconcile` retroativo nas conversas do Instituto Roar pra corrigir mensagens antigas travadas em ✓.
-6. Adicionar 1 teste E2E na suíte existente (`outbound_integration_test.ts`) cobrindo o cenário "instância repareada, wamid do send diferente do wamid do update" — pra não regredir.
+#### 🟠 Desvio 2 — ACKs criam mensagem "delivered" nova quando não achavam o wamid
+`supabase/functions/whatsapp-webhook/index.ts:1013-1037` (branch `messages.update`).
+- Se o `wamid` do ACK não bate com nenhuma linha, cai no fallback "última outbound sem ACK no conversation por JID/telefone" e faz `UPDATE`. Isso está OK.
+- **Porém**, o ACK **não gera INSERT** — bom, atende a spec (item 3). ✅
+- Detalhe potencialmente ruim: quando o fallback casa, ele grava `wamid` **do ACK** numa mensagem que originalmente foi inserida sem `wamid`. Se o `evolution-send` (linha 160) enviou a mensagem antes de a Evolution devolver `wamid`, o `wamid` do ACK pode não corresponder ao wamid real da mensagem (o send salva `wamid = j?.key?.id ?? null` — se vier null, essa linha fica órfã e pode absorver o wamid errado de um ACK subsequente de outra mensagem no mesmo contato).
+- Não afeta direção diretamente, mas leva ao Desvio 3.
 
-## Detalhes técnicos
+#### 🟠 Desvio 3 — Dedup por conteúdo em janela de 15s pode "adotar" mensagem física com direção certa mas texto igual
+`whatsapp-webhook/index.ts:1495-1511`
+- Quando chega um evento `fromMe=true` (echo de mensagem enviada de outro aparelho) e existe uma linha outbound recente com o mesmo `conteudo`, o webhook **não insere**; só faz UPDATE do `wamid` e `status="delivered"` na linha existente.
+- Isso está correto conceitualmente, mas depende de conteúdo idêntico + 15s. Se a mensagem física demorar >15s pra chegar como echo, entra como INSERT novo (correto: `direction: outbound`). Se chegar <15s de uma mensagem outbound diferente com mesmo texto (ex.: "ok"), pode absorver o wamid errado. Não gera direção invertida, mas pode fazer o ACK de uma mensagem cair na outra — dando aparência de "não marcou".
 
-- Evolution base: `http://129.121.36.166:8080` (é a `instance_url` salva em `zapi_connections` pra `DRMATHEUS`, `provider=evolution`).
-- `evolution-status` / `evolution-reconnect` / `evolution-resubscribe` já existem e são o que vou reaproveitar — nada de duplicar function.
-- O reassinatura vai usar `webhook_secret` do banco (padrão validado com Gabriel), `webhookByEvents:false`, mesma URL de webhook já em uso.
-- Nada de mexer em `_shared/phone-jid.ts` ou na lógica de LID reconcile — o problema aqui não é normalização, é aparelho errado.
-- Nenhuma migração de dados destrutiva; só `whatsapp-wamid-reconcile` que só preenche `wamid` faltante.
+#### 🟡 Desvio 4 — Não há teste manual de webhook na UI
+Rebusquei em `src/pages/admin/ConexaoWhatsappPage.tsx` e todo o `src/`: **não existe um botão "Testar webhook" que POSTe um payload sintético no `whatsapp-webhook`**. Só existem os testes Deno em `whatsapp-webhook/*_test.ts` (arquivos `routing_test.ts`, `outbound_integration_test.ts`) — esses são executados via `deno test`, não pela UI, e usam a função pura `resolveRemoteJid` (não passam pelo INSERT em `messages`), então **não contaminam dados reais**. ✅ Spec item 5 já está atendida por ausência: nenhum caminho especial de "teste" grava com direção diferente.
 
-## O que **não** vou fazer sem sua confirmação
+Se você quer **adicionar** um botão de teste manual na tela de configuração, aí sim a spec passa a exigir que o payload leve `fromMe` explícito e caia no mesmo pipeline sem branch especial — hoje esse botão simplesmente não existe.
 
-- Não vou derrubar a sessão atual antes de você confirmar que o número pareado é mesmo o do Admin (passo 1 é read-only, te reporto o `owner`).
-- Não vou tocar em outros tenants (Gabriel, Donna Face, etc.) — o escopo aqui é DRMATHEUS + regra global de marcação de entrada/saída no webhook.
+#### 🟢 Dedup por `wamid` antes de insert
+`whatsapp-webhook/index.ts:1491-1494` — faz `SELECT id FROM messages WHERE wamid=? .maybeSingle()` e faz `continue` se encontrar. ✅ Aderente à spec (item 4).
 
-## Como você vai saber que ficou bom
+### Resumo do que precisa mudar (sem aplicar)
 
-- `fetchInstances DRMATHEUS` mostra owner = número do Matheus.
-- Uma mensagem enviada pelo painel aparece no WhatsApp físico do Matheus **como enviada por ele** (não pelo Admin) e em segundos vira ✓✓ no painel.
-- Uma mensagem enviada pelo aparelho físico do Matheus para um contato qualquer aparece no painel do lado direito como `sent`.
-- Uma mensagem recebida de um lead qualquer aparece no painel do lado esquerdo como `received`, sem cair em chat paralelo.
+| # | Arquivo | Linhas | Problema | Correção sugerida |
+|---|---|---|---|---|
+| 1 | `src/pages/admin/WhatsAppChat.tsx` | 919, 929, 1169 | UI decide o lado do balão por `sender`, não por `direction` | Trocar para `msg.direction === "outbound"` como fonte única |
+| 2 | `supabase/functions/evolution-send/index.ts` | 153, 160-173 | Se Evolution devolve `wamid=null`, a linha outbound fica órfã e pode receber wamid de outro ACK | Não inserir a linha até ter `wamid`, ou marcar `status:"sending"` e reconciliar via `wamid-reconcile` |
+| 3 | `supabase/functions/whatsapp-webhook/index.ts` | 1495-1511 | Dedup por conteúdo+15s pode absorver wamid errado quando textos coincidem | Endurecer dedup: exigir `sender="usuario"` **e** `wamid IS NULL` na linha alvo, e casar por `messageTimestamp` também |
+| 4 | (opcional) `ConexaoWhatsappPage.tsx` | — | Não há botão de teste manual do webhook | Se for adicionar, POST direto no `whatsapp-webhook` com payload `messages.upsert` real (com `fromMe` explícito), sem branch especial no backend |
+
+### O que **não** precisa mudar
+- Lógica de derivação de `direction` a partir de `fromMe` no webhook. ✅
+- Dedup por `wamid`. ✅
+- ACK como UPDATE (nunca INSERT). ✅
+- `evolution-sync-messages*` (só replay, preserva `fromMe`). ✅
+- Dados atuais no banco: 100% coerentes entre `direction` e `sender` — não há registro para reparar, apenas endurecer o pipeline pra impedir divergência futura.
+
+Me confirma quais itens você quer que eu implemente (recomendo #1 + #3; #2 é o mais delicado porque muda o fluxo do envio; #4 só se você quiser mesmo a UI de teste).
