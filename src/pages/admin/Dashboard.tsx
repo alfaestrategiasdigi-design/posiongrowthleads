@@ -292,6 +292,130 @@ export default function Dashboard() {
         <DateRangePicker value={range} onChange={setRange} />
       </div>
 
+      {/* HERO — Total combinado */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-2 font-mono">Receita total combinada</div>
+              <div className="text-4xl font-bold text-white tracking-tight">{fmt(agency.totalCombinado)}</div>
+              <div className="text-sm mt-1" style={{ color: PALETTE.muted }}>
+                Agência {fmt(agency.receitaAgencia)} + SaaS MRR {fmt(agency.mrr)}/mês
+              </div>
+            </div>
+            <div className="w-14 h-14 rounded-2xl premium-section-icon flex items-center justify-center">
+              <DollarSign className="w-7 h-7 text-amber-300" />
+            </div>
+          </div>
+
+          {/* Meta mensal */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between text-[11px] font-mono">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Target className="w-3 h-3 text-amber-400" />
+                Meta mensal
+                {!editingGoal ? (
+                  <button
+                    type="button"
+                    onClick={() => { setGoalDraft(String(monthlyGoal)); setEditingGoal(true); }}
+                    className="ml-1 inline-flex items-center gap-1 text-amber-400/70 hover:text-amber-300"
+                    title="Editar meta"
+                  >
+                    <span>{fmt(monthlyGoal)}</span>
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                ) : (
+                  <span className="ml-1 inline-flex items-center gap-1">
+                    <input
+                      autoFocus
+                      value={goalDraft}
+                      onChange={(e) => setGoalDraft(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") saveGoal(); if (e.key === "Escape") setEditingGoal(false); }}
+                      className="w-24 bg-background/80 border border-amber-500/40 rounded px-1.5 py-0.5 text-foreground focus:outline-none focus:border-amber-400"
+                      inputMode="numeric"
+                    />
+                    <button type="button" onClick={saveGoal} className="text-emerald-400 hover:text-emerald-300"><Check className="w-3 h-3" /></button>
+                    <button type="button" onClick={() => setEditingGoal(false)} className="text-rose-400 hover:text-rose-300"><X className="w-3 h-3" /></button>
+                  </span>
+                )}
+              </div>
+              <span className="text-amber-300 font-semibold tabular-nums">
+                {goalPct.toFixed(1)}% atingido
+              </span>
+            </div>
+            <div className="mt-1.5 h-1.5 bg-white/5 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${goalPct}%`,
+                  background: `linear-gradient(90deg, ${PALETTE.gold}, #B8860B)`,
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="h-32 mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={timelineData} margin={{ top: 6, right: 8, bottom: 0, left: -8 }}>
+                <defs>
+                  <linearGradient id="heroArea" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor={PALETTE.gold} stopOpacity={0.22} />
+                    <stop offset="100%" stopColor={PALETTE.gold} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: PALETTE.mutedDim }} stroke="rgba(255,255,255,0.08)" />
+                <YAxis tick={{ fontSize: 10, fill: PALETTE.mutedDim }} stroke="rgba(255,255,255,0.08)" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  contentStyle={{ background: "#0a0a0a", border: "1px solid rgba(232,196,104,0.28)", borderRadius: 8, fontSize: 12, color: PALETTE.white }}
+                  labelStyle={{ color: PALETTE.muted }}
+                  formatter={(v: any) => fmt(v)}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="receita"
+                  stroke={PALETTE.white}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4, fill: PALETTE.gold, stroke: PALETTE.white, strokeWidth: 1 }}
+                  fill="url(#heroArea)"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <MetricCard
+            label="Clínicas interessadas no pipeline"
+            value={String(agency.leadsPeriodo)}
+            current={agency.leadsPeriodo}
+            previous={agency.leadsPrev}
+            series={agency.leadsSeries}
+            href="/admin/pipeline"
+          />
+          <MetricCard
+            label="Ganhos (período)"
+            value={String(agency.ganhos)}
+            current={agency.ganhos}
+            previous={agency.ganhosPrev}
+            series={agency.ganhosSeries}
+            href="/admin/pipeline"
+          />
+          <MetricCard
+            label="Conversão"
+            value={`${agency.convRate.toFixed(1)}%`}
+            current={agency.convRate}
+            previous={agency.convRatePrev}
+            series={agency.convSeries}
+          />
+        </div>
+      </div>
+
+      
+
+
       {/* PIPELINE & AGÊNCIA — subido para o topo */}
       <section>
         <SectionTitle icon={GitBranch} title="Pipeline & Agência" subtitle="Funil de vendas POSION → clínicas" />
@@ -430,129 +554,27 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* HERO — Total combinado */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-        <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-2 font-mono">Receita total combinada</div>
-              <div className="text-4xl font-bold text-white tracking-tight">{fmt(agency.totalCombinado)}</div>
-              <div className="text-sm mt-1" style={{ color: PALETTE.muted }}>
-                Agência {fmt(agency.receitaAgencia)} + SaaS MRR {fmt(agency.mrr)}/mês
-              </div>
-            </div>
-            <div className="w-14 h-14 rounded-2xl premium-section-icon flex items-center justify-center">
-              <DollarSign className="w-7 h-7 text-amber-300" />
-            </div>
+      {/* PERFORMANCE CONSOLIDADA — riqueza dos Relatórios dentro do Dashboard */}
+      <section>
+        <SectionTitle icon={BarChart3} title="Performance consolidada" subtitle="Funil rico, rankings e gráficos — mesmo período selecionado acima" />
+        {relatorioQuery.isLoading && (
+          <div className="premium-card rounded-xl p-10 flex items-center justify-center">
+            <Loader2 className="w-5 h-5 animate-spin text-amber-400" />
           </div>
-
-          {/* Meta mensal */}
-          <div className="mt-4">
-            <div className="flex items-center justify-between text-[11px] font-mono">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Target className="w-3 h-3 text-amber-400" />
-                Meta mensal
-                {!editingGoal ? (
-                  <button
-                    type="button"
-                    onClick={() => { setGoalDraft(String(monthlyGoal)); setEditingGoal(true); }}
-                    className="ml-1 inline-flex items-center gap-1 text-amber-400/70 hover:text-amber-300"
-                    title="Editar meta"
-                  >
-                    <span>{fmt(monthlyGoal)}</span>
-                    <Pencil className="w-3 h-3" />
-                  </button>
-                ) : (
-                  <span className="ml-1 inline-flex items-center gap-1">
-                    <input
-                      autoFocus
-                      value={goalDraft}
-                      onChange={(e) => setGoalDraft(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") saveGoal(); if (e.key === "Escape") setEditingGoal(false); }}
-                      className="w-24 bg-background/80 border border-amber-500/40 rounded px-1.5 py-0.5 text-foreground focus:outline-none focus:border-amber-400"
-                      inputMode="numeric"
-                    />
-                    <button type="button" onClick={saveGoal} className="text-emerald-400 hover:text-emerald-300"><Check className="w-3 h-3" /></button>
-                    <button type="button" onClick={() => setEditingGoal(false)} className="text-rose-400 hover:text-rose-300"><X className="w-3 h-3" /></button>
-                  </span>
-                )}
-              </div>
-              <span className="text-amber-300 font-semibold tabular-nums">
-                {goalPct.toFixed(1)}% atingido
-              </span>
-            </div>
-            <div className="mt-1.5 h-1.5 bg-white/5 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{
-                  width: `${goalPct}%`,
-                  background: `linear-gradient(90deg, ${PALETTE.gold}, #B8860B)`,
-                }}
-              />
-            </div>
+        )}
+        {relatorioQuery.isError && (
+          <div className="premium-card rounded-xl p-6 text-sm text-rose-300">
+            Não foi possível carregar as métricas consolidadas. Tente novamente em instantes.
           </div>
-
-          <div className="h-32 mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={timelineData} margin={{ top: 6, right: 8, bottom: 0, left: -8 }}>
-                <defs>
-                  <linearGradient id="heroArea" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor={PALETTE.gold} stopOpacity={0.22} />
-                    <stop offset="100%" stopColor={PALETTE.gold} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: PALETTE.mutedDim }} stroke="rgba(255,255,255,0.08)" />
-                <YAxis tick={{ fontSize: 10, fill: PALETTE.mutedDim }} stroke="rgba(255,255,255,0.08)" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                <Tooltip
-                  contentStyle={{ background: "#0a0a0a", border: "1px solid rgba(232,196,104,0.28)", borderRadius: 8, fontSize: 12, color: PALETTE.white }}
-                  labelStyle={{ color: PALETTE.muted }}
-                  formatter={(v: any) => fmt(v)}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="receita"
-                  stroke={PALETTE.white}
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4, fill: PALETTE.gold, stroke: PALETTE.white, strokeWidth: 1 }}
-                  fill="url(#heroArea)"
-                />
-              </LineChart>
-            </ResponsiveContainer>
+        )}
+        {relatorio && (
+          <div className="space-y-4">
+            <FunilVisual funil={relatorio.funil} />
+            <RankingsGrid closers={relatorio.rankingClosers} sdrs={relatorio.rankingSdrs} />
+            <ChartsGrid data={relatorio} />
           </div>
-        </div>
-
-        <div className="space-y-3">
-          <MetricCard
-            label="Clínicas interessadas no pipeline"
-            value={String(agency.leadsPeriodo)}
-            current={agency.leadsPeriodo}
-            previous={agency.leadsPrev}
-            series={agency.leadsSeries}
-            href="/admin/pipeline"
-          />
-          <MetricCard
-            label="Ganhos (período)"
-            value={String(agency.ganhos)}
-            current={agency.ganhos}
-            previous={agency.ganhosPrev}
-            series={agency.ganhosSeries}
-            href="/admin/pipeline"
-          />
-          <MetricCard
-            label="Conversão"
-            value={`${agency.convRate.toFixed(1)}%`}
-            current={agency.convRate}
-            previous={agency.convRatePrev}
-            series={agency.convSeries}
-          />
-        </div>
-      </div>
-
-      
-
+        )}
+      </section>
 
       {/* CLIENTES */}
       <section>
