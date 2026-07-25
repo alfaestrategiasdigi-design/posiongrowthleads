@@ -11,56 +11,56 @@
     The <html> element gets either `.dark` or `.light` (see index.html + useTheme).
   */
   :root {
-    /* POSION LIGHT — warm off-white, near-black text, gold accent */
-    --background: 40 30% 96%;         /* warm cream */
-    --foreground: 0 0% 10%;
+    /* POSION LIGHT — cream paper backdrop, white cards, deep gold accent */
+    --background: 40 32% 95%;         /* warm ivory paper */
+    --foreground: 20 14% 12%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 10%;
+    --card: 0 0% 100%;                /* real white cards over cream */
+    --card-foreground: 20 14% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 10%;
+    --popover-foreground: 20 14% 12%;
 
-    --primary: 44 60% 42%;            /* deeper gold for contrast on light */
+    --primary: 38 65% 40%;            /* darker, more saturated gold */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 40 20% 92%;
-    --secondary-foreground: 0 0% 12%;
+    --secondary: 40 22% 92%;
+    --secondary-foreground: 20 14% 14%;
 
-    --muted: 40 18% 91%;
-    --muted-foreground: 0 0% 40%;
+    --muted: 40 20% 90%;
+    --muted-foreground: 25 8% 38%;
 
-    --accent: 44 60% 42%;
+    --accent: 38 65% 40%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 50%;
+    --destructive: 0 72% 48%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 40 15% 85%;
-    --input: 40 15% 88%;
-    --ring: 44 60% 42%;
+    --border: 38 20% 82%;
+    --input: 38 20% 88%;
+    --ring: 38 65% 40%;
 
     --radius: 0.5rem;
 
-    --header-bg: 40 30% 97%;
-    --header-foreground: 0 0% 10%;
-    --success: 142 65% 38%;
+    --header-bg: 40 32% 96%;
+    --header-foreground: 20 14% 12%;
+    --success: 142 62% 34%;
     --success-foreground: 0 0% 100%;
-    --whatsapp: 142 70% 40%;
+    --whatsapp: 142 68% 36%;
     --whatsapp-foreground: 0 0% 100%;
 
-    --gold: 44 60% 42%;
-    --gold-bright: 44 65% 52%;
-    --gold-deep: 44 60% 34%;
+    --gold: 38 65% 40%;
+    --gold-bright: 42 68% 52%;
+    --gold-deep: 36 70% 32%;
 
-    --sidebar-background: 40 25% 94%;
-    --sidebar-foreground: 0 0% 30%;
-    --sidebar-primary: 44 60% 42%;
+    --sidebar-background: 40 30% 93%;
+    --sidebar-foreground: 25 8% 28%;
+    --sidebar-primary: 38 65% 40%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 40 20% 88%;
-    --sidebar-accent-foreground: 0 0% 10%;
-    --sidebar-border: 40 15% 82%;
-    --sidebar-ring: 44 60% 42%;
+    --sidebar-accent: 40 22% 87%;
+    --sidebar-accent-foreground: 20 14% 12%;
+    --sidebar-border: 38 20% 80%;
+    --sidebar-ring: 38 65% 40%;
   }
 
   .dark {
