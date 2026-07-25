@@ -544,6 +544,7 @@ Deno.serve(async (req) => {
     ok: true,
     dry_run: dryRun,
     evolution: evolutionStats,
+    per_lid_lookup: perLidStats,
     per_tenant: perTenant,
     archived: archiveStats,
     processed: (lidConvs ?? []).length,
