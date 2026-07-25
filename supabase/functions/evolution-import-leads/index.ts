@@ -365,12 +365,15 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const defaultStatus: string = String(body.default_status ?? "lead");
   const allTenants: boolean = body.all_tenants === true;
-  const skipConversationUpsert: boolean = body.skip_conversation_upsert === true && authz.internal;
+  const verificationOnly: boolean = body.verification_only === true;
+  const skipConversationUpsert: boolean = verificationOnly && (authz.internal || authz.isAdmin === true);
 
   if (allTenants) {
     // Emergency circuit breaker: the global cron stays blocked until two
     // consecutive per-tenant verification runs return created=0.
-    return json({ ok: false, paused: true, error: "global_import_temporarily_paused" }, 503);
+    if (!verificationOnly) {
+      return json({ ok: false, paused: true, error: "global_import_temporarily_paused" }, 503);
+    }
     if (!authz.internal && !authz.isAdmin) {
       return json({ error: "Sem permissão para escopo global" }, 403);
     }
@@ -386,14 +389,13 @@ Deno.serve(async (req) => {
       seen.add(key);
       scopes.push(c.tenant_id as string | null);
     }
-    const results: any[] = [];
-    for (const scope of scopes) {
+    const results = await Promise.all(scopes.map(async (scope) => {
       try {
-        results.push(await runForTenant(admin, scope, defaultStatus, skipConversationUpsert));
+        return await runForTenant(admin, scope, defaultStatus, skipConversationUpsert);
       } catch (e) {
-        results.push({ tenant_id: scope, error: String((e as Error).message ?? e) });
+        return { tenant_id: scope, error: String((e as Error).message ?? e) };
       }
-    }
+    }));
     return json({ ok: true, all_tenants: true, results });
   }
 
