@@ -213,7 +213,8 @@ function NewSaleDialog({ tenantId, onCreated }: { tenantId: string; onCreated: (
       f.international && f.arrival_date ? `Chegada: ${f.arrival_date}` : null,
     ].filter(Boolean).join(" · ");
     const { error } = await supabase.from("sales").insert({
-      tenant_id: tenantId, patient_name: f.patient_name, seller_name: f.seller_name,
+      tenant_id: tenantId, patient_name: f.patient_name, lead_id: f.lead_id,
+      seller_name: f.seller_name,
       sale_date: f.sale_date, product: f.product, amount: Number(f.amount),
       payment_method: f.payment_method, channel: f.channel, attended: f.attended,
       first_contact_date: f.first_contact_date || null, international: f.international,
