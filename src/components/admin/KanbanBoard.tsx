@@ -7,6 +7,7 @@ import LeadDetailModal from "./LeadDetailModal";
 import LossReasonDialog from "./LossReasonDialog";
 import AppointmentDialog from "@/components/tenant/AppointmentDialog";
 import { CLIENT_PIPELINE_STAGES } from "@/types/admin";
+type StageDef = { id: string; title: string; short: string; color: string; hex: string };
 import type { Lead } from "@/types/admin";
 import { celebrateSale } from "@/lib/sale-celebration";
 import {
