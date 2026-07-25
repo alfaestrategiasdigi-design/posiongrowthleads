@@ -13,6 +13,7 @@ export interface Tenant {
   plan: string;
   status: string;
   segment: string | null;
+  business_type?: string | null;
 }
 
 interface TenantState {
