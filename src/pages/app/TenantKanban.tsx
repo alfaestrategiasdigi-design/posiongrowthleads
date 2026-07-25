@@ -166,8 +166,8 @@ export default function TenantKanban() {
                 onClick={() => setRangeDays(opt.days)}
                 className={`px-3 h-9 rounded-md border text-xs font-medium transition ${
                   active
-                    ? "bg-amber-400/15 border-amber-400/50 text-amber-300"
-                    : "bg-transparent border-border text-muted-foreground hover:text-foreground hover:border-amber-400/30"
+                    ? "bg-primary/10 border-primary/50 text-primary"
+                    : "bg-transparent border-border text-muted-foreground hover:text-foreground hover:border-primary/30"
                 }`}
               >
                 {opt.label}
