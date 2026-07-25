@@ -916,7 +916,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   };
 
   const isFromOtherDevice = (msg: Message): boolean => {
-    if (msg.sender !== "usuario") return false;
+    if (msg.direction !== "outbound") return false;
     if (!msg.wamid) return false;                        // optimistic local send
     if (msg.tipo_disparo) return false;                  // system auto (welcome etc)
     const ts = msg.created_at ? new Date(msg.created_at).getTime() : 0;
