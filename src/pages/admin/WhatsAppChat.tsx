@@ -250,11 +250,31 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
   }, [tenantId, masterMode]);
 
   const syncedConversationsRef = useRef<Set<string>>(new Set());
+  // Fetch messages with a small retry loop. Intermittent "Failed to fetch"
+  // errors against Supabase were previously swallowed and produced an empty
+  // list overwrite, causing the conversation to render as "no messages" even
+  // when rows existed in the DB.
+  const fetchMessagesWithRetry = async (conversationId: string, attempts = 3) => {
+    let lastError: any = null;
+    for (let i = 0; i < attempts; i++) {
+      const { data, error } = await supabase
+        .from("messages").select("*").eq("conversation_id", conversationId)
+        .order("created_at", { ascending: true });
+      if (!error) return { data: (data as Message[]) || [], error: null as any };
+      lastError = error;
+      await new Promise(r => setTimeout(r, 400 * (i + 1)));
+    }
+    return { data: null as Message[] | null, error: lastError };
+  };
   const loadMessages = useCallback(async (conversationId: string) => {
-    const { data } = await supabase
-      .from("messages").select("*").eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true });
-    let msgs = (data as Message[]) || [];
+    const { data, error } = await fetchMessagesWithRetry(conversationId);
+    if (error || data === null) {
+      // Network failure — DO NOT wipe current messages. Keep the previous
+      // render so the user doesn't see a false "no messages" state.
+      console.warn("[loadMessages] fetch failed, keeping previous state", error);
+      return;
+    }
+    let msgs = data;
     // If we just sent locally, claim outbound wamids that appeared at/after that timestamp
     const claimTs = pendingLocalSendRef.current;
     if (claimTs) {
@@ -277,24 +297,30 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
           body: { conversation_id: conversationId, limit: 200 },
         });
         if ((res as any)?.replayed > 0) {
-          const { data: after } = await supabase
-            .from("messages").select("*").eq("conversation_id", conversationId)
-            .order("created_at", { ascending: true });
-          msgs = (after as Message[]) || [];
-          setMessages(msgs);
+          const { data: after } = await fetchMessagesWithRetry(conversationId);
+          if (after && after.length > 0) {
+            msgs = after;
+            setMessages(msgs);
+          }
         }
       } catch (e) {
+        // Allow future retry on transient errors
+        syncedConversationsRef.current.delete(conversationId);
         console.warn("[sync-messages] failed", e);
       }
     }
-    // Load reactions for this conversation
-    const { data: reactRows } = await supabase
-      .from("message_reactions").select("*").eq("conversation_id", conversationId);
-    const map: Record<string, MessageReaction[]> = {};
-    (reactRows || []).forEach((r: any) => {
-      (map[r.message_wamid] ||= []).push(r as MessageReaction);
-    });
-    setReactions(map);
+    // Load reactions for this conversation (tolerate transient errors)
+    try {
+      const { data: reactRows } = await supabase
+        .from("message_reactions").select("*").eq("conversation_id", conversationId);
+      const map: Record<string, MessageReaction[]> = {};
+      (reactRows || []).forEach((r: any) => {
+        (map[r.message_wamid] ||= []).push(r as MessageReaction);
+      });
+      setReactions(map);
+    } catch (e) {
+      console.warn("[loadMessages] reactions fetch failed", e);
+    }
   }, []);
 
   // ============ Reactions & Reply helpers ============
@@ -439,6 +465,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
 
   useEffect(() => {
     if (selectedConversation) {
+      setMessages([]);
       loadMessages(selectedConversation.id);
       supabase.from("conversations").update({ nao_lidas: 0 }).eq("id", selectedConversation.id).then(() => {});
     }
