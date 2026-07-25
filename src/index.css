@@ -5,61 +5,66 @@
 @tailwind utilities;
 
 @layer base {
+  /*
+    :root = LIGHT theme (warm off-white + gold accent).
+    .dark = the original POSION black/gold palette (unchanged).
+    The <html> element gets either `.dark` or `.light` (see index.html + useTheme).
+  */
   :root {
-    /* POSION — Black & Gold */
-    --background: 0 0% 3.9%;          /* #0A0A0A */
-    --foreground: 0 0% 100%;
+    /* POSION LIGHT — warm off-white, near-black text, gold accent */
+    --background: 40 30% 96%;         /* warm cream */
+    --foreground: 0 0% 10%;
 
-    --card: 0 0% 6.7%;                /* #111111 */
-    --card-foreground: 0 0% 100%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 10%;
 
-    --popover: 0 0% 9.4%;             /* #181818 */
-    --popover-foreground: 0 0% 100%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
 
-    --primary: 44 55% 54%;            /* #C9A84C */
-    --primary-foreground: 0 0% 0%;
+    --primary: 44 60% 42%;            /* deeper gold for contrast on light */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 9.4%;           /* #181818 */
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 40 20% 92%;
+    --secondary-foreground: 0 0% 12%;
 
-    --muted: 0 0% 9.4%;
-    --muted-foreground: 0 0% 60.4%;   /* #9A9A9A */
+    --muted: 40 18% 91%;
+    --muted-foreground: 0 0% 40%;
 
-    --accent: 44 55% 54%;
-    --accent-foreground: 0 0% 0%;
+    --accent: 44 60% 42%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 16.5%;             /* #2A2A2A */
-    --input: 0 0% 7.8%;               /* #141414 */
-    --ring: 44 55% 54%;
+    --border: 40 15% 85%;
+    --input: 40 15% 88%;
+    --ring: 44 60% 42%;
 
     --radius: 0.5rem;
 
-    --header-bg: 0 0% 5.1%;
-    --header-foreground: 0 0% 100%;
-    --success: 142 71% 45%;
+    --header-bg: 40 30% 97%;
+    --header-foreground: 0 0% 10%;
+    --success: 142 65% 38%;
     --success-foreground: 0 0% 100%;
-    --whatsapp: 142 70% 49%;
+    --whatsapp: 142 70% 40%;
     --whatsapp-foreground: 0 0% 100%;
 
-    /* Legacy "gold" tokens — now real gold */
-    --gold: 44 55% 54%;
-    --gold-bright: 44 58% 60%;
-    --gold-deep: 44 55% 44%;
+    --gold: 44 60% 42%;
+    --gold-bright: 44 65% 52%;
+    --gold-deep: 44 60% 34%;
 
-    --sidebar-background: 0 0% 5.1%;  /* #0D0D0D */
-    --sidebar-foreground: 0 0% 60.4%;
-    --sidebar-primary: 44 55% 54%;
-    --sidebar-primary-foreground: 0 0% 0%;
-    --sidebar-accent: 0 0% 10.2%;     /* #1A1A1A */
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 0 0% 11.8%;
-    --sidebar-ring: 44 55% 54%;
+    --sidebar-background: 40 25% 94%;
+    --sidebar-foreground: 0 0% 30%;
+    --sidebar-primary: 44 60% 42%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 40 20% 88%;
+    --sidebar-accent-foreground: 0 0% 10%;
+    --sidebar-border: 40 15% 82%;
+    --sidebar-ring: 44 60% 42%;
   }
 
   .dark {
+    /* POSION DARK — original Black & Gold identity, unchanged */
     --background: 0 0% 3.9%;
     --foreground: 0 0% 100%;
     --card: 0 0% 6.7%;
@@ -85,6 +90,9 @@
     --success-foreground: 0 0% 100%;
     --whatsapp: 142 70% 49%;
     --whatsapp-foreground: 0 0% 100%;
+    --gold: 44 55% 54%;
+    --gold-bright: 44 58% 60%;
+    --gold-deep: 44 55% 44%;
     --sidebar-background: 0 0% 5.1%;
     --sidebar-foreground: 0 0% 60.4%;
     --sidebar-primary: 44 55% 54%;
