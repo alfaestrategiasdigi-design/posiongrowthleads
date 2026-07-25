@@ -1166,7 +1166,7 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
               </div>
             ) : (
               messages.map(msg => {
-                const isOut = msg.sender === "usuario";
+                const isOut = msg.direction === "outbound";
                 const otherDevice = isOut && isFromOtherDevice(msg);
                 return (
                   <div key={msg.id} className={`group flex ${isOut ? "justify-end" : "justify-start"} gap-2`}>
