@@ -394,6 +394,7 @@ Deno.serve(async (req) => {
 
   // Etapa 0: importa mapeamento autoritativo lid<->phone via Evolution API.
   const evolutionStats = dryRun ? { skipped: true } : await resolveViaEvolutionApi(admin, tenantFilter);
+  const perLidStats = dryRun ? { skipped: true } : await resolvePendingLidsIndividually(admin, tenantFilter);
 
   // Etapa 1/2: percorre @lid remanescentes tentando alias já persistido e wamid.
   let q = admin.from("conversations")
