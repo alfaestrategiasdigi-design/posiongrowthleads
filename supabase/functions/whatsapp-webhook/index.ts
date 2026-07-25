@@ -812,10 +812,13 @@ Deno.serve(async (req) => {
         (async () => {
           try {
             const base = normalizeBase(conn.instance_url);
-            const slug = tenantSlug
+            const slugRaw = tenantSlug
               ?? (conn.tenant_id
                 ? (await admin.from("tenants").select("slug").eq("id", conn.tenant_id).maybeSingle()).data?.slug
                 : null);
+            // Defensive: strip any accidental "/event" or "?x" that could have
+            // leaked from a previous webhookByEvents:true state before writing.
+            const slug = slugRaw ? String(slugRaw).split(/[\/?#&=\s]/)[0] : null;
             const qs = new URLSearchParams();
             if (slug) qs.set("tenant", slug); else if (conn.tenant_id) qs.set("tenant_id", conn.tenant_id);
             qs.set("secret", conn.webhook_secret);

@@ -35,11 +35,36 @@ export function normalizeBase(raw: string): string {
 }
 
 /**
+ * Removes anything that could contaminate the value used inside the `tenant=`
+ * (or `tenant_id=`) query parameter. Evolution occasionally appends the event
+ * name to the webhook URL path when `webhookByEvents: true` and, when that
+ * URL is echoed back and reused as the "current tenant" (either by a manual
+ * edit or by reading `webhook_url` from Evolution's `/webhook/find`), the
+ * suffix ends up inside the `tenant` value — corrupting every future event.
+ * We defensively strip any `/`, `?`, `#`, `&`, `=` or whitespace, and cut
+ * everything after the first path separator so `foo/presence-update` becomes
+ * just `foo`.
+ */
+export function sanitizeTenantSlug(raw: string | null | undefined): string | null {
+  if (raw == null) return null;
+  let s = String(raw).trim();
+  if (!s) return null;
+  // Cut on the first URL-ish separator so an accidental "/presence-update",
+  // "?foo=bar" or "&x=y" cannot leak into the tenant parameter.
+  const cutIdx = s.search(/[\/?#&=\s]/);
+  if (cutIdx >= 0) s = s.slice(0, cutIdx);
+  return s || null;
+}
+
+/**
  * Builds the canonical webhook URL for a tenant, always including
  * `?tenant=<slug>&secret=<webhook_secret>` (or `tenant_id=` when no slug).
  * The secret MUST come from `zapi_connections.webhook_secret` — the
  * `whatsapp-webhook` function rejects events whose `?secret=` does not
  * match this per-tenant value.
+ *
+ * Both `tenantSlug` and `tenantId` are passed through `sanitizeTenantSlug`
+ * so no callsite can accidentally ship an event-suffixed value.
  */
 export function buildWebhookUrl(opts: {
   supabaseUrl: string;
@@ -48,9 +73,11 @@ export function buildWebhookUrl(opts: {
   secret: string;
 }): string {
   const base = `${opts.supabaseUrl.replace(/\/+$/, "")}/functions/v1/whatsapp-webhook`;
+  const cleanSlug = sanitizeTenantSlug(opts.tenantSlug);
+  const cleanId = sanitizeTenantSlug(opts.tenantId);
   const parts: string[] = [];
-  if (opts.tenantSlug) parts.push(`tenant=${encodeURIComponent(opts.tenantSlug)}`);
-  else if (opts.tenantId) parts.push(`tenant_id=${encodeURIComponent(opts.tenantId)}`);
+  if (cleanSlug) parts.push(`tenant=${encodeURIComponent(cleanSlug)}`);
+  else if (cleanId) parts.push(`tenant_id=${encodeURIComponent(cleanId)}`);
   if (!opts.secret) throw new Error("buildWebhookUrl: missing webhook secret");
   parts.push(`secret=${encodeURIComponent(opts.secret)}`);
   return `${base}?${parts.join("&")}`;
@@ -62,6 +89,10 @@ export function buildWebhookUrl(opts: {
  * the correct tenant identifier + `?secret=` for this connection.
  * Returns `{ ok: true }` when valid, otherwise a structured reason so the
  * caller can decide to auto-heal (re-subscribe) instead of trusting the URL.
+ *
+ * A tenant param containing `/`, `?`, `#` or `=` (typical when Evolution
+ * appended an event suffix) is treated as corrupt and reported so the caller
+ * re-subscribes with the canonical URL.
  */
 export function validateWebhookUrl(
   actual: string | null | undefined,
@@ -79,11 +110,18 @@ export function validateWebhookUrl(
   if (!secret) return { ok: false, reason: "missing_secret" };
   if (secret !== expected.secret) return { ok: false, reason: "secret_mismatch" };
 
-  if (expected.tenantSlug) {
-    if (u.searchParams.get("tenant") !== expected.tenantSlug) return { ok: false, reason: "tenant_slug_mismatch" };
-  } else if (expected.tenantId) {
+  const tenantParam = u.searchParams.get("tenant") ?? u.searchParams.get("tenant_id");
+  if (tenantParam && /[\/?#=\s]/.test(tenantParam)) {
+    return { ok: false, reason: "tenant_param_corrupted" };
+  }
+
+  const expectedSlug = sanitizeTenantSlug(expected.tenantSlug);
+  const expectedId = sanitizeTenantSlug(expected.tenantId);
+  if (expectedSlug) {
+    if (u.searchParams.get("tenant") !== expectedSlug) return { ok: false, reason: "tenant_slug_mismatch" };
+  } else if (expectedId) {
     const t = u.searchParams.get("tenant") || u.searchParams.get("tenant_id");
-    if (t !== expected.tenantId) return { ok: false, reason: "tenant_id_mismatch" };
+    if (t !== expectedId) return { ok: false, reason: "tenant_id_mismatch" };
   }
   return { ok: true };
 }
