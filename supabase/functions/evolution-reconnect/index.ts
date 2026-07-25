@@ -135,8 +135,8 @@ Deno.serve(async (req) => {
       tenantId: conn.tenant_id,
       secret,
     });
-    const res = await configureWebhook(base, conn.api_key, instanceName, webhookUrl);
-    debug.push({ step: "webhook", ok: res.ok });
+    const res = await configureWebhook(base, conn.api_key, instanceName, webhookUrl, { supabaseUrl: SUPABASE_URL, tenantSlug: slugPart, tenantId: conn.tenant_id, secret });
+    debug.push({ step: "webhook", ok: res.ok, verified: res.verified?.reasons ?? null });
     if (res.ok) {
       await admin.from("zapi_connections")
         .update({ webhook_url: webhookUrl, updated_at: new Date().toISOString() })
