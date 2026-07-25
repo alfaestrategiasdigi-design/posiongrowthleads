@@ -96,7 +96,7 @@ export default function ProfilePage() {
       </button>
 
       <div>
-        <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-1 font-mono">Conta · Posion OS</div>
+        <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-1 font-mono">Conta · POSION Tools</div>
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Meu perfil</h1>
         <p className="text-sm text-muted-foreground mt-2">
           Personalize sua identidade dentro do sistema. Estas informações aparecem para você em qualquer conta ou clínica.

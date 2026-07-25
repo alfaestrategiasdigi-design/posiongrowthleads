@@ -84,7 +84,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 <span className="tech-dot" /> Sistema operacional
               </span>
               <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-white/55">
-                v2.0 · Posion OS
+                v2.0 · POSION Tools
               </span>
             </div>
             <div className="ml-auto flex items-center gap-3">
