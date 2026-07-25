@@ -97,16 +97,6 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
       <div className="min-h-screen flex w-full tech-shell">
         <AppSidebar />
         <main className="flex-1 flex flex-col overflow-hidden">
-          <header className="h-14 tech-header flex items-center px-4 shrink-0 gap-4">
-            <SidebarTrigger className="text-white/60 hover:text-white" />
-            <div className="ml-auto flex items-center gap-3">
-              <ThemeToggle />
-              <NotificationBell />
-              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-white/80 truncate max-w-[180px]">
-                {user.email}
-              </span>
-            </div>
-          </header>
           <div className="flex-1 overflow-auto">
             <AdminErrorBoundary>{children}</AdminErrorBoundary>
           </div>

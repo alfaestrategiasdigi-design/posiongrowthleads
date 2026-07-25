@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/sidebar";
 import logoAsset from "@/assets/posion/logo-posion.png.asset.json";
 import UserAvatarBlock from "@/components/shared/UserAvatarBlock";
+import ThemeToggle from "@/components/ui/ThemeToggle";
+import NotificationBell from "./NotificationBell";
 
 import { useUserRole } from "@/hooks/useUserRole";
 
@@ -103,14 +105,9 @@ const AppSidebar = () => {
   return (
     <Sidebar collapsible="icon" className="tech-sidebar border-r border-sidebar-border bg-sidebar/95 backdrop-blur-xl">
       <SidebarHeader className="p-0">
-        <div className={`tech-topbar-band h-14 px-3 border-b ${collapsed ? "flex flex-col items-center justify-center gap-2" : "flex items-center justify-between gap-2"}`}>
-          <div className="relative min-w-0 flex items-center">
-            <img src={logoAsset.url} alt="Posion" className={collapsed ? "h-6 w-auto" : "h-7 w-auto"} />
-            {!collapsed && (
-              <span className="ml-2 text-[9px] font-mono uppercase tracking-[0.2em] text-white/55">
-                v2 · Tools
-              </span>
-            )}
+        <div className={`tech-topbar-band h-14 px-2 border-b ${collapsed ? "flex flex-col items-center justify-center gap-2" : "flex items-center justify-between gap-1"}`}>
+          <div className="min-w-0 flex-1">
+            <UserAvatarBlock to="/admin/perfil" collapsed={collapsed} subtitle="POSION Master" />
           </div>
           <Button
             type="button"
@@ -147,7 +144,7 @@ const AppSidebar = () => {
                         isActive={active}
                         onClick={() => navigate(item.url)}
                         tooltip={item.title}
-                        className="gap-3 relative font-medium text-sm transition-all hover:bg-amber-500/5 hover:text-amber-200"
+                        className="gap-3 relative font-medium text-sm text-white/85 transition-all hover:bg-amber-500/5 hover:text-amber-200"
                       >
                         <item.icon className="w-4 h-4 shrink-0" strokeWidth={1.8} />
                         <span className="truncate">{item.title}</span>
@@ -166,28 +163,27 @@ const AppSidebar = () => {
 
       <SidebarFooter className="p-2 border-t border-sidebar-border gap-1">
         {!collapsed && (
-          <div className="px-3 py-2 mb-1 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em] text-white/55">
-            <Activity className="w-3 h-3 text-amber-400" />
-            <span>Status</span>
+          <div className="px-3 py-2 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.16em] text-white/55">
+            <img src={logoAsset.url} alt="Posion" className="h-4 w-auto opacity-80" />
+            <span className="tracking-[0.2em]">v2 · Tools</span>
             <span className="ml-auto tech-dot" />
             <span className="text-emerald-400">online</span>
           </div>
         )}
-        <div className="px-1">
-          <UserAvatarBlock to="/admin/perfil" collapsed={collapsed} subtitle="Meu perfil" />
+        <div className={`px-1 flex items-center ${collapsed ? "flex-col gap-1" : "justify-between gap-1"}`}>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <NotificationBell />
+          </div>
+          <SidebarMenuButton
+            onClick={handleLogout}
+            tooltip="Sair"
+            className="gap-2 w-auto text-rose-400/90 hover:text-rose-300 hover:bg-rose-500/10"
+          >
+            <LogOut className="w-4 h-4" strokeWidth={1.8} />
+            {!collapsed && <span className="font-medium text-sm">Sair</span>}
+          </SidebarMenuButton>
         </div>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              onClick={handleLogout}
-              tooltip="Sair"
-              className="gap-3 text-rose-400/90 hover:text-rose-300 hover:bg-rose-500/10"
-            >
-              <LogOut className="w-4 h-4" strokeWidth={1.8} />
-              <span className="font-medium text-sm">Sair</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   );
