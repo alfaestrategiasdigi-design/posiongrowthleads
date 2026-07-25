@@ -276,15 +276,31 @@ async function runForTenant(admin: any, tenantId: string | null, defaultStatus: 
   }
 
   // Upsert conversations for EVERY contact (new + existing) so the inbox always has them.
+  // Process bounded parallel batches: large tenants previously spent several minutes
+  // awaiting each contact serially and hit the Edge Function idle timeout.
   const allWithLead = [...existingResolved, ...insertedIds];
-  for (const item of allWithLead) {
-    try {
-      const res = await upsertConversationForContact(admin, tenantId, item.row.phone, item.row.jid, item.row.name, item.leadId);
-      if (res.created) convsCreated++;
-      else if (res.updated) convsUpdated++;
-    } catch (e) {
-      convsErrors++;
-      console.warn("conversation upsert failed", String(e));
+  const conversationBatchSize = 12;
+  for (let i = 0; i < allWithLead.length; i += conversationBatchSize) {
+    const batch = allWithLead.slice(i, i + conversationBatchSize);
+    const results = await Promise.all(batch.map(async (item) => {
+      try {
+        return await upsertConversationForContact(
+          admin,
+          tenantId,
+          item.row.phone,
+          item.row.jid,
+          item.row.name,
+          item.leadId,
+        );
+      } catch (e) {
+        console.warn("conversation upsert failed", String(e));
+        return { error: true };
+      }
+    }));
+    for (const result of results) {
+      if ("error" in result) convsErrors++;
+      else if (result.created) convsCreated++;
+      else if (result.updated) convsUpdated++;
     }
   }
 
