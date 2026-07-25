@@ -127,9 +127,12 @@ export default function TenantKanban() {
             {filtersActive ? `${filteredLeads.length} de ${leads.length} leads` : `${leads.length} leads`} · arraste cards entre etapas
           </p>
         </div>
-        <Button variant="outline" onClick={handleExportCSV} disabled={filteredLeads.length === 0} className="gap-2 text-sm">
-          <Download className="w-4 h-4" /> Exportar CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <DensityToggle value={density} onChange={(d) => { setDensity(d); writeDensity(d); }} />
+          <Button variant="outline" onClick={handleExportCSV} disabled={filteredLeads.length === 0} className="gap-2 text-sm">
+            <Download className="w-4 h-4" /> Exportar CSV
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
