@@ -28,7 +28,8 @@ const LeadCard = ({ lead, onClick, onDragStart, nextAppointmentAt }: LeadCardPro
       draggable
       onDragStart={(e) => onDragStart(e, lead.id)}
       onClick={onClick}
-      className="bg-card border border-border/50 rounded-xl p-4 cursor-grab active:cursor-grabbing hover:shadow-lg hover:border-primary/30 transition-all duration-200 group flex flex-col min-h-[180px] h-[180px]"
+      title={lead.nome_completo}
+      className="lead-card bg-card border border-border/60 rounded-xl p-4 cursor-grab active:cursor-grabbing hover:border-primary/40 hover:shadow-lg flex flex-col h-[180px]"
     >
       {/* Nome */}
       <div className="flex items-start gap-2 mb-2">
@@ -36,13 +37,13 @@ const LeadCard = ({ lead, onClick, onDragStart, nextAppointmentAt }: LeadCardPro
           <User className="w-4 h-4 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-foreground truncate text-sm">
+          <h4 className="font-semibold text-foreground text-sm line-clamp-1" title={lead.nome_completo}>
             {lead.nome_completo}
           </h4>
           {lead.nome_empresa && (
-            <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
-              <Building2 className="w-3 h-3" />
-              {lead.nome_empresa}
+            <p className="text-xs text-muted-foreground line-clamp-1 flex items-center gap-1" title={lead.nome_empresa}>
+              <Building2 className="w-3 h-3 shrink-0" />
+              <span className="line-clamp-1">{lead.nome_empresa}</span>
             </p>
           )}
         </div>

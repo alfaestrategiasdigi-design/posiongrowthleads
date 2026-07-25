@@ -4,6 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="/favicon.png">
+    <script>
+      // Pre-hydration theme init — avoids flash of wrong theme on load.
+      (function () {
+        try {
+          var t = localStorage.getItem('posion.theme');
+          if (t !== 'light' && t !== 'dark') t = 'dark';
+          var r = document.documentElement;
+          r.classList.toggle('dark', t === 'dark');
+          r.classList.toggle('light', t === 'light');
+          r.style.colorScheme = t;
+        } catch (e) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
     <title>Posion OS — Central do Cliente</title>
     <meta name="description" content="Área restrita Posion OS: acesso exclusivo para clínicas parceiras, equipe comercial e administradores.">
 

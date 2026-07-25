@@ -123,7 +123,7 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoar
 
   return (
     <>
-      <div className="flex gap-3 overflow-x-auto pb-4 -mx-4 px-4">
+      <div className="kanban-scroll flex gap-4 overflow-x-auto pb-4 -mx-4 px-4">
         {CLIENT_PIPELINE_STAGES.map((column) => {
           const columnLeads = getLeadsByStatus(column.id);
           const Icon = iconMap[column.id] || Inbox;
@@ -141,8 +141,8 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead }: KanbanBoar
               onDrop={(e) => handleDrop(e, column.id)}
             >
               {columnLeads.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground text-xs">
-                  Nenhum lead
+                <div className="flex items-center justify-center h-full min-h-[180px] rounded-lg border border-dashed border-border/50 text-muted-foreground/70 text-[11px] uppercase tracking-wider">
+                  Vazio
                 </div>
               ) : (
                 columnLeads.map((lead) => (
