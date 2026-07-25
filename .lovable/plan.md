@@ -1,42 +1,57 @@
-# Diagnóstico — outbound DRMATHEUS travado em ✓ (sem entregar)
+## Diagnóstico (o que já sabemos)
 
-Só diagnóstico, nenhuma correção aplicada.
+Nos prints:
+- Painel envia várias mensagens pra `557799032433` (teste 16:23, 16:26, 16:29, 17:37, oi 18:40, teste 18:49). Aparecem com **✓ único** e nunca viram ✓✓.
+- No celular físico do Dr. Matheus, essas **não aparecem** na conversa com o mesmo contato — só aparecem as que ele mesmo digitou no aparelho (Teste 16:27, Oi/Teste 17:38, teste 18:37/38/39).
+- Nos logs do `whatsapp-webhook`, o único evento recente é um `send.message` cujo `ownJids: ["5511965022801@s.whatsapp.net"]` — esse é o número do **Admin Master**, não o do Instituto Roar.
 
-## 1. A chamada pra Evolution está indo e voltando OK
+Conclusão (a confirmar como passo 1): a instância `DRMATHEUS` na Evolution está **pareada no aparelho errado** (celular do Admin Master, 11 96502-2801). Por isso:
+- Mensagens saem do painel mas saem do número do Admin, então o Matheus não vê nada saindo do WhatsApp dele.
+- ACKs (✓✓) e recebidas do número do Matheus não chegam, porque a sessão Baileys que está de pé não é a dele.
 
-`supabase/functions/evolution-send/index.ts` é **síncrono**: só grava a mensagem no banco depois de `await fetch(...)` retornar `r.ok`. Se a Evolution respondesse erro/timeout, retornaria 502 e a linha nem existiria em `messages`.
+Você diz que na Evolution (`129.121.36.166:8080/manager`) "está tudo conectado e recebendo certo" — isso combina: **a sessão está saudável, só está no telefone errado**.
 
-Confirmado no banco: as 15 últimas outbound do tenant `f259af97-...` (Instituto Roar) têm todas `status='sent'` **e** `wamid` populado (ex.: `3EB0DC5AAE92657D2145F00D23817A160682A188` às 21:40:14). `wamid` só vem do JSON de resposta da Evolution, então o envio HTTP foi aceito.
+## O que o plano faz
 
-**Conclusão:** não é fire-and-forget nem timeout de envio. A Evolution está aceitando as mensagens.
+Duas frentes, na ordem:
 
-## 2. O ✓ único é ausência de ACK, não falha de envio
+**A. Reparear a instância `DRMATHEUS` no número certo do Matheus** (resolve o "não chega no destinatário" e o "recebida não marca").
 
-O check duplo/entregue depende do handler `messages.update` (linhas ~968–1027 do `whatsapp-webhook/index.ts`), que faz o `UPDATE messages SET status='delivered'|'read' WHERE wamid=...`.
+1. Consultar `/instance/fetchInstances` na Evolution pra confirmar qual número está pareado hoje em `DRMATHEUS` (owner JID). Reportar antes de derrubar nada.
+2. Se o owner não for o número do Matheus:
+   - Chamar `/instance/logout/DRMATHEUS` na Evolution.
+   - Abrir a tela de reconexão já existente (`ReconnectSessionCard` em `TenantConfig`) e gerar QR novo.
+   - Pedir pro Matheus escanear no **celular dele**, não no do Admin.
+   - Após `state=open`, rodar `evolution-resubscribe` **só pra essa instância** (mantém `webhookByEvents:false` + secret do banco, padrão que já validamos).
+3. Confirmar owner novo em `/instance/fetchInstances` e registrar em `tenant_whatsapp_numbers` (número oficial da clínica) pra a rotina de merge-by-owner passar a rotear certo.
 
-Nos logs do `whatsapp-webhook` das últimas horas:
-- Aparecem vários `[wa-in] event: "send.message", fromMe: true` (o eco do envio) — ex.: 21:40:15 e 21:39:24 com os mesmos wamids gravados no banco.
-- **Nenhum** log de `messages.update` / `send.message.update` / `no-match` para essa instância. Ou seja, a Evolution não está emitindo eventos de ACK (delivery/read) para o webhook — só o `send.message`.
+**B. Garantir que TODA conversa marque entrada e saída, em todos os tenants.**
 
-Como o handler nunca é acionado, `status` fica congelado em `sent` para sempre → UI mostra ✓ único indefinidamente, mesmo quando o WhatsApp real entregou.
+Isso é o "preciso que em cada conta cada mensagem tenha `received` do lado esquerdo e `sent` do direito, garantido". Trabalho em `whatsapp-webhook`:
 
-**Causa raiz mais provável:** a lista de eventos assinados na Evolution para a instância `DRMATHEUS` não inclui `MESSAGES_UPDATE` (e/ou `SEND_MESSAGE_UPDATE`). O resubscribe recente forçou `webhookByEvents:false` e reescreveu a URL, mas a lista `events[]` pode ter ficado sem esses dois. Precisa confirmar via `GET /webhook/find/DRMATHEUS` na Evolution.
+4. Auditar o handler `messages.upsert` e o `messages.update`:
+   - Confirmar que nenhum branch descarta mensagens quando `ownerJid` diverge do cache — se descarta, trocar por **rota provisória + reconciliar depois** (mesmo padrão que já usamos pro @lid), nunca dropar.
+   - Confirmar que outbound de qualquer aparelho (painel, celular físico, Evolution direto) sempre grava `direcao='enviada'` e entra na conversa canônica por telefone. Já temos merge-by-phone; garantir que roda pra `fromMe=true` também.
+   - Confirmar que `messages.update` (status ACK) casa por `wamid` **e** por fallback `(remote_jid, timestamp±5s, from_me=true)` pros casos onde o wamid do envio local difere do que a Evolution emite depois — sem esse fallback, ✓ único fica pra sempre.
+5. Rodar `whatsapp-wamid-reconcile` retroativo nas conversas do Instituto Roar pra corrigir mensagens antigas travadas em ✓.
+6. Adicionar 1 teste E2E na suíte existente (`outbound_integration_test.ts`) cobrindo o cenário "instância repareada, wamid do send diferente do wamid do update" — pra não regredir.
 
-## 3. Estado da instância
+## Detalhes técnicos
 
-`zapi_connections` para o tenant: `instance_name=DRMATHEUS`, `status=connected`, `webhook_url` com `?tenant=…&secret=b4574a…ec78` (padrão correto), `updated_at` de 21:38 hoje.
+- Evolution base: `http://129.121.36.166:8080` (é a `instance_url` salva em `zapi_connections` pra `DRMATHEUS`, `provider=evolution`).
+- `evolution-status` / `evolution-reconnect` / `evolution-resubscribe` já existem e são o que vou reaproveitar — nada de duplicar function.
+- O reassinatura vai usar `webhook_secret` do banco (padrão validado com Gabriel), `webhookByEvents:false`, mesma URL de webhook já em uso.
+- Nada de mexer em `_shared/phone-jid.ts` ou na lógica de LID reconcile — o problema aqui não é normalização, é aparelho errado.
+- Nenhuma migração de dados destrutiva; só `whatsapp-wamid-reconcile` que só preenche `wamid` faltante.
 
-Endpoints disponíveis pra checar programaticamente:
-- `evolution-status` (`POST { instance_name, tenant_id }`) → consulta `/instance/connectionState/DRMATHEUS` e devolve `state` (`open|connecting|close`) + normaliza para `connected/disconnected`.
-- `evolution-webhook-audit` (usado no `/admin/whatsapp-audit`) → lê `/webhook/find/{instance}` e compara com a URL/eventos esperados.
+## O que **não** vou fazer sem sua confirmação
 
-Sessão em si está sadia (inbound recente entra normalmente, connectionState open). O problema não é sessão caída.
+- Não vou derrubar a sessão atual antes de você confirmar que o número pareado é mesmo o do Admin (passo 1 é read-only, te reporto o `owner`).
+- Não vou tocar em outros tenants (Gabriel, Donna Face, etc.) — o escopo aqui é DRMATHEUS + regra global de marcação de entrada/saída no webhook.
 
-## Observação adicional
+## Como você vai saber que ficou bom
 
-O log de `send.message` mostra `ownJids: ["5511965022801@s.whatsapp.net"]`. Vale confirmar se esse número é mesmo o registrado em `tenant_whatsapp_numbers` para o Roar — se não for, a rota de owner-based está pegando mensagens "do dono errado" e pode virar tema à parte (não bloqueia o ✓, mas convém validar depois).
-
-## Próximo passo sugerido (não executado ainda)
-
-1. Rodar `GET {base}/webhook/find/DRMATHEUS` (via `evolution-webhook-audit` ou curl manual) e verificar se `events` inclui `MESSAGES_UPDATE` e `SEND_MESSAGE_UPDATE`.
-2. Se estiver faltando, o fix é um resubscribe explicitando o array de events completo — só depois de você aprovar.
+- `fetchInstances DRMATHEUS` mostra owner = número do Matheus.
+- Uma mensagem enviada pelo painel aparece no WhatsApp físico do Matheus **como enviada por ele** (não pelo Admin) e em segundos vira ✓✓ no painel.
+- Uma mensagem enviada pelo aparelho físico do Matheus para um contato qualquer aparece no painel do lado direito como `sent`.
+- Uma mensagem recebida de um lead qualquer aparece no painel do lado esquerdo como `received`, sem cair em chat paralelo.
