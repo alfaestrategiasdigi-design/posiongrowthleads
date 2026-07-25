@@ -14,6 +14,7 @@ import { Loader2, Search, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { BRL, type SaleRow } from "@/lib/clinic-kpis";
 import { useTenantApptConfig } from "@/hooks/useTenantApptConfig";
+import LeadCombobox from "@/components/sales/LeadCombobox";
 
 const PAYMENTS = ["PIX","Crédito","PIX + Crédito","PayPal","Boleto","Dinheiro","Outros"];
 const DEFAULT_CHANNELS = ["Instagram Orgânico","Tráfego Pago","Paciente","Indicação","TikTok"];
