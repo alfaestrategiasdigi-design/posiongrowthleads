@@ -107,7 +107,7 @@ const AppSidebar = () => {
             <img src={logoAsset.url} alt="Posion" className={collapsed ? "h-6 w-auto" : "h-7 w-auto"} />
             {!collapsed && (
               <span className="ml-2 text-[9px] font-mono uppercase tracking-[0.2em] text-white/55">
-                v2 · OS
+                v2 · Tools
               </span>
             )}
           </div>
