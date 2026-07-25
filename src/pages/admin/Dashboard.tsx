@@ -15,6 +15,11 @@ import { ptBR } from "date-fns/locale";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 import CostPerAppointmentCard from "@/components/shared/CostPerAppointmentCard";
+import { useRelatorioData } from "@/hooks/useRelatorioData";
+import FunilVisual from "@/components/relatorios/FunilVisual";
+import RankingsGrid from "@/components/relatorios/RankingsGrid";
+import ChartsGrid from "@/components/relatorios/ChartsGrid";
+import { BarChart3 } from "lucide-react";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v || 0);
