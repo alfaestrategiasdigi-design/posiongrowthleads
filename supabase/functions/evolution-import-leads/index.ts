@@ -207,20 +207,22 @@ async function runForTenant(
   // and re-insert everything else as duplicates on every cron run.
   const existingByNorm = new Map<string, { id: string; name: string | null }>();
   if (normalizedTargets.length > 0) {
-    // The RPC scopes by tenant (NULL means master) and returns at most one
-    // row per normalized phone (oldest lead wins), so we never lose the anchor
-    // even for tenants with 100k+ leads.
-    const { data: existing, error: existErr } = await admin.rpc("leads_existing_by_norm_phone", {
-      p_tenant_id: tenantId,
-      p_phones: normalizedTargets,
-    });
-    if (existErr) {
-      console.error("leads_existing_by_norm_phone failed", existErr);
-      return { tenant_id: tenantId, error: "dedup_lookup_failed", detail: existErr.message };
-    }
-    for (const e of (existing as any[]) ?? []) {
-      if (e?.norm && !existingByNorm.has(e.norm)) {
-        existingByNorm.set(e.norm, { id: e.id, name: e.nome_completo ?? null });
+    // RPC responses are also subject to the Data API 1000-row cap. Keep each
+    // input chunk below that cap so every normalized phone is accounted for.
+    for (let i = 0; i < normalizedTargets.length; i += 500) {
+      const phoneChunk = normalizedTargets.slice(i, i + 500);
+      const { data: existing, error: existErr } = await admin.rpc("leads_existing_by_norm_phone", {
+        p_tenant_id: tenantId,
+        p_phones: phoneChunk,
+      });
+      if (existErr) {
+        console.error("leads_existing_by_norm_phone failed", existErr);
+        return { tenant_id: tenantId, error: "dedup_lookup_failed", detail: existErr.message };
+      }
+      for (const e of (existing as any[]) ?? []) {
+        if (e?.norm && !existingByNorm.has(e.norm)) {
+          existingByNorm.set(e.norm, { id: e.id, name: e.nome_completo ?? null });
+        }
       }
     }
   }
@@ -258,6 +260,23 @@ async function runForTenant(
     });
   }
 
+  // A verification run must be a true dry-run: classify every Evolution
+  // contact through the same database anti-join, but never write leads or
+  // conversations. `would_create` is the proof that the next real run is safe.
+  if (skipConversationUpsert) {
+    return {
+      tenant_id: tenantId,
+      total_contacts: contacts.length,
+      valid_phones: rows.length,
+      created: 0,
+      would_create: toInsert.length,
+      would_update: toUpdate.length,
+      skipped,
+      errors: 0,
+      dry_run: true,
+    };
+  }
+
   const insertedIds: { leadId: string; row: typeof rows[number] }[] = [];
   for (let i = 0; i < toInsert.length; i += 200) {
     const chunk = toInsert.slice(i, i + 200);
@@ -278,22 +297,6 @@ async function runForTenant(
     const { error } = await admin.from("leads").update({ nome_completo: u.nome }).eq("id", u.id);
     if (error) errors++;
     else updated++;
-  }
-
-  // Internal verification mode still fetches all contacts, performs the full
-  // database anti-join and writes any missing leads. It only skips the separate
-  // conversation reconciliation phase, which has its own global backfill job.
-  if (skipConversationUpsert) {
-    return {
-      tenant_id: tenantId,
-      total_contacts: contacts.length,
-      valid_phones: rows.length,
-      created, updated, skipped, errors,
-      conversations_created: 0,
-      conversations_updated: 0,
-      conversations_errors: 0,
-      conversation_upsert_skipped: true,
-    };
   }
 
   // Upsert conversations for EVERY contact (new + existing) so the inbox always has them.
@@ -365,9 +368,15 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const defaultStatus: string = String(body.default_status ?? "lead");
   const allTenants: boolean = body.all_tenants === true;
-  const skipConversationUpsert: boolean = body.skip_conversation_upsert === true && authz.internal;
+  const verificationOnly: boolean = body.verification_only === true;
+  const skipConversationUpsert: boolean = verificationOnly && (authz.internal || authz.isAdmin === true);
 
   if (allTenants) {
+    // Emergency circuit breaker: the global cron stays blocked until two
+    // consecutive per-tenant verification runs return created=0.
+    if (!verificationOnly) {
+      return json({ ok: false, paused: true, error: "global_import_temporarily_paused" }, 503);
+    }
     if (!authz.internal && !authz.isAdmin) {
       return json({ error: "Sem permissão para escopo global" }, 403);
     }
@@ -383,14 +392,13 @@ Deno.serve(async (req) => {
       seen.add(key);
       scopes.push(c.tenant_id as string | null);
     }
-    const results: any[] = [];
-    for (const scope of scopes) {
+    const results = await Promise.all(scopes.map(async (scope) => {
       try {
-        results.push(await runForTenant(admin, scope, defaultStatus, skipConversationUpsert));
+        return await runForTenant(admin, scope, defaultStatus, skipConversationUpsert);
       } catch (e) {
-        results.push({ tenant_id: scope, error: String((e as Error).message ?? e) });
+        return { tenant_id: scope, error: String((e as Error).message ?? e) };
       }
-    }
+    }));
     return json({ ok: true, all_tenants: true, results });
   }
 
