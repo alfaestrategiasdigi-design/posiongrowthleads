@@ -97,6 +97,17 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
       <div className="min-h-screen flex w-full tech-shell">
         <AppSidebar />
         <main className="flex-1 flex flex-col overflow-hidden">
+          <header className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-border/50 bg-background/80 backdrop-blur px-2 md:hidden">
+            <SidebarTrigger aria-label="Abrir menu" />
+            <span className="text-sm font-semibold">Admin</span>
+            <div className="ml-auto flex items-center gap-1">
+              <NotificationBell />
+              <ThemeToggle />
+              <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Sair">
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+          </header>
           <div className="flex-1 overflow-auto">
             <AdminErrorBoundary>{children}</AdminErrorBoundary>
           </div>
