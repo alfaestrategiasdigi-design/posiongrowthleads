@@ -50,7 +50,28 @@ const SidebarProvider = React.forwardRef<
   }
 >(({ defaultOpen = true, open: openProp, onOpenChange: setOpenProp, className, style, children, ...props }, ref) => {
   const isMobile = useIsMobile();
-  const [openMobile, setOpenMobile] = React.useState(false);
+  const [openMobile, _setOpenMobile] = React.useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const saved = window.localStorage.getItem(SIDEBAR_MOBILE_STORAGE_KEY);
+      if (saved === "true") return true;
+      if (saved === "false") return false;
+    } catch {
+      // ignore
+    }
+    return false;
+  });
+  const setOpenMobile = React.useCallback((value: boolean | ((v: boolean) => boolean)) => {
+    _setOpenMobile((prev) => {
+      const next = typeof value === "function" ? (value as (v: boolean) => boolean)(prev) : value;
+      try {
+        window.localStorage.setItem(SIDEBAR_MOBILE_STORAGE_KEY, String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
