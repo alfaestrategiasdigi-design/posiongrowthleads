@@ -64,7 +64,7 @@ export default function TenantProductsConfig() {
       {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : items.length === 0 ? (
         <div className="text-center py-16 rounded-xl border border-dashed border-border">
           <Package className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-          <p className="text-muted-foreground text-sm mb-4">Nenhum produto ainda. Cadastre os procedimentos que sua clínica oferece.</p>
+          <p className="text-muted-foreground text-sm mb-4">Nenhum produto ainda. Cadastre os itens que o seu negócio oferece.</p>
           <Button onClick={() => setEditing("new")}><Plus className="w-4 h-4 mr-2" />Cadastrar primeiro</Button>
         </div>
       ) : (
