@@ -790,6 +790,33 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
     } finally { setDeleting(false); }
   };
 
+  // ============ Split poisoned conversation ============
+  const [splitting, setSplitting] = useState(false);
+  const handleSplitConversation = async () => {
+    if (!selectedConversation) return;
+    const conv = selectedConversation;
+    if (!confirm(
+      `Rachar esta conversa?\n\nO sistema vai consultar a Evolution API por cada mensagem enviada (fromMe) e mover para a conversa correta do destinatário real.\n\nMensagens recebidas (inbound) permanecem aqui. Esta ação é segura e reversível caso a Evolution retorne dados errados.`
+    )) return;
+    setSplitting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("whatsapp-split-poisoned-conversation", {
+        body: { conversation_id: conv.id, dry_run: false, limit: 500 },
+      });
+      if (error) { toast.error("Falha ao rachar conversa", { description: error.message }); return; }
+      const moved = (data as any)?.moved ?? 0;
+      const created = (data as any)?.conversations_created ?? 0;
+      const unresolved = (data as any)?.unresolved ?? 0;
+      toast.success(`Conversa rachada: ${moved} mensagens movidas`, {
+        description: `${created} nova(s) conversa(s) criada(s)${unresolved ? ` · ${unresolved} não resolvida(s)` : ""}`,
+      });
+      loadConversations();
+      loadMessages(conv.id);
+    } catch (e: any) {
+      toast.error("Falha ao rachar conversa", { description: e?.message });
+    } finally { setSplitting(false); }
+  };
+
   // ============ Tags ============
   const createTag = async () => {
     if (!newTagName.trim()) return;
