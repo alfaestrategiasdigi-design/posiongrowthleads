@@ -1239,7 +1239,27 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                 <Trash2 className="w-4 h-4" style={{ color: "#f15c6d" }} />
               </button>
               <button className="wa-icon-btn" title="Ligar"><Phone className="w-4 h-4" /></button>
-              <button className="wa-icon-btn" title="Mais opções"><MoreVertical className="w-4 h-4" /></button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="wa-icon-btn" title="Mais opções">
+                    {splitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <MoreVertical className="w-4 h-4" />}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuItem onClick={handleSplitConversation} disabled={splitting}>
+                    <Scissors className="w-4 h-4 mr-2" />
+                    <div className="flex flex-col">
+                      <span>Rachar conversa</span>
+                      <span className="text-[11px] text-muted-foreground">Redistribui envios para o destinatário real</span>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setConfirmDelete(selectedConversation)} className="text-destructive focus:text-destructive">
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Excluir conversa
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
