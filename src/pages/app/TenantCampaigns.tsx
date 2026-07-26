@@ -671,7 +671,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
             </div>
             <div className="text-xs text-muted-foreground mt-1">
               {linkedForms.length === 0
-                ? "Nenhum formulário Meta Lead Ads vinculado a esta clínica ainda. Peça à Posion para conectar."
+                ? "Nenhum formulário Meta Lead Ads vinculado ainda. Peça à Posion para conectar."
                 : `${linkedForms.length} formulário(s) puxando leads automaticamente a cada 15 min.`}
             </div>
           </div>
