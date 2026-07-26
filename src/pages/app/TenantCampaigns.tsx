@@ -610,7 +610,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       {/* Bloco 2: Funil (Clínica ou Agência — mesmos cálculos, apenas rótulos mudam) */}
       <div>
         <div className="text-[10px] uppercase tracking-[0.22em] text-cyan-400/80 mb-2">
-          {isMasterAccount ? "Funil da Agência" : "Funil da Clínica"}
+          {isMasterAccount ? "Funil da Agência" : "Funil do negócio"}
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
           <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan"
