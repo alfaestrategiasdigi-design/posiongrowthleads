@@ -196,26 +196,34 @@ Deno.serve(async (req) => {
   async function getOrCreateTargetConversation(recipientJid: string): Promise<{ id: string; created: boolean } | null> {
     const cached = targetCache.get(recipientJid);
     if (cached) return { id: cached, created: false };
+    const isLid = recipientJid.includes("@lid");
+    const phone = isLid ? "" : onlyDigits(recipientJid.split("@")[0]);
     // Try by remote_jid
     let q = admin.from("conversations").select("id").eq("remote_jid", recipientJid);
     q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
     const { data: hit } = await q.limit(1).maybeSingle();
     if (hit?.id) { targetCache.set(recipientJid, hit.id); return { id: hit.id, created: false }; }
-    const phone = onlyDigits(recipientJid.split("@")[0]);
-    let byPhoneQ = admin.from("conversations").select("id").eq("telefone", phone);
-    byPhoneQ = tenantId ? byPhoneQ.eq("tenant_id", tenantId) : byPhoneQ.is("tenant_id", null);
-    const { data: byPhone } = await byPhoneQ.limit(1).maybeSingle();
-    if (byPhone?.id) { targetCache.set(recipientJid, byPhone.id); return { id: byPhone.id, created: false }; }
+    if (!isLid) {
+      let byPhoneQ = admin.from("conversations").select("id").eq("telefone", phone);
+      byPhoneQ = tenantId ? byPhoneQ.eq("tenant_id", tenantId) : byPhoneQ.is("tenant_id", null);
+      const { data: byPhone } = await byPhoneQ.limit(1).maybeSingle();
+      if (byPhone?.id) { targetCache.set(recipientJid, byPhone.id); return { id: byPhone.id, created: false }; }
+    }
     if (dryRun) { targetCache.set(recipientJid, "(new)"); return { id: "(new)", created: true }; }
+    const insertPayload: Record<string, unknown> = {
+      tenant_id: tenantId,
+      remote_jid: recipientJid,
+      telefone: phone || onlyDigits(recipientJid.split("@")[0]),
+      nome_contato: isLid ? "Contato não identificado" : phone,
+      provider: "evolution",
+      ultima_interacao: new Date().toISOString(),
+    };
+    if (isLid) {
+      insertPayload.needs_lid_review = true;
+      insertPayload.lid_review_notes = "Criada por whatsapp-split-poisoned-conversation. Aguardando resolução de LID → telefone.";
+    }
     const { data: created, error: cErr } = await admin.from("conversations")
-      .insert({
-        tenant_id: tenantId,
-        remote_jid: recipientJid,
-        telefone: phone,
-        nome_contato: phone,
-        provider: "evolution",
-        ultima_interacao: new Date().toISOString(),
-      })
+      .insert(insertPayload)
       .select("id")
       .single();
     if (cErr || !created) return null;
