@@ -208,7 +208,7 @@ export default function TenantPlans() {
                   <div className="min-w-0">
                     <CardTitle className="text-2xl">POSION Pro — {intervalLabel(paidInterval)}</CardTitle>
                     <p className="text-sm text-muted-foreground">
-                      Pagamento confirmado. Sua clínica está com acesso liberado.
+                      Pagamento confirmado. Sua conta está com acesso liberado.
                     </p>
                   </div>
                 </div>
