@@ -8,7 +8,8 @@
 //     limit?: number (default 500, max 2000),
 //     internal_token?: string }  ← alternative to Bearer auth (cron/service)
 //
-// Auth: Bearer JWT (admin or tenant with access) OR internal_token=SERVICE_KEY.
+// Auth: Bearer JWT (admin or tenant with access), service bearer, or the
+// backend dispatch token. Secrets are never accepted in the request body.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -115,14 +116,20 @@ Deno.serve(async (req) => {
   const tenantFilter: string | null = body?.tenant_id ?? null;
   const dryRun: boolean = Boolean(body?.dry_run);
   const limit = Math.max(1, Math.min(Number(body?.limit ?? 500), 2000));
-  const internalToken: string | null = body?.internal_token ?? null;
   if (!conversationId) return json({ error: "conversation_id obrigatório" }, 400);
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
   // Auth
-  if (!(internalToken && internalToken === SERVICE_KEY)) {
-    const authHeader = req.headers.get("Authorization") ?? "";
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
+  const cronToken = req.headers.get("x-cron-token") ?? "";
+  const { data: internalConfig } = await admin.from("edge_internal_config")
+    .select("dispatch_token").eq("id", 1).maybeSingle();
+  const dispatchToken = String(internalConfig?.dispatch_token ?? "");
+  const internalAuthorized = bearer === SERVICE_KEY
+    || Boolean(dispatchToken && (bearer === dispatchToken || cronToken === dispatchToken));
+  if (!internalAuthorized) {
     if (!authHeader.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
     const userClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
     const { data: userRes } = await userClient.auth.getUser(authHeader.replace("Bearer ", ""));
