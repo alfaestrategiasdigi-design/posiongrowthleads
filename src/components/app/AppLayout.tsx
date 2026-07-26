@@ -43,7 +43,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
         <div className="bg-card rounded-2xl shadow-2xl p-8 max-w-md w-full text-center border border-border/50">
           <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
-          <h1 className="text-xl font-bold mb-2">{error || "Clínica não encontrada"}</h1>
+          <h1 className="text-xl font-bold mb-2">{error || "Conta não encontrada"}</h1>
           <p className="text-muted-foreground mb-6">Você não tem acesso a esta área.</p>
           <Button onClick={handleLogout} variant="outline" className="gap-2">
             <LogOut className="w-4 h-4" /> Sair
