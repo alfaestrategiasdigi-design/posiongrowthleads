@@ -1095,7 +1095,7 @@ export default function TenantDashboard() {
             <Target className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <h2 className="text-lg font-bold">Funil de conversão da clínica</h2>
+            <h2 className="text-lg font-bold">Funil de conversão</h2>
             <p className="text-xs text-muted-foreground">Leads {tenant?.name || ""} no período selecionado</p>
           </div>
         </div>
