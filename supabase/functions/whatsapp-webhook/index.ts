@@ -674,7 +674,12 @@ async function resolveRemoteJid(
   }
 
 
-  const mapped = await mappedPhoneJid(tenantId, lid ?? normalizedRaw ?? null);
+  // Outbound (fromMe): NEVER trust `whatsapp_jid_aliases` for LID→phone
+  // routing. Alias sinks are the exact vector that poured every outbound sent
+  // from the physical device into a single (wrong) conversation. Only
+  // `same_key` pairing above or on-demand Evolution lookup (in the caller)
+  // are allowed to resolve outbound recipients.
+  const mapped = fromMe ? null : await mappedPhoneJid(tenantId, lid ?? normalizedRaw ?? null);
   if (mapped) return { remoteJid: mapped, rawRemoteJid, unresolvedLid: false, blockedSelfJid: false };
 
   if (fromMe && rawIsOwn) {
