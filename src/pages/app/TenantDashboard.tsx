@@ -612,14 +612,14 @@ export default function TenantDashboard() {
       )}
 
 
-      {/* Métricas da Clínica — cards de destaque */}
+      {/* Métricas do negócio — cards de destaque */}
       <section>
         <div className="flex items-center gap-3 mb-3">
           <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center">
             <Activity className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <h2 className="text-lg font-bold">Métricas da Clínica</h2>
+            <h2 className="text-lg font-bold">Métricas do negócio</h2>
             <p className="text-xs text-muted-foreground">Comparecimento, faturamento e ticket médio · {range.label}</p>
           </div>
         </div>
