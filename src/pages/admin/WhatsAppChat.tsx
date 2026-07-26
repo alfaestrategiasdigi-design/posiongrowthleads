@@ -6,7 +6,11 @@ import {
   Settings, QrCode, Copy, CheckCircle2, Loader2, Wifi, WifiOff, RefreshCw,
   Tag as TagIcon, Sparkles, Filter, FileText, Check, CheckCheck, AlertTriangle,
   Plus, X, Trash2, Reply, MapPin, User as UserIcon, Mic, StopCircle, CornerDownRight, Target, ExternalLink,
+  Scissors,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import type { MessageReaction } from "@/types/admin";
 import UnifiedLeadPanel from "@/components/leads/UnifiedLeadPanel";
 import { WhatsAppAudioPlayer } from "@/components/admin/whatsapp/WhatsAppAudioPlayer";
@@ -786,6 +790,33 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
     } finally { setDeleting(false); }
   };
 
+  // ============ Split poisoned conversation ============
+  const [splitting, setSplitting] = useState(false);
+  const handleSplitConversation = async () => {
+    if (!selectedConversation) return;
+    const conv = selectedConversation;
+    if (!confirm(
+      `Rachar esta conversa?\n\nO sistema vai consultar a Evolution API por cada mensagem enviada (fromMe) e mover para a conversa correta do destinatário real.\n\nMensagens recebidas (inbound) permanecem aqui. Esta ação é segura e reversível caso a Evolution retorne dados errados.`
+    )) return;
+    setSplitting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("whatsapp-split-poisoned-conversation", {
+        body: { conversation_id: conv.id, dry_run: false, limit: 500 },
+      });
+      if (error) { toast.error("Falha ao rachar conversa", { description: error.message }); return; }
+      const moved = (data as any)?.moved ?? 0;
+      const created = (data as any)?.conversations_created ?? 0;
+      const unresolved = (data as any)?.unresolved ?? 0;
+      toast.success(`Conversa rachada: ${moved} mensagens movidas`, {
+        description: `${created} nova(s) conversa(s) criada(s)${unresolved ? ` · ${unresolved} não resolvida(s)` : ""}`,
+      });
+      loadConversations();
+      loadMessages(conv.id);
+    } catch (e: any) {
+      toast.error("Falha ao rachar conversa", { description: e?.message });
+    } finally { setSplitting(false); }
+  };
+
   // ============ Tags ============
   const createTag = async () => {
     if (!newTagName.trim()) return;
@@ -1208,7 +1239,27 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
                 <Trash2 className="w-4 h-4" style={{ color: "#f15c6d" }} />
               </button>
               <button className="wa-icon-btn" title="Ligar"><Phone className="w-4 h-4" /></button>
-              <button className="wa-icon-btn" title="Mais opções"><MoreVertical className="w-4 h-4" /></button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="wa-icon-btn" title="Mais opções">
+                    {splitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <MoreVertical className="w-4 h-4" />}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuItem onClick={handleSplitConversation} disabled={splitting}>
+                    <Scissors className="w-4 h-4 mr-2" />
+                    <div className="flex flex-col">
+                      <span>Rachar conversa</span>
+                      <span className="text-[11px] text-muted-foreground">Redistribui envios para o destinatário real</span>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setConfirmDelete(selectedConversation)} className="text-destructive focus:text-destructive">
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Excluir conversa
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
