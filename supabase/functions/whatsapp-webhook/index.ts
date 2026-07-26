@@ -501,6 +501,31 @@ function isTrustworthyAliasPhoneJid(phoneJid: string | null | undefined): boolea
   return isPlausiblePhoneDigits(digits);
 }
 
+// Runtime safety net for poisoned sinks: if the resolved phone_jid has more
+// than one active alias in the same tenant scope, we quarantine ALL of them
+// and refuse to route. This mirrors the DB trigger but also cleans up any
+// alias that slipped in before the trigger existed (e.g. via cache/race).
+async function detectAndQuarantinePoisonedSink(
+  tenantId: string | null,
+  phoneJid: string,
+): Promise<boolean> {
+  let q = admin.from("whatsapp_jid_aliases")
+    .select("id", { count: "exact", head: true })
+    .eq("phone_jid", phoneJid)
+    .is("quarantined_at", null);
+  q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
+  const { count } = await q;
+  if ((count ?? 0) <= 1) return false;
+  let up = admin.from("whatsapp_jid_aliases")
+    .update({ quarantined_at: new Date().toISOString(), quarantine_reason: "auto: poisoned sink detected at read-time" })
+    .eq("phone_jid", phoneJid)
+    .is("quarantined_at", null);
+  up = tenantId ? up.eq("tenant_id", tenantId) : up.is("tenant_id", null);
+  await up;
+  console.warn("[whatsapp-webhook] poisoned_sink_quarantined", { tenantId, phoneJid, count });
+  return true;
+}
+
 async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): Promise<string | null> {
   if (!lidJid?.includes("@lid")) return null;
   // HARDENED: quarantined aliases must never be used for routing.
@@ -514,7 +539,10 @@ async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): P
     .is("quarantined_at", null);
   q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
   const { data } = await q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
-  if (isTrustworthyAliasPhoneJid(data?.phone_jid)) return data!.phone_jid;
+  if (isTrustworthyAliasPhoneJid(data?.phone_jid)) {
+    const poisoned = await detectAndQuarantinePoisonedSink(tenantId, data!.phone_jid);
+    if (!poisoned) return data!.phone_jid;
+  }
   if (tenantId) {
     const { data: globalAlias } = await admin.from("whatsapp_jid_aliases")
       .select("phone_jid")
@@ -524,7 +552,10 @@ async function mappedPhoneJid(tenantId: string | null, lidJid: string | null): P
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (isTrustworthyAliasPhoneJid(globalAlias?.phone_jid)) return globalAlias!.phone_jid;
+    if (isTrustworthyAliasPhoneJid(globalAlias?.phone_jid)) {
+      const poisoned = await detectAndQuarantinePoisonedSink(null, globalAlias!.phone_jid);
+      if (!poisoned) return globalAlias!.phone_jid;
+    }
   }
   return null;
 }
