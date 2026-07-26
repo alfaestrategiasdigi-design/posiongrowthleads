@@ -6,7 +6,11 @@ import {
   Settings, QrCode, Copy, CheckCircle2, Loader2, Wifi, WifiOff, RefreshCw,
   Tag as TagIcon, Sparkles, Filter, FileText, Check, CheckCheck, AlertTriangle,
   Plus, X, Trash2, Reply, MapPin, User as UserIcon, Mic, StopCircle, CornerDownRight, Target, ExternalLink,
+  Scissors,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import type { MessageReaction } from "@/types/admin";
 import UnifiedLeadPanel from "@/components/leads/UnifiedLeadPanel";
 import { WhatsAppAudioPlayer } from "@/components/admin/whatsapp/WhatsAppAudioPlayer";
