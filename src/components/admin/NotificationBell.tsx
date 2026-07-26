@@ -33,7 +33,7 @@ export default function NotificationBell() {
     };
     load();
     const channel = supabase
-      .channel("notif-bell-lead-tasks")
+      .channel(`notif-bell-lead-tasks-${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "lead_tasks" },
