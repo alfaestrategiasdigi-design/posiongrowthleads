@@ -307,7 +307,7 @@ function NewSaleDialog({ tenantId, onCreated }: { tenantId: string; onCreated: (
             <Input
               value={newChannel}
               onChange={(e) => setNewChannel(e.target.value)}
-              placeholder="Adicionar novo canal (ex: Clínica São Caetano)"
+              placeholder="Adicionar novo canal (ex: Unidade Centro)"
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addChannel(); } }}
             />
             <Button type="button" variant="outline" size="sm" onClick={addChannel} disabled={!newChannel.trim() || creatingChannel}>
