@@ -185,7 +185,7 @@ export default function TenantPlans() {
           <div className="space-y-2">
             <div className="text-[10px] uppercase tracking-[0.22em] text-primary/80 font-mono">Plano POSION</div>
             <h1 className="font-display text-3xl md:text-4xl tracking-tight">
-              Plano da <span className="gold-gradient-text">{tenant?.name ?? "sua clínica"}</span>
+              Plano da <span className="gold-gradient-text">{tenant?.name ?? "sua empresa"}</span>
             </h1>
             <p className="text-muted-foreground text-sm max-w-2xl">
               POSION Pro — usuários ilimitados. Escolha Mensal, Trimestral ou Semestral e pague com cartão pelo Mercado Pago.
@@ -208,7 +208,7 @@ export default function TenantPlans() {
                   <div className="min-w-0">
                     <CardTitle className="text-2xl">POSION Pro — {intervalLabel(paidInterval)}</CardTitle>
                     <p className="text-sm text-muted-foreground">
-                      Pagamento confirmado. Sua clínica está com acesso liberado.
+                      Pagamento confirmado. Sua conta está com acesso liberado.
                     </p>
                   </div>
                 </div>

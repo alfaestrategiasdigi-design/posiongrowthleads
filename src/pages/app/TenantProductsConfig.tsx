@@ -56,7 +56,7 @@ export default function TenantProductsConfig() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Package className="w-6 h-6 text-primary" /> Produtos & Procedimentos</h1>
-          <p className="text-sm text-muted-foreground mt-1">Catálogo próprio da sua clínica. Usado no Kanban, Agenda e Vendas.</p>
+          <p className="text-sm text-muted-foreground mt-1">Catálogo próprio do seu negócio. Usado no Kanban, Agenda e Vendas.</p>
         </div>
         <Button onClick={() => setEditing("new")}><Plus className="w-4 h-4 mr-2" />Novo</Button>
       </div>
@@ -64,7 +64,7 @@ export default function TenantProductsConfig() {
       {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : items.length === 0 ? (
         <div className="text-center py-16 rounded-xl border border-dashed border-border">
           <Package className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-          <p className="text-muted-foreground text-sm mb-4">Nenhum produto ainda. Cadastre os procedimentos que sua clínica oferece.</p>
+          <p className="text-muted-foreground text-sm mb-4">Nenhum produto ainda. Cadastre os itens que o seu negócio oferece.</p>
           <Button onClick={() => setEditing("new")}><Plus className="w-4 h-4 mr-2" />Cadastrar primeiro</Button>
         </div>
       ) : (

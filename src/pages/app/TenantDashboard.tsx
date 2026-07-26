@@ -392,7 +392,7 @@ export default function TenantDashboard() {
       {/* Header — mirrors Admin Master style */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-1 font-mono">POSION · Central da Clínica</div>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-1 font-mono">POSION · Central de Operação</div>
           <h1 className="text-3xl font-bold">Dashboard {tenant?.name}</h1>
           <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
             <span>Faturamento, funil e vendas · <span className="text-amber-400">{range.label}</span></span>
@@ -612,14 +612,14 @@ export default function TenantDashboard() {
       )}
 
 
-      {/* Métricas da Clínica — cards de destaque */}
+      {/* Métricas do negócio — cards de destaque */}
       <section>
         <div className="flex items-center gap-3 mb-3">
           <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center">
             <Activity className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <h2 className="text-lg font-bold">Métricas da Clínica</h2>
+            <h2 className="text-lg font-bold">Métricas do negócio</h2>
             <p className="text-xs text-muted-foreground">Comparecimento, faturamento e ticket médio · {range.label}</p>
           </div>
         </div>
@@ -1095,7 +1095,7 @@ export default function TenantDashboard() {
             <Target className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <h2 className="text-lg font-bold">Funil de conversão da clínica</h2>
+            <h2 className="text-lg font-bold">Funil de conversão</h2>
             <p className="text-xs text-muted-foreground">Leads {tenant?.name || ""} no período selecionado</p>
           </div>
         </div>

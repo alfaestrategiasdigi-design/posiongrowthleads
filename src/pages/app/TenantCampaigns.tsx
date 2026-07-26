@@ -610,7 +610,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       {/* Bloco 2: Funil (Clínica ou Agência — mesmos cálculos, apenas rótulos mudam) */}
       <div>
         <div className="text-[10px] uppercase tracking-[0.22em] text-cyan-400/80 mb-2">
-          {isMasterAccount ? "Funil da Agência" : "Funil da Clínica"}
+          {isMasterAccount ? "Funil da Agência" : "Funil do negócio"}
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
           <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan"
@@ -671,7 +671,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
             </div>
             <div className="text-xs text-muted-foreground mt-1">
               {linkedForms.length === 0
-                ? "Nenhum formulário Meta Lead Ads vinculado a esta clínica ainda. Peça à Posion para conectar."
+                ? "Nenhum formulário Meta Lead Ads vinculado ainda. Peça à Posion para conectar."
                 : `${linkedForms.length} formulário(s) puxando leads automaticamente a cada 15 min.`}
             </div>
           </div>

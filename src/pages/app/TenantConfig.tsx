@@ -253,11 +253,11 @@ export default function TenantConfig() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2"><Key className="w-4 h-4 text-primary" /> Integrações & API</CardTitle>
-          <CardDescription>Token de acesso para conectar n8n, agentes de IA e sistemas externos à sua clínica.</CardDescription>
+          <CardDescription>Token de acesso para conectar n8n, agentes de IA e sistemas externos à sua conta.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Chave de API da clínica</Label>
+            <Label className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Chave de API da conta</Label>
             {apiToken ? (
               <>
                 <div className="flex gap-2">
