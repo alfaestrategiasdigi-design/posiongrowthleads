@@ -44,21 +44,30 @@ function normalizePhoneJid(raw: unknown): string | null {
   return `${digits}@s.whatsapp.net`;
 }
 
+function normalizeLidJid(raw: unknown): string | null {
+  const s = String(raw ?? "").trim();
+  if (!s.includes("@lid")) return null;
+  const digits = onlyDigits(s.split("@")[0]);
+  if (!digits) return null;
+  return `${digits}@lid`;
+}
+
+// Returns any usable recipient JID (phone preferred, LID acceptable) that is
+// NOT one of our own JIDs. This lets us split a poisoned sink into one
+// provisional per LID even when Evolution has no phone mapping.
 function extractRecipientJid(m: any, ownJids: Set<string>): string | null {
-  // Try the classic key.remoteJid first (this is the recipient on fromMe).
   const candidates = [
-    m?.key?.remoteJid,
-    m?.remoteJid,
-    m?.key?.remoteJidAlt,
-    m?.key?.participantAlt,
-    m?.key?.senderPn,
-    m?.key?.participantPn,
-    m?.key?.recipientJid,
-    m?.key?.to,
-    m?.key?.chatId,
+    m?.key?.remoteJid, m?.remoteJid,
+    m?.key?.remoteJidAlt, m?.key?.participantAlt,
+    m?.key?.senderPn, m?.key?.participantPn,
+    m?.key?.recipientJid, m?.key?.to, m?.key?.chatId,
   ];
   for (const c of candidates) {
     const jid = normalizePhoneJid(c);
+    if (jid && !ownJids.has(jid)) return jid;
+  }
+  for (const c of candidates) {
+    const jid = normalizeLidJid(c);
     if (jid && !ownJids.has(jid)) return jid;
   }
   return null;
