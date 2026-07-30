@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
-import { Download, Loader2, Search, X } from "lucide-react";
+import { Download, Loader2, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import KanbanBoard from "@/components/admin/KanbanBoard";
+import NewLeadDialog from "@/components/admin/NewLeadDialog";
 import DensityToggle from "@/components/kanban/DensityToggle";
 import { readDensity, writeDensity, type KanbanDensity } from "@/components/kanban/types";
 import type { Lead } from "@/types/admin";
@@ -27,6 +28,7 @@ export default function TenantKanban() {
   const [rangeDays, setRangeDays] = useState<number | null>(null);
   const [nextAppt, setNextAppt] = useState<Record<string, string>>({});
   const [density, setDensity] = useState<KanbanDensity>(() => readDensity());
+  const [newLeadOpen, setNewLeadOpen] = useState(false);
 
   const loadLeads = async () => {
     if (!tenant?.id) return;
@@ -133,8 +135,19 @@ export default function TenantKanban() {
           <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={filteredLeads.length === 0} className="gap-1.5 h-8 text-xs">
             <Download className="w-3.5 h-3.5" /> CSV
           </Button>
+          <Button size="sm" onClick={() => setNewLeadOpen(true)} className="gap-1.5 h-8 text-xs">
+            <Plus className="w-3.5 h-3.5" /> Novo lead
+          </Button>
         </div>
       </div>
+
+      <NewLeadDialog
+        open={newLeadOpen}
+        onOpenChange={setNewLeadOpen}
+        tenantId={tenant.id}
+        stages={getPipelineStages((tenant as any).business_type)}
+        onCreated={() => { loadLeads(); loadNextAppointments(); }}
+      />
 
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-2">
