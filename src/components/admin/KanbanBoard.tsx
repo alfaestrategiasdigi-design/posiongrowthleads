@@ -125,10 +125,29 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead, density = "c
 
   const getLeadsByStatus = (status: string) => leads.filter((lead) => lead.status === status);
 
+  const pipelineStages = activeStages.filter((s) => s.id !== "perdido");
+  const lostLeads = getLeadsByStatus("perdido");
+  const lostTotal = lostLeads.reduce((s, l) => s + (Number(l.valor_proposta) || 0), 0);
+
+  const lostGroups = LOSS_REASONS
+    .map((r) => ({
+      id: r.id,
+      label: r.label,
+      leads: lostLeads.filter((l) => (l.motivo_perda ?? "") === r.id || getLossReasonLabel(l.motivo_perda) === r.label),
+    }))
+    .filter((g) => g.leads.length > 0);
+  const semMotivo = lostLeads.filter((l) => !l.motivo_perda);
+  const allGroups = semMotivo.length
+    ? [...lostGroups, { id: "__sem__", label: "Sem motivo", leads: semMotivo }]
+    : lostGroups;
+
+  const visibleLost =
+    lostTab === "todos" ? lostLeads : (allGroups.find((g) => g.id === lostTab)?.leads ?? []);
+
   return (
     <>
-      <div className="kanban-scroll flex gap-4 overflow-x-auto pb-4 -mx-4 px-4">
-        {activeStages.map((column) => {
+      <div className="kanban-scroll flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 items-stretch">
+        {pipelineStages.map((column) => {
           const columnLeads = getLeadsByStatus(column.id);
           const Icon = iconMap[column.id] || Inbox;
           const totalValor = columnLeads.reduce((s, l) => s + (Number(l.valor_proposta) || 0), 0);
@@ -164,6 +183,81 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead, density = "c
           );
         })}
       </div>
+
+      {/* ===== Painel de Perdidos ===== */}
+      <section
+        onDragOver={handleDragOver}
+        onDrop={(e) => handleDrop(e, "perdido")}
+        className="mt-2 rounded-lg border border-border bg-card shadow-sm overflow-hidden"
+      >
+        <header className="flex flex-wrap items-center gap-3 px-4 h-[58px] border-b border-border/70">
+          <button
+            type="button"
+            onClick={() => setLostOpen((v) => !v)}
+            className="flex items-center gap-2 min-w-0"
+          >
+            {lostOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+            <XCircle className="w-4 h-4 text-destructive shrink-0" />
+            <span className="text-[11.5px] font-semibold uppercase tracking-[0.14em] text-foreground/85">
+              Perdidos
+            </span>
+            <span className="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-muted text-[10.5px] font-semibold tabular-nums text-foreground/70">
+              {lostLeads.length}
+            </span>
+          </button>
+          <span className="text-[10.5px] text-muted-foreground font-mono tabular-nums">
+            {lostTotal > 0 ? `R$ ${lostTotal.toLocaleString("pt-BR", { minimumFractionDigits: 0 })} perdidos` : "\u00A0"}
+          </span>
+          <span className="ml-auto text-[10.5px] text-muted-foreground hidden sm:inline">
+            Arraste um card para cá para marcar como perdido
+          </span>
+        </header>
+
+        {lostOpen && (
+          <div className="p-3 space-y-3">
+            {/* Abas por motivo */}
+            <div className="flex flex-wrap gap-1.5">
+              {[{ id: "todos", label: "Todos", count: lostLeads.length }, ...allGroups.map((g) => ({ id: g.id, label: g.label, count: g.leads.length }))].map((t) => {
+                const active = lostTab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setLostTab(t.id)}
+                    className={`h-8 px-3 rounded-md border text-xs font-medium transition inline-flex items-center gap-1.5 ${
+                      active
+                        ? "bg-destructive/10 border-destructive/40 text-destructive"
+                        : "bg-transparent border-border text-muted-foreground hover:text-foreground hover:border-destructive/30"
+                    }`}
+                  >
+                    {t.label}
+                    <span className="text-[10px] tabular-nums opacity-70">{t.count}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {visibleLost.length === 0 ? (
+              <div className="flex items-center justify-center h-[120px] rounded-lg border border-dashed border-border/60 text-muted-foreground/70 text-[11px] uppercase tracking-wider">
+                Nenhum lead perdido
+              </div>
+            ) : (
+              <div className="grid gap-2 grid-cols-[repeat(auto-fill,minmax(280px,1fr))] items-stretch max-h-[380px] overflow-y-auto pr-1">
+                {visibleLost.map((lead) => (
+                  <LeadCard
+                    key={lead.id}
+                    lead={lead}
+                    nextAppointmentAt={nextAppointmentByLead?.[lead.id]}
+                    onClick={() => setSelectedLead(lead)}
+                    onDragStart={handleDragStart}
+                    density={density}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
 
       <LeadDetailModal
         lead={selectedLead}
