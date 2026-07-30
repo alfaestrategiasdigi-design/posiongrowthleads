@@ -10,9 +10,10 @@ import { CLIENT_PIPELINE_STAGES } from "@/types/admin";
 type StageDef = { id: string; title: string; short: string; color: string; hex: string };
 import type { Lead } from "@/types/admin";
 import { celebrateSale } from "@/lib/sale-celebration";
+import { LOSS_REASONS, getLossReasonLabel } from "@/lib/loss-reasons";
 import {
   Inbox, PlayCircle, PhoneCall, Calendar, CalendarCheck, CalendarX,
-  FileText, Handshake, Trophy, XCircle, UserCheck,
+  FileText, Handshake, Trophy, XCircle, UserCheck, ChevronDown, ChevronRight,
 } from "lucide-react";
 
 const iconMap: Record<string, any> = {
@@ -43,6 +44,8 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead, density = "c
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
   const [scheduleFor, setScheduleFor] = useState<Lead | null>(null);
   const [pendingLossFor, setPendingLossFor] = useState<Lead | null>(null);
+  const [lostOpen, setLostOpen] = useState(false);
+  const [lostTab, setLostTab] = useState<string>("todos");
 
   const handleDragStart = (e: React.DragEvent, leadId: string) => {
     setDraggedLeadId(leadId);
