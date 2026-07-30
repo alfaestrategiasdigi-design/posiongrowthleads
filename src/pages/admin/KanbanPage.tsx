@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Download, Trash2, Loader2 } from "lucide-react";
+import { Download, Trash2, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import KanbanBoard from "@/components/admin/KanbanBoard";
+import NewLeadDialog from "@/components/admin/NewLeadDialog";
 import type { Lead } from "@/types/admin";
+import { PIPELINE_STAGES } from "@/types/admin";
 
 const KanbanPage = () => {
+  const [newLeadOpen, setNewLeadOpen] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -59,8 +62,17 @@ const KanbanPage = () => {
           <Button variant="destructive" onClick={handleClearLeads} disabled={leads.length === 0} className="gap-2 text-sm">
             <Trash2 className="w-4 h-4" /> Limpar
           </Button>
+          <Button onClick={() => setNewLeadOpen(true)} className="gap-2 text-sm">
+            <Plus className="w-4 h-4" /> Novo lead
+          </Button>
         </div>
       </div>
+      <NewLeadDialog
+        open={newLeadOpen}
+        onOpenChange={setNewLeadOpen}
+        stages={PIPELINE_STAGES}
+        onCreated={loadLeads}
+      />
       <KanbanBoard leads={leads} onLeadsChange={loadLeads} />
     </div>
   );
