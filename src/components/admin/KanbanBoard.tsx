@@ -13,7 +13,7 @@ import { celebrateSale } from "@/lib/sale-celebration";
 import { LOSS_REASONS, getLossReasonLabel } from "@/lib/loss-reasons";
 import {
   Inbox, PlayCircle, PhoneCall, Calendar, CalendarCheck, CalendarX,
-  FileText, Handshake, Trophy, XCircle, UserCheck, ChevronDown, ChevronRight,
+  FileText, Flag, Handshake, Trophy, XCircle, UserCheck, ChevronDown, ChevronRight,
 } from "lucide-react";
 
 const iconMap: Record<string, any> = {
@@ -152,7 +152,7 @@ const KanbanBoard = ({ leads, onLeadsChange, nextAppointmentByLead, density = "c
       <div className="kanban-scroll flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 items-stretch">
         {pipelineStages.map((column) => {
           const columnLeads = getLeadsByStatus(column.id);
-          const Icon = iconMap[column.id] || Inbox;
+          const Icon = iconMap[column.id] || Flag;
           const totalValor = columnLeads.reduce((s, l) => s + (Number(l.valor_proposta) || 0), 0);
           return (
             <KanbanColumn

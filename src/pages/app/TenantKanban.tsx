@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
-import { Download, Loader2, Plus, Search, X } from "lucide-react";
+import { Download, Loader2, Plus, Search, Settings2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import KanbanBoard from "@/components/admin/KanbanBoard";
 import NewLeadDialog from "@/components/admin/NewLeadDialog";
+import PipelineStagesDialog from "@/components/admin/PipelineStagesDialog";
+import { usePipelineStages } from "@/hooks/usePipelineStages";
 import DensityToggle from "@/components/kanban/DensityToggle";
 import { readDensity, writeDensity, type KanbanDensity } from "@/components/kanban/types";
 import type { Lead } from "@/types/admin";
@@ -29,6 +31,17 @@ export default function TenantKanban() {
   const [nextAppt, setNextAppt] = useState<Record<string, string>>({});
   const [density, setDensity] = useState<KanbanDensity>(() => readDensity());
   const [newLeadOpen, setNewLeadOpen] = useState(false);
+  const [stagesOpen, setStagesOpen] = useState(false);
+  const { stages, refresh: refreshStages } = usePipelineStages(
+    tenant?.id,
+    getPipelineStages((tenant as any)?.business_type),
+  );
+
+  const leadCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    leads.forEach((l) => { m[l.status] = (m[l.status] || 0) + 1; });
+    return m;
+  }, [leads]);
 
   const loadLeads = async () => {
     if (!tenant?.id) return;
@@ -135,6 +148,9 @@ export default function TenantKanban() {
           <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={filteredLeads.length === 0} className="gap-1.5 h-8 text-xs">
             <Download className="w-3.5 h-3.5" /> CSV
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setStagesOpen(true)} className="gap-1.5 h-8 text-xs">
+            <Settings2 className="w-3.5 h-3.5" /> Etapas
+          </Button>
           <Button size="sm" onClick={() => setNewLeadOpen(true)} className="gap-1.5 h-8 text-xs">
             <Plus className="w-3.5 h-3.5" /> Novo lead
           </Button>
@@ -145,8 +161,17 @@ export default function TenantKanban() {
         open={newLeadOpen}
         onOpenChange={setNewLeadOpen}
         tenantId={tenant.id}
-        stages={getPipelineStages((tenant as any).business_type)}
+        stages={stages}
         onCreated={() => { loadLeads(); loadNextAppointments(); }}
+      />
+
+      <PipelineStagesDialog
+        open={stagesOpen}
+        onOpenChange={setStagesOpen}
+        tenantId={tenant.id}
+        stages={stages}
+        leadCounts={leadCounts}
+        onSaved={refreshStages}
       />
 
       {/* Filtros */}
@@ -191,7 +216,7 @@ export default function TenantKanban() {
         </div>
       </div>
 
-      <KanbanBoard leads={filteredLeads} onLeadsChange={() => { loadLeads(); loadNextAppointments(); }} nextAppointmentByLead={nextAppt} density={density} stages={getPipelineStages((tenant as any).business_type)} />
+      <KanbanBoard leads={filteredLeads} onLeadsChange={() => { loadLeads(); loadNextAppointments(); }} nextAppointmentByLead={nextAppt} density={density} stages={stages} />
     </div>
   );
 }
