@@ -148,6 +148,9 @@ export default function TenantKanban() {
           <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={filteredLeads.length === 0} className="gap-1.5 h-8 text-xs">
             <Download className="w-3.5 h-3.5" /> CSV
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setStagesOpen(true)} className="gap-1.5 h-8 text-xs">
+            <Settings2 className="w-3.5 h-3.5" /> Etapas
+          </Button>
           <Button size="sm" onClick={() => setNewLeadOpen(true)} className="gap-1.5 h-8 text-xs">
             <Plus className="w-3.5 h-3.5" /> Novo lead
           </Button>
@@ -158,8 +161,17 @@ export default function TenantKanban() {
         open={newLeadOpen}
         onOpenChange={setNewLeadOpen}
         tenantId={tenant.id}
-        stages={getPipelineStages((tenant as any).business_type)}
+        stages={stages}
         onCreated={() => { loadLeads(); loadNextAppointments(); }}
+      />
+
+      <PipelineStagesDialog
+        open={stagesOpen}
+        onOpenChange={setStagesOpen}
+        tenantId={tenant.id}
+        stages={stages}
+        leadCounts={leadCounts}
+        onSaved={refreshStages}
       />
 
       {/* Filtros */}
@@ -204,7 +216,7 @@ export default function TenantKanban() {
         </div>
       </div>
 
-      <KanbanBoard leads={filteredLeads} onLeadsChange={() => { loadLeads(); loadNextAppointments(); }} nextAppointmentByLead={nextAppt} density={density} stages={getPipelineStages((tenant as any).business_type)} />
+      <KanbanBoard leads={filteredLeads} onLeadsChange={() => { loadLeads(); loadNextAppointments(); }} nextAppointmentByLead={nextAppt} density={density} stages={stages} />
     </div>
   );
 }
