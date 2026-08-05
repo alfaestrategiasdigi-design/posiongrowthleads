@@ -1,17 +1,27 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Download, Trash2, Loader2, Plus } from "lucide-react";
+import { Download, Trash2, Loader2, Plus, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import KanbanBoard from "@/components/admin/KanbanBoard";
 import NewLeadDialog from "@/components/admin/NewLeadDialog";
+import PipelineStagesDialog from "@/components/admin/PipelineStagesDialog";
+import { usePipelineStages } from "@/hooks/usePipelineStages";
 import type { Lead } from "@/types/admin";
-import { PIPELINE_STAGES } from "@/types/admin";
+import { CLIENT_PIPELINE_STAGES } from "@/types/admin";
 
 const KanbanPage = () => {
   const [newLeadOpen, setNewLeadOpen] = useState(false);
+  const [stagesOpen, setStagesOpen] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
+  const { stages, refresh: refreshStages } = usePipelineStages(null, CLIENT_PIPELINE_STAGES);
+
+  const leadCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    leads.forEach((l) => { m[l.status] = (m[l.status] || 0) + 1; });
+    return m;
+  }, [leads]);
 
   useEffect(() => { loadLeads(); }, []);
 
@@ -62,6 +72,9 @@ const KanbanPage = () => {
           <Button variant="destructive" onClick={handleClearLeads} disabled={leads.length === 0} className="gap-2 text-sm">
             <Trash2 className="w-4 h-4" /> Limpar
           </Button>
+          <Button variant="outline" onClick={() => setStagesOpen(true)} className="gap-2 text-sm">
+            <Settings2 className="w-4 h-4" /> Etapas
+          </Button>
           <Button onClick={() => setNewLeadOpen(true)} className="gap-2 text-sm">
             <Plus className="w-4 h-4" /> Novo lead
           </Button>
@@ -70,10 +83,18 @@ const KanbanPage = () => {
       <NewLeadDialog
         open={newLeadOpen}
         onOpenChange={setNewLeadOpen}
-        stages={PIPELINE_STAGES}
+        stages={stages}
         onCreated={loadLeads}
       />
-      <KanbanBoard leads={leads} onLeadsChange={loadLeads} />
+      <PipelineStagesDialog
+        open={stagesOpen}
+        onOpenChange={setStagesOpen}
+        tenantId={null}
+        stages={stages}
+        leadCounts={leadCounts}
+        onSaved={refreshStages}
+      />
+      <KanbanBoard leads={leads} onLeadsChange={loadLeads} stages={stages} />
     </div>
   );
 };
