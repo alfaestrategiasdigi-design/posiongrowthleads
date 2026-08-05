@@ -2680,6 +2680,56 @@ export type Database = {
         }
         Relationships: []
       }
+      pipeline_stages: {
+        Row: {
+          color: string
+          created_at: string
+          hex: string
+          id: string
+          is_system: boolean
+          position: number
+          short: string
+          stage_key: string
+          tenant_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          hex?: string
+          id?: string
+          is_system?: boolean
+          position?: number
+          short: string
+          stage_key: string
+          tenant_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          hex?: string
+          id?: string
+          is_system?: boolean
+          position?: number
+          short?: string
+          stage_key?: string
+          tenant_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_stages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plan_catalog: {
         Row: {
           active: boolean
