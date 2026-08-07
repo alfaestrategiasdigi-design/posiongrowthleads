@@ -46,15 +46,29 @@ export default function LoginPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true); setError("");
-    const { error: err } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-    });
-    if (err) {
-      setError("E-mail ou senha incorretos");
+    try {
+      const { error: err } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      if (err) {
+        const msg = (err.message || "").toLowerCase();
+        const isNetwork =
+          msg.includes("fetch") || msg.includes("network") || msg.includes("timeout");
+        setError(
+          isNetwork
+            ? "Não foi possível conectar ao servidor. Tente novamente em instantes."
+            : "E-mail ou senha incorretos"
+        );
+        setSubmitting(false);
+        return;
+      }
+    } catch {
+      setError("Não foi possível conectar ao servidor. Tente novamente em instantes.");
       setSubmitting(false);
       return;
     }
+
     const target = await getPostLoginRedirect();
     setSubmitting(false);
     navigate(target, { replace: true });
