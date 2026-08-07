@@ -156,8 +156,8 @@ const AppointmentModal = ({ open, onClose, onSaved, appointment, defaultDate }: 
       toast.error("Preencha cliente, telefone e data/hora");
       return;
     }
-    // Guardrail: exigir vínculo com lead (agency ou lead) antes de criar/salvar
-    if (!form.agency_lead_id && !form.lead_id) {
+    // Guardrail: exigir vínculo com lead apenas na CRIAÇÃO (edição de registros antigos é permitida)
+    if (!appointment && !form.agency_lead_id && !form.lead_id) {
       toast.error("Vincule um lead antes de criar o agendamento");
       return;
     }
