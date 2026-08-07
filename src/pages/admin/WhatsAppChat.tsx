@@ -253,9 +253,9 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
 
   const loadTenantsMap = useCallback(async () => {
     if (!masterMode) return;
-    const { data } = await supabase.from("tenants").select("id, nome, slug");
+    const { data } = await supabase.from("tenants").select("id, name, slug");
     const map: Record<string, { nome: string; slug: string }> = {};
-    (data || []).forEach((t: any) => { map[t.id] = { nome: t.nome, slug: t.slug }; });
+    (data || []).forEach((t: any) => { map[t.id] = { nome: t.name, slug: t.slug }; });
     setTenantsMap(map);
   }, [masterMode]);
 

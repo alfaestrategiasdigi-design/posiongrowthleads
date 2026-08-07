@@ -163,8 +163,8 @@ export default function AppointmentDialog({
 
   async function submit() {
     if (!tenantId || !f.client_name.trim()) { toast.error("Paciente é obrigatório"); return; }
-    // Guardrail: exigir vínculo com lead antes de salvar
-    if (!f.lead_id) {
+    // Guardrail: exigir vínculo com lead apenas na CRIAÇÃO (edição de registros antigos é permitida)
+    if (!isEdit && !f.lead_id) {
       toast.error("Vincule um lead antes de criar o agendamento");
       return;
     }

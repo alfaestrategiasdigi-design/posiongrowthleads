@@ -166,6 +166,10 @@ Deno.serve(async (req) => {
         continue;
       }
       const body = interpolate(String(task.message_body ?? task.title ?? ""), {
+        // aliases curtos (usados na UI) + formato completo
+        "nome": leadName || "",
+        "primeiro_nome": (leadName || "").split(" ")[0] || "",
+        "empresa": leadRow?.nome_empresa ?? "",
         "lead.nome": leadName || "",
         "lead.primeiro_nome": (leadName || "").split(" ")[0] || "",
         "lead.empresa": leadRow?.nome_empresa ?? "",
