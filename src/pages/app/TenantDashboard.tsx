@@ -111,7 +111,7 @@ export default function TenantDashboard() {
       supabase.from("sales").select("*").eq("tenant_id", tenant.id).order("sale_date", { ascending: true }),
       supabase.from("monthly_goals").select("*").eq("tenant_id", tenant.id),
       fetchAllLeads(),
-      supabase.from("whatsapp_connections").select("status,instance_name").eq("tenant_id", tenant.id).maybeSingle(),
+      supabase.from("whatsapp_connections").select("status,display_name,display_phone_number").eq("tenant_id", tenant.id).maybeSingle(),
       supabase.from("appointments").select("id,lead_id,date_time,status").eq("tenant_id", tenant.id),
     ]).then(([s, g, l, wa, ap]) => {
       setSales((s.data || []) as SaleRow[]);
