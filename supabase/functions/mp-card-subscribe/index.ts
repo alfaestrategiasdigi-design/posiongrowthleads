@@ -120,13 +120,69 @@ Deno.serve(async (req) => {
       ? `offer:${resolvedOfferId}:${tenant_id}`
       : `founder:${tenant_id}`;
 
+    // --- STEP 0: save the card on a MP customer ----------------------------
+    // MP card tokens are SINGLE USE. Charging the entry consumes the token and
+    // the later /preapproval call fails with "Card token was used".
+    // Fix: store the card on a customer, then mint a fresh token per operation.
+    let customerId: string | null = null;
+    let savedCardId: string | null = null;
+    try {
+      const search: any = await mpFetch(
+        `/v1/customers/search?email=${encodeURIComponent(payerEmail)}`,
+        { method: "GET", accessToken },
+      );
+      customerId = search?.results?.[0]?.id ?? null;
+      if (!customerId) {
+        const created: any = await mpFetch(`/v1/customers`, {
+          method: "POST",
+          accessToken,
+          body: JSON.stringify({ email: payerEmail }),
+        });
+        customerId = created?.id ?? null;
+      }
+      if (customerId) {
+        const card: any = await mpFetch(`/v1/customers/${customerId}/cards`, {
+          method: "POST",
+          accessToken,
+          body: JSON.stringify({ token: card_token_id }),
+        });
+        savedCardId = card?.id ?? null;
+      }
+    } catch (e) {
+      console.error("mp-card-subscribe save-card error", e);
+    }
+
+    // Mint a fresh single-use token from the saved card (no CVV needed server-side).
+    async function freshToken(): Promise<string | null> {
+      if (!customerId || !savedCardId) return null;
+      try {
+        const t: any = await mpFetch(`/v1/card_tokens`, {
+          method: "POST",
+          accessToken,
+          body: JSON.stringify({ card_id: savedCardId, customer_id: customerId }),
+        });
+        return t?.id ?? null;
+      } catch (e) {
+        console.error("mp-card-subscribe card_tokens error", e);
+        return null;
+      }
+    }
+
     // --- STEP 1: charge the entry amount immediately -----------------------
+    // If the card was saved, the original token is already consumed → mint a new one.
+    const entryToken = savedCardId ? (await freshToken()) : card_token_id;
+    if (!entryToken) return json({ error: "Não foi possível validar o cartão. Tente novamente." }, 400);
+
     const paymentBody: Record<string, unknown> = {
       transaction_amount: Number((entryCents / 100).toFixed(2)),
       description: `${description} — entrada`,
-      token: card_token_id,
+      token: entryToken,
       installments: Number(installments) || 1,
-      payer: { email: payerEmail, ...(payer?.identification ? { identification: payer.identification } : {}) },
+      payer: {
+        email: payerEmail,
+        ...(customerId ? { id: customerId } : {}),
+        ...(payer?.identification ? { identification: payer.identification } : {}),
+      },
       external_reference: externalRef,
       notification_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/mp-webhook`,
       statement_descriptor: "POSION",
@@ -156,33 +212,38 @@ Deno.serve(async (req) => {
     // start_date = when entry cycles finish. If entryCycles==0 use 1 interval ahead.
     const cycles = Math.max(entryCycles, 1);
     const startDate = addInterval(new Date(), cycles, interval);
-    const preapprovalBody: Record<string, unknown> = {
-      reason: `${description} — recorrência`.slice(0, 250),
-      external_reference: externalRef,
-      payer_email: payerEmail,
-      card_token_id,
-      auto_recurring: {
-        frequency: intervalToMonths(interval),
-        frequency_type: "months",
-        transaction_amount: Number((recurringCents / 100).toFixed(2)),
-        currency_id: "BRL",
-        start_date: startDate.toISOString(),
-      },
-      back_url: `${Deno.env.get("PUBLIC_SITE_URL") || "https://posiongrowthleads.lovable.app"}/admin/planos?mp=success`,
-      status: "authorized",
-    };
+    const recurringToken = await freshToken();
 
     let preapproval: any = null;
-    try {
-      preapproval = await mpFetch(`/preapproval`, {
-        method: "POST",
-        accessToken,
-        idempotencyKey: `card-sub:${tenant_id}:${resolvedOfferId ?? "founder"}:${Date.now()}`,
-        body: JSON.stringify(preapprovalBody),
-      });
-    } catch (e) {
-      // Entry charged but recurring failed — still record slot; surface warning
-      console.error("mp-card-subscribe preapproval error", e);
+    if (!recurringToken) {
+      console.error("mp-card-subscribe: no fresh token available for preapproval");
+    } else {
+      const preapprovalBody: Record<string, unknown> = {
+        reason: `${description} — recorrência`.slice(0, 250),
+        external_reference: externalRef,
+        payer_email: payerEmail,
+        card_token_id: recurringToken,
+        auto_recurring: {
+          frequency: intervalToMonths(interval),
+          frequency_type: "months",
+          transaction_amount: Number((recurringCents / 100).toFixed(2)),
+          currency_id: "BRL",
+          start_date: startDate.toISOString(),
+        },
+        back_url: `${Deno.env.get("PUBLIC_SITE_URL") || "https://posiongrowthleads.lovable.app"}/admin/planos?mp=success`,
+        status: "authorized",
+      };
+      try {
+        preapproval = await mpFetch(`/preapproval`, {
+          method: "POST",
+          accessToken,
+          idempotencyKey: `card-sub:${tenant_id}:${resolvedOfferId ?? "founder"}:${Date.now()}`,
+          body: JSON.stringify(preapprovalBody),
+        });
+      } catch (e) {
+        // Entry charged but recurring failed — still record slot; surface warning
+        console.error("mp-card-subscribe preapproval error", e);
+      }
     }
 
     // Persist slot (mirrors Pix flow)
