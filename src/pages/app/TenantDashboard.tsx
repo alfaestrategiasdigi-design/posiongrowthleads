@@ -125,7 +125,7 @@ export default function TenantDashboard() {
       const w: any = wa.data;
       if (w) {
         const connected = ["open", "connected", "CONNECTED"].includes(String(w.status || "").toLowerCase()) || w.status === "open";
-        setWaStatus({ connected, label: w.status ? `${w.instance_name || "instância"} · ${w.status}` : "Sem status" });
+        setWaStatus({ connected, label: w.status ? `${w.display_name || w.display_phone_number || "instância"} · ${w.status}` : "Sem status" });
       } else {
         setWaStatus({ connected: false, label: "Nenhuma instância configurada" });
       }
