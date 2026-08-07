@@ -120,23 +120,40 @@ Deno.serve(async (req) => {
   const remoteJid = `${phone}@s.whatsapp.net`;
   const base = normalizeBase(conn.instance_url);
 
-  // Envio
+  // Envio (com retry: Evolution devolve "Connection Closed" de forma intermitente)
   let wamid: string | null = null;
-  try {
-    const r = await fetch(`${base}/message/sendText/${encodeURIComponent(conn.instance_name)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", apikey: conn.api_key },
-      body: JSON.stringify({ number: phone, text }),
-    });
-    const j = await r.json();
-    if (!r.ok) {
-      console.error("[welcome send fail]", j);
-      return json({ error: "envio falhou", detail: j }, 502);
+  {
+    const attempts = 3;
+    let lastDetail: unknown = null;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const r = await fetch(`${base}/message/sendText/${encodeURIComponent(conn.instance_name)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", apikey: conn.api_key },
+          body: JSON.stringify({ number: phone, text }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok) {
+          wamid = j?.key?.id ?? j?.messageId ?? null;
+          lastDetail = null;
+          break;
+        }
+        lastDetail = j;
+        const msg = JSON.stringify(j).toLowerCase();
+        const retryable = r.status >= 500 || msg.includes("connection closed") || msg.includes("timeout");
+        console.error(`[welcome send fail] attempt=${i + 1} status=${r.status}`, j);
+        if (!retryable) return json({ error: "envio falhou", detail: j }, 502);
+      } catch (e) {
+        lastDetail = String(e);
+        console.error(`[welcome send error] attempt=${i + 1}`, e);
+      }
+      if (i < attempts - 1) await new Promise((res) => setTimeout(res, 1500 * (i + 1)));
     }
-    wamid = j?.key?.id ?? j?.messageId ?? null;
-  } catch (e) {
-    return json({ error: String(e) }, 502);
+    if (lastDetail !== null && !wamid) {
+      return json({ error: "envio falhou apos retries", detail: lastDetail }, 502);
+    }
   }
+
 
   // Conversa
   let convQ = admin.from("conversations").select("id").eq("remote_jid", remoteJid);
