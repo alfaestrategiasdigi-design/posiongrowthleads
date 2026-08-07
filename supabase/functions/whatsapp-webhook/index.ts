@@ -721,11 +721,20 @@ async function fetchAndStoreMedia(
 ): Promise<{ url: string | null; mime: string | null }> {
   try {
     const base = normalizeBase(conn.instance_url);
-    const r = await fetch(`${base}/chat/getBase64FromMediaMessage/${encodeURIComponent(conn.instance_name)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", apikey: conn.api_key },
-      body: JSON.stringify({ message: { key: message.key, message: message.message } , convertToMp4: false }),
-    });
+    // Hard timeout: mídia grande travava o webhook e estourava o limite da edge function (546)
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 20_000);
+    let r: Response;
+    try {
+      r = await fetch(`${base}/chat/getBase64FromMediaMessage/${encodeURIComponent(conn.instance_name)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: conn.api_key },
+        body: JSON.stringify({ message: { key: message.key, message: message.message } , convertToMp4: false }),
+        signal: ac.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
     if (!r.ok) return { url: null, mime: null };
     const j = await r.json();
     const b64 = j?.base64 ?? j?.data ?? j?.mediaBase64;
