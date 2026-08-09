@@ -67,6 +67,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/convite/:token" element={<AcceptInvitePage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
 
 
