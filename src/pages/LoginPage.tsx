@@ -53,9 +53,8 @@ export default function LoginPage() {
         if (session?.user) {
           const { data: { user }, error: userError } = await withAuthTimeout(supabase.auth.getUser());
           if (userError || !user) throw userError ?? new Error("Invalid session");
-          const target = await getPostLoginRedirect();
+          const target = nextPath ?? (await getPostLoginRedirect());
           if (alive) navigate(target, { replace: true });
-          return;
         }
       } catch (sessionError) {
         if (isInvalidSessionError(sessionError) || isNetworkAuthError(sessionError)) {
