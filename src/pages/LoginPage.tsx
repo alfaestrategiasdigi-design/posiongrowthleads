@@ -27,8 +27,15 @@ const PALETTE = {
 const FONT_SANS = "'DM Sans', system-ui, -apple-system, sans-serif";
 const FONT_MONO = "'Space Mono', ui-monospace, monospace";
 
+function safeNextPath(raw: string | null): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+  return raw;
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
+  const nextPath = safeNextPath(new URLSearchParams(window.location.search).get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
