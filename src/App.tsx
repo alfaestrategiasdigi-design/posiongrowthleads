@@ -51,6 +51,7 @@ import RelatoriosPage from "./pages/admin/RelatoriosPage";
 import ProfilePage from "./pages/shared/ProfilePage";
 import ClientPanelPreview from "./pages/admin/ClientPanelPreview";
 import TasksPage from "./pages/admin/TasksPage";
+import OAuthConsent from "./pages/OAuthConsent";
 
 const queryClient = new QueryClient();
 
@@ -65,6 +66,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/convite/:token" element={<AcceptInvitePage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
 
 
           {/* Tenant SaaS area */}
