@@ -6,6 +6,7 @@ import { AlertCircle, KeyRound, Loader2, Mail, ArrowRight } from "lucide-react";
 import { getPostLoginRedirect } from "@/lib/auth/post-login-redirect";
 import {
   clearStoredAuthSession,
+  hasMalformedStoredAuthSession,
   isInvalidSessionError,
   isNetworkAuthError,
   withAuthTimeout,
@@ -38,6 +39,7 @@ export default function LoginPage() {
     let alive = true;
     (async () => {
       try {
+        if (hasMalformedStoredAuthSession()) clearStoredAuthSession();
         const { data: { session }, error: sessionError } = await withAuthTimeout(supabase.auth.getSession());
         if (sessionError) throw sessionError;
         if (!alive) return;

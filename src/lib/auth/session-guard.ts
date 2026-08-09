@@ -33,6 +33,25 @@ export function clearStoredAuthSession() {
   keys.forEach((key) => window.localStorage.removeItem(key));
 }
 
+export function hasMalformedStoredAuthSession() {
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+    if (!key?.startsWith("sb-") || !key.endsWith("-auth-token")) continue;
+    const rawValue = window.localStorage.getItem(key);
+    if (!rawValue) continue;
+
+    try {
+      const stored = JSON.parse(rawValue) as { access_token?: unknown };
+      if (typeof stored.access_token !== "string" || stored.access_token.split(".").length !== 3) {
+        return true;
+      }
+    } catch {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function isNetworkAuthError(error: unknown) {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return (
