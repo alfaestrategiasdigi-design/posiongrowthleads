@@ -1,0 +1,322 @@
+{
+  "version": 1,
+  "sdk_version": "0.26.1",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://mbhbflbuawkmtmpjazcj.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "posion-growth-leadds",
+      "version": "0.1.0",
+      "title": "posion growth leadds"
+    },
+    "tools": [
+      {
+        "name": "list_tenants",
+        "title": "Listar clientes (tenants)",
+        "description": "Lista os tenants/clientes que o usuário conectado pode acessar, com slug, nome, plano e status.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_leads",
+        "title": "Listar leads",
+        "description": "Lista leads de um tenant, com filtro opcional por status/etapa e busca por nome, e-mail ou WhatsApp.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "tenant_slug": {
+              "type": "string",
+              "description": "Slug do tenant, ex: donna-face"
+            },
+            "status": {
+              "type": "string",
+              "description": "Filtrar por status/etapa do lead"
+            },
+            "search": {
+              "type": "string",
+              "description": "Busca por nome, e-mail ou WhatsApp"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Máximo de registros (padrão 25, máx 100)"
+            }
+          },
+          "required": [
+            "tenant_slug"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_lead",
+        "title": "Detalhar lead",
+        "description": "Retorna todos os dados de um lead pelo id, incluindo tarefas e agendamentos vinculados.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "lead_id": {
+              "type": "string",
+              "description": "UUID do lead"
+            }
+          },
+          "required": [
+            "lead_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "create_lead",
+        "title": "Criar lead",
+        "description": "Cria um novo lead no tenant informado.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "tenant_slug": {
+              "type": "string",
+              "description": "Slug do tenant, ex: donna-face"
+            },
+            "nome_completo": {
+              "type": "string",
+              "description": "Nome completo do lead"
+            },
+            "whatsapp": {
+              "type": "string",
+              "description": "WhatsApp com DDD"
+            },
+            "email": {
+              "type": "string"
+            },
+            "nome_empresa": {
+              "type": "string"
+            },
+            "origem": {
+              "type": "string",
+              "description": "Origem do lead, ex: indicacao, instagram"
+            },
+            "status": {
+              "type": "string",
+              "description": "Etapa inicial no funil"
+            },
+            "observacoes": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "tenant_slug",
+            "nome_completo"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "update_lead_status",
+        "title": "Mover lead no funil",
+        "description": "Atualiza o status/etapa de um lead no Kanban. Use list_pipeline_stages para descobrir os status válidos.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "lead_id": {
+              "type": "string",
+              "description": "UUID do lead"
+            },
+            "status": {
+              "type": "string",
+              "description": "Novo status/stage_key"
+            },
+            "motivo_perda": {
+              "type": "string",
+              "description": "Motivo da perda, quando mover para perdido"
+            }
+          },
+          "required": [
+            "lead_id",
+            "status"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_pipeline_stages",
+        "title": "Listar etapas do funil",
+        "description": "Lista as etapas configuradas do Kanban de um tenant (stage_key, título, ordem).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "tenant_slug": {
+              "type": "string",
+              "description": "Slug do tenant"
+            }
+          },
+          "required": [
+            "tenant_slug"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_appointments",
+        "title": "Listar agendamentos",
+        "description": "Lista agendamentos de um tenant em um intervalo de datas.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "tenant_slug": {
+              "type": "string",
+              "description": "Slug do tenant"
+            },
+            "from": {
+              "type": "string",
+              "description": "Data inicial ISO, ex: 2026-08-01"
+            },
+            "to": {
+              "type": "string",
+              "description": "Data final ISO, ex: 2026-08-31"
+            },
+            "status": {
+              "type": "string",
+              "description": "Filtrar por status do agendamento"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Máximo de registros (padrão 50, máx 200)"
+            }
+          },
+          "required": [
+            "tenant_slug"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_tasks",
+        "title": "Listar tarefas",
+        "description": "Lista tarefas de leads de um tenant, com filtro de pendentes/concluídas.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "tenant_slug": {
+              "type": "string",
+              "description": "Slug do tenant"
+            },
+            "done": {
+              "type": "boolean",
+              "description": "true = concluídas, false = pendentes"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Máximo de registros (padrão 50, máx 200)"
+            }
+          },
+          "required": [
+            "tenant_slug"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "create_task",
+        "title": "Criar tarefa para um lead",
+        "description": "Cria uma tarefa vinculada a um lead do tenant informado.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "tenant_slug": {
+              "type": "string",
+              "description": "Slug do tenant"
+            },
+            "lead_id": {
+              "type": "string",
+              "description": "UUID do lead"
+            },
+            "title": {
+              "type": "string",
+              "description": "Título da tarefa"
+            },
+            "due_date": {
+              "type": "string",
+              "description": "Vencimento em ISO, ex: 2026-08-15T14:00:00Z"
+            }
+          },
+          "required": [
+            "tenant_slug",
+            "lead_id",
+            "title"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
