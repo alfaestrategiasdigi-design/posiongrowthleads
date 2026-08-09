@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { getPostLoginRedirect } from "@/lib/auth/post-login-redirect";
 import type { User } from "@supabase/supabase-js";
 import logoAsset from "@/assets/posion/logo-posion.png.asset.json";
+import { withAuthTimeout } from "@/lib/auth/session-guard";
 
 
 interface AdminLayoutProps {
@@ -29,7 +30,8 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
     const resolve = async (sessionUser: User | null) => {
       setUser(sessionUser);
       if (!sessionUser) { setIsAdmin(false); setIsLoading(false); return; }
-      const [{ data: roles }, { data: link }] = await Promise.all([
+      try {
+      const [{ data: roles }, { data: link }] = await withAuthTimeout(Promise.all([
         supabase.from("user_roles").select("role")
           .eq("user_id", sessionUser.id)
           .in("role", ["admin", "comercial_admin_master"]),
@@ -38,7 +40,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
           .eq("tenant_id", MASTER_TENANT_ID)
           .eq("active", true)
           .maybeSingle(),
-      ]);
+      ]));
       const admin = !!((roles && roles.length > 0) || link);
 
       setIsAdmin(admin);
@@ -47,12 +49,18 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
         const target = await getPostLoginRedirect();
         if (target.startsWith("/app/")) navigate(target, { replace: true });
       }
+      } catch {
+        setIsAdmin(false);
+        setIsLoading(false);
+      }
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       resolve(session?.user ?? null);
     });
-    supabase.auth.getSession().then(({ data: { session } }) => resolve(session?.user ?? null));
+    withAuthTimeout(supabase.auth.getSession())
+      .then(({ data: { session } }) => resolve(session?.user ?? null))
+      .catch(() => { setUser(null); setIsAdmin(false); setIsLoading(false); });
     return () => subscription.unsubscribe();
   }, [navigate]);
 

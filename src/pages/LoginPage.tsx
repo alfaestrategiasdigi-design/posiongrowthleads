@@ -4,6 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { AlertCircle, KeyRound, Loader2, Mail, ArrowRight } from "lucide-react";
 import { getPostLoginRedirect } from "@/lib/auth/post-login-redirect";
+import {
+  clearStoredAuthSession,
+  hasMalformedStoredAuthSession,
+  isInvalidSessionError,
+  isNetworkAuthError,
+  withAuthTimeout,
+} from "@/lib/auth/session-guard";
 import logoAsset from "@/assets/posion/logo-posion.png.asset.json";
 
 const PALETTE = {
@@ -31,14 +38,25 @@ export default function LoginPage() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!alive) return;
-      if (session?.user) {
-        const target = await getPostLoginRedirect();
-        navigate(target, { replace: true });
-        return;
+      try {
+        if (hasMalformedStoredAuthSession()) clearStoredAuthSession();
+        const { data: { session }, error: sessionError } = await withAuthTimeout(supabase.auth.getSession());
+        if (sessionError) throw sessionError;
+        if (!alive) return;
+        if (session?.user) {
+          const { data: { user }, error: userError } = await withAuthTimeout(supabase.auth.getUser());
+          if (userError || !user) throw userError ?? new Error("Invalid session");
+          const target = await getPostLoginRedirect();
+          if (alive) navigate(target, { replace: true });
+          return;
+        }
+      } catch (sessionError) {
+        if (isInvalidSessionError(sessionError) || isNetworkAuthError(sessionError)) {
+          clearStoredAuthSession();
+        }
+      } finally {
+        if (alive) setChecking(false);
       }
-      setChecking(false);
     })();
     return () => { alive = false; };
   }, [navigate]);
@@ -47,14 +65,13 @@ export default function LoginPage() {
     e.preventDefault();
     setSubmitting(true); setError("");
     try {
-      const { error: err } = await supabase.auth.signInWithPassword({
+      const { error: err } = await withAuthTimeout(supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
-      });
+      }));
       if (err) {
         const msg = (err.message || "").toLowerCase();
-        const isNetwork =
-          msg.includes("fetch") || msg.includes("network") || msg.includes("timeout");
+        const isNetwork = isNetworkAuthError(err);
         setError(
           isNetwork
             ? "Não foi possível conectar ao servidor. Tente novamente em instantes."
@@ -63,15 +80,30 @@ export default function LoginPage() {
         setSubmitting(false);
         return;
       }
-    } catch {
-      setError("Não foi possível conectar ao servidor. Tente novamente em instantes.");
+    } catch (authError) {
+      setError(
+        isNetworkAuthError(authError)
+          ? "Não foi possível conectar ao servidor. Tente novamente em instantes."
+          : "Não foi possível validar sua sessão. Entre novamente."
+      );
       setSubmitting(false);
       return;
     }
 
-    const target = await getPostLoginRedirect();
-    setSubmitting(false);
-    navigate(target, { replace: true });
+    try {
+      const { data: { user }, error: userError } = await withAuthTimeout(supabase.auth.getUser());
+      if (userError || !user) throw userError ?? new Error("Invalid session");
+      const target = await getPostLoginRedirect();
+      navigate(target, { replace: true });
+    } catch (redirectError) {
+      setError(
+        isNetworkAuthError(redirectError)
+          ? "Login confirmado, mas o servidor demorou para carregar seu acesso. Tente novamente."
+          : "Não foi possível validar sua sessão. Entre novamente."
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (checking) {

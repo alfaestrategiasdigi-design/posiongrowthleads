@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { withAuthTimeout } from "@/lib/auth/session-guard";
 
 const MASTER_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -9,36 +10,36 @@ const MASTER_TENANT_ID = "00000000-0000-0000-0000-000000000001";
  * - Caso contrário → /
  */
 export async function getPostLoginRedirect(): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await withAuthTimeout(supabase.auth.getUser());
   if (!user) return "/login";
 
   // 1) Conta Agência/Admin Master (papel global) → /admin
-  const { data: masterRoles } = await supabase
+  const { data: masterRoles } = await withAuthTimeout(supabase
     .from("user_roles")
     .select("role")
     .eq("user_id", user.id)
-    .in("role", ["admin", "comercial_admin_master"]);
+    .in("role", ["admin", "comercial_admin_master"]));
   if (masterRoles && masterRoles.length > 0) return "/admin";
 
   // 2) Vínculo com o tenant Master (qualquer papel) → /admin
-  const { data: masterLink } = await supabase
+  const { data: masterLink } = await withAuthTimeout(supabase
     .from("tenant_users")
     .select("tenant_id")
     .eq("user_id", user.id)
     .eq("tenant_id", MASTER_TENANT_ID)
     .eq("active", true)
-    .maybeSingle();
+    .maybeSingle());
   if (masterLink) return "/admin";
 
   // 3) Vínculo com clínica ativa → /app/{slug}/dashboard
-  const { data: membership } = await supabase
+  const { data: membership } = await withAuthTimeout(supabase
     .from("tenant_users")
     .select("tenant_id, active, tenants(slug)")
     .eq("user_id", user.id)
     .eq("active", true)
     .neq("tenant_id", MASTER_TENANT_ID)
     .limit(1)
-    .maybeSingle();
+    .maybeSingle());
 
   const slug = (membership as any)?.tenants?.slug;
   if (slug) return `/app/${slug}/dashboard`;

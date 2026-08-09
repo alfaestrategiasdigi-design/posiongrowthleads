@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import { withAuthTimeout } from "@/lib/auth/session-guard";
 
 const MASTER_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -41,6 +42,7 @@ export function useTenant(options?: { skip?: boolean }) {
         setState({ loading: false, user: null, tenant: null, role: null, error: null });
         return;
       }
+      try {
       if (!tenantSlug) {
         const { data: masterRoles } = await supabase
           .from("user_roles")
@@ -82,9 +84,14 @@ export function useTenant(options?: { skip?: boolean }) {
         .eq("active", true)
         .maybeSingle();
       setState({ loading: false, user, tenant: tenant as Tenant, role: membership?.role ?? null, error: null });
+      } catch {
+        if (active) setState({ loading: false, user, tenant: null, role: null, error: "Não foi possível carregar sua conta" });
+      }
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => load(session?.user ?? null));
+    withAuthTimeout(supabase.auth.getSession())
+      .then(({ data: { session } }) => load(session?.user ?? null))
+      .catch(() => setState({ loading: false, user: null, tenant: null, role: null, error: null }));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => load(session?.user ?? null));
     return () => { active = false; subscription.unsubscribe(); };
   }, [tenantSlug, navigate, skip]);
