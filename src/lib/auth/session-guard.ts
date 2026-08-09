@@ -1,4 +1,9 @@
-const AUTH_TIMEOUT_MS = 8_000;
+const AUTH_TIMEOUT_MS = 12_000;
+
+// Password sign-in can legitimately take longer while the hosted auth service
+// is warming up. Keep this separate from lightweight session checks so the UI
+// does not report a false connection failure while the login is still running.
+export const LOGIN_TIMEOUT_MS = 45_000;
 
 export class AuthTimeoutError extends Error {
   constructor() {

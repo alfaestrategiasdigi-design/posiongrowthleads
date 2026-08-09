@@ -9,6 +9,7 @@ import {
   hasMalformedStoredAuthSession,
   isInvalidSessionError,
   isNetworkAuthError,
+  LOGIN_TIMEOUT_MS,
   withAuthTimeout,
 } from "@/lib/auth/session-guard";
 import logoAsset from "@/assets/posion/logo-posion.png.asset.json";
@@ -71,10 +72,13 @@ export default function LoginPage() {
     e.preventDefault();
     setSubmitting(true); setError("");
     try {
-      const { error: err } = await withAuthTimeout(supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
-      }));
+      const { error: err } = await withAuthTimeout(
+        supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password,
+        }),
+        LOGIN_TIMEOUT_MS,
+      );
       if (err) {
         const msg = (err.message || "").toLowerCase();
         const isNetwork = isNetworkAuthError(err);
