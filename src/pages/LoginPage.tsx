@@ -27,8 +27,15 @@ const PALETTE = {
 const FONT_SANS = "'DM Sans', system-ui, -apple-system, sans-serif";
 const FONT_MONO = "'Space Mono', ui-monospace, monospace";
 
+function safeNextPath(raw: string | null): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+  return raw;
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
+  const nextPath = safeNextPath(new URLSearchParams(window.location.search).get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -46,9 +53,8 @@ export default function LoginPage() {
         if (session?.user) {
           const { data: { user }, error: userError } = await withAuthTimeout(supabase.auth.getUser());
           if (userError || !user) throw userError ?? new Error("Invalid session");
-          const target = await getPostLoginRedirect();
+          const target = nextPath ?? (await getPostLoginRedirect());
           if (alive) navigate(target, { replace: true });
-          return;
         }
       } catch (sessionError) {
         if (isInvalidSessionError(sessionError) || isNetworkAuthError(sessionError)) {
@@ -59,7 +65,7 @@ export default function LoginPage() {
       }
     })();
     return () => { alive = false; };
-  }, [navigate]);
+  }, [navigate, nextPath]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +99,7 @@ export default function LoginPage() {
     try {
       const { data: { user }, error: userError } = await withAuthTimeout(supabase.auth.getUser());
       if (userError || !user) throw userError ?? new Error("Invalid session");
-      const target = await getPostLoginRedirect();
+      const target = nextPath ?? (await getPostLoginRedirect());
       navigate(target, { replace: true });
     } catch (redirectError) {
       setError(
