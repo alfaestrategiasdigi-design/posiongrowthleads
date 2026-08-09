@@ -325,6 +325,19 @@ export default function LoginPage() {
                 </div>
               )}
 
+              {notice && (
+                <div
+                  className="flex items-center gap-2 text-sm p-3 rounded-xl"
+                  style={{
+                    background: "rgba(201,162,39,0.10)",
+                    border: `1px solid ${PALETTE.gold}55`,
+                    color: PALETTE.goldLight,
+                  }}
+                >
+                  <AlertCircle className="w-4 h-4" /> {notice}
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={submitting}
@@ -338,6 +351,16 @@ export default function LoginPage() {
               >
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
                 {submitting ? "Autenticando..." : "Entrar"}
+              </button>
+
+              <button
+                type="button"
+                onClick={onForgotPassword}
+                disabled={sendingReset}
+                className="w-full text-center text-xs underline underline-offset-4 disabled:opacity-60"
+                style={{ color: PALETTE.muted }}
+              >
+                {sendingReset ? "Enviando link..." : "Esqueci minha senha"}
               </button>
             </form>
           </div>
