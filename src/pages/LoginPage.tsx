@@ -41,7 +41,36 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [sendingReset, setSendingReset] = useState(false);
   const [checking, setChecking] = useState(true);
+
+  const onForgotPassword = async () => {
+    setError(""); setNotice("");
+    const target = email.trim().toLowerCase();
+    if (!target) {
+      setError("Digite seu e-mail para receber o link de redefinição.");
+      return;
+    }
+    setSendingReset(true);
+    try {
+      const { error: err } = await withAuthTimeout(
+        supabase.auth.resetPasswordForEmail(target, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        }),
+      );
+      if (err) throw err;
+      setNotice("Enviamos um link de redefinição para o seu e-mail.");
+    } catch (resetError) {
+      setError(
+        isNetworkAuthError(resetError)
+          ? "Não foi possível conectar ao servidor. Tente novamente em instantes."
+          : "Não foi possível enviar o e-mail de redefinição.",
+      );
+    } finally {
+      setSendingReset(false);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -296,6 +325,19 @@ export default function LoginPage() {
                 </div>
               )}
 
+              {notice && (
+                <div
+                  className="flex items-center gap-2 text-sm p-3 rounded-xl"
+                  style={{
+                    background: "rgba(201,162,39,0.10)",
+                    border: `1px solid ${PALETTE.gold}55`,
+                    color: PALETTE.goldLight,
+                  }}
+                >
+                  <AlertCircle className="w-4 h-4" /> {notice}
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={submitting}
@@ -309,6 +351,16 @@ export default function LoginPage() {
               >
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
                 {submitting ? "Autenticando..." : "Entrar"}
+              </button>
+
+              <button
+                type="button"
+                onClick={onForgotPassword}
+                disabled={sendingReset}
+                className="w-full text-center text-xs underline underline-offset-4 disabled:opacity-60"
+                style={{ color: PALETTE.muted }}
+              >
+                {sendingReset ? "Enviando link..." : "Esqueci minha senha"}
               </button>
             </form>
           </div>

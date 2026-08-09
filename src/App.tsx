@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import AcceptInvitePage from "./pages/AcceptInvitePage";
 import LoginPage from "./pages/LoginPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import AdminLayout from "./components/admin/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import WhatsAppChat from "./pages/admin/WhatsAppChat";
@@ -66,6 +67,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/convite/:token" element={<AcceptInvitePage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
 
 
