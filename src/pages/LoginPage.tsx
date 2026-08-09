@@ -41,7 +41,36 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [sendingReset, setSendingReset] = useState(false);
   const [checking, setChecking] = useState(true);
+
+  const onForgotPassword = async () => {
+    setError(""); setNotice("");
+    const target = email.trim().toLowerCase();
+    if (!target) {
+      setError("Digite seu e-mail para receber o link de redefinição.");
+      return;
+    }
+    setSendingReset(true);
+    try {
+      const { error: err } = await withAuthTimeout(
+        supabase.auth.resetPasswordForEmail(target, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        }),
+      );
+      if (err) throw err;
+      setNotice("Enviamos um link de redefinição para o seu e-mail.");
+    } catch (resetError) {
+      setError(
+        isNetworkAuthError(resetError)
+          ? "Não foi possível conectar ao servidor. Tente novamente em instantes."
+          : "Não foi possível enviar o e-mail de redefinição.",
+      );
+    } finally {
+      setSendingReset(false);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
