@@ -1,77 +1,41 @@
-## Objetivo
+# Correção emergencial do login
 
-Deixar o tenant **MatheusBetSafe** (`matheusbetsafe`) operar em modo **infoproduto** (leads + vendas manuais de produto digital) sem impactar os tenants de clínica. Toda a lógica clínica (agendamento, prontuário, procedimentos, pacientes) continua igual para os demais.
+## Diagnóstico confirmado
 
-## Como será ativado
+- O Lovable Cloud, banco e autenticação estão ativos e saudáveis.
+- Os dados não foram apagados: existem **14 tenants, 9.612 leads, 10.033 conversas e 7.765 mensagens**. Os “0 rows” do painel são estimativas internas desatualizadas, não contagens reais.
+- O usuário informado existe, está confirmado, não está banido e mantém papel global `admin` e vínculo ativo com a conta Master.
+- Há dois problemas distintos nos registros recentes:
+  1. sessão local com token malformado (`bad_jwt`), capaz de prender `/login` na tela preta com spinner;
+  2. tentativas de senha respondidas pelo servidor como credencial inválida.
+- `LoginPage` aguarda `getSession()` sem limite de tempo; se a recuperação da sessão travar, `checking` nunca termina.
 
-Nova coluna `tenants.business_type text default 'clinica'` com valor `'infoproduto'` **apenas** para o MatheusBetSafe. Todo o comportamento novo só liga quando `tenant.business_type === 'infoproduto'`. Nenhum outro tenant é afetado.
+## Implementação
 
-Nada de estrutura nova: reaproveitamos `leads`, `sales`, kanban e sidebar existentes. A flag apenas troca labels e esconde itens.
+1. **Destravar a tela de login**
+   - Colocar limite de tempo na restauração inicial da sessão.
+   - Garantir que o estado de carregamento termine em sucesso, erro ou timeout.
+   - Ao detectar sessão/token inválido, limpar somente a sessão de autenticação corrompida e exibir o formulário imediatamente.
 
-## Escopo (o que muda com a flag ligada)
+2. **Fortalecer a autenticação e o redirecionamento**
+   - Validar a identidade no servidor após o login antes de redirecionar.
+   - Proteger a resolução de papel/tenant contra falhas e timeout, sem spinner infinito.
+   - Manter o redirecionamento confirmado do usuário admin para `/admin`.
+   - Evitar chamadas concorrentes duplicadas de sessão nos layouts que possam reabrir o estado de carregamento.
 
-**1. Sidebar do tenant** (`src/components/app/TenantSidebar.tsx`)
-- Ocultar: **Pacientes Ativos, Agenda, Produtos & Serviços, Planos, Automações** (mantemos Dashboard, WhatsApp, Leads, Campanhas Meta, Kanban, Financeiro, Relatórios, Configurações).
-- Rota `/pacientes` e `/agenda` continuam existindo mas não aparecem no menu deste tenant.
+3. **Mensagens de erro exatas**
+   - Separar credencial inválida, indisponibilidade de rede e sessão corrompida.
+   - Sempre liberar o botão novamente após qualquer falha.
+   - Não mascarar erro de conexão como senha incorreta.
 
-**2. Labels renomeados (só na UI deste tenant)**
-Criar helper `src/lib/tenant/labels.ts` com um dicionário por `business_type`:
-- Paciente → **Cliente**
-- Agendamento / Consulta → **Sessão / Checkout**
-- Prontuário → oculto
-- Procedimento → **Produto**
+4. **Validação final**
+   - Abrir o site publicado sem sessão e confirmar que o formulário aparece, sem tela preta infinita.
+   - Testar credencial inválida e confirmar a mensagem correta, sem `Failed to fetch`.
+   - Validar com uma sessão autenticada que o usuário Master entra em `/admin` e os dados carregam.
+   - Conferir console e requisições de autenticação para garantir ausência de novos `bad_jwt`.
 
-Componentes que hoje escrevem "Paciente"/"Agendamento" no header, breadcrumb e botões do Dashboard/Leads/Kanban passam a usar `useTenantLabels()` (hook fino que lê `tenant.business_type`).
+## Escopo técnico
 
-**3. Kanban com estágios próprios** (`src/types/admin.ts` + `src/pages/app/TenantKanban.tsx`)
-Adicionar nova constante `INFOPRODUTO_PIPELINE_STAGES` **reusando os mesmos `id`s já aceitos pelo constraint `leads_status_check`** (só muda `title`/`short`):
-
-```
-lead              → "Lead Novo"
-qualificado       → "Assistiu VSL"
-agendar_reuniao   → "Iniciou Checkout"
-reuniao_agendada  → "Boleto/Pix Gerado"
-proposta          → "Aguardando Pagamento"
-negociacao        → "Em Negociação"
-ganho             → "Comprou"
-ativo             → "Cliente Ativo"
-perdido           → "Perdido / Reembolso"
-```
-
-`TenantKanban` escolhe entre `CLIENT_PIPELINE_STAGES` e `INFOPRODUTO_PIPELINE_STAGES` conforme `business_type`. Sem migration de dados, sem novo enum, sem mexer nos gatilhos existentes.
-
-**4. Vendas: manual apenas**
-Continua exatamente como hoje (mover card para "Comprou" abre `SalesDialog`, sem webhook de checkout). Só o label do estágio muda.
-
-## Fora de escopo (para depois, se pedir)
-
-- Webhook de checkout (Hotmart/Kiwify/Stripe).
-- Página `/produtos` reformulada para catálogo digital.
-- Automação/CAPI específicas de infoproduto.
-
-## Detalhes técnicos
-
-**Migration**
-```sql
-ALTER TABLE public.tenants
-  ADD COLUMN IF NOT EXISTS business_type text NOT NULL DEFAULT 'clinica'
-  CHECK (business_type IN ('clinica','infoproduto'));
-```
-Update de dados (via insert tool): setar `business_type = 'infoproduto'` para o tenant `matheusbetsafe`.
-
-**Frontend**
-- `src/lib/tenant/labels.ts` — dicionário + `getLabels(businessType)`.
-- `src/hooks/useTenantLabels.ts` — lê `useTenant()` e devolve os labels.
-- `src/components/app/TenantSidebar.tsx` — filtra itens por `business_type`.
-- `src/types/admin.ts` — exporta `INFOPRODUTO_PIPELINE_STAGES` + helper `getPipelineStages(businessType)`.
-- `src/pages/app/TenantKanban.tsx` — usa helper.
-- Ajustes cirúrgicos nos títulos de `TenantDashboard`, `TenantLeadsPage`, `LeadCard` (header "Paciente" → label do dicionário).
-
-**Segurança/dados**
-- Sem mudança de RLS.
-- Sem mudança em triggers (`trg_promote_lead_to_patient` etc.) — no infoproduto o card ao chegar em "Ativo" ainda cria registro em `patients`, mas como a página de pacientes fica oculta neste tenant, isso é inofensivo e mantém compatibilidade com relatórios existentes. Se quiser, na fase seguinte adicionamos guard `IF NEW.tenant_id business_type='infoproduto' THEN skip`.
-
-## Riscos
-
-- Baixo. Nenhum tenant existente muda porque o default é `'clinica'`. Só o slug `matheusbetsafe` recebe `'infoproduto'`.
-- Kanban reusa os mesmos IDs de estágio → nenhum gatilho/relatório quebra.
+- Alterações apenas no fluxo frontend de autenticação e proteção de rotas.
+- Nenhuma migração, exclusão ou alteração dos dados existentes.
+- Se a senha real continuar sendo recusada depois da correção do fluxo, a etapa seguinte será redefini-la pelo canal seguro de recuperação — sem expor credenciais no código ou no chat.
