@@ -65,7 +65,7 @@ export default function LoginPage() {
       }
     })();
     return () => { alive = false; };
-  }, [navigate]);
+  }, [navigate, nextPath]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,7 +99,7 @@ export default function LoginPage() {
     try {
       const { data: { user }, error: userError } = await withAuthTimeout(supabase.auth.getUser());
       if (userError || !user) throw userError ?? new Error("Invalid session");
-      const target = await getPostLoginRedirect();
+      const target = nextPath ?? (await getPostLoginRedirect());
       navigate(target, { replace: true });
     } catch (redirectError) {
       setError(
