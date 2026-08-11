@@ -508,7 +508,7 @@ export default function Dashboard() {
 
               <TabsContent value="ganhos" className="mt-0">
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                  {agencyContracts.slice(0, 8).map((c) => (
+                  {agency.contratosPeriodo.slice(0, 8).map((c) => (
                     <div key={c.id} className="flex items-center justify-between text-sm py-1.5 border-b border-white/5 last:border-0">
                       <div className="min-w-0 flex-1">
                         <div className="truncate font-medium text-white">{c.cliente_nome}</div>
