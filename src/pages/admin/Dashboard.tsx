@@ -417,12 +417,12 @@ export default function Dashboard() {
           />
         </div>
       </div>
+      </TabsContent>
 
-      
-
-
-      {/* PIPELINE & AGÊNCIA — subido para o topo */}
+      {/* PIPELINE & AGÊNCIA */}
+      <TabsContent value="pipeline" className="mt-0">
       <section>
+
         <SectionTitle icon={GitBranch} title="Pipeline & Agência" subtitle="Funil de vendas POSION → clínicas" />
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
           <PipelineKPI icon={Building2} label="Ativos no pipeline" value={String(agency.leadsPeriodo - agency.ganhos - agency.perdas.length)} tint="cyan" />
