@@ -587,7 +587,11 @@ export default function Dashboard() {
         )}
         {relatorio && (
           <div className="space-y-4">
-            <FunilVisual funil={relatorio.funil} />
+            <KpiSummary kpis={relatorio.kpis} scope="admin" />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <BiFunnel funil={relatorio.biFunnel} />
+              <FunilVisual funil={relatorio.funil} />
+            </div>
             <RankingsGrid closers={relatorio.rankingClosers} sdrs={relatorio.rankingSdrs} />
             <ChartsGrid data={relatorio} />
           </div>
