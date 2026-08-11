@@ -155,8 +155,10 @@ export default function Dashboard() {
     const leadsPeriodo = leads.filter((l) => inRange(l.created_at));
     const leadsPrev = leads.filter((l) => inPrev(l.created_at));
     const contractedLeadIds = new Set(agencyContracts.map((c) => c.agency_lead_id).filter(Boolean) as string[]);
-    const kanbanLeads = leads.map((l) => contractedLeadIds.has(l.id) ? { ...l, stage: "ganho" } : l);
+    // Todos os cálculos abaixo usam SOMENTE os leads criados dentro do período selecionado
+    const kanbanLeads = leadsPeriodo.map((l) => contractedLeadIds.has(l.id) ? { ...l, stage: "ganho" } : l);
     const emNegociacao = kanbanLeads.filter((l) => ["proposta", "negociacao"].includes(l.stage));
+    const ativosPipeline = kanbanLeads.filter((l) => !["ganho", "ativo", "perdido"].includes(l.stage));
     const contratosPeriodo = agencyContracts.filter((c) => inRange(c.data_assinatura));
     const contratosPrev = agencyContracts.filter((c) => inPrev(c.data_assinatura));
 
@@ -185,15 +187,15 @@ export default function Dashboard() {
     const totalFechamentos = contratosPeriodo.length;
     const ticketMedio = totalFechamentos > 0 ? receitaAgencia / totalFechamentos : 0;
 
-    // Sparkline series per KPI
+    // Sparkline series per KPI — sempre dentro do período
     const days = eachDayOfInterval({ start: range.from, end: range.to });
     const leadsSeries = days.map((d) => {
       const key = format(d, "yyyy-MM-dd");
-      return leads.filter((l) => l.created_at.startsWith(key)).length;
+      return leadsPeriodo.filter((l) => l.created_at.startsWith(key)).length;
     });
     const ganhosSeries = days.map((d) => {
       const key = format(d, "yyyy-MM-dd");
-      return agencyContracts.filter((c) => c.data_assinatura === key).length;
+      return contratosPeriodo.filter((c) => c.data_assinatura === key).length;
     });
     const convSeries = days.map((_d, i) => {
       const lc = leadsSeries[i] || 0;
@@ -201,22 +203,24 @@ export default function Dashboard() {
       return lc > 0 ? (gc / lc) * 100 : 0;
     });
 
-    // Perdas + atividade
+    // Perdas + atividade (restritos ao período)
     const perdas = leads
       .map((l) => contractedLeadIds.has(l.id) ? { ...l, stage: "ganho" } : l)
       .filter((l) => l.stage === "perdido" && (l.updated_at ? inRange(l.updated_at) : inRange(l.created_at)))
       .sort((a, b) => (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at))
       .slice(0, 8);
-    const atividade = [...kanbanLeads]
+    const atividade = leads
+      .map((l) => contractedLeadIds.has(l.id) ? { ...l, stage: "ganho" } : l)
       .filter((l) => l.updated_at && inRange(l.updated_at))
       .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
       .slice(0, 8);
 
     return {
-      leadsPeriodo: leads.length,
+      leadsPeriodo: leadsPeriodo.length,
       leadsPrev: leadsPrev.length,
       ganhos: contratosPeriodo.length,
       ganhosPrev: contratosPrev.length,
+      ativosPipeline: ativosPipeline.length,
       emNegociacao: emNegociacao.length,
       pipelineValue,
       receitaAgencia,
@@ -236,6 +240,7 @@ export default function Dashboard() {
       atividade,
     };
   }, [leads, agencyContracts, saasContracts, range]);
+
 
   const timelineData = useMemo(() => {
     const days = eachDayOfInterval({ start: range.from, end: range.to });
