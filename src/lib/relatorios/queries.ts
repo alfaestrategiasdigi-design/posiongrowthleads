@@ -74,7 +74,9 @@ export async function fetchRelatorio(
     leadsQ = leadsQ.gte("created_at", start).lte("created_at", end);
   } else if (isAdminMasterView) {
     leadsQ = leadsQ.in("id", masterSourceIds);
+    leadsQ = leadsQ.gte("created_at", start).lte("created_at", end);
   } else {
+
     if (filters.tenantIds.length > 0) leadsQ = leadsQ.in("tenant_id", filters.tenantIds);
     leadsQ = leadsQ.gte("created_at", start).lte("created_at", end);
   }

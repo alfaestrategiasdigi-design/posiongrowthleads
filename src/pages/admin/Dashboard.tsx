@@ -155,8 +155,10 @@ export default function Dashboard() {
     const leadsPeriodo = leads.filter((l) => inRange(l.created_at));
     const leadsPrev = leads.filter((l) => inPrev(l.created_at));
     const contractedLeadIds = new Set(agencyContracts.map((c) => c.agency_lead_id).filter(Boolean) as string[]);
-    const kanbanLeads = leads.map((l) => contractedLeadIds.has(l.id) ? { ...l, stage: "ganho" } : l);
+    // Todos os cálculos abaixo usam SOMENTE os leads criados dentro do período selecionado
+    const kanbanLeads = leadsPeriodo.map((l) => contractedLeadIds.has(l.id) ? { ...l, stage: "ganho" } : l);
     const emNegociacao = kanbanLeads.filter((l) => ["proposta", "negociacao"].includes(l.stage));
+    const ativosPipeline = kanbanLeads.filter((l) => !["ganho", "ativo", "perdido"].includes(l.stage));
     const contratosPeriodo = agencyContracts.filter((c) => inRange(c.data_assinatura));
     const contratosPrev = agencyContracts.filter((c) => inPrev(c.data_assinatura));
 
@@ -185,15 +187,15 @@ export default function Dashboard() {
     const totalFechamentos = contratosPeriodo.length;
     const ticketMedio = totalFechamentos > 0 ? receitaAgencia / totalFechamentos : 0;
 
-    // Sparkline series per KPI
+    // Sparkline series per KPI — sempre dentro do período
     const days = eachDayOfInterval({ start: range.from, end: range.to });
     const leadsSeries = days.map((d) => {
       const key = format(d, "yyyy-MM-dd");
-      return leads.filter((l) => l.created_at.startsWith(key)).length;
+      return leadsPeriodo.filter((l) => l.created_at.startsWith(key)).length;
     });
     const ganhosSeries = days.map((d) => {
       const key = format(d, "yyyy-MM-dd");
-      return agencyContracts.filter((c) => c.data_assinatura === key).length;
+      return contratosPeriodo.filter((c) => c.data_assinatura === key).length;
     });
     const convSeries = days.map((_d, i) => {
       const lc = leadsSeries[i] || 0;
@@ -201,22 +203,24 @@ export default function Dashboard() {
       return lc > 0 ? (gc / lc) * 100 : 0;
     });
 
-    // Perdas + atividade
+    // Perdas + atividade (restritos ao período)
     const perdas = leads
       .map((l) => contractedLeadIds.has(l.id) ? { ...l, stage: "ganho" } : l)
       .filter((l) => l.stage === "perdido" && (l.updated_at ? inRange(l.updated_at) : inRange(l.created_at)))
       .sort((a, b) => (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at))
       .slice(0, 8);
-    const atividade = [...kanbanLeads]
+    const atividade = leads
+      .map((l) => contractedLeadIds.has(l.id) ? { ...l, stage: "ganho" } : l)
       .filter((l) => l.updated_at && inRange(l.updated_at))
       .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
       .slice(0, 8);
 
     return {
-      leadsPeriodo: leads.length,
+      leadsPeriodo: leadsPeriodo.length,
       leadsPrev: leadsPrev.length,
       ganhos: contratosPeriodo.length,
       ganhosPrev: contratosPrev.length,
+      ativosPipeline: ativosPipeline.length,
       emNegociacao: emNegociacao.length,
       pipelineValue,
       receitaAgencia,
@@ -236,6 +240,7 @@ export default function Dashboard() {
       atividade,
     };
   }, [leads, agencyContracts, saasContracts, range]);
+
 
   const timelineData = useMemo(() => {
     const days = eachDayOfInterval({ start: range.from, end: range.to });
@@ -279,20 +284,30 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-1 font-mono">POSION · Admin Master</div>
-          <h1 className="text-3xl font-bold">Dashboard da Agência</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Somente vendas e contratos da POSION · <span className="text-amber-400">{range.label}</span>
+      <div className="sticky top-0 z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-3 bg-background/85 backdrop-blur-xl border-b border-border/60 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 font-mono">POSION · Admin Master</div>
+          <h1 className="text-xl md:text-2xl font-bold leading-tight">Dashboard da Agência</h1>
+          <p className="text-xs text-muted-foreground">
+            Período ativo: <span className="text-amber-400">{range.label}</span>
           </p>
         </div>
         <DateRangePicker value={range} onChange={setRange} />
       </div>
 
+      <Tabs defaultValue="overview" className="space-y-4">
+        <TabsList className="h-9 bg-white/5 grid grid-cols-4 w-full max-w-xl">
+          <TabsTrigger value="overview" className="text-xs">Visão geral</TabsTrigger>
+          <TabsTrigger value="pipeline" className="text-xs">Pipeline</TabsTrigger>
+          <TabsTrigger value="perf" className="text-xs">Performance</TabsTrigger>
+          <TabsTrigger value="clients" className="text-xs">Clientes</TabsTrigger>
+        </TabsList>
+
+      <TabsContent value="overview" className="mt-0 space-y-4">
       {/* HERO — Total combinado */}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-6">
@@ -412,15 +427,15 @@ export default function Dashboard() {
           />
         </div>
       </div>
+      </TabsContent>
 
-      
-
-
-      {/* PIPELINE & AGÊNCIA — subido para o topo */}
+      {/* PIPELINE & AGÊNCIA */}
+      <TabsContent value="pipeline" className="mt-0">
       <section>
+
         <SectionTitle icon={GitBranch} title="Pipeline & Agência" subtitle="Funil de vendas POSION → clínicas" />
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
-          <PipelineKPI icon={Building2} label="Ativos no pipeline" value={String(agency.leadsPeriodo - agency.ganhos - agency.perdas.length)} tint="cyan" />
+          <PipelineKPI icon={Building2} label="Ativos no pipeline" value={String(agency.ativosPipeline)} tint="cyan" />
           <PipelineKPI icon={DollarSign} label="Em negociação" value={fmt(agency.pipelineValue)} tint="amber" sub={`${agency.emNegociacao} leads`} />
           <PipelineKPI icon={Trophy} label="Ganhos" value={String(agency.contratosPeriodo.length)} tint="emerald" sub={fmt(agency.receitaAgencia)} />
           <PipelineKPI icon={DollarSign} label="Ticket médio" value={fmt(agency.ticketMedio)} tint="emerald" />
@@ -493,7 +508,7 @@ export default function Dashboard() {
 
               <TabsContent value="ganhos" className="mt-0">
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                  {agencyContracts.slice(0, 8).map((c) => (
+                  {agency.contratosPeriodo.slice(0, 8).map((c) => (
                     <div key={c.id} className="flex items-center justify-between text-sm py-1.5 border-b border-white/5 last:border-0">
                       <div className="min-w-0 flex-1">
                         <div className="truncate font-medium text-white">{c.cliente_nome}</div>
@@ -502,9 +517,10 @@ export default function Dashboard() {
                       <span className="font-semibold text-xs tabular-nums" style={{ color: PALETTE.green }}>{fmt(c.valor_total || 0)}</span>
                     </div>
                   ))}
-                  {agencyContracts.length === 0 && (
-                    <div className="text-xs text-center py-6" style={{ color: PALETTE.mutedDim }}>Nenhum ganho ainda.</div>
+                  {agency.contratosPeriodo.length === 0 && (
+                    <div className="text-xs text-center py-6" style={{ color: PALETTE.mutedDim }}>Nenhum ganho no período.</div>
                   )}
+
                 </div>
               </TabsContent>
 
@@ -553,8 +569,10 @@ export default function Dashboard() {
           </div>
         </div>
       </section>
+      </TabsContent>
 
       {/* PERFORMANCE CONSOLIDADA — riqueza dos Relatórios dentro do Dashboard */}
+      <TabsContent value="perf" className="mt-0">
       <section>
         <SectionTitle icon={BarChart3} title="Performance consolidada" subtitle="Funil rico, rankings e gráficos — mesmo período selecionado acima" />
         {relatorioQuery.isLoading && (
@@ -575,8 +593,10 @@ export default function Dashboard() {
           </div>
         )}
       </section>
+      </TabsContent>
 
       {/* CLIENTES */}
+      <TabsContent value="clients" className="mt-0">
       <section>
         <SectionTitle icon={Building2} title="Clientes POSION" subtitle="Contagem de clínicas — dados operacionais ficam em cada tenant" />
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -590,7 +610,10 @@ export default function Dashboard() {
           </Link>
         </div>
       </section>
+      </TabsContent>
+      </Tabs>
     </div>
+
   );
 }
 
