@@ -76,12 +76,39 @@ Deno.serve(async (req) => {
 
   console.info("[welcome][accept] origem_elegivel", auditBase);
 
+  // Idempotência 1: este lead já recebeu boas-vindas
+  if (lead.welcome_sent_at) {
+    console.info("[welcome][skip] ja_enviado_lead", { ...auditBase, welcome_sent_at: lead.welcome_sent_at });
+    return json({ skipped: "boas-vindas já enviadas para este lead" });
+  }
+
   let phone = onlyDigits(lead.whatsapp);
   if (!phone) {
     console.info("[welcome][skip] sem_whatsapp", auditBase);
     return json({ skipped: "sem whatsapp" });
   }
   if (phone.length === 10 || phone.length === 11) phone = "55" + phone; // BR default
+
+  // Idempotência 2: mesmo telefone (leads duplicados) já recebeu boas-vindas
+  // no mesmo tenant nos últimos 7 dias -> não bombardear o contato.
+  {
+    const tail = phone.slice(-8);
+    const sinceIso = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
+    let dupQ = admin
+      .from("leads")
+      .select("id, welcome_sent_at, whatsapp")
+      .not("welcome_sent_at", "is", null)
+      .gte("welcome_sent_at", sinceIso)
+      .like("whatsapp", `%${tail}%`)
+      .limit(1);
+    dupQ = lead.tenant_id ? dupQ.eq("tenant_id", lead.tenant_id) : dupQ.is("tenant_id", null);
+    const { data: dup } = await dupQ.maybeSingle();
+    if (dup) {
+      await admin.from("leads").update({ welcome_sent_at: new Date().toISOString() }).eq("id", lead.id);
+      console.info("[welcome][skip] telefone_ja_recebeu", { ...auditBase, duplicate_of: dup.id });
+      return json({ skipped: "telefone já recebeu boas-vindas recentemente", duplicate_of: dup.id });
+    }
+  }
 
   // Config
   let cfgQ = admin.from("whatsapp_welcome_config").select("*");
