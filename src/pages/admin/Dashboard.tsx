@@ -517,9 +517,10 @@ export default function Dashboard() {
                       <span className="font-semibold text-xs tabular-nums" style={{ color: PALETTE.green }}>{fmt(c.valor_total || 0)}</span>
                     </div>
                   ))}
-                  {agencyContracts.length === 0 && (
-                    <div className="text-xs text-center py-6" style={{ color: PALETTE.mutedDim }}>Nenhum ganho ainda.</div>
+                  {agency.contratosPeriodo.length === 0 && (
+                    <div className="text-xs text-center py-6" style={{ color: PALETTE.mutedDim }}>Nenhum ganho no período.</div>
                   )}
+
                 </div>
               </TabsContent>
 
