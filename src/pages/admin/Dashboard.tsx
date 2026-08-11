@@ -644,8 +644,9 @@ export default function Dashboard() {
       <section>
         <SectionTitle icon={Building2} title="Clientes POSION" subtitle="Contagem de clínicas — dados operacionais ficam em cada tenant" />
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <KPI icon={Building2} label="Clínicas ativas" value={String(activeTenants)} sub={`${tenants.length} totais`} />
-          <KPI icon={FileText} label="Contratos SaaS ativos" value={saasContracts.filter((s) => s.status === "active").length > 0 ? String(saasContracts.filter((s) => s.status === "active").length) : "—"} sub={saasContracts.filter((s) => s.status === "active").length === 0 ? "nenhuma assinatura SaaS ativa" : undefined} />
+          <KPI icon={Building2} label="Clínicas ativas" value={String(activeTenants)} sub={`${tenantsPeriodo.length} totais no período`} />
+          <KPI icon={FileText} label="Contratos SaaS ativos" value={agency.saasAtivos > 0 ? String(agency.saasAtivos) : "—"} sub={agency.saasAtivos === 0 ? "nenhuma assinatura SaaS ativa" : undefined} />
+
           <KPI icon={Sparkles} label="MRR total" value={agency.mrr > 0 ? fmt(agency.mrr) : "—"} sub={agency.mrr === 0 ? "aguardando primeira assinatura" : undefined} />
         </div>
         <div className="pt-3">
