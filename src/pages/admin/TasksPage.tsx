@@ -13,6 +13,23 @@ import UnifiedLeadPanel from "@/components/leads/UnifiedLeadPanel";
 
 type Filter = "pendente" | "atrasada" | "concluida" | "todas";
 
+/** Datas vindas do banco podem estar corrompidas/inválidas — nunca deixe o format() derrubar a tela. */
+const parseDate = (v: string | null | undefined): Date | null => {
+  if (!v) return null;
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+};
+const safeFormat = (v: string | null | undefined, pattern: string): string | null => {
+  const d = parseDate(v);
+  if (!d) return null;
+  try { return format(d, pattern, { locale: ptBR }); } catch { return null; }
+};
+const safeDistance = (v: string | null | undefined): string | null => {
+  const d = parseDate(v);
+  if (!d) return null;
+  try { return formatDistanceToNow(d, { addSuffix: true, locale: ptBR }); } catch { return null; }
+};
+
 interface TaskRow {
   id: string;
   title: string;
@@ -226,22 +243,22 @@ export default function TasksPage() {
                           <Building2 className="w-3 h-3" /> {t.tenant.name}
                         </span>
                       )}
-                      {t.due_date && (
+                      {safeFormat(t.due_date, "dd/MM 'às' HH:mm") && (
                         <span className={`flex items-center gap-1 ${overdue ? "text-rose-400" : ""}`}>
                           <Clock className="w-3 h-3" />
-                          {format(new Date(t.due_date), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                          {safeFormat(t.due_date, "dd/MM 'às' HH:mm")}
                         </span>
                       )}
-                      {t.next_send_at && (
+                      {safeFormat(t.next_send_at, "dd/MM HH:mm") && (
                         <span className="flex items-center gap-1 text-blue-300">
                           <MessageSquare className="w-3 h-3" />
-                          Próx. envio: {format(new Date(t.next_send_at), "dd/MM HH:mm", { locale: ptBR })}
+                          Próx. envio: {safeFormat(t.next_send_at, "dd/MM HH:mm")}
                         </span>
                       )}
-                      {t.last_sent_at && (
+                      {safeDistance(t.last_sent_at) && (
                         <span className="flex items-center gap-1 text-emerald-300">
                           <CheckCircle2 className="w-3 h-3" />
-                          Último envio {formatDistanceToNow(new Date(t.last_sent_at), { addSuffix: true, locale: ptBR })}
+                          Último envio {safeDistance(t.last_sent_at)}
                         </span>
                       )}
                     </div>

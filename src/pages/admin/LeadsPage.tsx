@@ -343,7 +343,7 @@ const LeadsPage = () => {
                   Todos os formulários conhecidos (importados ou já roteados). Escolha o destino de cada um — POSION Master (esta tela), uma clínica específica, ou nenhum (leads vão para "não roteados").
                 </p>
               </div>
-              <div className="relative min-w-[220px]">
+              <div className="relative w-full sm:w-auto sm:min-w-[220px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   value={formSearch}
@@ -372,7 +372,7 @@ const LeadsPage = () => {
                       : "bg-emerald-500/10 text-emerald-300 border-emerald-500/30")
                   : "bg-muted text-muted-foreground border-border";
                 return (
-                  <div key={row.form_id} className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-card/40 p-3">
+                  <div key={row.form_id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-border/50 bg-card/40 p-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-foreground truncate">{row.label || `Formulário ${row.form_id}`}</p>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -381,7 +381,7 @@ const LeadsPage = () => {
                         {r && !r.active && <span className="text-[10px] px-2 py-0.5 rounded-full border border-rose-500/30 bg-rose-500/10 text-rose-300">Inativo</span>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
                       <select
                         value={current}
                         disabled={savingFormId === row.form_id}
@@ -391,7 +391,7 @@ const LeadsPage = () => {
                           );
                           setFormAssignment(row.form_id, row.label, e.target.value, migrate);
                         }}
-                        className="bg-card/60 border border-border/60 rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none min-w-[180px]"
+                        className="bg-card/60 border border-border/60 rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none w-full sm:w-auto sm:min-w-[180px]"
                       >
                         <option value="unassigned">— Não atribuído —</option>
                         <option value="master">POSION Master</option>

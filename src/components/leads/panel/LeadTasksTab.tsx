@@ -312,15 +312,23 @@ function TaskRow({ task, subs, onToggle, onUpdate, onDelete, onAddSub, onUpdateS
   const commitTitle = () => {
     if (title.trim() && title !== task.title) onUpdate({ title: title.trim() });
   };
+  const safeDate = (v: string | null | undefined): Date | null => {
+    if (!v) return null;
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  };
   const commitDate = () => {
-    const newVal = dueDate ? new Date(dueDate).toISOString() : null;
+    const parsed = safeDate(dueDate);
+    const newVal = parsed ? parsed.toISOString() : null;
     if (newVal !== task.due_date) onUpdate({ due_date: newVal });
   };
 
   const isScheduled = task.task_type === "mensagem" || task.task_type === "lembrete";
   const scheduleSummary = (() => {
     if (!isScheduled || !task.scheduled_date) return null;
-    const dateStr = format(new Date(`${task.scheduled_date}T${task.scheduled_time || "09:00"}:00`), "dd/MM 'às' HH:mm", { locale: ptBR });
+    const d = safeDate(`${task.scheduled_date}T${task.scheduled_time || "09:00"}:00`);
+    if (!d) return null;
+    const dateStr = format(d, "dd/MM 'às' HH:mm", { locale: ptBR });
     const freqStr = task.frequency && task.frequency !== "once" ? `, repete ${FREQ_LABEL[task.frequency]}` : "";
     const prefix = task.task_type === "mensagem" ? "Mensagem agendada para" : "Lembrete para";
     return `${prefix} ${dateStr}${freqStr}`;
@@ -328,8 +336,10 @@ function TaskRow({ task, subs, onToggle, onUpdate, onDelete, onAddSub, onUpdateS
 
   const status = (() => {
     if (task.task_type !== "mensagem") return null;
-    if (task.last_sent_at) return { label: `Enviada ${formatDistanceToNow(new Date(task.last_sent_at), { addSuffix: true, locale: ptBR })}`, tone: "default" as const };
-    if (task.next_send_at) return { label: `Próximo envio ${formatDistanceToNow(new Date(task.next_send_at), { addSuffix: true, locale: ptBR })}`, tone: "secondary" as const };
+    const sent = safeDate(task.last_sent_at);
+    if (sent) return { label: `Enviada ${formatDistanceToNow(sent, { addSuffix: true, locale: ptBR })}`, tone: "default" as const };
+    const next = safeDate(task.next_send_at);
+    if (next) return { label: `Próximo envio ${formatDistanceToNow(next, { addSuffix: true, locale: ptBR })}`, tone: "secondary" as const };
     return { label: "Pendente", tone: "outline" as const };
   })();
 
@@ -447,7 +457,7 @@ function TaskComments({ taskId }: { taskId: string }) {
         <div key={c.id} className="rounded-md bg-background/60 border border-border/40 p-2 text-sm">
           <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-0.5">
             <span>{c.author_name || "Usuário"}</span>
-            <span>{formatDistanceToNow(new Date(c.created_at), { addSuffix: true, locale: ptBR })}</span>
+            <span>{(() => { const d = new Date(c.created_at); return isNaN(d.getTime()) ? "" : formatDistanceToNow(d, { addSuffix: true, locale: ptBR }); })()}</span>
           </div>
           <div className="whitespace-pre-wrap">{c.body}</div>
         </div>
