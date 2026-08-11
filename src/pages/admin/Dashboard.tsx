@@ -558,8 +558,10 @@ export default function Dashboard() {
           </div>
         </div>
       </section>
+      </TabsContent>
 
       {/* PERFORMANCE CONSOLIDADA — riqueza dos Relatórios dentro do Dashboard */}
+      <TabsContent value="perf" className="mt-0">
       <section>
         <SectionTitle icon={BarChart3} title="Performance consolidada" subtitle="Funil rico, rankings e gráficos — mesmo período selecionado acima" />
         {relatorioQuery.isLoading && (
@@ -580,8 +582,10 @@ export default function Dashboard() {
           </div>
         )}
       </section>
+      </TabsContent>
 
       {/* CLIENTES */}
+      <TabsContent value="clients" className="mt-0">
       <section>
         <SectionTitle icon={Building2} title="Clientes POSION" subtitle="Contagem de clínicas — dados operacionais ficam em cada tenant" />
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -595,7 +599,10 @@ export default function Dashboard() {
           </Link>
         </div>
       </section>
+      </TabsContent>
+      </Tabs>
     </div>
+
   );
 }
 
