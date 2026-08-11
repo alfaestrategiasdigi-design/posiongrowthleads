@@ -202,11 +202,11 @@ export default function Dashboard() {
     const days = eachDayOfInterval({ start: range.from, end: range.to });
     const leadsSeries = days.map((d) => {
       const key = format(d, "yyyy-MM-dd");
-      return leadsPeriodo.filter((l) => l.created_at.startsWith(key)).length;
+      return leadsPeriodo.filter((l) => keyOf(l.created_at) === key).length;
     });
     const ganhosSeries = days.map((d) => {
       const key = format(d, "yyyy-MM-dd");
-      return contratosPeriodo.filter((c) => c.data_assinatura === key).length;
+      return contratosPeriodo.filter((c) => keyOf(c.data_assinatura) === key).length;
     });
     const convSeries = days.map((_d, i) => {
       const lc = leadsSeries[i] || 0;
