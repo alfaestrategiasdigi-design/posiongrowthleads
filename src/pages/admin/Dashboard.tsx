@@ -284,20 +284,30 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-1 font-mono">POSION · Admin Master</div>
-          <h1 className="text-3xl font-bold">Dashboard da Agência</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Somente vendas e contratos da POSION · <span className="text-amber-400">{range.label}</span>
+      <div className="sticky top-0 z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-3 bg-background/85 backdrop-blur-xl border-b border-border/60 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 font-mono">POSION · Admin Master</div>
+          <h1 className="text-xl md:text-2xl font-bold leading-tight">Dashboard da Agência</h1>
+          <p className="text-xs text-muted-foreground">
+            Período ativo: <span className="text-amber-400">{range.label}</span>
           </p>
         </div>
         <DateRangePicker value={range} onChange={setRange} />
       </div>
 
+      <Tabs defaultValue="overview" className="space-y-4">
+        <TabsList className="h-9 bg-white/5 grid grid-cols-4 w-full max-w-xl">
+          <TabsTrigger value="overview" className="text-xs">Visão geral</TabsTrigger>
+          <TabsTrigger value="pipeline" className="text-xs">Pipeline</TabsTrigger>
+          <TabsTrigger value="perf" className="text-xs">Performance</TabsTrigger>
+          <TabsTrigger value="clients" className="text-xs">Clientes</TabsTrigger>
+        </TabsList>
+
+      <TabsContent value="overview" className="mt-0 space-y-4">
       {/* HERO — Total combinado */}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         <div data-no-float className="premium-hero lg:col-span-2 rounded-2xl p-6">
