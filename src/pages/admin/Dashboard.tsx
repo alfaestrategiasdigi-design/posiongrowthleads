@@ -149,8 +149,15 @@ export default function Dashboard() {
   const rangeLen = differenceInCalendarDays(range.to, range.from) + 1;
   const prevFrom = subDays(range.from, rangeLen);
   const prevTo = subDays(range.to, rangeLen);
-  const inRange = (iso: string) => { const d = new Date(iso); return d >= range.from && d <= range.to; };
-  const inPrev = (iso: string) => { const d = new Date(iso); return d >= prevFrom && d <= prevTo; };
+  // Comparação por dia (evita erro de fuso em campos DATE como data_assinatura)
+  const fromKey = format(range.from, "yyyy-MM-dd");
+  const toKey = format(range.to, "yyyy-MM-dd");
+  const prevFromKey = format(prevFrom, "yyyy-MM-dd");
+  const prevToKey = format(prevTo, "yyyy-MM-dd");
+  const keyOf = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : format(new Date(iso), "yyyy-MM-dd"));
+  const inRange = (iso: string) => { if (!iso) return false; const k = keyOf(iso); return k >= fromKey && k <= toKey; };
+  const inPrev = (iso: string) => { if (!iso) return false; const k = keyOf(iso); return k >= prevFromKey && k <= prevToKey; };
+
 
   // ============= AGÊNCIA (POSION) =============
   const agency = useMemo(() => {
