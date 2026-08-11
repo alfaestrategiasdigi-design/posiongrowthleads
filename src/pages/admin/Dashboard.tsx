@@ -259,14 +259,20 @@ export default function Dashboard() {
     return days.map((d) => {
       const dayKey = format(d, "yyyy-MM-dd");
       const receitaContratos = agencyContracts
-        .filter((c) => c.data_assinatura === dayKey)
+        .filter((c) => c.data_assinatura && keyOf(c.data_assinatura) === dayKey)
         .reduce((s, c) => s + Number(c.valor_total || 0), 0);
       const label = format(d, "dd/MM", { locale: ptBR });
       return { day: label, receita: receitaContratos };
     });
   }, [agencyContracts, range]);
 
-  const activeTenants = tenants.filter((t) => t.status === "active").length;
+  // Clientes existentes até o fim do período selecionado
+  const tenantsPeriodo = useMemo(
+    () => tenants.filter((t) => !t.created_at || keyOf(t.created_at) <= toKey),
+    [tenants, toKey],
+  );
+  const activeTenants = tenantsPeriodo.filter((t) => t.status === "active").length;
+
 
   const saveGoal = () => {
     const n = Math.max(0, Number(goalDraft.replace(/[^\d]/g, "")) || 0);
