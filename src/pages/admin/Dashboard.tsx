@@ -237,6 +237,7 @@ export default function Dashboard() {
       receitaAgencia,
       receitaAgenciaPrev: contratosPrev.reduce((s, c) => s + Number(c.valor_total || 0), 0),
       mrr,
+      saasAtivos: saasAtivos.length,
       convRate,
       convRatePrev,
       ticketMedio,
