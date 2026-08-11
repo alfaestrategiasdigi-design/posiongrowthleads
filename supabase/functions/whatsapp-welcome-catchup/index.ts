@@ -48,6 +48,7 @@ Deno.serve(async (req) => {
   const { data: leads, error } = await admin
     .from("leads")
     .select("id, tenant_id, whatsapp, nome_completo, created_at")
+    .is("welcome_sent_at", null)
     .in("origem", FORM_ORIGINS)
     .gte("created_at", since)
     .order("created_at", { ascending: false })
@@ -60,8 +61,14 @@ Deno.serve(async (req) => {
 
   const results: any[] = [];
   let sent = 0;
+  const seenPhones = new Set<string>();
   for (const lead of candidates) {
     if (results.length >= limit) break;
+
+    // Dedupe por telefone dentro do mesmo lote (leads duplicados do mesmo contato)
+    const phoneKey = `${lead.tenant_id ?? "null"}:${onlyDigits(lead.whatsapp).slice(-8)}`;
+    if (seenPhones.has(phoneKey)) continue;
+    seenPhones.add(phoneKey);
 
     // Já existe qualquer mensagem de saída para esse lead? (conversa vinculada)
     const { data: conv } = await admin
