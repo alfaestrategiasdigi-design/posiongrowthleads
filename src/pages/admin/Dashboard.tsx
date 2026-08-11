@@ -17,6 +17,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import CostPerAppointmentCard from "@/components/shared/CostPerAppointmentCard";
 import { useRelatorioData } from "@/hooks/useRelatorioData";
 import FunilVisual from "@/components/relatorios/FunilVisual";
+import BiFunnel from "@/components/relatorios/BiFunnel";
+import KpiSummary from "@/components/relatorios/KpiSummary";
 import RankingsGrid from "@/components/relatorios/RankingsGrid";
 import ChartsGrid from "@/components/relatorios/ChartsGrid";
 import { BarChart3 } from "lucide-react";
