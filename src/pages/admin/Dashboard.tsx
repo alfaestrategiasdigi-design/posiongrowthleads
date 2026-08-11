@@ -435,7 +435,7 @@ export default function Dashboard() {
 
         <SectionTitle icon={GitBranch} title="Pipeline & Agência" subtitle="Funil de vendas POSION → clínicas" />
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
-          <PipelineKPI icon={Building2} label="Ativos no pipeline" value={String(agency.leadsPeriodo - agency.ganhos - agency.perdas.length)} tint="cyan" />
+          <PipelineKPI icon={Building2} label="Ativos no pipeline" value={String(agency.ativosPipeline)} tint="cyan" />
           <PipelineKPI icon={DollarSign} label="Em negociação" value={fmt(agency.pipelineValue)} tint="amber" sub={`${agency.emNegociacao} leads`} />
           <PipelineKPI icon={Trophy} label="Ganhos" value={String(agency.contratosPeriodo.length)} tint="emerald" sub={fmt(agency.receitaAgencia)} />
           <PipelineKPI icon={DollarSign} label="Ticket médio" value={fmt(agency.ticketMedio)} tint="emerald" />
