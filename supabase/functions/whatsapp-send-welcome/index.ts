@@ -147,6 +147,25 @@ Deno.serve(async (req) => {
   const remoteJid = `${phone}@s.whatsapp.net`;
   const base = normalizeBase(conn.instance_url);
 
+  // Reserva atômica: só um disparo por lead (evita corrida trigger + catch-up)
+  {
+    const { data: reserved } = await admin
+      .from("leads")
+      .update({ welcome_sent_at: new Date().toISOString() })
+      .eq("id", lead.id)
+      .is("welcome_sent_at", null)
+      .select("id")
+      .maybeSingle();
+    if (!reserved) {
+      console.info("[welcome][skip] corrida_evitada", auditBase);
+      return json({ skipped: "disparo já reservado por outra execução" });
+    }
+  }
+
+  const releaseReservation = async () => {
+    await admin.from("leads").update({ welcome_sent_at: null }).eq("id", lead.id);
+  };
+
   // Envio (com retry: Evolution devolve "Connection Closed" de forma intermitente)
   let wamid: string | null = null;
   {
@@ -169,7 +188,10 @@ Deno.serve(async (req) => {
         const msg = JSON.stringify(j).toLowerCase();
         const retryable = r.status >= 500 || msg.includes("connection closed") || msg.includes("timeout");
         console.error(`[welcome send fail] attempt=${i + 1} status=${r.status}`, j);
-        if (!retryable) return json({ error: "envio falhou", detail: j }, 502);
+        if (!retryable) {
+          await releaseReservation();
+          return json({ error: "envio falhou", detail: j }, 502);
+        }
       } catch (e) {
         lastDetail = String(e);
         console.error(`[welcome send error] attempt=${i + 1}`, e);
@@ -177,6 +199,7 @@ Deno.serve(async (req) => {
       if (i < attempts - 1) await new Promise((res) => setTimeout(res, 1500 * (i + 1)));
     }
     if (lastDetail !== null && !wamid) {
+      await releaseReservation();
       return json({ error: "envio falhou apos retries", detail: lastDetail }, 502);
     }
   }
