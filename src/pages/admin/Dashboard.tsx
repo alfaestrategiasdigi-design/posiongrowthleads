@@ -149,8 +149,15 @@ export default function Dashboard() {
   const rangeLen = differenceInCalendarDays(range.to, range.from) + 1;
   const prevFrom = subDays(range.from, rangeLen);
   const prevTo = subDays(range.to, rangeLen);
-  const inRange = (iso: string) => { const d = new Date(iso); return d >= range.from && d <= range.to; };
-  const inPrev = (iso: string) => { const d = new Date(iso); return d >= prevFrom && d <= prevTo; };
+  // Comparação por dia (evita erro de fuso em campos DATE como data_assinatura)
+  const fromKey = format(range.from, "yyyy-MM-dd");
+  const toKey = format(range.to, "yyyy-MM-dd");
+  const prevFromKey = format(prevFrom, "yyyy-MM-dd");
+  const prevToKey = format(prevTo, "yyyy-MM-dd");
+  const keyOf = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : format(new Date(iso), "yyyy-MM-dd"));
+  const inRange = (iso: string) => { if (!iso) return false; const k = keyOf(iso); return k >= fromKey && k <= toKey; };
+  const inPrev = (iso: string) => { if (!iso) return false; const k = keyOf(iso); return k >= prevFromKey && k <= prevToKey; };
+
 
   // ============= AGÊNCIA (POSION) =============
   const agency = useMemo(() => {
@@ -165,7 +172,9 @@ export default function Dashboard() {
     const contratosPrev = agencyContracts.filter((c) => inPrev(c.data_assinatura));
 
     const receitaAgencia = contratosPeriodo.reduce((s, c) => s + Number(c.valor_total || 0), 0);
-    const mrr = saasContracts.filter((s) => s.status === "active").reduce((s, c) => s + Number(c.mrr || 0), 0);
+    // MRR: apenas assinaturas ativas que já existiam ao fim do período selecionado
+    const saasAtivos = saasContracts.filter((s) => s.status === "active" && (!s.started_at || keyOf(s.started_at) <= toKey));
+    const mrr = saasAtivos.reduce((s, c) => s + Number(c.mrr || 0), 0);
 
     const stageCount: Record<string, number> = {};
     kanbanLeads.forEach((l) => { stageCount[l.stage] = (stageCount[l.stage] || 0) + 1; });
@@ -193,11 +202,11 @@ export default function Dashboard() {
     const days = eachDayOfInterval({ start: range.from, end: range.to });
     const leadsSeries = days.map((d) => {
       const key = format(d, "yyyy-MM-dd");
-      return leadsPeriodo.filter((l) => l.created_at.startsWith(key)).length;
+      return leadsPeriodo.filter((l) => keyOf(l.created_at) === key).length;
     });
     const ganhosSeries = days.map((d) => {
       const key = format(d, "yyyy-MM-dd");
-      return contratosPeriodo.filter((c) => c.data_assinatura === key).length;
+      return contratosPeriodo.filter((c) => keyOf(c.data_assinatura) === key).length;
     });
     const convSeries = days.map((_d, i) => {
       const lc = leadsSeries[i] || 0;
@@ -228,6 +237,7 @@ export default function Dashboard() {
       receitaAgencia,
       receitaAgenciaPrev: contratosPrev.reduce((s, c) => s + Number(c.valor_total || 0), 0),
       mrr,
+      saasAtivos: saasAtivos.length,
       convRate,
       convRatePrev,
       ticketMedio,
@@ -249,14 +259,20 @@ export default function Dashboard() {
     return days.map((d) => {
       const dayKey = format(d, "yyyy-MM-dd");
       const receitaContratos = agencyContracts
-        .filter((c) => c.data_assinatura === dayKey)
+        .filter((c) => c.data_assinatura && keyOf(c.data_assinatura) === dayKey)
         .reduce((s, c) => s + Number(c.valor_total || 0), 0);
       const label = format(d, "dd/MM", { locale: ptBR });
       return { day: label, receita: receitaContratos };
     });
   }, [agencyContracts, range]);
 
-  const activeTenants = tenants.filter((t) => t.status === "active").length;
+  // Clientes existentes até o fim do período selecionado
+  const tenantsPeriodo = useMemo(
+    () => tenants.filter((t) => !t.created_at || keyOf(t.created_at) <= toKey),
+    [tenants, toKey],
+  );
+  const activeTenants = tenantsPeriodo.filter((t) => t.status === "active").length;
+
 
   const saveGoal = () => {
     const n = Math.max(0, Number(goalDraft.replace(/[^\d]/g, "")) || 0);
@@ -628,8 +644,9 @@ export default function Dashboard() {
       <section>
         <SectionTitle icon={Building2} title="Clientes POSION" subtitle="Contagem de clínicas — dados operacionais ficam em cada tenant" />
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <KPI icon={Building2} label="Clínicas ativas" value={String(activeTenants)} sub={`${tenants.length} totais`} />
-          <KPI icon={FileText} label="Contratos SaaS ativos" value={saasContracts.filter((s) => s.status === "active").length > 0 ? String(saasContracts.filter((s) => s.status === "active").length) : "—"} sub={saasContracts.filter((s) => s.status === "active").length === 0 ? "nenhuma assinatura SaaS ativa" : undefined} />
+          <KPI icon={Building2} label="Clínicas ativas" value={String(activeTenants)} sub={`${tenantsPeriodo.length} totais no período`} />
+          <KPI icon={FileText} label="Contratos SaaS ativos" value={agency.saasAtivos > 0 ? String(agency.saasAtivos) : "—"} sub={agency.saasAtivos === 0 ? "nenhuma assinatura SaaS ativa" : undefined} />
+
           <KPI icon={Sparkles} label="MRR total" value={agency.mrr > 0 ? fmt(agency.mrr) : "—"} sub={agency.mrr === 0 ? "aguardando primeira assinatura" : undefined} />
         </div>
         <div className="pt-3">
