@@ -462,7 +462,7 @@ function ConfigTab() {
               O Ad Account salvo é um placeholder (<code className="font-mono">{meta?.ad_account_id}</code>). É por isso que a página de <b>Campanhas</b> mostra "permissão ads_read ausente" — a chamada falha porque a conta não existe.
             </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
             <Input
               value={adAccountId}
               onChange={(e) => setAdAccountId(e.target.value)}
@@ -496,7 +496,7 @@ function ConfigTab() {
               </Badge>
             )}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
             <select
               value={defaultTenantId}
               onChange={(e) => setDefaultTenantId(e.target.value)}
@@ -720,7 +720,7 @@ function BackfillAndDebugBlock() {
             (duplicados ignorados pelo <code>facebook_lead_id</code>). Deixe IDs em branco para importar de todos os formulários.
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-[1fr,160px] gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_160px] gap-2">
           <Input
             value={formIds}
             onChange={(e) => setFormIds(e.target.value)}
@@ -1435,14 +1435,14 @@ const FacebookConfigPage = () => {
       </div>
 
       <Tabs defaultValue="config" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="gestao">Gestão de Campanhas Meta</TabsTrigger>
-          <TabsTrigger value="leads">Leads do Facebook</TabsTrigger>
-          <TabsTrigger value="import">Importar CSV</TabsTrigger>
-          <TabsTrigger value="config">Configuração</TabsTrigger>
+        <TabsList className="w-full flex overflow-x-auto justify-start no-scrollbar">
+          <TabsTrigger className="shrink-0" value="gestao">Gestão de Campanhas Meta</TabsTrigger>
+          <TabsTrigger className="shrink-0" value="leads">Leads do Facebook</TabsTrigger>
+          <TabsTrigger className="shrink-0" value="import">Importar CSV</TabsTrigger>
+          <TabsTrigger className="shrink-0" value="config">Configuração</TabsTrigger>
         </TabsList>
         <TabsContent value="gestao">
-          <div className="-mx-6">
+          <div className="-mx-4 md:-mx-6">
             <MetaAdsAdminPage />
           </div>
         </TabsContent>

@@ -149,7 +149,11 @@ export default function PipelineStagesDialog({
       onSaved();
     } catch (e: any) {
       console.error(e);
-      toast.error("Erro ao salvar etapas — apenas administradores podem editar o funil");
+      toast.error("Erro ao salvar etapas", {
+        description: e?.message?.includes("row-level security") || e?.code === "42501"
+          ? "Apenas o dono ou administradores do cliente podem editar o funil."
+          : e?.message || "Tente novamente.",
+      });
     } finally {
       setSaving(false);
     }

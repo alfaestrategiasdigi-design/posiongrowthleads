@@ -78,8 +78,8 @@ export function useLeadTasks(source: LeadSource | null, leadId: string | null, t
       let next_send_at = extra.next_send_at ?? null;
       if (extra.task_type === "mensagem" && extra.scheduled_date && !next_send_at) {
         const t = extra.scheduled_time || "09:00";
-        const iso = new Date(`${extra.scheduled_date}T${t}:00`).toISOString();
-        next_send_at = iso;
+        const d = new Date(`${extra.scheduled_date}T${t}:00`);
+        next_send_at = isNaN(d.getTime()) ? null : d.toISOString();
       }
       const payload: any = {
         ...extra,

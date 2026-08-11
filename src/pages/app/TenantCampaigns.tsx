@@ -552,7 +552,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-[1600px] mx-auto">
+    <div className="p-3 sm:p-4 md:p-6 space-y-5 max-w-[1600px] mx-auto overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
@@ -595,7 +595,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       {/* Bloco 1: Mídia (Meta) */}
       <div>
         <div className="text-[10px] uppercase tracking-[0.22em] text-amber-400/80 mb-2">Mídia · Meta Ads</div>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-3">
           <Kpi icon={Activity} label="Ativas" value={`${kpis.active}/${kpis.total}`} tone="primary" />
           <Kpi icon={DollarSign} label="Investido" value={BRL(kpis.spend)} tone="amber"
                series={dailyTotals} dataKey="spend" formatter={(v) => BRL(v)} delta={deltas.spend} />
@@ -612,7 +612,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
         <div className="text-[10px] uppercase tracking-[0.22em] text-cyan-400/80 mb-2">
           {isMasterAccount ? "Funil da Agência" : "Funil do negócio"}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-7 gap-2 sm:gap-3">
           <Kpi icon={Users} label="Leads" value={NUM(kpis.leads)} tone="cyan"
                series={dailyTotals} dataKey="leads" formatter={(v) => NUM(v)} delta={deltas.leads} />
           <Kpi icon={Target} label="CPL" value={BRL(kpis.cpl)} tone="violet" />
@@ -627,7 +627,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
       {/* Bloco 3: Resultado · CRM (mesmos KPIs; "Vendas" vira "Contratos" no Posion Master) */}
       <div>
         <div className="text-[10px] uppercase tracking-[0.22em] text-emerald-400/80 mb-2">Resultado · CRM</div>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2 sm:gap-3">
           <Kpi icon={Star} label={isMasterAccount ? "Contratos" : "Vendas"} value={NUM(kpis.wins)} tone="emerald" />
           <Kpi icon={DollarSign} label="Ticket Médio" value={kpis.wins ? BRL(kpis.ticket) : "—"} tone="amber" />
           <Kpi icon={TrendingUp} label="Receita" value={BRL(kpis.revenue)} tone="emerald" />
@@ -735,7 +735,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
         <div className="text-[10px] uppercase tracking-[0.22em] text-primary/70 mr-2">
           Performance · {visibleCampaigns.length}/{campaigns.length}
         </div>
-        <div className="relative flex-1 min-w-[180px] max-w-xs">
+        <div className="relative flex-1 min-w-full sm:min-w-[180px] sm:max-w-xs">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
@@ -745,14 +745,14 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
           />
         </div>
         <Select value={objectiveFilter} onValueChange={setObjectiveFilter}>
-          <SelectTrigger className="h-8 text-xs w-[140px] bg-background/60"><SelectValue placeholder="Objetivo" /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs w-full sm:w-[140px] bg-background/60"><SelectValue placeholder="Objetivo" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos objetivos</SelectItem>
             {objectiveOptions.map((o) => <SelectItem key={o} value={o}>{formatObjective(o)}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={sortKey} onValueChange={(v) => setSortKey(v as any)}>
-          <SelectTrigger className="h-8 text-xs w-[150px] bg-background/60">
+          <SelectTrigger className="h-8 text-xs w-full sm:w-[150px] bg-background/60">
             <ArrowDownAZ className="w-3.5 h-3.5 mr-1" /><SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -765,7 +765,7 @@ export default function TenantCampaigns({ tenantOverride }: { tenantOverride?: {
           </SelectContent>
         </Select>
         <Select value={groupBy} onValueChange={(v) => setGroupBy(v as any)}>
-          <SelectTrigger className="h-8 text-xs w-[140px] bg-background/60"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs w-full sm:w-[140px] bg-background/60"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">Sem agrupar</SelectItem>
             <SelectItem value="account">Por conta</SelectItem>

@@ -981,7 +981,8 @@ Deno.serve(async (req) => {
     if (trigger === "form_submitted" || trigger === "lead_entered") {
       const cfgName = String(cfg.form_name || "").trim().toLowerCase();
       const cfgId = String(cfg.form_id || "").trim();
-      if (!cfgName && !cfgId) {
+      const isTenantGreeting = !!flow.tenant_id && String(cfg.key || "") === "auto_form_greeting";
+      if (!cfgName && !cfgId && !isTenantGreeting) {
         console.log("[automation-dispatch] skip_flow_no_form_filter", { flow_id: flow.id });
         continue;
       }
