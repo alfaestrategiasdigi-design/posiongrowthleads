@@ -429,7 +429,33 @@ export default function Dashboard() {
           />
         </div>
       </div>
+
+      {/* Performance consolidada — mesmo período do filtro global */}
+      <section className="mt-6">
+        <SectionTitle icon={BarChart3} title="Performance consolidada" subtitle="KPIs, funil rico e rankings — mesmo período selecionado acima" />
+        {relatorioQuery.isLoading && (
+          <div className="premium-card rounded-xl p-10 flex items-center justify-center">
+            <Loader2 className="w-5 h-5 animate-spin text-amber-400" />
+          </div>
+        )}
+        {relatorioQuery.isError && (
+          <div className="premium-card rounded-xl p-6 text-sm text-rose-300">
+            Não foi possível carregar as métricas consolidadas. Tente novamente em instantes.
+          </div>
+        )}
+        {relatorio && (
+          <div className="space-y-4">
+            <KpiSummary kpis={relatorio.kpis} scope="admin" />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <BiFunnel funil={relatorio.biFunnel} />
+              <FunilVisual funil={relatorio.funil} />
+            </div>
+            <RankingsGrid closers={relatorio.rankingClosers} sdrs={relatorio.rankingSdrs} />
+          </div>
+        )}
+      </section>
       </TabsContent>
+
 
       {/* PIPELINE & AGÊNCIA */}
       <TabsContent value="pipeline" className="mt-0">
