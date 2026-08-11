@@ -1999,6 +1999,7 @@ export type Database = {
           valor_perdido: number | null
           valor_proposta: number | null
           visitor_id: string | null
+          welcome_sent_at: string | null
           whatsapp: string
         }
         Insert: {
@@ -2053,6 +2054,7 @@ export type Database = {
           valor_perdido?: number | null
           valor_proposta?: number | null
           visitor_id?: string | null
+          welcome_sent_at?: string | null
           whatsapp: string
         }
         Update: {
@@ -2107,6 +2109,7 @@ export type Database = {
           valor_perdido?: number | null
           valor_proposta?: number | null
           visitor_id?: string | null
+          welcome_sent_at?: string | null
           whatsapp?: string
         }
         Relationships: [
