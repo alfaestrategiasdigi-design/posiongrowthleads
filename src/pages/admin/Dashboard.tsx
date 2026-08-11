@@ -172,7 +172,9 @@ export default function Dashboard() {
     const contratosPrev = agencyContracts.filter((c) => inPrev(c.data_assinatura));
 
     const receitaAgencia = contratosPeriodo.reduce((s, c) => s + Number(c.valor_total || 0), 0);
-    const mrr = saasContracts.filter((s) => s.status === "active").reduce((s, c) => s + Number(c.mrr || 0), 0);
+    // MRR: apenas assinaturas ativas que já existiam ao fim do período selecionado
+    const saasAtivos = saasContracts.filter((s) => s.status === "active" && (!s.started_at || keyOf(s.started_at) <= toKey));
+    const mrr = saasAtivos.reduce((s, c) => s + Number(c.mrr || 0), 0);
 
     const stageCount: Record<string, number> = {};
     kanbanLeads.forEach((l) => { stageCount[l.stage] = (stageCount[l.stage] || 0) + 1; });
