@@ -70,8 +70,8 @@ export default function LeadSDRTab({ lead, onSave }: Props) {
           <div className="text-sm font-semibold">Qualificação SDR — GPCT</div>
           <div className="text-[11px] text-muted-foreground">
             Goals · Plans · Challenges · Timeline
-            {lead.sdr?.updated_at && (
-              <> · atualizado {format(new Date(lead.sdr.updated_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</>
+            {safeFormat(lead.sdr?.updated_at, "dd/MM/yyyy HH:mm") && (
+              <> · atualizado {safeFormat(lead.sdr?.updated_at, "dd/MM/yyyy HH:mm")}</>
             )}
           </div>
         </div>
