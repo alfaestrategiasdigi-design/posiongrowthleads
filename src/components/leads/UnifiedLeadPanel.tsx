@@ -114,35 +114,38 @@ const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated, entityKind
               </TabsList>
 
               <div className="flex-1 overflow-y-auto p-5">
-                <TabsContent value="summary" className="mt-0">
-                  <LeadSummaryTab
-                    lead={lead}
-                    entityKind={kind}
-                    onSave={async (patch) => {
-                      const { error } = await savePatch(patch);
-                      if (!error) onUpdated?.();
-                    }}
-                  />
-                </TabsContent>
-                <TabsContent value="form" className="mt-0">
-                  <LeadFormAnswersTab lead={lead} />
-                </TabsContent>
-                <TabsContent value="sdr" className="mt-0">
-                  <LeadSDRTab
-                    lead={lead}
-                    onSave={async (sdr) => {
-                      const { error } = await saveSDR(sdr);
-                      if (!error) {
-                        onUpdated?.();
-                        reload();
-                      }
-                    }}
-                  />
-                </TabsContent>
-                <TabsContent value="tasks" className="mt-0">
-                  <LeadTasksTab lead={lead} />
-                </TabsContent>
+                <AdminErrorBoundary>
+                  <TabsContent value="summary" className="mt-0">
+                    <LeadSummaryTab
+                      lead={lead}
+                      entityKind={kind}
+                      onSave={async (patch) => {
+                        const { error } = await savePatch(patch);
+                        if (!error) onUpdated?.();
+                      }}
+                    />
+                  </TabsContent>
+                  <TabsContent value="form" className="mt-0">
+                    <LeadFormAnswersTab lead={lead} />
+                  </TabsContent>
+                  <TabsContent value="sdr" className="mt-0">
+                    <LeadSDRTab
+                      lead={lead}
+                      onSave={async (sdr) => {
+                        const { error } = await saveSDR(sdr);
+                        if (!error) {
+                          onUpdated?.();
+                          reload();
+                        }
+                      }}
+                    />
+                  </TabsContent>
+                  <TabsContent value="tasks" className="mt-0">
+                    <LeadTasksTab lead={lead} />
+                  </TabsContent>
+                </AdminErrorBoundary>
               </div>
+
             </Tabs>
           </>
         )}
