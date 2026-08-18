@@ -100,34 +100,56 @@ export default function LoginPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true); setError("");
-    try {
-      const { error: err } = await withAuthTimeout(
-        supabase.auth.signInWithPassword({
-          email: email.trim().toLowerCase(),
-          password,
-        }),
-        LOGIN_TIMEOUT_MS,
-      );
-      if (err) {
-        const msg = (err.message || "").toLowerCase();
-        const isNetwork = isNetworkAuthError(err);
-        setError(
-          isNetwork
-            ? "Não foi possível conectar ao servidor. Tente novamente em instantes."
-            : "E-mail ou senha incorretos"
+
+    // Tokens corrompidos no localStorage fazem o primeiro login falhar sem motivo.
+    clearStoredAuthSession();
+
+    // Falhas de rede/cold start do servidor de auth são transitórias: tenta de novo
+    // automaticamente em vez de exigir que o usuário clique várias vezes.
+    const MAX_ATTEMPTS = 3;
+    let lastFailure: unknown = null;
+    let signedIn = false;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      try {
+        const { error: err } = await withAuthTimeout(
+          supabase.auth.signInWithPassword({
+            email: email.trim().toLowerCase(),
+            password,
+          }),
+          LOGIN_TIMEOUT_MS,
         );
-        setSubmitting(false);
-        return;
+        if (!err) { signedIn = true; break; }
+        if (!isNetworkAuthError(err)) {
+          setError("E-mail ou senha incorretos");
+          setSubmitting(false);
+          return;
+        }
+        lastFailure = err;
+      } catch (authError) {
+        if (!isNetworkAuthError(authError)) {
+          setError("Não foi possível validar sua sessão. Entre novamente.");
+          setSubmitting(false);
+          return;
+        }
+        lastFailure = authError;
       }
-    } catch (authError) {
+      if (attempt < MAX_ATTEMPTS) {
+        setError(`Servidor demorando para responder — tentando novamente (${attempt}/${MAX_ATTEMPTS})…`);
+        await new Promise((r) => setTimeout(r, attempt * 1200));
+      }
+    }
+
+    if (!signedIn) {
       setError(
-        isNetworkAuthError(authError)
+        isNetworkAuthError(lastFailure)
           ? "Não foi possível conectar ao servidor. Tente novamente em instantes."
           : "Não foi possível validar sua sessão. Entre novamente."
       );
       setSubmitting(false);
       return;
     }
+    setError("");
 
     try {
       const { data: { user }, error: userError } = await withAuthTimeout(supabase.auth.getUser());
