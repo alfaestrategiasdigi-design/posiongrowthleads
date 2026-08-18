@@ -7,8 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Save, Target, TrendingUp, Flame, Snowflake } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { safeFormat } from "@/lib/safe-date";
 import type { UnifiedLeadView, SDRQualification } from "@/hooks/useUnifiedLead";
 
 const TIMELINES = [
