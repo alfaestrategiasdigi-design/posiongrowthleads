@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import AdminErrorBoundary from "@/components/admin/AdminErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MessageCircle, Loader2, User, Building2, Phone, Mail, MapPin, DollarSign } from "lucide-react";
@@ -114,35 +115,38 @@ const UnifiedLeadPanel = ({ source, leadId, open, onClose, onUpdated, entityKind
               </TabsList>
 
               <div className="flex-1 overflow-y-auto p-5">
-                <TabsContent value="summary" className="mt-0">
-                  <LeadSummaryTab
-                    lead={lead}
-                    entityKind={kind}
-                    onSave={async (patch) => {
-                      const { error } = await savePatch(patch);
-                      if (!error) onUpdated?.();
-                    }}
-                  />
-                </TabsContent>
-                <TabsContent value="form" className="mt-0">
-                  <LeadFormAnswersTab lead={lead} />
-                </TabsContent>
-                <TabsContent value="sdr" className="mt-0">
-                  <LeadSDRTab
-                    lead={lead}
-                    onSave={async (sdr) => {
-                      const { error } = await saveSDR(sdr);
-                      if (!error) {
-                        onUpdated?.();
-                        reload();
-                      }
-                    }}
-                  />
-                </TabsContent>
-                <TabsContent value="tasks" className="mt-0">
-                  <LeadTasksTab lead={lead} />
-                </TabsContent>
+                <AdminErrorBoundary>
+                  <TabsContent value="summary" className="mt-0">
+                    <LeadSummaryTab
+                      lead={lead}
+                      entityKind={kind}
+                      onSave={async (patch) => {
+                        const { error } = await savePatch(patch);
+                        if (!error) onUpdated?.();
+                      }}
+                    />
+                  </TabsContent>
+                  <TabsContent value="form" className="mt-0">
+                    <LeadFormAnswersTab lead={lead} />
+                  </TabsContent>
+                  <TabsContent value="sdr" className="mt-0">
+                    <LeadSDRTab
+                      lead={lead}
+                      onSave={async (sdr) => {
+                        const { error } = await saveSDR(sdr);
+                        if (!error) {
+                          onUpdated?.();
+                          reload();
+                        }
+                      }}
+                    />
+                  </TabsContent>
+                  <TabsContent value="tasks" className="mt-0">
+                    <LeadTasksTab lead={lead} />
+                  </TabsContent>
+                </AdminErrorBoundary>
               </div>
+
             </Tabs>
           </>
         )}

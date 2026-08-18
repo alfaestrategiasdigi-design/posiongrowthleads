@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Save } from "lucide-react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { safeFormat } from "@/lib/safe-date";
 import type { UnifiedLeadView } from "@/hooks/useUnifiedLead";
 import { PIPELINE_STAGES, CLIENT_PIPELINE_STAGES } from "@/types/admin";
 import LeadAppointmentsSection from "@/components/tenant/LeadAppointmentsSection";
@@ -231,28 +230,28 @@ export default function LeadSummaryTab({ lead, onSave, entityKind }: Props) {
           </>
         )}
 
-        {lead.source === "lead" && lead.raw.reuniao_agendada_em && (
+        {lead.source === "lead" && safeFormat(lead.raw.reuniao_agendada_em, "dd/MM/yyyy 'às' HH:mm") && (
           <Field
             label="Reunião agendada"
-            value={format(new Date(lead.raw.reuniao_agendada_em), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+            value={safeFormat(lead.raw.reuniao_agendada_em, "dd/MM/yyyy 'às' HH:mm")}
           />
         )}
-        {lead.source === "lead" && lead.raw.reuniao_realizada_em && (
+        {lead.source === "lead" && safeFormat(lead.raw.reuniao_realizada_em, "dd/MM/yyyy 'às' HH:mm") && (
           <Field
             label="Reunião realizada"
-            value={format(new Date(lead.raw.reuniao_realizada_em), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+            value={safeFormat(lead.raw.reuniao_realizada_em, "dd/MM/yyyy 'às' HH:mm")}
           />
         )}
-        {lead.source === "agency_lead" && lead.raw.proximo_followup && (
+        {lead.source === "agency_lead" && safeFormat(lead.raw.proximo_followup, "dd/MM/yyyy 'às' HH:mm") && (
           <Field
             label="Próxima reunião"
-            value={format(new Date(lead.raw.proximo_followup), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+            value={safeFormat(lead.raw.proximo_followup, "dd/MM/yyyy 'às' HH:mm")}
           />
         )}
 
         <Field
           label="Criado em"
-          value={lead.createdAt ? format(new Date(lead.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : null}
+          value={safeFormat(lead.createdAt, "dd/MM/yyyy 'às' HH:mm")}
         />
       </div>
 
