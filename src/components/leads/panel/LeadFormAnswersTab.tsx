@@ -1,6 +1,5 @@
 import { FileText, Megaphone } from "lucide-react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { safeFormat } from "@/lib/safe-date";
 import type { UnifiedLeadView } from "@/hooks/useUnifiedLead";
 
 const prettifyLabel = (s: string) =>
@@ -98,10 +97,10 @@ export default function LeadFormAnswersTab({ lead }: { lead: UnifiedLeadView }) 
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
             {fb.form_id && <Cell label="Form ID" value={String(fb.form_id)} mono />}
-            {fb.created_time && (
+            {safeFormat(fb.created_time, "dd/MM/yyyy 'às' HH:mm") && (
               <Cell
                 label="Enviado em"
-                value={format(new Date(fb.created_time), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                value={safeFormat(fb.created_time, "dd/MM/yyyy 'às' HH:mm")!}
               />
             )}
             {(fb.campaign_name || lead.raw.facebook_campaign) && (
