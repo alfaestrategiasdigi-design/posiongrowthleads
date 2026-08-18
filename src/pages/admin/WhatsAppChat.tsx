@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import QuickReplies from "@/components/admin/whatsapp/QuickReplies";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -1387,6 +1388,11 @@ const WhatsAppChat = ({ tenantId = null, tenantSlug = null, tenantName = null, m
             ) : (
               <div className="flex items-center gap-2">
                 <button className="wa-icon-btn !h-10 !w-10 shrink-0"><Smile className="w-5 h-5" /></button>
+                <QuickReplies
+                  tenantId={tenantId}
+                  contactName={selectedConversation?.nome_contato ?? null}
+                  onPick={(text) => setNewMessage((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text))}
+                />
                 <button className="wa-icon-btn !h-10 !w-10 shrink-0" onClick={handleAttach} disabled={uploading}>
                   {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
                 </button>
