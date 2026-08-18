@@ -52,8 +52,22 @@ const isHiddenField = (f: any) => {
   return HIDDEN_NAMES.has(n);
 };
 
+/** form_fields pode vir como array, objeto {campo: valor} ou string JSON. Normaliza tudo. */
+const normalizeFields = (raw: any): any[] => {
+  if (!raw) return [];
+  let val = raw;
+  if (typeof val === "string") {
+    try { val = JSON.parse(val); } catch { return []; }
+  }
+  if (Array.isArray(val)) return val.filter((f) => f && typeof f === "object");
+  if (typeof val === "object") {
+    return Object.entries(val).map(([name, value]) => ({ name, label: name, value }));
+  }
+  return [];
+};
+
 export default function LeadFormAnswersTab({ lead }: { lead: UnifiedLeadView }) {
-  const allFields: any[] = lead.formFields || [];
+  const allFields: any[] = normalizeFields(lead.formFields);
   const questionFields = allFields.filter((f) => !isHiddenField(f));
   const contactFields = allFields.filter(isHiddenField);
   const fb = lead.facebookMeta || {};
